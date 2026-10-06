@@ -36,4 +36,6 @@ This establishes the main integration for **that session/map/bus combination**. 
 
 The four executable hashes in [the approved binary manifest](releases/v1.1.3-binaries.sha256) come from the package used for this live test. Publication takes the ZIP from a successful Linux/Windows Source checks run, verifies its external checksum, its full internal manifest and those four hashes, uploads both release assets as a draft, checks the uploaded assets and publishes an experimental prerelease. Documentation and packaging additions change the ZIP checksum while executable identity is preserved. Private repository visibility is retained.
 
+Cross-platform comparison found only 39–40 changed bytes per Setup/launcher/facade binary, entirely inside Go's embedded build-ID string. Restoring the recorded ID made each whole-file SHA-256 identical to the live-tested executable; the plugin host already matched without changes. The build restores this metadata before package tests and rejects any remaining whole-file difference. Details are in [the build guide](BUILD.md).
+
 No vendor approval or malware certification is claimed.

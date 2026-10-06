@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -50,6 +51,33 @@ HOST_SOURCES = ["pluginhost/" + name for name in (
 def run(go: str, args: list[str], env: dict[str, str]) -> None:
     print("+ go " + " ".join(args), flush=True)
     subprocess.run([go, *args], cwd=SOURCE, env=env, check=True)
+
+
+def pin_release_build_id(path: Path, relative_path: str) -> None:
+    """Restore tested Go build metadata, then require the entire tested binary."""
+    release = ROOT / "docs/releases"
+    metadata = release / f"v{VERSION}-buildids.json"
+    if not metadata.is_file():
+        return
+    identifiers = json.loads(metadata.read_text(encoding="utf-8"))
+    if relative_path not in identifiers:
+        return
+    data = path.read_bytes()
+    matches = list(re.finditer(rb'Go build ID: "([^"\n]+)"', data))
+    wanted = identifiers[relative_path].encode("ascii")
+    if len(matches) != 1 or len(matches[0].group(1)) != len(wanted):
+        raise ValueError(f"Unexpected Go build ID layout: {relative_path}")
+    start, end = matches[0].span(1)
+    normalized = data[:start] + wanted + data[end:]
+    approved = dict((name, digest) for digest, name in (
+        line.split("  ", 1)
+        for line in (release / f"v{VERSION}-binaries.sha256").read_text(encoding="utf-8").splitlines()
+        if line
+    ))
+    if hashlib.sha256(normalized).hexdigest() != approved[relative_path]:
+        raise ValueError(f"Compiled code differs from the approved release: {relative_path}")
+    path.write_bytes(normalized)
+    print(f"Exact live-tested executable restored after Go build-ID normalization: {relative_path}", flush=True)
 
 
 def assemble(stage: Path, host_hash: str) -> None:
@@ -146,6 +174,7 @@ def main() -> int:
             if "plugin_host.go" in sources:
                 flags += " " + digest_flag
             run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=" + flags, "-o", str(target), *sources], windows)
+            pin_release_build_id(target, rel)
         symbols = Path(temporary) / "facade-symbols.exe"
         run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-H=windowsgui", "-o", str(symbols),
                  *PROGRAMS["app/compat/Omsi.exe"]], windows)
