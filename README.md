@@ -4,7 +4,7 @@ An experimental, unofficial bridge between **openOMSI** and **Bus Company Simula
 
 [Português do Brasil](README.pt-BR.md) · [Download v1.1.3](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3) · [Installation](docs/INSTALL.md) · [Build](docs/BUILD.md) · [Credits](CREDITS.md)
 
-**Ready-to-use Windows ZIP:** [OpenOMSI_BCS_Bridge_v1.1.3_by_Mayconrib808.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v1.1.3/OpenOMSI_BCS_Bridge_v1.1.3_by_Mayconrib808.zip). Download this asset for Setup.exe and the complete runtime. GitHub’s automatic “Source code” archives need a build first. Repository access is required while this repository is private.
+**Ready-to-use Windows ZIP:** [OpenOmsi + BBS 1.1.3.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v1.1.3/OpenOmsi.%2B.BBS.1.1.3.zip). Download this asset for Setup.exe and the complete runtime. GitHub’s automatic “Source code” archives need a build first. Repository access is required while this repository is private. GitHub replaces spaces with dots in the downloaded filename.
 
 **v1.1.3 builds a complete bridge ZIP.** Setup, launcher, compatibility facade and the new 32-bit plugin host are built from the included source. The host is bundled and deployed automatically by Setup: users do not download another helper or install development tools. The earlier host with unresolved provenance is excluded.
 

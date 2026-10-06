@@ -4,7 +4,7 @@ Ponte experimental e não oficial entre **openOMSI** e **Bus Company Simulator /
 
 [English](README.md) · [Baixar v1.1.3](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3) · [Instalação](docs/INSTALL.md) · [Compilação](docs/BUILD.md) · [Créditos](CREDITS.md)
 
-**ZIP pronto para usar no Windows:** [OpenOMSI_BCS_Bridge_v1.1.3_by_Mayconrib808.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v1.1.3/OpenOMSI_BCS_Bridge_v1.1.3_by_Mayconrib808.zip). Esse arquivo contém Setup.exe e o pacote completo. Os arquivos automáticos “Source code” precisam ser compilados. Enquanto o repositório estiver privado, é necessário ter acesso a ele para baixar.
+**ZIP pronto para usar no Windows:** [OpenOmsi + BBS 1.1.3.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v1.1.3/OpenOmsi.%2B.BBS.1.1.3.zip). Esse arquivo contém Setup.exe e o pacote completo. Os arquivos automáticos “Source code” precisam ser compilados. Enquanto o repositório estiver privado, é necessário ter acesso a ele para baixar. O GitHub substitui os espaços por pontos no nome do arquivo baixado.
 
 **A v1.1.3 gera um ZIP completo da ponte.** Setup, lançador, fachada de compatibilidade e novo auxiliar de 32 bits são compilados com o código incluído. O auxiliar vem no pacote e é preparado automaticamente pelo Setup. Quem usa não precisa procurar outro download ou instalar ferramentas de desenvolvimento. O auxiliar antigo, cuja origem não foi confirmada, fica excluído.
 

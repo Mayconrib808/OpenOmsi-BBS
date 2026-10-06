@@ -13,7 +13,9 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (ROOT / "source/version.go").read_text()).group(1)
-PACKAGE = f"OpenOMSI_BCS_Bridge_v{VERSION}_by_Mayconrib808.zip"
+PACKAGE = f"OpenOmsi.+.BBS.{VERSION}.zip"
+PACKAGE_LABEL = f"OpenOmsi + BBS {VERSION}.zip"
+LEGACY_PACKAGE = f"OpenOMSI_BCS_Bridge_v{VERSION}_by_Mayconrib808.zip"
 RELEASE_DIR = ROOT / "docs/releases"
 
 
@@ -65,6 +67,45 @@ def gh(*args: str) -> str:
     return subprocess.check_output(["gh", *args], text=True)
 
 
+def finish_asset_rename(repo: str, release: dict, directory: Path) -> None:
+    """Refresh renamed v1.1.3 metadata without replacing its tested ZIP."""
+    assets = {item["name"]: item for item in release["assets"]}
+    old_checksum = assets.get(LEGACY_PACKAGE + ".sha256")
+    if old_checksum is None:
+        return
+    published = RELEASE_DIR / f"v{VERSION}-package.sha256"
+    approved = hashes(published.read_text(encoding="utf-8"))
+    archive = assets.get(PACKAGE) or assets.get(LEGACY_PACKAGE)
+    if archive is None or archive["state"] != "uploaded" or set(approved) != {PACKAGE}:
+        raise ValueError("Cannot identify the published ZIP for renaming")
+    digest = approved[PACKAGE]
+    old_digests = {"sha256:" + hashlib.sha256(f"{digest}  {LEGACY_PACKAGE}{newline}".encode()).hexdigest() for newline in ("\n", "\r\n")}
+    if archive.get("digest") != "sha256:" + digest or old_checksum.get("digest") not in old_digests:
+        raise ValueError("Published ZIP or legacy checksum differs from the recorded release")
+    directory.mkdir(parents=True, exist_ok=True)
+    checksum = directory / (PACKAGE + ".sha256")
+    checksum.write_text(f"{digest}  {PACKAGE}\n", encoding="utf-8")
+    checksum_digest = "sha256:" + hashlib.sha256(checksum.read_bytes()).hexdigest()
+    current = assets.get(checksum.name)
+    if current is None:
+        gh("release", "upload", release["tag_name"], str(checksum) + "#" + PACKAGE_LABEL + ".sha256", "--repo", repo)
+    elif current.get("digest") != checksum_digest:
+        raise ValueError("A different checksum already exists under the new name")
+    updated = json.loads(gh("api", f"repos/{repo}/releases/{release['id']}"))
+    uploaded = next(item for item in updated["assets"] if item["name"] == checksum.name)
+    if uploaded.get("digest") != checksum_digest or uploaded["size"] != checksum.stat().st_size or uploaded["state"] != "uploaded":
+        raise ValueError("Renamed checksum upload mismatch")
+    gh("api", "--method", "PATCH", f"repos/{repo}/releases/assets/{archive['id']}",
+       "-f", "name=" + PACKAGE, "-f", "label=" + PACKAGE_LABEL)
+    # Only remove the obsolete, fully reproducible checksum after its checked
+    # replacement is available. The ZIP asset and its bytes remain intact.
+    gh("api", "--method", "DELETE", f"repos/{repo}/releases/assets/{old_checksum['id']}")
+    body = release["body"].replace(LEGACY_PACKAGE, PACKAGE_LABEL)
+    if body != release["body"]:
+        gh("api", "--method", "PATCH", f"repos/{repo}/releases/{release['id']}", "-f", "body=" + body)
+    print(f"Renamed release metadata; original ZIP SHA-256 preserved: {digest}", flush=True)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--verify-only", type=Path)
@@ -92,6 +133,7 @@ def main() -> None:
     existing = json.loads(gh("api", f"repos/{repo}/releases?per_page=100"))
     for release in existing:
         if release["tag_name"] == tag:
+            finish_asset_rename(repo, release, args.artifact_dir)
             print(f"Release already exists; existing assets preserved: {release['html_url']}")
             return
     args.artifact_dir.mkdir(parents=True, exist_ok=False)
@@ -100,7 +142,8 @@ def main() -> None:
     digest = verify_package(archive)
     checksum = archive.with_name(archive.name + ".sha256")
     # Upload as a draft, check both assets, then make the prerelease available.
-    gh("release", "create", tag, str(archive), str(checksum), "--repo", repo,
+    gh("release", "create", tag, str(archive) + "#" + PACKAGE_LABEL,
+       str(checksum) + "#" + PACKAGE_LABEL + ".sha256", "--repo", repo,
        "--target", args.commit, "--title", f"openOMSI BBS Bridge {tag} (experimental)",
        "--notes-file", str(notes), "--prerelease", "--draft")
     releases = json.loads(gh("api", f"repos/{repo}/releases?per_page=100"))

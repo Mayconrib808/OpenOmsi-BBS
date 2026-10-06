@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "source"
 REFERENCE_GO = "go1.23.2"
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (SOURCE / "version.go").read_text()).group(1)
-PACKAGE_NAME = f"OpenOMSI_BCS_Bridge_v{VERSION}_by_Mayconrib808"
+PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
     "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
