@@ -4,6 +4,9 @@ This file distinguishes the imported software version from subsequent repository
 
 ## v1.1.3 — 2026-10-06
 
+- Published the complete runtime ZIP and checksum as an experimental GitHub prerelease, with fixed download links in English and Portuguese. Publication verifies that all four executable hashes match the live-tested package.
+- Recorded the completed Carrão City line 2201 / tour 02 live trip: timetable alignment, real bbs.dll startup, six stops, eight tickets, evaluation transfer and normal openOMSI shutdown.
+
 - Replaced the excluded historical helper with an attributed MIT Go Windows x86 host implementing the pinned openOMSI protocol/ABI and documented BCS-specific startup environment.
 - Bundled the helper automatically; users need no extra helper download. Added recognised-copy updates with rollback and exact-byte removal while preserving unknown files.
 - Added protocol, lifecycle, idle-message-pump and native Windows stdcall mock-DLL tests, plus complete package integrity/staging tests.

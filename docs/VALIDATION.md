@@ -15,4 +15,25 @@ Prepared on **2026-10-06** with Go 1.23.2. The build checks are reproducible thr
 
 Linux local builds run all checks except native Windows DLL execution. The Windows CI job executes those native checks before attaching a runtime ZIP. Optional exact historical-binary tests may be skipped when that excluded local input is absent.
 
-**Not verified by these checks:** real BCS `bbs.dll` panel/startup, a full OMSI/openOMSI trip, UAC interaction on a player's installation, passenger behaviour on real maps, online rule acceptance, complete telemetry or remuneration parity. Those require the legitimate installed products and [live Windows validation](TEST_ON_WINDOWS.md). No vendor approval or malware certification is claimed.
+## Live Windows trip — 2026-10-06
+
+Mayconrib808 supplied a v1.1.3 diagnostic after a completed live trip. The evidence was reviewed locally; real account logs, driver profiles, account identifiers, proprietary timetable files and screenshots are excluded from distribution.
+
+| Item | Observed result |
+| --- | --- |
+| Products | openOMSI 0.2.0 Windows x64; original locally installed BCS/BBS plugin |
+| Map and bus | Carrão City; Caio Apache VIP I OF 1721 manual |
+| Trip selection | Line 2201, tour 02, 09:20–09:30, Divisa de Ferraz → CPTM Guaianazes; matched 2201rota2 |
+| Clock/timetable | Exact 09:20 match, already aligned, zero timetable offset; real-time synchronisation disabled |
+| Startup | BCS acknowledged the start menu, openOMSI signalled ready, and the real bbs.dll loaded |
+| Saved trip | Six stops, two early and none late; eight tickets for 25.90; openOMSI reported 1.86 km |
+| Evaluation transfer | BCS evaluation payload matched the bridge-saved driver state; no new collision/injury counts in this trip |
+| Completion | BCS confirmed the shift; the bridge requested graceful closure and openOMSI exited normally |
+
+This establishes the main integration for **that session/map/bus combination**. It does not establish universal first-launch panel reliability, every map/date/Chrono/route, all UAC installations, online rule acceptance, complete telemetry, evaluation equivalence or remuneration parity. Low comfort/driving scores originated in the openOMSI session; their equivalence to original OMSI has not been established. Berlin-Spandau remains an independently documented map-loading limitation. Further checks are listed in [the Windows checklist](TEST_ON_WINDOWS.md).
+
+## Release integrity
+
+The four executable hashes in [the approved binary manifest](releases/v1.1.3-binaries.sha256) come from the package used for this live test. Publication takes the ZIP from a successful Linux/Windows Source checks run, verifies its external checksum, its full internal manifest and those four hashes, uploads both release assets as a draft, checks the uploaded assets and publishes an experimental prerelease. Documentation and packaging additions change the ZIP checksum while executable identity is preserved. Private repository visibility is retained.
+
+No vendor approval or malware certification is claimed.

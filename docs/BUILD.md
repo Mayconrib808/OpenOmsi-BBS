@@ -25,6 +25,8 @@ Portable helper tests use inert PE fixtures and a memory Registry. An optional h
 
 ## CI and distribution
 
-The pinned GitHub workflow runs Linux checks and Windows full packaging/native tests. A successful Windows job uploads **OpenOMSI-BCS-Bridge-v1.1.3**, containing the runtime ZIP and checksum, for 30 days. Repository authentication/visibility applies. Permissions remain read-only for repository contents; it does not publish a Release or change repository visibility.
+The pinned Source checks workflow runs Linux checks and Windows full packaging/native tests. A successful Windows job uploads **OpenOMSI-BCS-Bridge-v1.1.3**, containing the runtime ZIP and checksum, for 30 days. Its repository-content permissions remain read-only.
+
+The separate **Publish tested release** workflow runs after successful main-branch push checks from this same repository. It downloads that exact CI run’s artifact, verifies the ZIP/internal manifest and the four approved executable hashes, then uploads the ZIP/checksum as a draft and publishes an experimental prerelease. Its publication job alone has contents-write and actions-read permissions. Pull-request artifacts cannot trigger publication, and an existing version is preserved. A matching file under `docs/releases/` is required for release notes and approved binary hashes. Repository visibility is not changed. The persistent download is on [Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3).
 
 A ZIP supplies this bridge, not OMSI 2, BCS/BBS, openOMSI or game assets. Preserve the included licences/notices. A complete package and passing automated tests do not establish live trip evaluation or vendor authorisation.

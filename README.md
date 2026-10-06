@@ -2,7 +2,9 @@
 
 An experimental, unofficial bridge between **openOMSI** and **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)**, maintained by **Mayconrib808**.
 
-[Português do Brasil](README.pt-BR.md) · [Installation](docs/INSTALL.md) · [Build](docs/BUILD.md) · [Credits](CREDITS.md)
+[Português do Brasil](README.pt-BR.md) · [Download v1.1.3](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3) · [Installation](docs/INSTALL.md) · [Build](docs/BUILD.md) · [Credits](CREDITS.md)
+
+**Ready-to-use Windows ZIP:** [OpenOMSI_BCS_Bridge_v1.1.3_by_Mayconrib808.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v1.1.3/OpenOMSI_BCS_Bridge_v1.1.3_by_Mayconrib808.zip). Download this asset for Setup.exe and the complete runtime. GitHub’s automatic “Source code” archives need a build first. Repository access is required while this repository is private.
 
 **v1.1.3 builds a complete bridge ZIP.** Setup, launcher, compatibility facade and the new 32-bit plugin host are built from the included source. The host is bundled and deployed automatically by Setup: users do not download another helper or install development tools. The earlier host with unresolved provenance is excluded.
 
@@ -35,7 +37,9 @@ python3 scripts/build.py
 
 On Windows use `py -3 scripts/build.py` or `source/BUILD.cmd`. The complete folder, ZIP and checksum are produced in `dist/`. End users need neither Go nor Python. Tests, vet, four Windows builds, facade layout and package integrity are checked. Windows native DLL tests also require Visual Studio C++ x86 tools for developers only.
 
-[GitHub Actions](https://github.com/Mayconrib808/OpenOmsi-BBS/actions) runs Linux and Windows checks and attaches the complete ZIP/checksum to each successful Windows run as **OpenOMSI-BCS-Bridge-v1.1.3**. This repository's visibility and GitHub authentication still apply to downloads. It does not automatically publish a public Release. Passing CI does not replace a live BCS trip.
+[GitHub Actions](https://github.com/Mayconrib808/OpenOmsi-BBS/actions) runs Linux and Windows checks and attaches the complete ZIP/checksum to each successful Windows run as **OpenOMSI-BCS-Bridge-v1.1.3**. A separate publication workflow accepts only successful main-branch push runs, verifies that all four executable hashes match the live-tested package and publishes the complete ZIP/checksum as an **experimental prerelease**. Existing releases are preserved. Repository visibility/authentication still apply; publication does not make a private repository public.
+
+A live trip on **2026-10-06** confirmed the main integration in **Carrão City, line 2201, tour 02, departure 09:20**, with **Caio Apache VIP I OF 1721 manual**: the original bbs.dll loaded, six stops and eight tickets were saved, BCS received the evaluation and completed the shift, and openOMSI closed normally. See [the validation scope](docs/VALIDATION.md). This result covers that tested combination.
 
 ## Licence and support
 
