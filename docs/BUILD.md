@@ -11,6 +11,8 @@ Windows: `py -3 scripts/build.py` or `source/BUILD.cmd`. The default output is `
 
 The script tests the bridge and new host, runs vet, compiles the Windows x86 host first, hashes it, and injects that digest into Setup/launcher. It compiles all three other components and verifies the facade's three BCS RVAs against the writable 4 MiB backing in matching stripped/unstripped builds. It then includes source, config example, tutorial, credits and licences, generates the complete inventory/SHA-256 manifest, and tests package integrity and actual helper staging/removal.
 
+The host uses explicit source files, `-trimpath`, `-buildvcs=false` and an empty linker build ID so identical source/toolchain produces identical helper bytes across local checkout paths. This keeps exact-hash helper recognition stable between rebuilds.
+
 `--check-only` performs the same assembly/checks in a temporary directory without retaining a ZIP. Use the explicit build entry points: the parent source directory contains three separate main programs, so `go build .` is inappropriate.
 
 ## Native Windows checks

@@ -135,7 +135,7 @@ def main() -> int:
         host.parent.mkdir(parents=True, exist_ok=True)
         # Explicit files give the main program a stable import path outside
         # GOPATH/modules; -trimpath then removes checkout-machine paths.
-        run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w", "-o", str(host), *HOST_SOURCES], windows)
+        run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w -buildid=", "-o", str(host), *HOST_SOURCES], windows)
         host_hash = hashlib.sha256(host.read_bytes()).hexdigest()
         print(f"Source-backed host SHA-256: {host_hash}", flush=True)
         digest_flag = "-X=main.bundledPluginHostSHA256=" + host_hash
