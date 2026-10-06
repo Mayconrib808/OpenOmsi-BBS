@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -121,7 +122,11 @@ func TestPluginSelectionAndPlacement(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, got, err := pluginPaths(dll, exe); err != nil || got != root {
+	canonicalRoot, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, got, err := pluginPaths(dll, exe); err != nil || !strings.EqualFold(got, canonicalRoot) {
 		t.Fatal(got, err)
 	}
 	for _, pair := range [][2]string{
