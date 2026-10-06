@@ -125,7 +125,7 @@ func TestF9FilePublicationPreservesBaselineAndAvoidsDoubleCounting(t *testing.T)
 	if err != nil || native.evaluation() != d.evaluation() {
 		t.Fatal("BCS .odr and memory do not match", err)
 	}
-	backup, err := os.ReadFile(filepath.Join(filepath.Dir(s.OpenPath), "bcs-driver-before-v1.1.2.odr"))
+	backup, err := os.ReadFile(filepath.Join(filepath.Dir(s.OpenPath), "bcs-driver-before-v1.1.3.odr"))
 	if err != nil || !bytes.Equal(backup, before) {
 		t.Fatal("original profile was not backed up exactly")
 	}

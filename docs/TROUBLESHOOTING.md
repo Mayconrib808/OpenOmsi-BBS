@@ -1,8 +1,10 @@
 # Troubleshooting
 
-## Source checkout cannot activate
+## Missing helper or package files
 
-The custom 32-bit helper is deliberately absent. A source build of the three Go programs is not a complete installation. See [helper provenance](HELPER_PROVENANCE.md); do not download an arbitrary same-named binary or copy a proprietary plugin into the repository.
+Extract the complete v1.1.3 ZIP, including `app/compat/omsi-plugin-host32.exe`; use Setup option 6 to check integrity and option 2 to activate. The helper is bundled automatically: no separate download is needed. A source checkout must first be built through `scripts/build.py`.
+
+Unknown existing files at the bridge-specific helper path are preserved. A recognised historical helper is updated automatically. Close games before updating; deactivate through the previous package's Setup before moving folders. Do not create BCS's startup marker yourself. If an explicit development `OMSI_PLUGIN_HOST32` environment override points to an invalid file, remove that override so Setup can use the bundled default.
 
 ## Clock or departure mismatch
 
@@ -10,11 +12,11 @@ Disable real-time clock synchronisation in openOMSI. The bridge refuses ambiguou
 
 ## BCS panel missing or trip startup stalls
 
-For a complete compatible installation, confirm the original products are installed, **"Start OMSI faster" is unchecked**, the versions match and the vendor-created startup marker exists. Wait for map loading, inspect the task switcher and try a windowed simulator session. Marker existence alone does not prove plugin readiness or a visible panel. Use local diagnostics if the failure persists.
+Confirm the original products are installed, **"Start OMSI faster" is unchecked**, the versions match and BCS is starting the trip normally. Wait for map loading, inspect the task switcher and try a windowed simulator session. Marker existence alone does not prove plugin readiness or a visible panel. Use local diagnostics if the failure persists.
 
 ## Berlin-Spandau has missing roads/sections
 
-The imported v1.1.2 records this as an unresolved openOMSI 0.2.0 map-loading problem. Deactivate the bridge and use original OMSI for that map. The BCS faster-startup setting is a separate requirement, not a map repair.
+The historical v1.1.2 input records this as an unresolved openOMSI 0.2.0 map-loading problem. Deactivate the bridge and use original OMSI for that map. The BCS faster-startup setting is a separate requirement, not a map repair.
 
 ## Trip data missing at completion
 

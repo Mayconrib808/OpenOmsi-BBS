@@ -17,6 +17,9 @@
 *.tmp
 *.backup
 *.bak
+*.obj
+*.lib
+*.exp
 __pycache__/
 .env
 .env.*

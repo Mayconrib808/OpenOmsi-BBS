@@ -146,7 +146,7 @@ func (u *setupUI) configure(c Config) (Config, error) {
 }
 
 func logSetup(dir, action string, e error) {
-	f, err := os.OpenFile(filepath.Join(appDir(dir), "setup-v1.1.2.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(filepath.Join(appDir(dir), "setup-v1.1.3.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		return
 	}

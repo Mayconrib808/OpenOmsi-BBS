@@ -1,58 +1,46 @@
 # openOMSI BBS Bridge
 
-An experimental, unofficial compatibility bridge between **openOMSI** and **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)**, maintained by **Mayconrib808**.
+An experimental, unofficial bridge between **openOMSI** and **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)**, maintained by **Mayconrib808**.
 
-[Português do Brasil](README.pt-BR.md) · [Installation](docs/INSTALL.md) · [Build from source](docs/BUILD.md) · [Credits](CREDITS.md)
+[Português do Brasil](README.pt-BR.md) · [Installation](docs/INSTALL.md) · [Build](docs/BUILD.md) · [Credits](CREDITS.md)
 
-**Repository status: v1.1.2 source import. This repository does not provide a complete, ready-to-play release.** The three Go programs can be compiled and tested. The earlier package's custom 32-bit plugin-host executable is excluded while its precise source and redistribution provenance remain unresolved. See [helper provenance](docs/HELPER_PROVENANCE.md).
+**v1.1.3 builds a complete bridge ZIP.** Setup, launcher, compatibility facade and the new 32-bit plugin host are built from the included source. The host is bundled and deployed automatically by Setup: users do not download another helper or install development tools. The earlier host with unresolved provenance is excluded.
 
-## Independence and third-party rights
+## Installation
 
-This project is not affiliated with, endorsed by, sponsored by, or supported by PeDePe GbR, the openOMSI Project, MR-Software GbR, Aerosoft GmbH, or Valve. Product names identify compatibility targets; they do not imply approval.
+Install legitimate OMSI 2, BCS/BBS and **openOMSI 0.2.0 Windows x64** separately. Extract the complete bridge ZIP into a permanent folder, run **Setup.exe**, configure the two game paths and choose **2 — Activate / update**. Read the bundled offline **TUTORIAL.html**.
 
-The repository includes independently developed bridge code, synthetic test fixtures, and an attributed MIT-licensed openOMSI protocol reference. It includes no proprietary OMSI 2 or BCS/BBS executables, DLLs, JARs, plugins, maps, buses, DLC assets, or account logs. Install the original products separately and comply with their own licences and service terms.
+In BCS/BBS, leave **“Start OMSI faster” unchecked**. Disable real-time clock synchronisation in openOMSI. At the last stop: **F9 → wait at least two seconds → finish in BCS/BBS while openOMSI remains open**. Setup option **3** returns launches to original OMSI.
 
-**The bridge does not patch or replace the proprietary OMSI 2 or BCS/BBS executable files. It does write runtime data:** it translates and mirrors the local `Drivers/bbs.odr` profile, creates bridge-owned files, and configures a scoped Windows Registry launch redirect when activated. Consequently, a claim that it "changes no PeDePe files" would be inaccurate. The distinction is explained in [runtime effects](docs/RUNTIME_EFFECTS.md) and the [technical notice for PeDePe](NOTICE_FOR_PEDEPE.md).
+The local compatibility target is **BCS/BBS 5.0.0.1**. The historical package records a Berlin-Spandau loading problem in openOMSI 0.2.0; the bridge does not fix it. Automatic dates use the local Windows date. Updates, map loading, plugin panels and trip evaluation need live checks; see [validation](docs/VALIDATION.md).
 
-No statement in this repository represents a PeDePe authorisation or a guarantee of compliance with BCS/BBS online rules. Compatibility support and permission from a service provider are separate matters.
+## Independent project and runtime effects
 
-## What the bridge implements
+No affiliation, endorsement, approval or official support is claimed from PeDePe GbR, openOMSI Project, MR-Software GbR, Aerosoft GmbH or Valve.
 
-- Reads the locally installed BCS/BBS trip log to identify the selected map, route, tour, departure, vehicle and repaint when those fields are available.
-- Launches the separately installed openOMSI with matching arguments and a compatibility facade for the legacy local interface expected by BCS/BBS.
-- Aligns a uniquely identified departure using a temporary timetable ZIP when needed, without rewriting the installed map timetable.
-- Translates saved openOMSI driver counters into the local profile and compatibility-memory layout expected by BCS/BBS.
-- Provides Portuguese, English and German setup messages, scoped activation/deactivation, integrity checks and user-requested diagnostic collection.
+No proprietary game/BCS executables, DLLs, JARs, plugins, maps, buses, DLC assets or real account logs are distributed. The host loads only the user's locally installed original `bbs.dll`. The included Omsi.exe is our own compatibility facade, not a copy of the original game executable.
 
-This is not a universal compatibility guarantee. Ambiguous departures or conflicting timetable sources are rejected. Panel behaviour, passenger loading, trip evaluation and telemetry coverage require real Windows integration tests.
+**Original proprietary executables/JARs/DLLs are not patched or replaced. Local data is written:** the bridge updates `Drivers/bbs.odr`, creates its own runtime files, stages its own helper in the OMSI folder and configures a scoped Windows Registry launch redirect. A blanket claim that it changes no PeDePe files would be inaccurate. See [runtime effects](docs/RUNTIME_EFFECTS.md) and [the technical notice](NOTICE_FOR_PEDEPE.md).
 
-## Requirements and known limits
+Credits and licences do not constitute PeDePe authorisation or guarantee acceptance under BCS/BBS service rules. Local counter translation can influence the vendor's evaluation; complete telemetry and payment parity are not promised.
 
-The imported code targets **Windows**, **openOMSI 0.2.0 Windows x64** and the locally inspected **BCS/BBS 5.0.0.1** layout. The bridge facade and plugin host are 32-bit. Version updates can change this interface.
+## Development and downloadable build
 
-You need separately installed legitimate copies of OMSI 2 and BCS/BBS, openOMSI, and a compatible plugin host with verified rights. The host is not included here. Go is needed only for development.
-
-Before using a complete compatible package, leave **"Start OMSI faster"** unchecked in BCS/BBS and disable real-time clock synchronisation in openOMSI. At the final stop, save with **F9**, wait at least **two seconds** for the save, then finish in BCS/BBS while the simulator remains open.
-
-The imported package reports incomplete Berlin-Spandau loading under openOMSI 0.2.0. This bridge does not fix that map issue. Automatic calendar selection uses the Windows local date because the available BCS log does not reliably supply the company date.
-
-## Development
-
-With **Go 1.23.2** and **Python 3.10+** installed:
+With **Go 1.23.2** and **Python 3.10+**:
 
 ```sh
 python3 scripts/build.py --check-only
 python3 scripts/build.py
 ```
 
-On Windows, use `py -3 scripts/build.py` or `source/BUILD.cmd`. Checks run the existing portable tests and `go vet`, compile the three Windows programs, and verify the facade memory layout. A normal build produces **development-only components** in `dist/source-build`; it does not bundle the missing helper or create an installable release ZIP.
+On Windows use `py -3 scripts/build.py` or `source/BUILD.cmd`. The complete folder, ZIP and checksum are produced in `dist/`. End users need neither Go nor Python. Tests, vet, four Windows builds, facade layout and package integrity are checked. Windows native DLL tests also require Visual Studio C++ x86 tools for developers only.
 
-GitHub Actions runs the same checks on Linux and Windows, using the fixed reference Go version. Passing these checks does not establish live BCS/BBS integration.
+[GitHub Actions](https://github.com/Mayconrib808/OpenOmsi-BBS/actions) runs Linux and Windows checks and attaches the complete ZIP/checksum to each successful Windows run as **OpenOMSI-BCS-Bridge-v1.1.3**. This repository's visibility and GitHub authentication still apply to downloads. It does not automatically publish a public Release. Passing CI does not replace a live BCS trip.
 
-## Licence, credits and support
+## Licence and support
 
-Original bridge code and repository documentation are under [MIT](LICENSE). The included openOMSI reference retains its [own copyright and MIT notice](source/reference/OPENOMSI_LICENSE.txt). Go runtime/toolchain notices are recorded in [third-party notices](THIRD_PARTY_NOTICES.md). Those licences do not cover third-party products, marks or assets.
+Original code/documentation: [MIT](LICENSE). The Go host adapts openOMSI's MIT protocol/ABI; **copyright 2026 usonskyyyy** and the [original notice](source/reference/OPENOMSI_LICENSE.txt) are preserved. Go runtime notices accompany the binaries. See [third-party notices](THIRD_PARTY_NOTICES.md) and [all credits](CREDITS.md).
 
-Project coordination, requirements and integration testing: **Mayconrib808**. Implementation and repository preparation were assisted by **OpenAI Codex**. See [all credits](CREDITS.md).
+Coordination, requirements, testing and maintenance: **Mayconrib808**. Implementation and review assisted by **OpenAI Codex**, acknowledged as a development tool.
 
-Report bridge problems in this repository's Issues, or contact the maintainer through the existing project Discord handle **`.zmaycon.`**, including both dots. Follow [support guidance](SUPPORT.md) before sharing diagnostics. Support for this bridge is independent of the original software vendors.
+Issues or Discord **`.zmaycon.`** (both dots). Setup option 5 creates local diagnostics; [review their contents before sharing](SUPPORT.md). No automatic upload.

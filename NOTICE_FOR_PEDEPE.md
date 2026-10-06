@@ -1,12 +1,12 @@
 # Technical notice for PeDePe
 
-This document describes the imported v1.1.2 bridge implementation. It is published documentation, not a message sent to PeDePe and not evidence of permission from PeDePe.
+This document describes the v1.1.3 bridge implementation. It is published documentation, not a message sent to PeDePe and not evidence of permission from PeDePe.
 
 ## Independent project and distribution
 
 Maintainer: **Mayconrib808**. The bridge is an experimental independent compatibility project. It is not a PeDePe product and carries no claimed endorsement, approval or official support.
 
-The repository contains bridge source, synthetic fixtures and one attributed openOMSI MIT protocol reference. It does not distribute or modify a distributed copy of any PeDePe JAR, DLL, OPL, executable, image, sound, account log or proprietary source. The old custom plugin-host binary is not included while its provenance is unresolved.
+The repository contains bridge source, synthetic fixtures and an attributed openOMSI MIT protocol reference and source-backed host adaptation. It does not distribute or modify a distributed copy of any PeDePe JAR, DLL, OPL, executable, image, sound, account log or proprietary source. The old custom plugin-host binary is excluded. A new attributed MIT Go host is built from included source and bundled automatically.
 
 ## Local operation
 
@@ -18,7 +18,7 @@ The bridge:
 2. Uses an explicitly scoped Windows Image File Execution Options redirect to start its launcher when the selected original `Omsi.exe` is invoked. It does not replace that original executable.
 3. Exposes its own legacy compatibility windows and memory layout for the local interface expected by the inspected BCS/BBS version. The interface is an implementation target, not a PeDePe-documented or approved API.
 4. Translates counters saved by openOMSI, preserves the starting local profile, and mirrors updated data into **`Drivers/bbs.odr`**. This write can affect the evaluation that BCS/BBS consumes; the bridge therefore does not claim to leave all BCS data unchanged.
-5. In a complete runtime installation, stages a separately supplied plugin host under the bridge-specific filename `OpenOMSI_BCS_PluginHost32.exe`. BCS's `bbs.start` marker is only checked for existence, not created, read for content or deleted by the bridge.
+5. Stages the included source-backed plugin host under the bridge-specific filename `OpenOMSI_BCS_PluginHost32.exe`. BCS's `bbs.start` marker is only checked for existence, not created, read for content or deleted by the bridge. The host sets its own working/DLL directory and process-local Steam game identifiers; it loads only the existing original bbs.dll, with no vendor file patching.
 
 There is no implementation here for bypassing purchases, Premium, account authentication or server-side checks. The counter translation is intended to preserve saved simulator data; it is not an assurance that every gameplay event or anti-cheat expectation is represented correctly. PeDePe's service rules remain applicable.
 

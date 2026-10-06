@@ -282,10 +282,10 @@ func prepareDriver(nativePath, dir string) (*driverSync, error) {
 	if err = os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}
-	if err = writeDriverAtomic(filepath.Join(dir, "bcs-driver-before-v1.1.2.odr"), b); err != nil {
+	if err = writeDriverAtomic(filepath.Join(dir, "bcs-driver-before-v1.1.3.odr"), b); err != nil {
 		return nil, err
 	}
-	s := &driverSync{OpenPath: filepath.Join(dir, "bcs-driver-openomsi-v1.1.2.odr"), NativePath: nativePath, SnapshotPath: filepath.Join(dir, "bcs-driver-current-v1.1.2.odr"), StatePath: filepath.Join(dir, "driver-state-v1.1.2.txt"), Last: d, NativeHash: sha256.Sum256(b)}
+	s := &driverSync{OpenPath: filepath.Join(dir, "bcs-driver-openomsi-v1.1.3.odr"), NativePath: nativePath, SnapshotPath: filepath.Join(dir, "bcs-driver-current-v1.1.3.odr"), StatePath: filepath.Join(dir, "driver-state-v1.1.3.txt"), Last: d, NativeHash: sha256.Sum256(b)}
 	s.LastBytes = d.encode(true)
 	if err = writeDriverAtomic(s.OpenPath, s.LastBytes); err != nil {
 		return nil, err
@@ -319,7 +319,7 @@ func loadDriverSync(openPath, nativePath, dir string) (*driverSync, error) {
 	if nd.evaluation() != d.evaluation() || nd.Ident != d.Ident {
 		return nil, fmt.Errorf("BCS baseline changed between preparation and facade startup")
 	}
-	return &driverSync{OpenPath: openPath, NativePath: nativePath, SnapshotPath: filepath.Join(dir, "bcs-driver-current-v1.1.2.odr"), StatePath: filepath.Join(dir, "driver-state-v1.1.2.txt"), Last: d, NativeHash: sha256.Sum256(n), LastBytes: b}, nil
+	return &driverSync{OpenPath: openPath, NativePath: nativePath, SnapshotPath: filepath.Join(dir, "bcs-driver-current-v1.1.3.odr"), StatePath: filepath.Join(dir, "driver-state-v1.1.3.txt"), Last: d, NativeHash: sha256.Sum256(n), LastBytes: b}, nil
 }
 
 func (s *driverSync) writeState(status string) error {

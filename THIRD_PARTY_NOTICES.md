@@ -2,7 +2,7 @@
 
 The root [MIT licence](LICENSE) applies to the project's original bridge code, synthetic fixtures and documentation. It does not relicense external products or override existing third-party notices.
 
-## Included openOMSI protocol reference
+## openOMSI protocol reference and Go adaptation
 
 - File: `source/reference/openomsi-plugin-v020.rs`.
 - Upstream file: [`crates/omsi-plugin/src/lib.rs`](https://github.com/openOMSI-Project/openOMSI/blob/538ad31b2a2c664cb0726db2547bf6238411eedf/crates/omsi-plugin/src/lib.rs).
@@ -10,11 +10,11 @@ The root [MIT licence](LICENSE) applies to the project's original bridge code, s
 - Licence: **MIT**, copyright **(c) 2026 usonskyyyy**.
 - Complete unmodified notice: [`source/reference/OPENOMSI_LICENSE.txt`](source/reference/OPENOMSI_LICENSE.txt).
 
-This Rust file is documentation of the upstream protocol. It is not compiled into the Go programs and is not claimed to be the complete source of the excluded custom helper.
+This exact Rust file is not compiled into the Go programs. The new `source/pluginhost/` host adapts its wire protocol, DLL ABI and frame order. BCS-specific startup and message-loop changes are documented in [helper provenance](docs/HELPER_PROVENANCE.md). File headers retain project and upstream copyright attribution; the complete upstream MIT permission notice accompanies source and runtime packages. It is not source of the excluded historical helper.
 
 ## Go runtime and standard library
 
-The three Go bridge programs use the Go standard library with CGO disabled. Compiled binaries contain Go runtime/standard-library code. The reference build uses **Go 1.23.2**. Its main BSD-style licence is [Go LICENSE at go1.23.2](https://github.com/golang/go/blob/go1.23.2/LICENSE); a local copy is kept in [`docs/GO_LICENSE.txt`](docs/GO_LICENSE.txt).
+The four Go bridge programs use the Go standard library with CGO disabled. Compiled binaries contain Go runtime/standard-library code. The reference build uses **Go 1.23.2**. Its main BSD-style licence is [Go LICENSE at go1.23.2](https://github.com/golang/go/blob/go1.23.2/LICENSE); a local copy is kept in [`docs/GO_LICENSE.txt`](docs/GO_LICENSE.txt).
 
 The earlier package's more extensive compiler attribution inventory is preserved in [`docs/GO_TOOLCHAIN_NOTICES.txt`](docs/GO_TOOLCHAIN_NOTICES.txt). That inventory includes toolchain files and is not a claim that every listed component is linked into each bridge binary. Preserve the notices actually applicable to the toolchain and linked code when producing a distribution.
 

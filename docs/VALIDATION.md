@@ -1,18 +1,18 @@
-# Validation of the repository source import
+# Validation scope — v1.1.3
 
-Validated locally on **2026-10-06**, using a Linux x64 host and the verified **Go 1.23.2** toolchain.
+Prepared on **2026-10-06** with Go 1.23.2. The build checks are reproducible through `scripts/build.py`; the exact GitHub run status is available in [Actions](https://github.com/Mayconrib808/OpenOmsi-BBS/actions).
 
-| Check | Result |
+| Check | Evidence/scope |
 | --- | --- |
-| Portable tests | **49 top-level tests and 72 nested subcases passed** |
-| Optional historical-helper removal test | **1 top-level test skipped** because the excluded historical binary was not supplied |
-| `go vet` on the portable source/test lists | Passed |
-| Windows x86 Setup, launcher and facade compilation | All three compiled successfully |
-| Facade stripped/unstripped layout comparison | Passed; all three expected BCS RVAs fit within this program's writable backing |
-| Runtime Go import comparison | Runtime Go files remain byte-for-byte unchanged from the v1.1.2 package; fixture-related test code was adapted |
-| Included openOMSI reference and licence | Matched the exact upstream files at reference commit `538ad31b2a2c664cb0726db2547bf6238411eedf` |
-| Repository content | No prebuilt executables, vendor binaries, game/DLC assets, captured account logs or real driver fixtures included |
+| Bridge tests | Synthetic driver/session data, timetable matching, ownership, rollback, diagnostic boundaries and helper upgrades |
+| Host protocol tests | Fixed bytes following the pinned Rust format, truncated requests, state ordering, finalization and idle message-pump progress |
+| Go vet | Bridge and host, including Windows x86 host source |
+| Windows build | All four executables built from included source; no historical/vendor binary included |
+| Facade layout | Stripped/unstripped sections match; all three expected BCS RVAs fit writable backing `[0x1C19E0,0x5C19E0)` |
+| Full package | Inventory and SHA-256 manifest verified by actual Go package verifier; built helper activates/deactivates in temporary directories and memory Registry |
+| Native Windows DLL tests | Actual PE32 host with original synthetic stdcall DLL; tests root/Steam process environment, flags, float/string/trigger ABI, Unicode, locked thread, Windows messages, finalization, EOF cleanup and non-BCS rejection |
+| Attribution/content | Original MIT notices, exact openOMSI reference, Go notices and credit inventory included; no proprietary assets or real account fixtures |
 
-This record does **not** report a real Windows session, UAC exercise, BCS panel/plugin connection, passenger test, remuneration comparison, vendor approval or malware certification. GitHub Actions is configured to run source checks on Linux and Windows; its results are separate from these local checks.
+Linux local builds run all checks except native Windows DLL execution. The Windows CI job executes those native checks before attaching a runtime ZIP. Optional exact historical-binary tests may be skipped when that excluded local input is absent.
 
-The source import is incomplete for runtime use because the native plugin host is excluded. See [helper provenance](HELPER_PROVENANCE.md) and [real Windows checks](TEST_ON_WINDOWS.md).
+**Not verified by these checks:** real BCS `bbs.dll` panel/startup, a full OMSI/openOMSI trip, UAC interaction on a player's installation, passenger behaviour on real maps, online rule acceptance, complete telemetry or remuneration parity. Those require the legitimate installed products and [live Windows validation](TEST_ON_WINDOWS.md). No vendor approval or malware certification is claimed.

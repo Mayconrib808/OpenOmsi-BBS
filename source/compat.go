@@ -381,7 +381,7 @@ func prepareLegacyLogfile() {
 	}
 	// Preserve all unrelated OMSI diagnostics, but remove stale automation
 	// sentinels and publish the exact startup sentinel StartController waits for.
-	out = append(out, "Spline-Helper initialisieren [OpenOMSI_BCS_Bridge v1.1.2]")
+	out = append(out, "Spline-Helper initialisieren [OpenOMSI_BCS_Bridge v1.1.3]")
 	if err := os.WriteFile(path, []byte(strings.Join(out, "\r\n")+"\r\n"), 0644); err != nil {
 		logf("ERROR prepare legacy logfile: %v", err)
 		return
@@ -408,7 +408,7 @@ func ensureBCSClosecheckGate() {
 		}
 		// StartController.java only checks File.exists() here. Keep contents
 		// deliberately inert; this is a compatibility sentinel, not telemetry.
-		if err := os.WriteFile(path, []byte("OpenOMSI_BCS_Bridge v1.1.2\r\n"), 0644); err != nil {
+		if err := os.WriteFile(path, []byte("OpenOMSI_BCS_Bridge v1.1.3\r\n"), 0644); err != nil {
 			logf("ERROR BCS closecheck compatibility gate: %v", err)
 			return
 		}
@@ -445,7 +445,7 @@ func ensureLegacyStartupMarkers() {
 	}
 	startupNeedle := "Spline-Helper initialisieren"
 	loadingNeedle := "Loading Situation maps\\" + folder + "\\global.cfg"
-	loadingLine := loadingNeedle + " [OpenOMSI_BCS_Bridge v1.1.2]"
+	loadingLine := loadingNeedle + " [OpenOMSI_BCS_Bridge v1.1.3]"
 
 	go func() {
 		deadline := time.Now().Add(startupTimeout)
@@ -459,7 +459,7 @@ func ensureLegacyStartupMarkers() {
 			b, _ := os.ReadFile(path)
 			text := string(b)
 			if !strings.Contains(text, startupNeedle) {
-				appendLegacyLogLine("Spline-Helper initialisieren [OpenOMSI_BCS_Bridge v1.1.2]")
+				appendLegacyLogLine("Spline-Helper initialisieren [OpenOMSI_BCS_Bridge v1.1.3]")
 				logf("startup watchdog: re-injected Spline-Helper sentinel after logfile replacement")
 			}
 			if !strings.Contains(text, loadingNeedle) {
@@ -480,7 +480,7 @@ func signalMapLoadingStarted() {
 	// OmsiStartmenue.java only checks for the substring "Loading Situation maps\\".
 	// Do NOT use laststn.osn here: BCS has a second observer that treats that
 	// suffix as "map finished loading".
-	appendLegacyLogLine(fmt.Sprintf("Loading Situation maps\\%s\\global.cfg [OpenOMSI_BCS_Bridge v1.1.2]", folder))
+	appendLegacyLogLine(fmt.Sprintf("Loading Situation maps\\%s\\global.cfg [OpenOMSI_BCS_Bridge v1.1.3]", folder))
 }
 
 func signalMapLoadingFinished() {
@@ -593,7 +593,7 @@ func watchBCSStartMenuAck() {
 }
 
 func waitForOpenOMSIReadyFlag() {
-	readyFlag := filepath.Join(filepath.Dir(logPath), "openomsi-ready-v1.1.2.flag")
+	readyFlag := filepath.Join(filepath.Dir(logPath), "openomsi-ready-v1.1.3.flag")
 	go func() {
 		deadline := time.Now().Add(startupTimeout)
 		for time.Now().Before(deadline) {
@@ -610,7 +610,7 @@ func waitForOpenOMSIReadyFlag() {
 
 func syntheticLoadingMarker() {
 	markerOnce.Do(func() {
-		// v1.1.2 publishes the observable result of the start-menu action
+		// v1.1.3 publishes the observable result of the start-menu action
 		// immediately. OmsiStartmenue checks logfile.txt for this marker before
 		// it attempts any Win32 click, so startup no longer depends on synthetic
 		// mouse routing. The actual "map ready" marker is still delayed until
@@ -922,9 +922,9 @@ func main() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	exe, _ := os.Executable()
-	logPath = filepath.Join(filepath.Dir(exe), "compat-facade-v1.1.2.log")
+	logPath = filepath.Join(filepath.Dir(exe), "compat-facade-v1.1.3.log")
 	_ = os.Remove(logPath)
-	logf("OpenOMSI BCS compatibility facade v1.1.2 - by %s starting", bridgeAuthor)
+	logf("OpenOMSI BCS compatibility facade v1.1.3 - by %s starting", bridgeAuthor)
 
 	if len(os.Args) >= 2 {
 		if v, err := strconv.ParseUint(os.Args[1], 10, 32); err == nil {
@@ -951,9 +951,9 @@ func main() {
 	}
 	logf("openOMSI PID=%d root=%q map=%q line=%q tour=%q bcslog=%q", atomic.LoadUint32(&openOmsiPID), omsiRoot, mapRel, wantedLine, wantedTour, bcsLogPath)
 	compatDir := filepath.Dir(exe)
-	readyPath := filepath.Join(compatDir, "facade-ready-v1.1.2.flag")
+	readyPath := filepath.Join(compatDir, "facade-ready-v1.1.3.flag")
 	_ = os.Remove(readyPath)
-	openDriver := filepath.Join(compatDir, "bcs-driver-openomsi-v1.1.2.odr")
+	openDriver := filepath.Join(compatDir, "bcs-driver-openomsi-v1.1.3.odr")
 	nativeDriver := filepath.Join(omsiRoot, "Drivers", "bbs.odr")
 	if len(os.Args) >= 8 {
 		openDriver = os.Args[7]

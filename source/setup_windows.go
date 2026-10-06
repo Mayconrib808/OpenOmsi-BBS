@@ -197,7 +197,7 @@ func elevateSetup(action, lang string) error {
 		return e
 	}
 	if exit != 0 {
-		return fmt.Errorf("%s", localText(lang, "A alteração como administrador falhou; veja setup-v1.1.2.log.", "Administrator action failed; see setup-v1.1.2.log.", "Die Änderung mit Administratorrechten ist fehlgeschlagen. Siehe setup-v1.1.2.log."))
+		return fmt.Errorf("%s", localText(lang, "A alteração como administrador falhou; veja setup-v1.1.3.log.", "Administrator action failed; see setup-v1.1.3.log.", "Die Änderung mit Administratorrechten ist fehlgeschlagen. Siehe setup-v1.1.3.log."))
 	}
 	return nil
 }

@@ -10,12 +10,24 @@ import (
 )
 
 const installedPluginHostName = "OpenOMSI_BCS_PluginHost32.exe"
-const bundledPluginHostSHA256 = "b26af8f2fc55f272ae89f0dcd02c423c26fb758daf24e860960bd2002c82b2d4"
+const historicalPluginHostSHA256 = "b26af8f2fc55f272ae89f0dcd02c423c26fb758daf24e860960bd2002c82b2d4"
+
+// The build script compiles the source-backed host first, then injects its digest
+// into Setup and the launcher. The historical digest is only an upgrade/removal
+// identifier; the historical binary is never included in a new distribution.
+var bundledPluginHostSHA256 string
+
+func recognisedPluginHostDigest(digest [32]byte) bool {
+	hash := fmt.Sprintf("%x", digest)
+	return hash == historicalPluginHostSHA256 || (bundledPluginHostSHA256 != "" && hash == bundledPluginHostSHA256)
+}
 
 type pluginHostDeployment struct {
-	Path    string
-	Created bool
-	digest  [32]byte
+	Path         string
+	Created      bool
+	digest       [32]byte
+	previous     []byte
+	previousMode os.FileMode
 }
 
 // waitForBCSStartupMarker gives BCS a short chance to publish its own bbs.start
@@ -65,7 +77,7 @@ func regularFileDigest(path string) ([32]byte, error) {
 
 // bbs.dll checks <directory of ParamStr(0)>/bbs.start during PluginStart.
 // Merely changing the helper's working directory is insufficient. Deploy the
-// retained helper beside the original Omsi.exe, under a bridge-specific name.
+// bundled helper beside the original Omsi.exe, under a bridge-specific name.
 // Never create, copy or delete the BCS-owned bbs.start marker.
 func preparePluginHost(c Config, packageDir string) (pluginHostDeployment, error) {
 	var result pluginHostDeployment
@@ -88,6 +100,24 @@ func preparePluginHost(c Config, packageDir string) (pluginHostDeployment, error
 			return err
 		}
 		if digest != result.digest {
+			if recognisedPluginHostDigest(digest) {
+				st, err := os.Lstat(result.Path)
+				if err != nil || !st.Mode().IsRegular() {
+					return fmt.Errorf("helper changed during update; preserved: %s", result.Path)
+				}
+				previous, err := os.ReadFile(result.Path)
+				if err != nil {
+					return err
+				}
+				if sha256.Sum256(previous) != digest {
+					return fmt.Errorf("helper changed during update; preserved: %s", result.Path)
+				}
+				if err := replacePluginHost(result.Path, b, st.Mode().Perm()); err != nil {
+					return err
+				}
+				result.previous, result.previousMode = previous, st.Mode().Perm()
+				return nil
+			}
 			return fmt.Errorf("%s: %s", localText(c.Language,
 				"Já existe um auxiliar diferente nesse caminho. O arquivo foi preservado; confira a instalação antes de ativar",
 				"A different helper already exists at this path. It was preserved; check the installation before activating", "Unter diesem Pfad existiert bereits ein anderes Hilfsprogramm. Es wurde beibehalten. Prüfe die Installation vor der Aktivierung"), result.Path)
@@ -95,13 +125,15 @@ func preparePluginHost(c Config, packageDir string) (pluginHostDeployment, error
 		return nil
 	}
 	if _, err := os.Lstat(result.Path); err == nil {
-		return result, checkExisting()
+		err = checkExisting()
+		return result, err
 	} else if !os.IsNotExist(err) {
 		return result, err
 	}
 	f, err := os.OpenFile(result.Path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0755)
 	if os.IsExist(err) {
-		return result, checkExisting()
+		err = checkExisting()
+		return result, err
 	}
 	if err != nil {
 		return result, fmt.Errorf("%s: %w", localText(c.Language,
@@ -126,9 +158,34 @@ func preparePluginHost(c Config, packageDir string) (pluginHostDeployment, error
 	return result, nil
 }
 
-// Roll back only a file created by this activation, if it still has our bytes.
+// Write in the target directory and atomically replace only a recognised file.
+func replacePluginHost(path string, b []byte, mode os.FileMode) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".bridge-helper-*.tmp")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	defer os.Remove(name)
+	if err = f.Chmod(mode); err == nil {
+		_, err = f.Write(b)
+	}
+	if err == nil {
+		err = f.Sync()
+	}
+	closeErr := f.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	return os.Rename(name, path)
+}
+
+// Undo a new copy or restore recognised previous bytes after failed activation.
+// If another process changed the target meanwhile, preserve its new content.
 func rollbackPluginHost(d pluginHostDeployment) error {
-	if !d.Created {
+	if !d.Created && d.previous == nil {
 		return nil
 	}
 	digest, err := regularFileDigest(d.Path)
@@ -141,10 +198,13 @@ func rollbackPluginHost(d pluginHostDeployment) error {
 	if digest != d.digest {
 		return fmt.Errorf("helper changed during activation; preserved: %s", d.Path)
 	}
+	if d.previous != nil {
+		return replacePluginHost(d.Path, d.previous, d.previousMode)
+	}
 	return os.Remove(d.Path)
 }
 
-// Deactivation only removes the bridge-specific filename and the exact retained
+// Deactivation only removes the bridge-specific filename and a recognised
 // payload. Other helpers, a modified copy, original game files and markers remain.
 func removeInstalledPluginHost(root string) (string, error) {
 	p, err := pluginHostPath(Config{Root: root})
@@ -161,7 +221,7 @@ func removeInstalledPluginHost(root string) (string, error) {
 		}
 		return "", err
 	}
-	if fmt.Sprintf("%x", digest) != bundledPluginHostSHA256 {
+	if !recognisedPluginHostDigest(digest) {
 		return "preserved", nil
 	}
 	if err := os.Remove(p); err != nil {

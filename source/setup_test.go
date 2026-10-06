@@ -2,6 +2,7 @@ package main
 
 import (
 	"archive/zip"
+	"bytes"
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
@@ -536,7 +537,7 @@ func TestHistoricalPluginHelperDeactivationRemovesRecognisedCopy(t *testing.T) {
 	if os.IsNotExist(e) {
 		t.Skip("historical helper is excluded; exact-hash removal needs a separately verified local copy")
 	}
-	if e != nil || fmt.Sprintf("%x", sha256.Sum256(payload)) != bundledPluginHostSHA256 {
+	if e != nil || fmt.Sprintf("%x", sha256.Sum256(payload)) != historicalPluginHostSHA256 {
 		t.Fatal("local helper does not match the recorded historical bytes", e)
 	}
 	c, packageDir, _ := pluginHostFixture(t)
@@ -580,6 +581,91 @@ func TestPluginHelperRollbackPreservesExternallyModifiedCopy(t *testing.T) {
 	}
 	if b, e := os.ReadFile(d.Path); e != nil || !reflect.DeepEqual(b, changed) {
 		t.Fatal("external change was deleted", e)
+	}
+}
+
+func TestRecognisedHelperUpgradeAndRollback(t *testing.T) {
+	oldDigest := bundledPluginHostSHA256
+	t.Cleanup(func() { bundledPluginHostSHA256 = oldDigest })
+	for _, failure := range []bool{false, true} {
+		t.Run(fmt.Sprintf("registryFailure=%t", failure), func(t *testing.T) {
+			c, dir, old := pluginHostFixture(t)
+			target, _ := pluginHostPath(c)
+			if e := os.WriteFile(target, old, 0755); e != nil {
+				t.Fatal(e)
+			}
+			bundledPluginHostSHA256 = fmt.Sprintf("%x", sha256.Sum256(old))
+			updated := append(append([]byte{}, old...), []byte("new release fixture")...)
+			if e := os.WriteFile(filepath.Join(appDir(dir), "compat", "omsi-plugin-host32.exe"), updated, 0755); e != nil {
+				t.Fatal(e)
+			}
+			m := newMemoryRegistry(false)
+			if failure {
+				m.failAt = 8
+			}
+			before := cloneValues(m)
+			bridge := bridgePath(dir)
+			d, e := activateRegistryWithHost(m, c, dir, bridge)
+			if (e != nil) != failure {
+				t.Fatal(e)
+			}
+			want := updated
+			if failure {
+				want = old
+			}
+			if got, e := os.ReadFile(target); e != nil || !bytes.Equal(got, want) {
+				t.Fatal("incorrect update/rollback bytes", e)
+			}
+			if failure && !reflect.DeepEqual(before, m.values) {
+				t.Fatal("Registry rollback incomplete")
+			}
+			if !failure {
+				if d.previous == nil || d.Created {
+					t.Fatal("upgrade ownership state", d)
+				}
+				bundledPluginHostSHA256 = fmt.Sprintf("%x", sha256.Sum256(updated))
+				if e := deactivateRegistryWithHost(m, bridge); e != nil {
+					t.Fatal(e)
+				}
+				if _, e := os.Stat(target); !os.IsNotExist(e) {
+					t.Fatal("new recognised helper not removed", e)
+				}
+			}
+		})
+	}
+}
+
+func TestBuiltRuntimePackage(t *testing.T) {
+	dir := os.Getenv("BRIDGE_BUILT_PACKAGE")
+	if dir == "" {
+		t.Skip("runs after the complete package is assembled by scripts/build.py")
+	}
+	if count, e := verifyPackage(dir); e != nil || count < 10 {
+		t.Fatal("complete package integrity", count, e)
+	}
+	actualHost := filepath.Join(appDir(dir), "compat", "omsi-plugin-host32.exe")
+	payload, e := os.ReadFile(actualHost)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if bundledPluginHostSHA256 == "" || fmt.Sprintf("%x", sha256.Sum256(payload)) != bundledPluginHostSHA256 {
+		t.Fatal("host digest was not injected into the consuming programs")
+	}
+	c, fixtureDir, _ := pluginHostFixture(t)
+	if e := os.WriteFile(filepath.Join(appDir(fixtureDir), "compat", "omsi-plugin-host32.exe"), payload, 0755); e != nil {
+		t.Fatal(e)
+	}
+	m := newMemoryRegistry(false)
+	bridge := bridgePath(fixtureDir)
+	if _, e := activateRegistryWithHost(m, c, fixtureDir, bridge); e != nil {
+		t.Fatal(e)
+	}
+	if e := deactivateRegistryWithHost(m, bridge); e != nil {
+		t.Fatal(e)
+	}
+	target, _ := pluginHostPath(c)
+	if _, e := os.Stat(target); !os.IsNotExist(e) {
+		t.Fatal("built helper not removed", e)
 	}
 }
 
@@ -686,7 +772,7 @@ func TestPackageVerificationDetectsTamperingAndTraversal(t *testing.T) {
 func TestDiagnosticCollectionOnlyIncludesExpectedLocalFiles(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(appDir(dir), 0755)
-	os.WriteFile(filepath.Join(appDir(dir), "bridge-v1.1.2.log"), []byte("saved trip"), 0644)
+	os.WriteFile(filepath.Join(appDir(dir), "bridge-v1.1.3.log"), []byte("saved trip"), 0644)
 	os.WriteFile(filepath.Join(dir, "private-passwords.txt"), []byte("do not collect"), 0644)
 	p, e := collectLogs(dir, defaultConfig())
 	if e != nil {
@@ -702,7 +788,7 @@ func TestDiagnosticCollectionOnlyIncludesExpectedLocalFiles(t *testing.T) {
 		if f.Name == "private-passwords.txt" {
 			t.Fatal("unrelated file collected")
 		}
-		if f.Name == "bridge-v1.1.2.log" {
+		if f.Name == "bridge-v1.1.3.log" {
 			r, e := f.Open()
 			if e != nil {
 				t.Fatal(e)

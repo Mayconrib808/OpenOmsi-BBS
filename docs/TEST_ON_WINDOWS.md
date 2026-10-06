@@ -1,6 +1,6 @@
 # Windows integration validation
 
-Portable tests and PE checks exercise the bridge's local logic and build layout. They are not a live integration test. A complete compatible runtime package with verified helper provenance and legitimate dependencies is necessary for the following checks.
+Portable tests and PE checks exercise the bridge's local logic and build layout. They are not a live integration test. The v1.1.3 package includes the source-backed helper. The separately installed legitimate products are necessary for the following live checks. Native mock-DLL CI checks are documented in VALIDATION.md and do not establish these game results.
 
 | Area | Evidence to collect |
 | --- | --- |

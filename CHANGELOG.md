@@ -2,6 +2,15 @@
 
 This file distinguishes the imported software version from subsequent repository preparation. Earlier full runtime ZIPs are not represented as cleared GitHub releases.
 
+## v1.1.3 — 2026-10-06
+
+- Replaced the excluded historical helper with an attributed MIT Go Windows x86 host implementing the pinned openOMSI protocol/ABI and documented BCS-specific startup environment.
+- Bundled the helper automatically; users need no extra helper download. Added recognised-copy updates with rollback and exact-byte removal while preserving unknown files.
+- Added protocol, lifecycle, idle-message-pump and native Windows stdcall mock-DLL tests, plus complete package integrity/staging tests.
+- Builds now produce all four executables, the complete ZIP, tutorial in three languages, source, notices, inventory and checksums.
+- Updated runtime/log filenames to v1.1.3 and added downloadable CI build artifacts. Original products/assets remain excluded.
+- Automated validation is distinct from live BCS panel, game-trip and online evaluation checks; no vendor authorisation is claimed.
+
 ## Repository preparation — 2026-10-06
 
 - Imported the v1.1.2 Go implementation without changing its runtime Go files.

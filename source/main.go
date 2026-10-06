@@ -639,12 +639,12 @@ func chooseDate(cfg Config, trip TripInfo) (string, string) {
 func main() {
 	packageDir := packageRoot()
 	dir := appDir(packageDir)
-	logPath := filepath.Join(dir, "bridge-v1.1.2.log")
-	tripPath := filepath.Join(dir, "bridge-v1.1.2-trip.txt")
+	logPath := filepath.Join(dir, "bridge-v1.1.3.log")
+	tripPath := filepath.Join(dir, "bridge-v1.1.3-trip.txt")
 	cfg := readConfig(filepath.Join(dir, "bridge.ini"))
 
 	appendLog(logPath, "\r\n============================================================\r\n")
-	appendLog(logPath, "OpenOMSI BCS Bridge v1.1.2 - by "+bridgeAuthor+"\r\n")
+	appendLog(logPath, "OpenOMSI BCS Bridge v1.1.3 - by "+bridgeAuthor+"\r\n")
 	appendLog(logPath, "Time: "+time.Now().Format(time.RFC3339)+"\r\n")
 	appendLog(logPath, "Bridge argv: "+qargs(os.Args)+"\r\n")
 	if cwd, err := os.Getwd(); err == nil {
@@ -716,7 +716,7 @@ func main() {
 	runPaint, paintSource := choosePaint(cfg, mapRel, busRel)
 
 	diag := &strings.Builder{}
-	fmt.Fprintf(diag, "OpenOMSI BCS Bridge v1.1.2 - by %s\r\n\r\n", bridgeAuthor)
+	fmt.Fprintf(diag, "OpenOMSI BCS Bridge v1.1.3 - by %s\r\n\r\n", bridgeAuthor)
 	fmt.Fprintf(diag, "BCS log: %s\r\n", bcsLog)
 	fmt.Fprintf(diag, "BCS Schicht ID: %s\r\n", trip.ShiftID)
 	fmt.Fprintf(diag, "BBS backups: %s\r\n", backups)
@@ -760,7 +760,7 @@ func main() {
 	appendLog(logPath, fmt.Sprintf("All tiles: %v | Autostart: %v | BCS compat facade: %v | Timetable sync: %v | BCS marker wait: %d ms\r\n", cfg.AllTiles, cfg.AutoStart, cfg.BCSCompat, cfg.TimetableSync, cfg.BCSMarkerWaitMS))
 
 	if mapRel == "" || busRel == "" || trip.Line == "" || trip.Tour == "" || trip.TripStart == "" {
-		appendLog(logPath, "ERROR: dados insuficientes; nao vou abrir uma viagem errada. Veja bridge-v1.1.2-trip.txt\r\n")
+		appendLog(logPath, "ERROR: dados insuficientes; nao vou abrir uma viagem errada. Veja bridge-v1.1.3-trip.txt\r\n")
 		showLaunchError(cfg.Language, localText(cfg.Language, "Não consegui identificar o mapa, o ônibus e o horário desta viagem. Use o Setup, opção 5, para coletar o diagnóstico.", "Could not identify this trip's map, bus and time. Use Setup option 5 to collect diagnostics.", "Karte, Bus und Abfahrtszeit dieser Fahrt konnten nicht ermittelt werden. Sammle mit Setup-Option 5 die Diagnoseprotokolle."))
 		return
 	}
@@ -869,8 +869,8 @@ func main() {
 		return
 	}
 	appendLog(logPath, fmt.Sprintf("BCS closure gate: shift ID=%q already-closed=%v; matching exact current shift, independent of log prefix.\r\n", trip.ShiftID, closureGate.AlreadyClosed))
-	readyPath := filepath.Join(compatDir, "facade-ready-v1.1.2.flag")
-	openOMSIReadyPath := filepath.Join(compatDir, "openomsi-ready-v1.1.2.flag")
+	readyPath := filepath.Join(compatDir, "facade-ready-v1.1.3.flag")
+	openOMSIReadyPath := filepath.Join(compatDir, "openomsi-ready-v1.1.3.flag")
 	pidPath := filepath.Join(compatDir, "openomsi.pid")
 	_ = os.Remove(readyPath)
 	_ = os.Remove(openOMSIReadyPath)
@@ -886,7 +886,7 @@ func main() {
 			} else {
 				compatDone = make(chan error, 1)
 				go func() { compatDone <- compatCmd.Wait() }()
-				appendLog(logPath, fmt.Sprintf("BCS compat facade v1.1.2 bootstrap started. PID=%d\r\n", compatCmd.Process.Pid))
+				appendLog(logPath, fmt.Sprintf("BCS compat facade v1.1.3 bootstrap started. PID=%d\r\n", compatCmd.Process.Pid))
 				deadline := time.Now().Add(3 * time.Second)
 				for time.Now().Before(deadline) && !fileExists(readyPath) {
 					time.Sleep(25 * time.Millisecond)
@@ -894,7 +894,7 @@ func main() {
 				if fileExists(readyPath) {
 					appendLog(logPath, "BCS compat facade ready BEFORE openOMSI launch.\r\n")
 				} else {
-					appendLog(logPath, "ERROR: facade/memoria do motorista nao ficou pronta em 3 s. Veja compat\\compat-facade-v1.1.2.log.\r\n")
+					appendLog(logPath, "ERROR: facade/memoria do motorista nao ficou pronta em 3 s. Veja compat\\compat-facade-v1.1.3.log.\r\n")
 					_ = compatCmd.Process.Kill()
 					<-compatDone
 					return

@@ -22,7 +22,21 @@ jobs:
         with:
           go-version: '1.23.2'
           cache: false
-      - name: Portable tests, vet, Windows builds and facade layout
+      - name: Checks on Linux
+        if: runner.os == 'Linux'
         shell: bash
         run: python scripts/build.py --check-only
-
+      - name: Complete package and native DLL tests on Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: python scripts/build.py
+      - name: Upload complete bridge ZIP and checksum
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: OpenOMSI-BCS-Bridge-v1.1.3
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
