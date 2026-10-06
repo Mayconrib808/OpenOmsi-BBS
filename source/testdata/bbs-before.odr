@@ -1,0 +1,33 @@
+Synthetic fixture authored for this repository; no real driver data.
+
+[ident]
+Bus Company Simulator
+TEST
+19000101
+20200101
+
+[busstops]
+1000
+20
+5
+
+[hektom]
+2000
+
+[crashs]
+1
+2
+0
+0
+
+[tickets]
+10
+25
+
+[rating]
+0
+0
+0
+0
+0.25
+

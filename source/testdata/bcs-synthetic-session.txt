@@ -1,0 +1,10 @@
+# Entirely synthetic session; not a captured BCS log.
+INFO 01.01.2020 06:30:00:000  Spielmodus: MULTIPLAYER
+INFO 01.01.2020 06:30:00:001  Schicht ID: 1000123
+INFO 01.01.2020 06:30:00:002  Karte: Sample Map
+INFO 01.01.2020 06:30:00:003  Tour: 22:45:00 - 22:53:00 (Linie: 2002)
+A - B (Umlauf: 04)
+INFO 01.01.2020 06:30:00:004  Startpunkt: A
+INFO 01.01.2020 06:40:00:000  Auswertungsdaten: 1015####20####8####2047####1####2####0####0####12####27.500000####3####4####2####4####0.500000
+INFO 01.01.2020 06:41:00:000  Schicht abschließen: 1000123
+INFO 01.01.2020 06:42:00:000  OMSI beenden: taskkill Rueckgabe 0

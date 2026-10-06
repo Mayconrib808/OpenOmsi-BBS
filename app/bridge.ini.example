@@ -1,0 +1,19 @@
+# OpenOMSI BCS Bridge v1.1.2 - by Mayconrib808
+# Setup.exe creates app/bridge.ini. You do not need to edit this example.
+# Language / Idioma / Sprache: pt, en, de
+language=pt
+root=
+openomsi=
+bcslog=auto
+backups=auto
+traffic=30
+passengers=true
+date=auto
+paint=auto
+all_tiles=false
+autostart=true
+bcs_compat=true
+# Refuse an unsafe departure instead of starting the wrong timetable.
+timetable_sync=true
+# Require the BCS-owned startup marker within this wait; never create/delete it.
+bcs_marker_wait_ms=2000
