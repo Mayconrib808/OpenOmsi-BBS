@@ -19,15 +19,16 @@ static LRESULT CALLBACK procedure(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
     return DefWindowProcW(hwnd, msg, wp, lp);
 }
 void __stdcall PluginStart(void *owner) {
-    static WCHAR cwd[32768], exe[32768], env[32];
+    static WCHAR cwd[32768], exe[32768], full_exe[32768], env[32];
     DWORD n, i;
     WNDCLASSW wc;
     owner_thread = GetCurrentThreadId();
     GetCurrentDirectoryW(32768, cwd);
-    n = GetModuleFileNameW(0, exe, 32768);
-    for (i = n; i > 0 && exe[i - 1] != L'\\'; --i) {}
-    if (i) exe[i - 1] = 0;
-    context_ok = !owner && equal(cwd, exe);
+    GetModuleFileNameW(0, exe, 32768);
+    n = GetLongPathNameW(exe, full_exe, 32768);
+    for (i = n; i > 0 && full_exe[i - 1] != L'\\'; --i) {}
+    if (i) full_exe[i - 1] = 0;
+    context_ok = !owner && n > 0 && n < 32768 && lstrcmpiW(cwd, full_exe) == 0;
     GetEnvironmentVariableW(L"SteamAppId", env, 32);
     context_ok = context_ok && equal(env, L"252530");
     GetEnvironmentVariableW(L"SteamGameId", env, 32);

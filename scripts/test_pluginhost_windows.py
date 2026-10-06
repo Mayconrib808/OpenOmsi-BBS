@@ -21,8 +21,10 @@ def compiler_environment() -> dict[str, str]:
     if not location:
         raise RuntimeError("Native Windows tests require Visual Studio C++ x86 tools.")
     vcvars = Path(location) / "VC/Auxiliary/Build/vcvarsall.bat"
-    command = f'call "{vcvars}" x86 >nul && set'
-    output = subprocess.check_output(["cmd.exe", "/d", "/s", "/c", command], text=True)
+    # Send batch commands on stdin. Passing the embedded quoted VS path through
+    # Python's Windows argument-list escaping gives cmd.exe literal backslashes.
+    command = f'@echo off\ncall "{vcvars}" x86 >nul\nif errorlevel 1 exit 1\nset\nexit 0\n'
+    output = subprocess.check_output(["cmd.exe", "/d", "/q"], input=command, text=True)
     env = os.environ.copy()
     for line in output.splitlines():
         if "=" in line and not line.startswith("="):
