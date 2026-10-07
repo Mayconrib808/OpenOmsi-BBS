@@ -136,6 +136,21 @@ func openOMSIPluginHostOverride(path string) (bool, error) {
 	}
 }
 
+// Official builds log their startup banner before Clap prints its version.
+// Select the exact metadata line; a log banner is not a CLI version response.
+func parseOpenOMSIVersionOutput(output string) (string,error) {
+ label := ""
+ for _,line := range strings.Split(output,"\n") {
+  name,value,ok:=strings.Cut(strings.TrimSpace(line)," ")
+  if !ok || !strings.EqualFold(name,"openomsi"){continue}
+  value=strings.TrimSpace(value)
+  if !validOpenOMSIVersion(value) || label!="" { return "",fmt.Errorf("openOMSI returned conflicting or invalid version metadata") }
+  label=value
+ }
+ if label=="" {return "",fmt.Errorf("openOMSI did not return a valid CLI version description")}
+ return label,nil
+}
+
 func checkOpenOMSICompatibility(executable string, dedicated, multiplayer bool) (openOMSICompatibility, error) {
 	var result openOMSICompatibility
 	if !filepath.IsAbs(executable) {
@@ -156,11 +171,8 @@ func checkOpenOMSICompatibility(executable string, dedicated, multiplayer bool) 
 	if err != nil {
 		return result, err
 	}
-	name, label, ok := strings.Cut(strings.TrimSpace(version), " ")
-	if !ok || !strings.EqualFold(name, "openomsi") || !validOpenOMSIVersion(strings.TrimSpace(label)) {
-		return result, fmt.Errorf("openOMSI returned an invalid version description: %q", strings.TrimSpace(version))
-	}
-	result.Version = strings.TrimSpace(label)
+	result.Version, err = parseOpenOMSIVersionOutput(version)
+	if err != nil { return result, err }
 	if !dedicated {
 		available, err := openOMSIPluginHostOverride(executable)
 		if err != nil {
