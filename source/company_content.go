@@ -12,16 +12,37 @@ import (
 
 var companySituationTile = regexp.MustCompile(`(?i)^.+\.osn_-?[0-9]+_-?[0-9]+\.dds$`)
 
-// Separate runtime inventory policy from path validation so older profiles that
-// recorded generated situation companions can still be read and upgraded.
+// Separate mutable/generated inventory policy from path validation so older
+// profiles that recorded runtime companions or OS metadata can still be read
+// and upgraded without making those machine-local files multiplayer identity.
 func companyRuntimeArtifact(path string) bool {
 	parts := strings.Split(companyAssetKey(path), "/")
+	if len(parts) == 0 {
+		return false
+	}
+	name := parts[len(parts)-1]
+	switch name {
+	case "thumbs.db", "ehthumbs.db", "desktop.ini", ".ds_store":
+		return true
+	}
 	if len(parts) != 3 || parts[0] != "maps" {
 		return false
 	}
-	name := parts[2]
 	return strings.HasSuffix(name, ".osn.owt") || companySituationTile.MatchString(name) ||
 		name == "timezone.txt.backup.txt" || name == "holidays.txt.backup.txt"
+}
+
+// Some OMSI map archives have circulated with Windows' hidden-extension mistake
+// "timezone.txt.txt". The profile keeps the canonical OMSI name timezone.txt;
+// if only the doubled name exists, verification may use it as a byte-for-byte
+// compatibility alias. The hash still has to match the declared timezone.txt.
+func companyCompatibilityAlias(path string) string {
+	normalized := strings.ReplaceAll(path, `\`, "/")
+	parts := strings.Split(companyAssetKey(normalized), "/")
+	if len(parts) == 3 && parts[0] == "maps" && parts[2] == "timezone.txt" {
+		return normalized + ".txt"
+	}
+	return ""
 }
 
 func companyCalendarAsset(path string) bool {
