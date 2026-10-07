@@ -222,6 +222,15 @@ func validateCompanyProfile(p CompanyProfile) error {
 	return nil
 }
 
+// The dedicated server's gateway comes up before the map. During loading it
+// publishes the configured startup time with world:null; that is not a live
+// clock sample. A player-hosted fixed-date session can legitimately have no
+// world counts, so only the dedicated company-clock flow requires this gate.
+func companyActiveWorld(raw json.RawMessage) bool {
+	var counts map[string]json.RawMessage
+	return json.Unmarshal(raw, &counts) == nil && counts != nil
+}
+
 func companyHTTPClient() *http.Client {
 	return &http.Client{Timeout: 6 * time.Second, CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 4 || (len(via) > 0 && via[0].URL.Scheme == "https" && req.URL.Scheme != "https") {
@@ -447,7 +456,7 @@ func checkCompanyPackages(root string, p CompanyProfile, session CompanySession)
 			}
 		}
 		if len(missing)+len(different)+len(extra) != 0 {
-			detail := fmt.Sprintf("%s: ausentes/ilegíveis %d; versão diferente %d; adicionais não cadastrados %d. / missing or unreadable: %d; different version: %d; undeclared extra files: %d.", pkg.Version, len(missing), len(different), len(extra), len(missing), len(different), len(extra))
+			detail := fmt.Sprintf("%s: ausentes/ilegíveis %d; conteúdo alterado %d; adicionais não cadastrados %d. / missing or unreadable: %d; changed content: %d; undeclared extra files: %d.", pkg.Version, len(missing), len(different), len(extra), len(missing), len(different), len(extra))
 			list := append(append(missing, different...), extra...)
 			if len(list) > 8 {
 				list = list[:8]
@@ -457,6 +466,61 @@ func checkCompanyPackages(root string, p CompanyProfile, session CompanySession)
 		}
 	}
 	return problems
+}
+
+// Rehash only the files already declared by an administrator. Joining players
+// never call this: a changed file still refuses the trip until the owner updates
+// the reference. Keep package metadata, sessions and the clock unchanged.
+func refreshCompanyHashes(root string, original CompanyProfile) (CompanyProfile, []string, error) {
+	if err := validateCompanyProfile(original); err != nil {
+		return original, nil, err
+	}
+	b, err := json.Marshal(original)
+	if err != nil {
+		return original, nil, err
+	}
+	var updated CompanyProfile
+	if err := json.Unmarshal(b, &updated); err != nil {
+		return original, nil, err
+	}
+	checked := map[string]string{}
+	var changed []string
+	for i := range updated.Packages {
+		for j := range updated.Packages[i].Files {
+			file := &updated.Packages[i].Files[j]
+			key := companyAssetKey(file.Path)
+			digest, exists := checked[key]
+			if !exists {
+				path, e := companyAssetPath(root, file.Path)
+				if e != nil {
+					return original, nil, fmt.Errorf("cannot update declared asset %s: %w", file.Path, e)
+				}
+				digest, e = companyFileHash(path)
+				if e != nil {
+					return original, nil, fmt.Errorf("cannot update declared asset %s: %w", file.Path, e)
+				}
+				checked[key] = digest
+				if !strings.EqualFold(digest, file.SHA256) {
+					changed = append(changed, file.Path)
+				}
+			}
+			file.SHA256 = digest
+		}
+	}
+	// Check every package, including any not used by the first session.
+	all := updated.Sessions[0]
+	all.RequiredPackages = nil
+	for _, pkg := range updated.Packages {
+		all.RequiredPackages = append(all.RequiredPackages, pkg.ID)
+	}
+	if problems := checkCompanyPackages(root, updated, all); len(problems) != 0 {
+		return original, nil, fmt.Errorf("profile update needs the same declared file inventory: %s", problems[0].Detail)
+	}
+	if err := validateCompanyProfile(updated); err != nil {
+		return original, nil, err
+	}
+	sort.Strings(changed)
+	return updated, changed, nil
 }
 
 func snapshotCompanyFolder(root, folder string) ([]CompanyFile, error) {

@@ -485,7 +485,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 			if err := validateCompanyHostStatus(status, session, fleet); err != nil {
 				return err
 			}
-			if len(status.World) == 0 || bytes.Equal(bytes.TrimSpace(status.World), []byte("null")) {
+			if !companyActiveWorld(status.World) {
 				if ready {
 					return fmt.Errorf("the dedicated server stopped publishing its active world")
 				}

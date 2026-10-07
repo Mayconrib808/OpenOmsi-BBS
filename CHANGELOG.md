@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.0.0-dev.4
+
+- Added administrator-only refresh of existing local company-profile hashes in Setup 9 → 2, preserving company/session/link/clock settings and the declared inventory, with an exact previous-JSON backup.
+- Changed asset diagnostics to report changed content rather than claiming a known addon version difference. Player preflight still rejects unapproved script, calendar and other asset changes.
+- Company-clock sessions now distinguish a dedicated gateway with no active world from a live clock mismatch; players are told to wait for CompanyHost synchronization. Fixed-date player-hosted rooms remain compatible.
+- Added regression checks for the reported calendar/script drift, metadata and backup preservation, cancelled/concurrent updates, undeclared or missing files, and map loading status.
+
 ## 2.0.0-dev.3
 
 - Fixed official OpenOMSI 0.2.0 server rejection: its HTTP status reports workspace version 0.1.0. Both the host supervisor and joining bridge now recognize the exact pinned 538ad31 release build with protocol 6.

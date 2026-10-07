@@ -16,7 +16,7 @@ import (
 )
 
 func testCompanyStatus() map[string]any {
-	return map[string]any{"name": "Company server", "map": "maps/Sample/global.cfg", "version": "0.2.0 (test-build)", "protocol": multiplayerProtocol, "time": "09:20", "players": 1, "max_players": 16, "password": false, "vehicles": `Vehicles/A/a.bus;Vehicles/B/b.bus`}
+	return map[string]any{"name": "Company server", "map": "maps/Sample/global.cfg", "version": "0.2.0 (test-build)", "protocol": multiplayerProtocol, "time": "09:20", "players": 1, "max_players": 16, "password": false, "world": map[string]int{"cars": 30}, "vehicles": `Vehicles/A/a.bus;Vehicles/B/b.bus`}
 }
 
 func companyStatusServer(t *testing.T, status map[string]any) *httptest.Server {

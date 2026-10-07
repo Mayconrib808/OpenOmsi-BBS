@@ -1,4 +1,4 @@
-# Multiplayer da empresa — 2.0.0-dev.2
+# Multiplayer da empresa — 2.0.0-dev.4
 
 Esta é a primeira versão de desenvolvimento da integração. A entrada é automática depois de salvar um perfil da empresa no Setup. A sessão precisa estar funcionando em um anfitrião ou servidor openOMSI. A ponte não cria servidores na nuvem e não identifica automaticamente a empresa da conta BBS.
 
@@ -24,7 +24,7 @@ Para jogar uma viagem sozinho, desative apenas o multiplayer na opção 8. A pon
 
 ## Para o administrador
 
-O perfil deve representar os arquivos usados pela empresa e pelo anfitrião. A opção **9 — Criar perfil da empresa** ajuda a gerar um JSON:
+O perfil deve representar os arquivos usados pela empresa e pelo anfitrião. A opção **9 — Criar / atualizar perfil da empresa**, seguida de **1 — Criar perfil novo**, ajuda a gerar um JSON:
 
 1. Informe um identificador estável e o nome da empresa.
 2. Cadastre uma sessão: nome, `maps/<mapa>/global.cfg`, nome do mapa no BBS, data do mundo e endereço HTTP(S) do servidor.
@@ -35,13 +35,15 @@ O perfil deve representar os arquivos usados pela empresa e pelo anfitrião. A o
 
 Os jogadores configuram esse arquivo/link uma vez. Um perfil remoto é lido novamente a cada viagem, permitindo atualizar endereços e links sem reconfigurar cada cliente. Um JSON compartilhado como arquivo precisa ser reenviado quando mudar. Não altere `company_id`: trocar a identidade exige configurar novamente a empresa no Setup.
 
-Para mudar links, datas e salas, edite o JSON. Quando mudar os arquivos de mapa, ônibus, dependências ou pinturas, regenere os hashes pela opção 9 usando outro identificador temporário; transfira os pacotes atualizados ao perfil da empresa e preserve seu `company_id`. O assistente recusa sobrescrever um perfil existente. Os hashes conferem os arquivos locais; não hospedam os mods nem certificam que um link externo é confiável.
+Para mudar links, datas e salas, edite o JSON. Para registrar mudanças no conteúdo dos arquivos já declarados, com BCS e CompanyHost fechados, use **9 → 2 — Atualizar os hashes do perfil existente**. Confira a lista e confirme a instalação atual como a referência da empresa. O assistente preserva identidade, sessões, relógio e links, guarda uma cópia exata do JSON anterior e recusa arquivos ausentes ou extras. Ele não atualiza o inventário nem aceita automaticamente as diferenças de um jogador. Ao adicionar/remover pacotes ou arquivos, atualize o inventário em separado. Os hashes conferem os arquivos locais; não hospedam os mods nem certificam que um link externo é confiável.
 
 O perfil organiza o destino das conexões. **Não é uma autenticação de funcionário no BBS nem uma lista de acesso do servidor.** A associação com a empresa é escolhida no Setup; o acesso à sessão depende do anfitrião e de sua rede.
 
 ## Endereço e configuração do servidor
 
 `server_url` é a porta **web**, não a porta UDP e não o código de sessão OMSI. Exemplo local: `http://127.0.0.1:27025`. Para outros computadores, use o endereço alcançável por eles. Para internet, um endereço HTTPS do gateway/túnel pode ser usado. `127.0.0.1` só serve para cliente e servidor na mesma máquina.
+
+Sessões com data `company` usam o servidor dedicado com CompanyHost. Aguarde **SINCRONIZADO**: a porta web e o túnel podem abrir antes de o mapa terminar de carregar. Nessa fase, o servidor publica a hora inicial configurada e `world:null`; a ponte informa que o mundo ainda não está ativo. Sessões com data fixa continuam aceitando anfitriões jogadores, que não publicam contagens de mundo do servidor dedicado.
 
 A ponte lê `GET /status` no mesmo endereço que passa ao openOMSI. O status precisa informar mapa, versão, protocolo, relógio, quantidade de jogadores e frota. Status fora do ar, incompatível ou com a sala cheia impede a entrada. A primeira sala compatível é escolhida na ordem do perfil. O perfil aceita até 16 salas e consulta no máximo quatro ao mesmo tempo.
 
@@ -95,8 +97,10 @@ Sem outro jogador, é possível testar instalação, Setup, perfil, relatório d
 
 ## English overview
 
-This is a development build of optional company multiplayer, targeting openOMSI 0.2.0 / protocol 6. Setup option 9 generates administrator-owned JSON profiles, asset-folder inventories, hashes and curated download links. Setup option 8 binds one local file or HTTPS profile URL and a player name once. Starting a BBS trip selects an already hosted compatible session, validates its status and local content, then adds `--lan-join` / `--lan-name`.
+This is a development build of optional company multiplayer, targeting openOMSI 0.2.0 / protocol 6. Setup option 9 → 1 generates administrator-owned JSON profiles, asset-folder inventories, hashes and curated download links. Setup option 8 binds one local file or HTTPS profile URL and a player name once. Starting a BBS trip selects an already hosted compatible session, validates its status and local content, then adds `--lan-join` / `--lan-name`.
 
 The profile is a routing configuration, not BBS company-membership authentication. Registered sessions have a fixed map and date, a web-gateway base URL, required package IDs and a 1-300 second clock tolerance. The HTTP status omits the date; the launched game's host-world log must confirm it before BBS readiness is published. Failed or mismatched startup is stopped. Runtime reconnect and BBS evaluation behavior remain unverified.
 
 Missing, changed or extra assets produce a local requirements page with the administrator's links. No search, automatic archive installation, peer asset upload or game-file redistribution is performed. Multiplayer is disabled by default and can be disabled separately from the bridge. Two-player rendering, boarding and live BBS trip evaluation have not been validated.
+
+Setup 9 → 2 lets the administrator review and refresh hashes of already declared installed files in an existing local JSON. Company/session/clock/link metadata is preserved, an exact previous-profile backup is saved, and missing or additional files are refused. Joining players never automatically learn changed content. Company-clock sessions require an active dedicated world; wait for SINCRONIZADO in CompanyHost before starting BCS.

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -294,4 +295,125 @@ func (u *setupUI) createCompany(c Config) (string, error) {
 	}
 	fmt.Println(path)
 	return path, nil
+}
+
+func (u *setupUI) manageCompanyProfile(c Config) (string, error) {
+	u.say("\n1 - Criar perfil novo\n2 - Atualizar os hashes do perfil existente\n0 - Voltar", "\n1 - Create a new profile\n2 - Update an existing profile's hashes\n0 - Back", "\n1 - Neues Profil erstellen\n2 - Hashes eines vorhandenen Profils aktualisieren\n0 - Zurück")
+	mode, err := u.line("Opção", "Option", "Option", "1")
+	if err != nil {
+		return "", err
+	}
+	switch mode {
+	case "1":
+		return u.createCompany(c)
+	case "2":
+		return u.refreshCompanyProfile(c)
+	case "0":
+		return "", nil
+	default:
+		return "", fmt.Errorf("choose 1, 2 or 0")
+	}
+}
+
+func (u *setupUI) refreshCompanyProfile(c Config) (string, error) {
+	if !filepath.IsAbs(c.Root) {
+		return "", fmt.Errorf("configure the OMSI 2 folder first (option 1)")
+	}
+	u.say("Feche o BCS e o CompanyHost antes de atualizar. Esta ação do administrador registra o conteúdo instalado agora como referência da empresa; os jogadores continuam usando a checagem de arquivos.", "Close BCS and CompanyHost before updating. This administrator action records the currently installed content as the company's reference; players continue to use file validation.", "Schließe BBS und CompanyHost vor der Aktualisierung. Diese Administratoraktion registriert die aktuell installierten Inhalte als Firmenreferenz; die Dateiprüfung für Spieler bleibt aktiv.")
+	source, err := u.line("Caminho do perfil JSON existente", "Existing JSON profile path", "Pfad des vorhandenen JSON-Profils", c.CompanyProfile)
+	if err != nil {
+		return "", err
+	}
+	source = strings.Trim(strings.TrimSpace(source), `"`)
+	if strings.Contains(source, "://") || source == "" {
+		return "", fmt.Errorf("choose the administrator's local JSON file")
+	}
+	if !filepath.IsAbs(source) {
+		source = filepath.Join(u.dir, source)
+	}
+	stat, err := os.Lstat(source)
+	if err != nil {
+		return "", err
+	}
+	if !stat.Mode().IsRegular() || stat.Size() > companyProfileLimit {
+		return "", fmt.Errorf("choose a regular JSON profile within the size limit")
+	}
+	before, err := os.ReadFile(source)
+	if err != nil {
+		return "", err
+	}
+	profile, err := loadCompanyProfile(context.Background(), source, u.dir, nil)
+	if err != nil {
+		return "", err
+	}
+	u.say("Conferindo os arquivos cadastrados; isso pode levar alguns minutos.", "Checking the declared files; this may take a few minutes.", "Registrierte Dateien werden geprüft; dies kann einige Minuten dauern.")
+	updated, changed, err := refreshCompanyHashes(c.Root, profile)
+	if err != nil {
+		return "", err
+	}
+	if len(changed) == 0 {
+		u.say("O perfil já corresponde aos arquivos instalados. Nada foi alterado.", "The profile already matches the installed files. Nothing changed.", "Das Profil entspricht bereits den installierten Dateien. Keine Änderung.")
+		return source, nil
+	}
+	fmt.Printf("%s: %d\n", localText(u.lang, "Arquivos com conteúdo alterado", "Files with changed content", "Dateien mit geänderten Inhalten"), len(changed))
+	for _, path := range changed {
+		fmt.Println(path)
+	}
+	if !u.yes("Registrar esses arquivos como a referência da empresa? [s/N]", "Record these files as the company's reference? [y/N]", "Diese Dateien als Firmenreferenz registrieren? [j/N]") {
+		return "", nil
+	}
+	// Verify the proposed reference again after the owner's review. An
+	// active BCS process must not silently change files while they approve it.
+	all := updated.Sessions[0]
+	all.RequiredPackages = nil
+	for _, pkg := range updated.Packages {
+		all.RequiredPackages = append(all.RequiredPackages, pkg.ID)
+	}
+	if problems := checkCompanyPackages(c.Root, updated, all); len(problems) != 0 {
+		return "", fmt.Errorf("assets changed during review; try again with BCS and CompanyHost closed: %s", problems[0].Detail)
+	}
+	backup, err := saveCompanyProfileRefresh(source, before, updated)
+	if err != nil {
+		return "", err
+	}
+	u.say("Perfil atualizado. Empresa, links, sessões e relógio foram preservados. Reinicie o CompanyHost com esse mesmo JSON; compartilhe o perfil atualizado com os jogadores.", "Profile updated. Company, links, sessions and clock were preserved. Restart CompanyHost with the same JSON; share the updated profile with players.", "Profil aktualisiert. Firma, Links, Sitzungen und Uhr wurden beibehalten. Starte CompanyHost mit derselben JSON-Datei neu; teile das aktualisierte Profil mit den Spielern.")
+	fmt.Printf("%s: %s\n", localText(u.lang, "Cópia do perfil anterior", "Previous profile backup", "Sicherung des vorherigen Profils"), backup)
+	return source, nil
+}
+
+func saveCompanyProfileRefresh(path string, expected []byte, profile CompanyProfile) (string, error) {
+	if err := validateCompanyProfile(profile); err != nil {
+		return "", err
+	}
+	data, err := json.MarshalIndent(profile, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	if len(data)+1 > companyProfileLimit {
+		return "", fmt.Errorf("profile exceeds size limit")
+	}
+	current, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if !bytes.Equal(current, expected) {
+		return "", fmt.Errorf("the profile changed during review; reload it before updating")
+	}
+	backup := path + ".backup-" + time.Now().UTC().Format("20060102-150405.000000000")
+	file, err := os.OpenFile(backup, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+	if err != nil {
+		return "", err
+	}
+	_, err = file.Write(expected)
+	closeErr := file.Close()
+	if err != nil {
+		return "", err
+	}
+	if closeErr != nil {
+		return "", closeErr
+	}
+	if err := writeSetupAtomic(path, append(data, '\n')); err != nil {
+		return "", err
+	}
+	return backup, nil
 }

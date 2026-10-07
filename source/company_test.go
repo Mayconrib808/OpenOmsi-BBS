@@ -2,10 +2,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -335,5 +337,166 @@ func TestOfficialV020HTTPVersionUsesPinnedBuildIdentity(t *testing.T) {
 	joined := companyServerStatus{Name: status.Name, Map: status.Map, Version: status.Version, Protocol: status.Protocol, Time: status.Time, MaxPlayers: status.MaxPlayers, Vehicles: status.Vehicles}
 	if err := validateCompanyServer(joined, profile.Sessions[0], trip); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCompanyOwnerRefreshUpdatesOnlyDeclaredHashesAndPreservesMetadata(t *testing.T) {
+	c, original, _, _ := companyFixture(t)
+	assets := map[string]string{
+		"maps/Sample/Holidays.txt": "2026-10-06\n",
+		"Vehicles/A/script/cockpit_varlist.txt": "existing_var\n",
+	}
+	for path, content := range assets {
+		if err := os.WriteFile(filepath.Join(c.Root, filepath.FromSlash(path)), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i, folder := range []string{"maps/Sample", "Vehicles/A"} {
+		files, err := snapshotCompanyFolder(c.Root, folder)
+		if err != nil {
+			t.Fatal(err)
+		}
+		original.Packages[i].Files = files
+	}
+	original.Clock = &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: -480}
+	original.Sessions[0].Date = "company"
+	before, _ := json.Marshal(original)
+	for _, path := range []string{"maps/Sample/Holidays.txt", "Vehicles/A/script/main.osc", "Vehicles/A/script/cockpit_varlist.txt"} {
+		if err := os.WriteFile(filepath.Join(c.Root, filepath.FromSlash(path)), []byte("changed local content\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if problems := checkCompanyPackages(c.Root, original, original.Sessions[0]); len(problems) != 2 {
+		t.Fatal("joining must still refuse unapproved changed scripts and calendar", problems)
+	}
+	updated, changed, err := refreshCompanyHashes(c.Root, original)
+	if err != nil || len(changed) != 3 {
+		t.Fatal(changed, err)
+	}
+	if problems := checkCompanyPackages(c.Root, updated, updated.Sessions[0]); len(problems) != 0 {
+		t.Fatal(problems)
+	}
+	after, _ := json.Marshal(original)
+	if !bytes.Equal(before, after) {
+		t.Fatal("refresh mutated the original profile before administrator approval")
+	}
+	if updated.CompanyID != original.CompanyID || updated.CompanyName != original.CompanyName ||
+		!reflect.DeepEqual(updated.Clock, original.Clock) || !reflect.DeepEqual(updated.Sessions, original.Sessions) {
+		t.Fatal("refresh changed company, clock or session configuration")
+	}
+	for i, pkg := range updated.Packages {
+		if len(pkg.Files) != len(original.Packages[i].Files) {
+			t.Fatal("changed the declared inventory")
+		}
+		for j, file := range pkg.Files {
+			if file.Path != original.Packages[i].Files[j].Path {
+				t.Fatal("changed a declared path")
+			}
+		}
+		pkg.Files = original.Packages[i].Files
+		if !reflect.DeepEqual(pkg, original.Packages[i]) {
+			t.Fatal("changed package metadata or download links")
+		}
+	}
+	// A subsequent content change must still fail; refreshing is not an ignore rule.
+	os.WriteFile(filepath.Join(c.Root, "Vehicles/A/script/main.osc"), []byte("another modification"), 0644)
+	if problems := checkCompanyPackages(c.Root, updated, updated.Sessions[0]); len(problems) != 1 {
+		t.Fatal("new script modifications were silently trusted", problems)
+	}
+}
+
+func TestCompanyOwnerRefreshRefusesMissingAndUndeclaredFiles(t *testing.T) {
+	for _, mode := range []string{"missing", "undeclared"} {
+		t.Run(mode, func(t *testing.T) {
+			c, original, _, _ := companyFixture(t)
+			before, _ := json.Marshal(original)
+			if mode == "missing" {
+				os.Remove(filepath.Join(c.Root, "Vehicles/A/script/main.osc"))
+			} else {
+				os.WriteFile(filepath.Join(c.Root, "Vehicles/A/script/unregistered.osc"), []byte("new script"), 0644)
+			}
+			if _, _, err := refreshCompanyHashes(c.Root, original); err == nil {
+				t.Fatal("refresh accepted a changed inventory")
+			}
+			after, _ := json.Marshal(original)
+			if !bytes.Equal(before, after) {
+				t.Fatal("failed refresh changed the original profile")
+			}
+		})
+	}
+}
+
+func TestCompanyOwnerRefreshKeepsSharedPackageHashesConsistent(t *testing.T) {
+	c, original, _, _ := companyFixture(t)
+	original.Packages[1].Folders = append(original.Packages[1].Folders, original.Packages[0].Folders...)
+	original.Packages[1].Files = append(original.Packages[1].Files, original.Packages[0].Files...)
+	path := "maps/Sample/global.cfg"
+	os.WriteFile(filepath.Join(c.Root, filepath.FromSlash(path)), []byte("[name]\nSample updated\n"), 0644)
+	updated, changed, err := refreshCompanyHashes(c.Root, original)
+	if err != nil || len(changed) != 1 || changed[0] != path {
+		t.Fatal(changed, err)
+	}
+	if err := validateCompanyProfile(updated); err != nil {
+		t.Fatal("shared hashes diverged", err)
+	}
+}
+
+func TestCompanyProfileRefreshWritesExactBackupAndRejectsConcurrentProfileChanges(t *testing.T) {
+	c, original, _, dir := companyFixture(t)
+	path := saveTestCompany(t, dir, original)
+	raw, _ := os.ReadFile(path)
+	raw = append([]byte{0xef, 0xbb, 0xbf}, raw...)
+	os.WriteFile(path, raw, 0644)
+	os.WriteFile(filepath.Join(c.Root, "Vehicles/A/script/main.osc"), []byte("owner's new reference"), 0644)
+	updated, _, err := refreshCompanyHashes(c.Root, original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	backup, err := saveCompanyProfileRefresh(path, raw, updated)
+	if err != nil {
+		t.Fatal(err)
+	}
+	savedBackup, err := os.ReadFile(backup)
+	if err != nil || !bytes.Equal(savedBackup, raw) {
+		t.Fatal("previous JSON was not preserved byte for byte", err)
+	}
+	got, err := loadCompanyProfile(context.Background(), path, dir, nil)
+	if err != nil || !reflect.DeepEqual(got, updated) {
+		t.Fatal("saved reference differs from the reviewed profile", got, err)
+	}
+	expectedCurrent, _ := os.ReadFile(path)
+	changedProfile := append(append([]byte(nil), expectedCurrent...), ' ')
+	os.WriteFile(path, changedProfile, 0644)
+	if _, err := saveCompanyProfileRefresh(path, expectedCurrent, updated); err == nil {
+		t.Fatal("concurrently changed profile was overwritten")
+	}
+	gotBytes, _ := os.ReadFile(path)
+	if !bytes.Equal(gotBytes, changedProfile) {
+		t.Fatal("failed update changed the JSON")
+	}
+	backups, _ := filepath.Glob(path + ".backup-*")
+	if len(backups) != 1 {
+		t.Fatal("failed update wrote another backup", backups)
+	}
+}
+
+func TestCompanyRefreshWizardCancellationLeavesProfileAndConfigurationUntouched(t *testing.T) {
+	c, original, _, dir := companyFixture(t)
+	profile := saveTestCompany(t, dir, original)
+	c.CompanyProfile = profile
+	before, _ := os.ReadFile(profile)
+	os.WriteFile(filepath.Join(c.Root, "Vehicles/A/script/main.osc"), []byte("changed script"), 0644)
+	u := setupUI{bufio.NewScanner(strings.NewReader("\nn\n")), "pt", dir}
+	if path, err := u.refreshCompanyProfile(c); err != nil || path != "" {
+		t.Fatal(path, err)
+	}
+	after, _ := os.ReadFile(profile)
+	backups, _ := filepath.Glob(profile + ".backup-*")
+	if !bytes.Equal(before, after) || len(backups) != 0 || fileExists(configPath(dir)) {
+		t.Fatal("cancelled update wrote profile, backup or configuration")
+	}
+	u.input = bufio.NewScanner(strings.NewReader("https://example.invalid/profile.json\n"))
+	if _, err := u.refreshCompanyProfile(c); err == nil {
+		t.Fatal("refresh tried to overwrite a remotely hosted profile")
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 )
@@ -180,5 +181,51 @@ func TestCompanyProfileRequiresClockForAutomaticSessionDate(t *testing.T) {
 	p.Clock.ShiftMinutes = -1441
 	if err := validateCompanyProfile(p); err == nil {
 		t.Fatal("invalid company clock accepted through profile validation")
+	}
+}
+
+func TestLiveCompanyPreflightRejectsLoadingWorldBeforeCheckingStartupClock(t *testing.T) {
+	for _, world := range []any{nil, false, []int{}, "loading"} {
+		c, p, trip, dir := companyFixture(t)
+		p.Clock = &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: -480}
+		p.Sessions[0].Date = "company"
+		status := testCompanyStatus()
+		status["time"], status["world"] = "22:30:10", world
+		p.Sessions[0].ServerURL = companyStatusServer(t, status).URL
+		saveTestCompany(t, dir, p)
+		now := companyClockTestInstant(t, "2026-10-07T04:37:41Z")
+		plan, problems, err := prepareMultiplayerAt(context.Background(), c, dir, trip, companyHTTPClient(), now)
+		if err != nil || plan != nil || len(problems) != 1 ||
+			!strings.Contains(problems[0].Detail, "SINCRONIZADO") ||
+			strings.Contains(problems[0].Detail, "incompatible clock") {
+			t.Fatal("loading status was mistaken for the running company clock", world, plan, problems, err)
+		}
+	}
+}
+
+func TestLiveCompanyPreflightStillRequiresWorldWithMatchingClock(t *testing.T) {
+	c, p, trip, dir := companyFixture(t)
+	p.Clock = &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: -480}
+	p.Sessions[0].Date = "company"
+	status := testCompanyStatus()
+	status["time"] = "22:37:41"
+	delete(status, "world")
+	p.Sessions[0].ServerURL = companyStatusServer(t, status).URL
+	saveTestCompany(t, dir, p)
+	now := companyClockTestInstant(t, "2026-10-07T04:37:41Z")
+	if plan, problems, err := prepareMultiplayerAt(context.Background(), c, dir, trip, companyHTTPClient(), now); err != nil || plan != nil || len(problems) == 0 {
+		t.Fatal("startup clock coincidence allowed a company trip before the world loaded", plan, problems, err)
+	}
+}
+
+func TestFixedDatePlayerHostDoesNotRequireDedicatedWorldCounts(t *testing.T) {
+	c, p, trip, dir := companyFixture(t)
+	status := testCompanyStatus()
+	status["world"] = nil // A player-hosted session has no dedicated world counts.
+	p.Sessions[0].ServerURL = companyStatusServer(t, status).URL
+	saveTestCompany(t, dir, p)
+	plan, problems, err := prepareMultiplayer(context.Background(), c, dir, trip, companyHTTPClient())
+	if err != nil || plan == nil || len(problems) != 0 {
+		t.Fatal("fixed-date player host became unsupported", plan, problems, err)
 	}
 }

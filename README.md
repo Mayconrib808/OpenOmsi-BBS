@@ -1,6 +1,6 @@
 # openOMSI BBS Bridge
 
-> **2.0.0-dev.3 development branch:** company profiles, administrator-provided addon links and automatic joining of already hosted sessions. Setup options 8 and 9 configure it. Multiplayer is off by default; two-player rendering, boarding and live BBS evaluation are pending. See [the multiplayer guide](docs/MULTIPLAYER.md). The published 1.1.3 remains available below.
+> **2.0.0-dev.4 development branch:** company profiles, administrator-provided addon links and automatic joining of already hosted sessions. Setup options 8 and 9 configure it. Multiplayer is off by default; two-player rendering, boarding and live BBS evaluation are pending. See [the multiplayer guide](docs/MULTIPLAYER.md). The published 1.1.3 remains available below.
 
 > Company clock / Relógio da empresa: [automatic host and calendar setup](docs/COMPANY_CLOCK.md).
 An experimental, unofficial bridge between **openOMSI** and **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)**, maintained by **Mayconrib808**.

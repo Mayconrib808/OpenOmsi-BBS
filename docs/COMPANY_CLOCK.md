@@ -1,11 +1,11 @@
-# Relógio automático da empresa — 2.0.0-dev.2
+# Relógio automático da empresa — 2.0.0-dev.4
 
 A configuração **Mudança de horário** do BCS é relativa ao seu relógio de referência, não ao fuso do computador do jogador. A ponte usa um relógio explícito compartilhado no perfil da empresa. No exemplo observado, o valor configurado foi **-8 horas**.
 
 ## Configurar uma vez
 
 1. Extraia o novo pacote em outra pasta e configure o Setup normalmente.
-2. Na opção **9**, no campo da data da sessão, digite **company**. Informe **-8** no campo da mudança de horário do BCS. Cadastre o mapa, o endereço e os pacotes normalmente. Os próximos mapas reutilizam esse relógio.
+2. Na opção **9 → 1**, no campo da data da sessão, digite **company**. Informe **-8** no campo da mudança de horário do BCS. Cadastre o mapa, o endereço e os pacotes normalmente. Os próximos mapas reutilizam esse relógio.
 3. Confira a data/hora calculada contra o relógio da empresa no BCS. O padrão **Europe/Berlin** segue CET/CEST, inclusive horário de verão. Essa escolha corresponde ao exemplo observado e é configurável; a documentação do BCS não confirma claramente o comportamento no inverno. Se a empresa mudar sua diferença no BCS, atualize o perfil compartilhado.
 4. Na opção **8**, selecione o perfil da empresa. Deixe **date=auto** em `app/bridge.ini` para usar o calendário da empresa. Uma data manual continua representando uma escolha explícita no calendário do BCS e não é substituída automaticamente.
 
@@ -27,6 +27,8 @@ O auxiliar lê seu `server.cfg`, mas gera uma configuração separada para esta 
 
 Depois do carregamento, o auxiliar confere o servidor local e envia correções de relógio periodicamente pela API local do OpenOMSI. `real_time=0` é obrigatório nesse processo: a opção original `real_time=1` segue o Windows e ignora os ajustes administrativos. A data inicial é calculada automaticamente e o servidor avança o calendário através da meia-noite.
 
+Aguarde a linha **SINCRONIZADO** antes de abrir uma viagem pelo BCS. O endereço HTTPS pode aparecer enquanto o mapa ainda carrega: isso comprova que o gateway abriu, mas a sessão ainda pode não ter mundo ativo. A ponte confere `world` para sessões com relógio da empresa, que usam o servidor dedicado gerenciado pelo CompanyHost.
+
 Use o endereço HTTP local para testar no mesmo computador, ou o endereço HTTPS do túnel mostrado pelo servidor para outros jogadores. Um túnel temporário pode mudar depois de reiniciar: atualize `server_url` no perfil e compartilhe a atualização. A sincronização do relógio não cria um endereço permanente nem hospeda mapas automaticamente.
 
 ## O que é sincronizado
@@ -45,3 +47,11 @@ A API `/status` do OpenOMSI 0.2.0 não fornece a data completa. O auxiliar inici
 Os testes automatizados cobrem o exemplo **07/10 00:14 em São Paulo → 06/10 21:14 na empresa**, viradas de dia/mês/ano, transições CET/CEST, independência do fuso do PC, configurações e a API de controle simulada. O teste com OpenOMSI/BCS instalado e o multiplayer com dois jogadores continuam necessários. O suporte continua limitado ao OpenOMSI **0.2.0 / protocolo 6**.
 
 Referências: [manual do BCS](https://busbetrieb-simulator.de/Manual_OMSI2_Busbetrieb_Simulator_en_web.pdf), [servidor OpenOMSI 0.2.0](https://github.com/openOMSI-Project/openOMSI/blob/538ad31b2a2c664cb0726db2547bf6238411eedf/docs/SERVER.md), [relógio nativo](https://github.com/openOMSI-Project/openOMSI/blob/538ad31b2a2c664cb0726db2547bf6238411eedf/crates/omsi-app/src/real_time.rs).
+
+## Atualizar os arquivos de um perfil existente
+
+Se o relatório mostrar **conteúdo alterado**, o arquivo instalado tem bytes diferentes dos registrados no JSON; isso não identifica sozinho uma versão comercial diferente nem quem modificou o arquivo. Scripts e `Holidays.txt` continuam sendo conferidos.
+
+O administrador pode registrar a instalação atual como nova referência sem recadastrar a empresa: com BCS e CompanyHost fechados, use **Setup → 9 → 2**, escolha o JSON local e confira a lista antes de confirmar. O assistente atualiza somente os hashes dos arquivos já declarados e guarda o JSON anterior numa cópia `.backup-<data/hora>`. Preserva nome/identificador, links, sessões, caminhos da frota e relógio. Arquivos ausentes ou extras exigem corrigir a instalação ou atualizar o inventário em separado; não são aceitos automaticamente.
+
+Depois, reinicie o CompanyHost com o mesmo JSON, espere **SINCRONIZADO** e abra o BCS. Compartilhe o JSON atualizado com os jogadores, ou atualize o arquivo publicado no link HTTPS. Se os arquivos mudarem novamente a cada viagem, guarde o novo relatório: atualizar o perfil uma vez não normaliza alterações repetidas ou desconhecidas do BCS.

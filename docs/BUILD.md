@@ -7,7 +7,7 @@ python3 scripts/build.py --check-only
 python3 scripts/build.py
 ```
 
-Windows: `py -3 scripts/build.py` or `source/BUILD.cmd`. On this development branch the default output is `dist/OpenOmsi.+.BBS.2.0.0-dev.3/`, its complete ZIP and a ZIP checksum. Existing outputs are preserved; use `--output NEW_PATH` to build elsewhere. CI names its artifact from `source/version.go`; the release publisher skips development versions.
+Windows: `py -3 scripts/build.py` or `source/BUILD.cmd`. On this development branch the default output is `dist/OpenOmsi.+.BBS.2.0.0-dev.4/`, its complete ZIP and a ZIP checksum. Existing outputs are preserved; use `--output NEW_PATH` to build elsewhere. CI names its artifact from `source/version.go`; the release publisher skips development versions.
 
 The script tests the bridge and new host, runs vet, compiles the Windows x86 host first, hashes it, and injects that digest into Setup/launcher. It compiles the bridge, Setup, facade and CompanyHost components and verifies the facade's three BCS RVAs against the writable 4 MiB backing in matching stripped/unstripped builds. It then includes source, config example, tutorial, credits and licences, generates the complete inventory/SHA-256 manifest, and tests package integrity and actual helper staging/removal.
 

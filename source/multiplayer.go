@@ -34,6 +34,7 @@ type companyServerStatus struct {
 	MaxPlayers int             `json:"max_players"`
 	Password   bool            `json:"password"`
 	Vehicles   json.RawMessage `json:"vehicles"`
+	World      json.RawMessage `json:"world"`
 }
 
 func multiplayerClock(s string) (float64, error) {
@@ -100,6 +101,9 @@ func validateCompanyServerAt(status companyServerStatus, session CompanySession,
 	}
 	if status.Players < 0 || status.MaxPlayers <= 0 || status.MaxPlayers > 128 || status.Players >= status.MaxPlayers {
 		return fmt.Errorf("session is full or did not provide a valid player limit")
+	}
+	if clock != nil && !companyActiveWorld(status.World) {
+		return fmt.Errorf("Servidor ainda sem mundo ativo. Para a sessão com relógio da empresa, aguarde SINCRONIZADO no CompanyHost antes de iniciar a viagem. / Company world is not active yet; wait for SINCRONIZADO in CompanyHost before starting the trip")
 	}
 	serverTime, err := multiplayerClock(status.Time)
 	if err != nil {
