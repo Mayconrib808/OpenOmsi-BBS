@@ -10,31 +10,6 @@ import (
 	"time"
 )
 
-type setupUI struct {
-	input     *bufio.Scanner
-	lang, dir string
-}
-
-func (u *setupUI) say(pt, en, de string) { fmt.Println(localText(u.lang, pt, en, de)) }
-func (u *setupUI) line(pt, en, de, defaultValue string) (string, error) {
-	fmt.Print(localText(u.lang, pt, en, de))
-	if defaultValue != "" {
-		fmt.Printf(" [%s]", defaultValue)
-	}
-	fmt.Print(": ")
-	if !u.input.Scan() {
-		return "", fmt.Errorf("input closed")
-	}
-	s := strings.TrimSpace(u.input.Text())
-	if s == "" {
-		s = defaultValue
-	}
-	return s, nil
-}
-func (u *setupUI) yes(pt, en, de string) bool {
-	s, e := u.line(pt, en, de, "")
-	return e == nil && affirmativeAnswer(s)
-}
 func (u *setupUI) chooseLanguage() error {
 	fmt.Println("\n1 - Português (Brasil)\n2 - English\n3 - Deutsch")
 	for {
@@ -130,15 +105,9 @@ func (u *setupUI) configure(c Config) (Config, error) {
 		fmt.Printf("%s: %s\n", localText(u.lang, "Auxiliar BCS a preparar na ativação", "BCS helper to prepare during activation", "BBS-Hilfsprogramm, das bei der Aktivierung bereitgestellt wird"), host)
 	}
 	if !u.yes("Salvar? [s/N]", "Save? [y/N]", "Speichern? [j/N]") {
-		return readConfig(configPath(u.dir)), nil
+		return readInstalledConfig(u.dir), nil
 	}
-	path := configPath(u.dir)
-	if b, e := os.ReadFile(path); e == nil {
-		if e = writeSetupAtomic(path+".backup", b); e != nil {
-			return c, e
-		}
-	}
-	if e := writeSetupAtomic(path, encodeConfig(c)); e != nil {
+	if e := saveInstalledConfig(u.dir, c); e != nil {
 		return c, e
 	}
 	u.say("Configuração salva. Use a opção 2 para ativar. Depois, inicie a viagem pelo BCS.", "Configuration saved. Use option 2 to activate. Then start your trip through BCS.", "Einstellungen gespeichert. Wähle Option 2 zum Aktivieren. Starte die Fahrt anschließend über BBS.")
@@ -154,7 +123,7 @@ func logSetup(dir, action string, e error) {
 	fmt.Fprintf(f, "%s v%s by %s %s: %v\r\n", time.Now().Format(time.RFC3339), bridgeVersion, bridgeAuthor, action, e)
 }
 func adminAction(dir, action string) error {
-	c := readConfig(configPath(dir))
+	c := readInstalledConfig(dir)
 	if action != "activate" && action != "deactivate" {
 		return fmt.Errorf("unknown admin action")
 	}
@@ -187,7 +156,7 @@ func (u *setupUI) changeActivation(action string) error {
 	if action == "activate" {
 		fmt.Println(usageNotices(u.lang))
 		u.say("\nA opção 2 ativa o openOMSI para esta instalação. Depois, abra o BCS e inicie a viagem normalmente. Para voltar ao OMSI original (inclusive pela Steam), use a opção 3.", "\nOption 2 enables openOMSI for this installation. Then open BCS and start your trip normally. To use original OMSI again (including Steam launches), use option 3.", "\nOption 2 aktiviert openOMSI für diese Installation. Öffne anschließend BBS und starte die Fahrt wie gewohnt. Mit Option 3 kehrst du zum originalen OMSI zurück, auch beim Start über Steam.")
-		c := readConfig(configPath(u.dir))
+		c := readInstalledConfig(u.dir)
 		if host, e := pluginHostPath(c); e == nil {
 			fmt.Printf("%s: %s\n", localText(u.lang, "A ativação prepara uma cópia do auxiliar BCS", "Activation prepares a copy of the BCS helper", "Bei der Aktivierung wird eine Kopie des BBS-Hilfsprogramms bereitgestellt"), host)
 		}
@@ -211,6 +180,11 @@ func (u *setupUI) changeActivation(action string) error {
 func (u *setupUI) status(c Config) error {
 	fmt.Printf("\nOpenOMSI BCS Bridge v%s - by %s\nOMSI: %s\nopenOMSI: %s\n", bridgeVersion, bridgeAuthor, c.Root, c.OpenOMSI)
 	fmt.Print(pluginHostDiagnostics(c, u.dir))
+	if c.Multiplayer {
+		fmt.Printf("Multiplayer: %s / %s\n", c.CompanyID, c.PlayerName)
+	} else {
+		u.say("Multiplayer da empresa: desativado", "Company multiplayer: disabled", "Firmen-Multiplayer: deaktiviert")
+	}
 	for _, view := range []int{64, 32} {
 		v, e := newWindowsRegistry().Read(view, ifeoBridge, "Debugger")
 		if e != nil {
@@ -265,30 +239,30 @@ func (u *setupUI) verify() error {
 func main() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	prepareConsole()
 	dir := packageRoot()
-	c := readConfig(configPath(dir))
+ // The elevated helper performs one fixed operation and exits. The graphical
+ // parent owns the UAC request, completion message and error display.
+ if len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "--admin=") {
+  action := strings.TrimPrefix(os.Args[1], "--admin=")
+  err := adminAction(dir, action)
+  logSetup(dir, action, err)
+  if err != nil { os.Exit(1) }
+  return
+ }
+ if len(os.Args) == 1 || (len(os.Args) == 2 && os.Args[1] == "--gui-smoke") {
+  smoke := len(os.Args) == 2
+  if err := runSetupGUI(dir, smoke); err != nil {
+   logSetup(dir, "graphical-setup", err)
+   if !smoke { guiMessageBox(0, err.Error(), 0x10) }
+   os.Exit(1)
+  }
+  return
+ }
+ if len(os.Args) > 1 && os.Args[1] == "--cli" { os.Args = append([]string{os.Args[0]}, os.Args[2:]...) }
+ prepareConsole()
+	c := readInstalledConfig(dir)
 	u := &setupUI{bufio.NewScanner(os.Stdin), c.Language, dir}
 	fmt.Printf("OpenOMSI BCS Bridge v%s - by %s\n", bridgeVersion, bridgeAuthor)
-	if len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "--admin=") {
-		action := strings.TrimPrefix(os.Args[1], "--admin=")
-		if len(os.Args) > 2 {
-			u.lang = normalizeLanguage(strings.TrimPrefix(os.Args[2], "--lang="))
-		}
-		e := adminAction(dir, action)
-		logSetup(dir, action, e)
-		if e != nil {
-			u.say("Falha na alteração:", "Change failed:", "Änderung fehlgeschlagen:")
-			fmt.Println(e)
-		} else {
-			u.say("Alteração concluída.", "Change completed.", "Änderung abgeschlossen.")
-		}
-		_, _ = u.line("Pressione Enter para fechar", "Press Enter to close", "Zum Schließen Enter drücken", "")
-		if e != nil {
-			os.Exit(1)
-		}
-		return
-	}
 	if len(os.Args) > 1 {
 		var e error
 		switch os.Args[1] {
@@ -298,6 +272,9 @@ func main() {
 			e = u.collect(c)
 		case "--verify":
 			e = u.verify()
+		case "--company-admin":
+			e = setupChangesAllowed()
+			if e == nil { _, e = u.manageCompanyProfile(c) }
 		default:
 			e = fmt.Errorf("unknown option")
 		}
@@ -322,7 +299,7 @@ func main() {
 	}
 	for {
 		u.say("\nPara começar: 1 = pastas e idioma, depois 2 = ativar. No ponto final: F9 → espere 2 segundos → finalize no BCS.", "\nGetting started: 1 = folders and language, then 2 = activate. At the last stop: F9 → wait 2 seconds → finish in BCS.", "\nErste Schritte: 1 = Ordner und Sprache, danach 2 = aktivieren. An der Endhaltestelle: F9 → mindestens 2 Sekunden warten → Fahrt in BBS abschließen.")
-		u.say("\n1 - Configurar pastas e idioma\n2 - Ativar / atualizar\n3 - Desativar\n4 - Conferir estado\n5 - Coletar logs\n6 - Conferir integridade\n7 - Abrir tutorial\n0 - Sair", "\n1 - Configure folders and language\n2 - Activate / update\n3 - Deactivate\n4 - Check status\n5 - Collect logs\n6 - Verify integrity\n7 - Open tutorial\n0 - Exit", "\n1 - Ordner und Sprache einstellen\n2 - Aktivieren / aktualisieren\n3 - Deaktivieren\n4 - Status prüfen\n5 - Protokolle sammeln\n6 - Dateiintegrität prüfen\n7 - Anleitung öffnen\n0 - Beenden")
+		u.say("\n1 - Configurar pastas e idioma\n2 - Ativar / atualizar\n3 - Desativar\n4 - Conferir estado\n5 - Coletar logs\n6 - Conferir integridade\n7 - Abrir tutorial\n8 - Configurar / desativar multiplayer da empresa\n9 - Criar / atualizar perfil da empresa (administrador)\n0 - Sair", "\n1 - Configure folders and language\n2 - Activate / update\n3 - Deactivate\n4 - Check status\n5 - Collect logs\n6 - Verify integrity\n7 - Open tutorial\n8 - Configure / disable company multiplayer\n9 - Create / update company profile (administrator)\n0 - Exit", "\n1 - Ordner und Sprache einstellen\n2 - Aktivieren / aktualisieren\n3 - Deaktivieren\n4 - Status prüfen\n5 - Protokolle sammeln\n6 - Dateiintegrität prüfen\n7 - Anleitung öffnen\n8 - Firmen-Multiplayer einrichten / deaktivieren\n9 - Firmenprofil erstellen / aktualisieren (Administrator)\n0 - Beenden")
 		s, e := u.line("Opção", "Option", "Option", "")
 		if e != nil {
 			return
@@ -344,6 +321,19 @@ func main() {
 			e = u.verify()
 		case "7":
 			e = openDocument(filepath.Join(dir, "TUTORIAL.html"))
+		case "8", "9":
+			var running bool
+			running, e = gamesRunning()
+			if e == nil && running {
+				e = fmt.Errorf("%s", localText(u.lang, "Feche o jogo antes de alterar o multiplayer.", "Close the game before changing multiplayer.", "Schließe das Spiel, bevor du Multiplayer änderst."))
+			}
+			if e == nil {
+				if s == "8" {
+					c, e = u.configureCompany(c)
+				} else {
+					_, e = u.manageCompanyProfile(c)
+				}
+			}
 		default:
 			u.say("Escolha uma opção do menu.", "Choose a menu option.", "Wähle eine Option aus dem Menü.")
 		}

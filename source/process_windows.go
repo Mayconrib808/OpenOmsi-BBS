@@ -19,7 +19,7 @@ func acquireBridgeLock(root string) (func(), error) {
 	}
 	if err == syscall.Errno(183) {
 		syscall.CloseHandle(syscall.Handle(h))
-		return nil, fmt.Errorf("a bridge session is already running for this OMSI folder")
+		return nil, errBridgeBusy
 	}
 	return func() { syscall.CloseHandle(syscall.Handle(h)) }, nil
 }
@@ -28,6 +28,19 @@ func showLaunchError(lang, message string) {
 	title, _ := syscall.UTF16PtrFromString("OpenOMSI BCS Bridge - by " + bridgeAuthor)
 	s, _ := syscall.UTF16PtrFromString(message)
 	syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(title)), 0x10)
+}
+
+func openMultiplayerDocument(path string) error {
+	verb, _ := syscall.UTF16PtrFromString("open")
+	file, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	r, _, e := syscall.NewLazyDLL("shell32.dll").NewProc("ShellExecuteW").Call(0, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(file)), 0, 0, 1)
+	if r <= 32 {
+		return fmt.Errorf("open requirements page: %v", e)
+	}
+	return nil
 }
 
 // Ask only the render windows of this launch to close, so openOMSI can run its

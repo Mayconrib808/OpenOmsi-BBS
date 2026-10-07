@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3"><img alt="Version 1.1.3" src="https://img.shields.io/badge/version-1.1.3-f47f30?style=for-the-badge"></a>
+  <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.1"><img alt="Version 2.0.1" src="https://img.shields.io/badge/version-2.0.1-f47f30?style=for-the-badge"></a>
   <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/actions/workflows/source-checks.yml"><img alt="Linux and Windows build checks" src="https://img.shields.io/github/actions/workflow/status/Mayconrib808/OpenOmsi-BBS/source-checks.yml?branch=main&style=for-the-badge&label=build"></a>
   <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases"><img alt="Windows package" src="https://img.shields.io/badge/platform-Windows-388bfd?style=for-the-badge"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/Mayconrib808/OpenOmsi-BBS?style=for-the-badge&color=78a81d"></a>
@@ -20,22 +20,23 @@
 **OpenOmsi + BBS** connects **openOMSI** to **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)** on Windows. Pick your trip in BBS and launch openOMSI with the bus and timetable prepared by the bridge.
 
 > [!WARNING]
-> **Experimental community project.** Version 1.1.3 has passed automated checks and a real BBS trip. Other map/bus combinations and complete evaluation/payment parity still need testing. See the [validation record](docs/VALIDATION.md).
+> **Experimental community project.** Core trip integration and joining a hosted session have been observed in real trips. Two-player rendering and complete evaluation/payment parity still need testing. See the [validation record](docs/VALIDATION.md).
 
 > [!IMPORTANT]
 > You need your own installed **OMSI 2**, **BCS/BBS** and **openOMSI**. The games, paid addons and original BBS plugin are installed separately.
 
 ## Releases
 
-**[Download OpenOmsi + BBS 1.1.3.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v1.1.3/OpenOmsi.%2B.BBS.1.1.3.zip)**
+**[Download OpenOmsi + BBS 2.0.1.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip)**
 
 | Package | Version | Download |
 | --- | --- | --- |
-| Complete Windows package | **1.1.3 · experimental** | [OpenOmsi + BBS 1.1.3.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v1.1.3/OpenOmsi.%2B.BBS.1.1.3.zip) |
-| SHA-256 verification | 1.1.3 | [Checksum](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v1.1.3/OpenOmsi.%2B.BBS.1.1.3.zip.sha256) |
+| Complete Windows package | **2.0.1 · experimental** | [OpenOmsi + BBS 2.0.1.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip) |
+| SHA-256 verification | 2.0.1 | [Checksum](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip.sha256) |
+| Previous release | 1.1.3 | [1.1.3 release](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3) |
 | Release history and notes | Published versions | [Browse Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases) |
 
-The complete ZIP includes **Setup.exe**, the bridge launcher, compatibility facade, automatically installed 32-bit helper, offline tutorial, source, credits and licenses. **No separate helper download, Go or Python installation is needed to play.**
+The complete ZIP includes **Setup.exe**, **CompanyHost.exe**, the bridge launcher, compatibility facade, automatically installed 32-bit helper, offline tutorial, source, credits and licenses. **No separate helper download, Go or Python installation is needed to play.**
 
 Choose the named Windows ZIP under **Assets**. GitHub's automatic “Source code” archives contain source files and need a build first.
 
@@ -43,36 +44,46 @@ Choose the named Windows ZIP under **Assets**. GitHub's automatic “Source code
 
 | Feature | What you get |
 | --- | --- |
-| **One setup tool** | Configure paths, activate the bridge and restore original OMSI launches. |
-| **Start from BBS** | Use the usual BBS trip workflow to open the prepared openOMSI session. |
-| **Trip integration** | Connect the locally installed BBS plugin and translate timetable, stop and ticket data. |
-| **Local diagnostics** | Generate a diagnostic ZIP from Setup option 5 when something needs investigation. |
+| **Windowed Setup** | Select the games and company profile, then click **Salvar e ativar** (save and activate). |
+| **Saved settings** | Game paths, player name and an imported profile copy survive package updates. |
+| **Start from BBS** | Launch OpenOMSI with the bus and trip prepared by the bridge. |
+| **Company multiplayer** | Find an already hosted session for the company's map and clock. |
+| **Server clock** | CompanyHost follows the company's configured timezone and clock shift. |
+| **Player profile export** | CompanyHost verifies the current tunnel and exports a player profile with its address filled in. |
+| **Local diagnostics** | **Coletar logs** creates a diagnostic ZIP for investigation. |
 
 ## Installation
 
-The tested reference is **Windows x64 + openOMSI 0.2.0 + BCS/BBS 5.0.0.1**. Check compatibility before replacing openOMSI with a newer build.
-
-1. Install **OMSI 2**, **BCS/BBS** and [**openOMSI**](https://github.com/openOMSI-Project/openOMSI/releases) separately.
+1. Install **OMSI 2**, **BCS/BBS** and [**OpenOMSI**](https://github.com/openOMSI-Project/openOMSI/releases) separately, with the company's map and buses.
 2. Download the complete bridge ZIP and **extract everything into a permanent folder**.
-3. With the games closed, run **Setup.exe** and configure the two game paths.
-4. Choose **2 — Activate / update** and accept the Windows permission request.
-5. In BCS/BBS, leave **“Start OMSI faster” unchecked**. In openOMSI, disable synchronisation with the real-time clock.
-6. Start your trip normally from BBS.
+3. With the games closed, open **Setup.exe** and select the original OMSI folder and `openomsi.exe`.
+4. For multiplayer, enable **Ativar multiplayer da empresa**, select the profile file or paste the HTTPS link provided by the administrator, and enter your player name.
+5. Click **Salvar e ativar** and accept the Windows permission request.
+6. In BCS/BBS, leave **“Start OMSI faster” unchecked**. In OpenOMSI, disable synchronisation with the real-time clock.
+7. Once the company server is ready, start your trip normally from BBS.
 
-At the last stop: **F9 → wait at least two seconds → finish in BCS/BBS while openOMSI remains open**.
+**Players do not need to edit JSON or host a server on their own PC.** The administrator supplies the profile and hosts the session. The bridge keeps an imported profile copy for subsequent trips.
 
-To return to original OMSI, close the games and use Setup option **3**. Open **TUTORIAL.html** from the extracted ZIP for the illustrated offline guide. [Detailed installation guide →](docs/INSTALL.md)
+At the last stop: **F9 → wait at least two seconds → finish in BCS/BBS while OpenOMSI remains open**.
 
-## Tested trip
+To return to original OMSI, close the games and click **Desativar ponte**. The bundled offline guide is **TUTORIAL.html**. [Simple player guide in Portuguese →](docs/GUIA_JOGADOR.md)
 
-A real Windows trip on **6 October 2026** used **Carrão City**, line **2201**, tour **02**, departure **09:20**, with **Caio Apache VIP I OF 1721 manual**. The original BBS plugin loaded, the timetable aligned, six stops and eight tickets were saved, BBS received the evaluation and completed the trip, and openOMSI exited normally.
+## Compatibility and testing
 
-That result covers this tested combination. The known **Berlin-Spandau loading issue in openOMSI 0.2.0** remains documented. [Validation details and remaining checks →](docs/VALIDATION.md)
+The live-tested reference is **Windows x64 + OpenOMSI 0.2.0 + BCS/BBS 5.0.0.1**. Other versions can be selected: the bridge checks the executable's required options and helper interface, and multiplayer requires a compatible server protocol. The official **0.2.11** source was reviewed for these interfaces; a live trip with that version is still pending.
+
+On **7 October 2026**, a **Carrão City, N407** trip using **Caio Apache VIP I OF 1721 manual** confirmed server joining, bus identity, chat, shared passengers and trip completion with a **67% BCS evaluation**. The player deliberately left through **Return to office**. One disconnect followed by reconnection occurred during the test.
+
+**Next trip** continuity and a two-player live test are still pending live validation. **Red-light-specific penalties remain unavailable**: OpenOMSI does not expose the necessary telemetry through the bridge interface. Actual collision and driving counters continue to be transferred. [Traffic penalty details →](docs/TRAFFIC_PENALTIES.md) · [Validation record →](docs/VALIDATION.md)
 
 ## Documentation
 
 | Guide | Use it for |
 | --- | --- |
+| [Simple player guide](docs/GUIA_JOGADOR.md) | One-time setup, playing and updating (Portuguese) |
+| [Multiplayer](docs/MULTIPLAYER.md) | Profiles, sessions and administrator tasks |
+| [Company clock](docs/COMPANY_CLOCK.md) | Hosting with synchronised date and time |
+| [Traffic penalties](docs/TRAFFIC_PENALTIES.md) | Transferred data and the red-light limitation |
 | [Installation](docs/INSTALL.md) | Paths, activation and restoring original OMSI |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Startup, plugin panel and timetable problems |
 | [Support and diagnostics](SUPPORT.md) | Reporting a problem and reviewing diagnostic files |
@@ -89,7 +100,7 @@ The included `Omsi.exe` is this project's compatibility facade, not the original
 
 Original proprietary executables, JARs and DLLs are not patched or replaced. The bridge **does write local data**: it updates `Drivers/bbs.odr`, creates its own runtime files, deploys its helper and configures a scoped Windows Registry launch redirect. See [runtime effects](docs/RUNTIME_EFFECTS.md) and [the technical notice](NOTICE_FOR_PEDEPE.md).
 
-Automatic dates use the local Windows date. Local counter translation can influence the vendor's evaluation; complete telemetry and payment parity are not promised.
+For company-clock multiplayer, automatic dates follow the configured company clock. Otherwise, they use the local Windows date. Local counter translation can influence the vendor's evaluation; complete telemetry and payment parity are not promised.
 
 </details>
 
@@ -109,7 +120,7 @@ To assemble the complete ZIP, run `python3 scripts/build.py` (Windows: `py -3 sc
 
 [Report a bug](https://github.com/Mayconrib808/OpenOmsi-BBS/issues/new/choose) · [Suggest a feature](https://github.com/Mayconrib808/OpenOmsi-BBS/issues/new/choose) · [Security policy](SECURITY.md)
 
-Contact **Mayconrib808** on Discord: **`.zmaycon.`** (both dots). Setup option **5** creates local diagnostics; [review them before sharing](SUPPORT.md). Nothing is uploaded automatically.
+Contact **Mayconrib808** on Discord: **`.zmaycon.`** (both dots). Setup's **Coletar logs** creates local diagnostics; [review them before sharing](SUPPORT.md). Nothing is uploaded automatically.
 
 ## Credits and license
 

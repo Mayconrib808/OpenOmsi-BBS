@@ -1,36 +1,20 @@
-# Support / Suporte
+# Support
 
-## Complete package
+For bridge problems, open an Issue with the bridge version, OpenOMSI version, BCS/BBS version, Windows version, map and route, expected behavior and observed behavior. Discord: **`.zmaycon.`**, including both dots.
 
-The ready-to-use Windows package is on [Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3). Download **OpenOmsi + BBS 1.1.3.zip** under Assets. Setup installs the included helper automatically; no extra download, Go or Python is needed.
+The complete Windows ZIP is available in [Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases). For installation, open **TUTORIAL.html** from the extracted package or read [the simple player guide](docs/GUIA_JOGADOR.md).
 
-Start with [installation](docs/INSTALL.md), [troubleshooting](docs/TROUBLESHOOTING.md) and the [validation scope](docs/VALIDATION.md). The tested reference is openOMSI 0.2.0 Windows x64 with BCS/BBS 5.0.0.1.
+## Collecting diagnostics
 
-## Report a problem
+1. Open **Setup.exe** from the installed bridge package.
+2. Click **Coletar logs**.
+3. Confirm creation of the local ZIP. The containing folder opens when collection succeeds.
+4. Review the files before sharing the diagnostic or a short excerpt.
 
-Use the [bug report form](https://github.com/Mayconrib808/OpenOmsi-BBS/issues/new/choose). Portuguese and English are welcome. Include:
+Nothing is uploaded automatically. The diagnostic may contain account identifiers, local paths, driver counters, logs and selected local timetable files. Redact private details and share only content you have permission to distribute. Do not publish paid map/DLC content or proprietary binaries.
 
-- Bridge, openOMSI, BCS/BBS and Windows versions.
-- What you tried, what you expected and what happened.
-- Steps to reproduce; map, bus, route and departure when relevant.
-- A screenshot or a small redacted diagnostic excerpt when useful.
+For multiplayer, include the exact **Online** state or connection error, whether you are on the server's PC or another computer, and whether CompanyHost reached **SINCRONIZADO**. Do not share the private admin password. An address beginning with `127.0.0.1` connects only to the same computer.
 
-Setup option **5** creates a local diagnostic ZIP. It is **not uploaded automatically**. It can contain account identifiers, machine paths, driver counters, logs and selected timetable files. Review it and remove private data before sharing. Do not post proprietary binaries or paid map/DLC files; a small excerpt is often enough.
+If **Próxima viagem** fails, include which button you clicked after completion, the route/time of both trips and the diagnostic collected afterward. An automatically generated next trip must have a new BCS shift ID; repeated calls for the existing trip are not a new trip.
 
-For vulnerabilities, use the private contact in [SECURITY.md](SECURITY.md). For accessibility barriers, use the accessibility form and [ACCESSIBILITY.md](ACCESSIBILITY.md).
-
-## Contact
-
-Maintainer: **Mayconrib808**. Discord: **`.zmaycon.`**, including both dots. Response times depend on availability.
-
-Bridge issues belong here. Problems in a game, Steam or the original BBS product should also be reported to that product's own support. This project does not represent those products.
-
-## Português do Brasil
-
-Baixe **OpenOmsi + BBS 1.1.3.zip** em Releases. O auxiliar já vem incluído e é instalado pelo Setup.
-
-Para pedir ajuda, informe as versões, o que tentou, o resultado esperado e o que aconteceu. Em problemas de viagem, inclua mapa, ônibus, linha e horário.
-
-A opção **5** gera um diagnóstico local. Revise os arquivos antes de compartilhar: podem conter identificadores da conta, caminhos do computador, dados do motorista e arquivos de horários. Nada é enviado automaticamente.
-
-Discord: **`.zmaycon.`**. Vulnerabilidades devem ser relatadas em privado conforme a [política de segurança](SECURITY.md).
+Issues concerning this independent bridge belong here. This repository does not provide PeDePe, OpenOMSI, Aerosoft or Steam product support and does not assert that those projects support it.

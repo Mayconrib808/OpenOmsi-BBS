@@ -1,4 +1,48 @@
+# 2.0.1 — 2026-10-07
+
+- Menu gráfico nativo para configurar, ativar e coletar logs.
+- Perfil e nome do jogador persistem nas atualizações; o administrador exporta o perfil com o HTTPS verificado da sessão.
+- Compatibilidade baseada em recursos do executável e no protocolo multiplayer, com verificações das versões oficiais 0.2.0 e 0.2.11.
+- Correção de horários operacionais: 01:40 e 25:40 selecionam a mesma partida com offset lógico zero. Nenhum timetable instalado é alterado.
+- Chamadas duplicadas da mesma viagem são ignoradas; transição para outro Schicht ID preserva a avaliação concluída.
+- Tutorial simples e limitações documentadas. Testes reais de 0.2.11, Próxima viagem e dois jogadores continuam necessários; a API atual não permite reproduzir a multa específica por sinal vermelho.
+
 # Changelog
+
+## 2.0.0-dev.5
+
+- Fixed exact trip matching after midnight when BCS displays 00:20 and the map records 24:20. A unique route-compatible overnight departure is required; duplicate civil hours and unknown offsets still fail safely.
+- Aligns only the selected overnight record in a temporary timetable ZIP, preserving its ordinal, other departures and the installed map bytes. Company date and world clock are unchanged.
+- Added regression coverage for the reported 64-trip Carrão duty, opposite directions, duplicate departures and explicit extended hours.
+
+## 2.0.0-dev.4
+
+- Added administrator-only refresh of existing local company-profile hashes in Setup 9 → 2, preserving company/session/link/clock settings and the declared inventory, with an exact previous-JSON backup.
+- Changed asset diagnostics to report changed content rather than claiming a known addon version difference. Player preflight still rejects unapproved script, calendar and other asset changes.
+- Company-clock sessions now distinguish a dedicated gateway with no active world from a live clock mismatch; players are told to wait for CompanyHost synchronization. Fixed-date player-hosted rooms remain compatible.
+- Added regression checks for the reported calendar/script drift, metadata and backup preservation, cancelled/concurrent updates, undeclared or missing files, and map loading status.
+
+## 2.0.0-dev.3
+
+- Fixed official OpenOMSI 0.2.0 server rejection: its HTTP status reports workspace version 0.1.0. Both the host supervisor and joining bridge now recognize the exact pinned 538ad31 release build with protocol 6.
+- Unknown legacy builds, other protocols and OpenOMSI 0.2.9 remain unsupported. Diagnostics now include the actual reported version/protocol.
+
+## 2.0.0-dev.2
+
+- Added an explicit company reference timezone and BCS time shift, with portable timezone data and automatic company calendar selection.
+- Added CompanyHost.exe to launch an independently installed OpenOMSI 0.2.0 server with the company clock and maintain it through local administrative clock corrections.
+- Live sessions validate the shared company clock independently of each player's departure. Fixed-date profiles and manual historical choices remain supported.
+- Setup explains/retries invalid company IDs and supports `company` dates with one-time BCS shift configuration.
+- Real multiplayer rendering, boarding and BCS evaluation remain pending user testing.
+
+## 2.0.0-dev.1 — development
+
+- Optional company profiles loaded from a local JSON file or administrator HTTPS URL.
+- Automatic selection of a compatible registered session when starting a BBS trip.
+- Required asset hashes and full-folder inventories, with administrator-provided download links for missing or different bus/map/repaint packages.
+- Server map, clock, capacity, version/protocol and declared-fleet checks; joined-world date/time confirmation before BBS readiness.
+- Setup options 8 and 9 for player configuration and company-profile creation.
+- Multiplayer disabled by default; CI artifacts only while real two-player BBS validation is pending.
 
 This file distinguishes the imported software version from subsequent repository preparation. Earlier full runtime ZIPs are not represented as cleared GitHub releases.
 

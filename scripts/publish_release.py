@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish a checked CI package whose executables match a live-tested release."""
+"""Publish a checked CI package whose executables match a approved release."""
 from __future__ import annotations
 
 import argparse
@@ -56,10 +56,10 @@ def verify_package(path: Path) -> str:
             raise ValueError("Unexpected executable inventory")
         for name, expected in approved.items():
             if manifest[name] != expected:
-                raise ValueError(f"Executable differs from the live-tested package: {name}")
+                raise ValueError(f"Executable differs from the approved package: {name}")
         if archive.read("source/version.go") != (ROOT / "source/version.go").read_bytes():
             raise ValueError("Package version source mismatch")
-    print(f"Verified full ZIP, internal manifest and all four approved executables: {digest}", flush=True)
+    print(f"Verified full ZIP, internal manifest and all five approved executables: {digest}", flush=True)
     return digest
 
 
@@ -116,6 +116,9 @@ def main() -> None:
     if args.verify_only:
         verify_package(args.verify_only)
         return
+    if "-" in VERSION:
+        print(f"Development build {VERSION}: retained as a CI artifact; no release or tag published.")
+        return
     if not args.run_id or not args.run_id.isdecimal() or not args.commit or not re.fullmatch(r"[0-9a-f]{40}", args.commit) or args.artifact_dir is None:
         parser.error("Publishing requires a CI run ID, full commit SHA and artifact directory")
     repo = os.environ["GH_REPO"]
@@ -141,16 +144,16 @@ def main() -> None:
     archive = args.artifact_dir / PACKAGE
     digest = verify_package(archive)
     checksum = archive.with_name(archive.name + ".sha256")
-    # Upload as a draft, check both assets, then make the prerelease available.
+    # Upload as a draft, check both assets, then publish the versioned release.
     gh("release", "create", tag, str(archive) + "#" + PACKAGE_LABEL,
        str(checksum) + "#" + PACKAGE_LABEL + ".sha256", "--repo", repo,
-       "--target", args.commit, "--title", f"openOMSI BBS Bridge {tag} (experimental)",
-       "--notes-file", str(notes), "--prerelease", "--draft")
+       "--target", args.commit, "--title", f"OpenOmsi - BBS {VERSION}",
+       "--notes-file", str(notes), "--draft")
     releases = json.loads(gh("api", f"repos/{repo}/releases?per_page=100"))
     release = next(item for item in releases if item["tag_name"] == tag)
     assets = {item["name"]: item for item in release["assets"]}
     expected = {archive.name: archive, checksum.name: checksum}
-    if set(assets) != set(expected) or not release["draft"] or not release["prerelease"] or release["target_commitish"] != args.commit:
+    if set(assets) != set(expected) or not release["draft"] or release["prerelease"] or release["target_commitish"] != args.commit:
         raise ValueError("Draft release metadata or asset inventory mismatch")
     for name, path in expected.items():
         if assets[name]["size"] != path.stat().st_size:

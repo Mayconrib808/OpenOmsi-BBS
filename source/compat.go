@@ -160,6 +160,7 @@ var (
 	wantedLine      string
 	wantedTour      string
 	bcsLogPath      string
+	currentShiftID  string
 	bcsLogStartSize int64
 	omsiMem         uintptr
 	driverSlot      uintptr
@@ -279,6 +280,14 @@ func watchDriver() {
 		defer t.Stop()
 		lastError := ""
 		for range t.C {
+			freezePath := filepath.Join(filepath.Dir(logPath), "facade-evaluation-complete.flag")
+			if evaluationFreezeRequested(freezePath, currentShiftID) {
+				if err := driverState.freezeEvaluation(); err != nil {
+					logf("WARN retaining completed shift driver state: %v", err)
+				}
+				logf("DRIVER_EVALUATION_COMPLETE: shift %s; real saved counters retained while BCS results/next-trip screen is open", currentShiftID)
+				return
+			}
 			changed, err := driverState.poll()
 			if changed {
 				publishDriver(driverState.Last)
@@ -960,6 +969,9 @@ func main() {
 	}
 	if len(os.Args) >= 9 {
 		nativeDriver = os.Args[8]
+	}
+	if len(os.Args) >= 10 {
+		currentShiftID = strings.TrimSpace(os.Args[9])
 	}
 	var err error
 	driverState, err = loadDriverSync(openDriver, nativeDriver, compatDir)

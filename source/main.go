@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -41,11 +42,29 @@ func appendLog(path, text string) {
 	_, _ = f.WriteString(text)
 }
 
-func watchOpenOMSIReady(logPath string, startOffset int64, readyPath string) {
+func watchOpenOMSIReady(logPath string, startOffset int64, readyPath string, networkReady <-chan struct{}, done <-chan struct{}) {
 	go func() {
 		deadline := time.Now().Add(startupTimeout)
 		var puttingSeen time.Time
 		for time.Now().Before(deadline) {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			if networkReady != nil {
+				select {
+				case <-networkReady:
+					networkReady = nil
+				default:
+					select {
+					case <-done:
+						return
+					case <-time.After(200 * time.Millisecond):
+					}
+					continue
+				}
+			}
 			b, err := os.ReadFile(logPath)
 			if err == nil && int64(len(b)) >= startOffset {
 				chunk := strings.ToLower(string(b[startOffset:]))
@@ -136,7 +155,10 @@ func parseBCSLog(path string) (TripInfo, error) {
 	if err != nil {
 		return TripInfo{}, err
 	}
-	text := decodeText(b)
+	return parseBCSLogText(decodeText(b))
+}
+
+func parseBCSLogText(text string) (TripInfo, error) {
 	lines := strings.Split(strings.ReplaceAll(text, "\r\n", "\n"), "\n")
 	var cur, last TripInfo
 	var pendingSelectedHof, pendingTargetHof string
@@ -641,10 +663,10 @@ func main() {
 	dir := appDir(packageDir)
 	logPath := filepath.Join(dir, "bridge-v1.1.3.log")
 	tripPath := filepath.Join(dir, "bridge-v1.1.3-trip.txt")
-	cfg := readConfig(filepath.Join(dir, "bridge.ini"))
+	cfg := readInstalledConfig(packageDir)
 
 	appendLog(logPath, "\r\n============================================================\r\n")
-	appendLog(logPath, "OpenOMSI BCS Bridge v1.1.3 - by "+bridgeAuthor+"\r\n")
+	appendLog(logPath, "OpenOMSI BCS Bridge v"+bridgeVersion+" - by "+bridgeAuthor+"\r\n")
 	appendLog(logPath, "Time: "+time.Now().Format(time.RFC3339)+"\r\n")
 	appendLog(logPath, "Bridge argv: "+qargs(os.Args)+"\r\n")
 	if cwd, err := os.Getwd(); err == nil {
@@ -658,13 +680,46 @@ func main() {
 		showLaunchError(cfg.Language, localText(cfg.Language, "Configure as pastas no Setup.exe antes de iniciar.\n", "Configure the folders in Setup.exe before launching.\n", "Stelle vor dem Start die Ordner in Setup.exe ein.\n")+err.Error())
 		return
 	}
-	release, lockErr := acquireBridgeLock(cfg.Root)
+	bcsLog := candidateBCSLog(cfg)
+ initialTrip, initialTripErr := parseBCSLog(bcsLog)
+ activeStatePath := launchSessionPath(cfg.Root,packageDir)
+ release, lockErr := acquireBridgeLock(cfg.Root)
 	if lockErr != nil {
+  if lockErr == errBridgeBusy && initialTripErr == nil {
+   deadline:=time.Now().Add(2*time.Second)
+   for {
+    state,e:=readLaunchSession(activeStatePath)
+    if e==nil {
+     if sameLaunchTrip(state.Trip,initialTrip) {
+      appendLog(logPath,"Repeated call for the same BCS shift; the existing bridge owns this trip.\r\n")
+      return
+     }
+     if validLaunchShiftID(initialTrip.ShiftID) && initialTrip.ShiftID!=state.Trip.ShiftID {
+      if b,e:=os.ReadFile(bcsLog);e==nil {
+       gate:=newCompletionGate(state.Trip.ShiftID,"")
+       if gate.accepts(decodeText(b)) {
+        appendLog(logPath,"Next BCS trip requested; the active bridge will handle the transition.\r\n")
+        return
+       }
+      }
+     }
+    }
+    if time.Now().After(deadline){break}
+    time.Sleep(50*time.Millisecond)
+   }
+  }
 		appendLog(logPath, "ERROR: "+lockErr.Error()+"\r\n")
 		showLaunchError(cfg.Language, localText(cfg.Language, "Já existe uma viagem da bridge aberta para esta instalação.", "A bridge trip is already running for this installation.", "Für diese Installation läuft bereits eine Fahrt mit der Bridge."))
 		return
 	}
-	defer release()
+	released:=false
+ releaseLock:=func(){if !released {release();released=true}}
+ defer releaseLock()
+ if initialTripErr==nil {if e:=writeLaunchSession(activeStatePath,initialTrip);e!=nil{appendLog(logPath,"WARN: launch metadata: "+e.Error()+"\r\n")}}
+ defer clearLaunchSession(activeStatePath)
+ compatible,compatErr:=checkOpenOMSICompatibility(cfg.OpenOMSI,false,cfg.Multiplayer)
+ if compatErr!=nil {appendLog(logPath,"ERROR: OpenOMSI compatibility: "+compatErr.Error()+"\r\n");showLaunchError(cfg.Language,compatErr.Error());return}
+ appendLog(logPath,"OpenOMSI capabilities accepted: "+compatible.Version+"\r\n")
 	deployment, hostErr := preparePluginHost(cfg, packageDir)
 	if hostErr != nil {
 		appendLog(logPath, "ERROR: "+hostErr.Error()+"\r\n")
@@ -676,7 +731,6 @@ func main() {
 	appendLog(logPath, fmt.Sprintf("BCS helper created by this launch: %t\r\n", deployment.Created))
 	appendLog(logPath, pluginHostDiagnostics(cfg, packageDir))
 
-	bcsLog := candidateBCSLog(cfg)
 	appendLog(logPath, "BCS log: "+bcsLog+"\r\n")
 	// Keep diagnostics available even when route checks stop before the facade.
 	_ = os.WriteFile(runtimeBCSLogPath(dir), []byte(bcsLog), 0644)
@@ -689,6 +743,11 @@ func main() {
 		return
 	}
 
+	if e:=writeLaunchSession(activeStatePath,trip);e!=nil{appendLog(logPath,"WARN: launch metadata: "+e.Error()+"\r\n")}
+ if len(os.Args)==3 && os.Args[1]=="--bcs-next-shift" && trip.ShiftID!=os.Args[2] {
+  appendLog(logPath,"Next BCS selection changed before relaunch; refusing an unrelated shift.\r\n")
+  return
+ }
 	mapRel := resolveMap(cfg.Root, trip.MapName)
 	backups := candidateBackups(cfg, bcsLog)
 	targetDir := ""
@@ -716,7 +775,7 @@ func main() {
 	runPaint, paintSource := choosePaint(cfg, mapRel, busRel)
 
 	diag := &strings.Builder{}
-	fmt.Fprintf(diag, "OpenOMSI BCS Bridge v1.1.3 - by %s\r\n\r\n", bridgeAuthor)
+	fmt.Fprintf(diag, "OpenOMSI BCS Bridge v%s - by %s\r\n\r\n", bridgeVersion, bridgeAuthor)
 	fmt.Fprintf(diag, "BCS log: %s\r\n", bcsLog)
 	fmt.Fprintf(diag, "BCS Schicht ID: %s\r\n", trip.ShiftID)
 	fmt.Fprintf(diag, "BBS backups: %s\r\n", backups)
@@ -759,6 +818,39 @@ func main() {
 	}()+" ("+dateSource+")\r\n")
 	appendLog(logPath, fmt.Sprintf("All tiles: %v | Autostart: %v | BCS compat facade: %v | Timetable sync: %v | BCS marker wait: %d ms\r\n", cfg.AllTiles, cfg.AutoStart, cfg.BCSCompat, cfg.TimetableSync, cfg.BCSMarkerWaitMS))
 
+	var multiplayer *MultiplayerPlan
+	if cfg.Multiplayer {
+		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		mpTrip := MultiplayerTrip{trip.MapName, mapRel, busRel, runDate, trip.TripStart}
+		var problems []CompanyProblem
+		multiplayer, problems, err = prepareMultiplayer(ctx, cfg, dir, mpTrip, companyHTTPClient())
+		cancel()
+		if err != nil || len(problems) != 0 || multiplayer == nil {
+			if err != nil {
+				problems = append(problems, CompanyProblem{"Multiplayer", err.Error(), ""})
+			}
+			if len(problems) == 0 {
+				problems = append(problems, CompanyProblem{"Multiplayer", "No compatible company session", ""})
+			}
+			appendLog(logPath, fmt.Sprintf("Multiplayer preflight refused the launch: %v\r\n", problems))
+			if report, e := writeCompanyReport(dir, cfg.Language, cfg.CompanyID, problems); e == nil {
+				_ = openMultiplayerDocument(report)
+				showLaunchError(cfg.Language, localText(cfg.Language, "A sessão não está pronta para esta viagem. Confira a página de requisitos aberta.\n", "The session is not ready for this trip. Check the requirements page.\n", "Die Sitzung ist für diese Fahrt noch nicht bereit. Prüfe die geöffnete Anforderungsseite.\n")+report)
+			} else {
+				showLaunchError(cfg.Language, fmt.Sprint(problems))
+			}
+			return
+		}
+		// Preflight resolves the company calendar before timetable generation and --date.
+		runDate = multiplayer.Trip.Date
+		if multiplayer.Clock != nil {
+			dateSource = "company clock: " + multiplayer.Clock.TimeZone + fmt.Sprintf(" %+d minutes", multiplayer.Clock.ShiftMinutes)
+			appendLog(logPath, "Company date: "+runDate+" ("+dateSource+")\r\n")
+			appendLog(tripPath, "\r\nCompany date: "+runDate+" ("+dateSource+")\r\n")
+		}
+		appendLog(logPath, fmt.Sprintf("Multiplayer company=%s session=%s map=%s date=%s player=%s\r\n", multiplayer.CompanyID, multiplayer.Session.ID, multiplayer.Session.MapFile, multiplayer.Session.Date, multiplayer.PlayerName))
+		appendLog(tripPath, fmt.Sprintf("\r\nMultiplayer: %s / %s\r\n", multiplayer.CompanyName, multiplayer.Session.Name))
+	}
 	if mapRel == "" || busRel == "" || trip.Line == "" || trip.Tour == "" || trip.TripStart == "" {
 		appendLog(logPath, "ERROR: dados insuficientes; nao vou abrir uma viagem errada. Veja bridge-v1.1.3-trip.txt\r\n")
 		showLaunchError(cfg.Language, localText(cfg.Language, "Não consegui identificar o mapa, o ônibus e o horário desta viagem. Use o Setup, opção 5, para coletar o diagnóstico.", "Could not identify this trip's map, bus and time. Use Setup option 5 to collect diagnostics.", "Karte, Bus und Abfahrtszeit dieser Fahrt konnten nicht ermittelt werden. Sammle mit Setup-Option 5 die Diagnoseprotokolle."))
@@ -844,6 +936,24 @@ func main() {
 		// openOMSI 0.2.0 accepts a clock or a 1-based ordinal. An identified ordinal avoids selecting the wrong direction.
 		args = append(args, "--trip", strconv.Itoa(timetable.TripIndex))
 	}
+	args = append(args, multiplayerArguments(multiplayer)...)
+	var multiplayerContent string
+	if multiplayer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		err = recheckMultiplayer(ctx, multiplayer, companyHTTPClient())
+		cancel()
+		if err != nil {
+			appendLog(logPath, "Multiplayer changed before launch: "+err.Error()+"\r\n")
+			showLaunchError(cfg.Language, err.Error())
+			return
+		}
+		multiplayerContent, err = os.MkdirTemp(compatDir, "multiplayer-content-")
+		if err != nil {
+			showLaunchError(cfg.Language, err.Error())
+			return
+		}
+		defer os.RemoveAll(multiplayerContent)
+	}
 
 	appendLog(logPath, "Launching: "+fmt.Sprintf("%q ", cfg.OpenOMSI)+qargs(args)+"\r\n")
 	f, _ := os.OpenFile(tripPath, os.O_WRONLY|os.O_APPEND, 0644)
@@ -875,15 +985,21 @@ func main() {
 	_ = os.Remove(readyPath)
 	_ = os.Remove(openOMSIReadyPath)
 	_ = os.Remove(pidPath)
+	evaluationPath:=filepath.Join(compatDir,"facade-evaluation-complete.flag")
+	_ = os.Remove(evaluationPath)
 	if cfg.BCSCompat {
 		compatPath := filepath.Join(compatDir, "Omsi.exe")
 		if fileExists(compatPath) {
-			compatCmd = exec.Command(compatPath, "0", cfg.Root, mapRel, trip.Line, trip.Tour, bcsLog, driver.OpenPath, driver.NativePath)
+			compatCmd = exec.Command(compatPath, "0", cfg.Root, mapRel, trip.Line, trip.Tour, bcsLog, driver.OpenPath, driver.NativePath, trip.ShiftID)
 			compatCmd.Dir = compatDir
+			prepareCompanyHostProcess(compatCmd)
 			if e := compatCmd.Start(); e != nil {
 				appendLog(logPath, "ERROR: nao foi possivel iniciar facade BCS: "+e.Error()+"\r\n")
 				return
 			} else {
+    closeFacadeJob,ownErr:=ownCompanyHostProcess(compatCmd)
+    if ownErr!=nil { _ = compatCmd.Process.Kill();_ = compatCmd.Wait();appendLog(logPath,"ERROR owning BCS facade: "+ownErr.Error()+"\r\n");return }
+    defer closeFacadeJob()
 				compatDone = make(chan error, 1)
 				go func() { compatDone <- compatCmd.Wait() }()
 				appendLog(logPath, fmt.Sprintf("BCS compat facade v1.1.3 bootstrap started. PID=%d\r\n", compatCmd.Process.Pid))
@@ -910,8 +1026,7 @@ func main() {
 		present, waited := waitForBCSStartupMarker(cfg.Root, time.Duration(cfg.BCSMarkerWaitMS)*time.Millisecond)
 		appendLog(logPath, fmt.Sprintf("BCS startup marker before openOMSI: present=%v waited=%s (bridge never creates/deletes it)\r\n", present, waited.Round(time.Millisecond)))
 		if !present {
-			_ = compatCmd.Process.Kill()
-			<-compatDone
+			if compatCmd != nil && compatCmd.Process != nil { _ = compatCmd.Process.Kill(); <-compatDone }
 			showLaunchError(cfg.Language, localText(cfg.Language, "O BCS não preparou o início desta viagem. Volte ao BCS e inicie a viagem novamente. Se persistir, use o Setup, opção 5.", "BCS did not prepare this trip's startup. Return to BCS and start the trip again. If it persists, use Setup option 5.", "BBS hat den Start dieser Fahrt nicht vorbereitet. Kehre zu BBS zurück und starte die Fahrt erneut. Wenn das Problem weiter besteht, wähle Setup-Option 5."))
 			return
 		}
@@ -920,6 +1035,9 @@ func main() {
 	cmd := exec.Command(cfg.OpenOMSI, args...)
 	cmd.Dir = cfg.Root
 	cmd.Env = pluginEnvironment(os.Environ(), host)
+	if multiplayer != nil {
+		cmd.Env = multiplayerEnvironment(cmd.Env, multiplayerContent)
+	}
 	lf, er := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	var openOMSIOutputStart int64
 	if er == nil {
@@ -930,6 +1048,7 @@ func main() {
 		cmd.Stdout = lf
 		cmd.Stderr = lf
 	}
+	prepareCompanyHostProcess(cmd)
 	if er = cmd.Start(); er != nil {
 		appendLog(logPath, "ERROR starting openOMSI: "+er.Error()+"\r\n")
 		if compatCmd != nil && compatCmd.Process != nil {
@@ -938,22 +1057,78 @@ func main() {
 		}
 		return
 	}
+	closeGameJob,ownErr:=ownCompanyHostProcess(cmd)
+ if ownErr!=nil {
+  _ = cmd.Process.Kill();_ = cmd.Wait()
+  if compatCmd!=nil && compatCmd.Process!=nil { _ = compatCmd.Process.Kill();<-compatDone }
+  appendLog(logPath,"ERROR owning OpenOMSI child processes: "+ownErr.Error()+"\r\n")
+  showLaunchError(cfg.Language,ownErr.Error())
+  return
+ }
+ defer closeGameJob()
 	appendLog(logPath, fmt.Sprintf("openOMSI started. PID=%d\r\n", cmd.Process.Pid))
+	launchDone := make(chan struct{})
+	watchersStopped:=false
+	stopWatchers:=func(){if !watchersStopped {close(launchDone);watchersStopped=true}}
+	defer stopWatchers()
+	var networkReady <-chan struct{}
+	var multiplayerErrors <-chan error
+	if multiplayer != nil {
+		watch := watchMultiplayerLaunch(logPath, openOMSIOutputStart, multiplayer, launchDone)
+		networkReady, multiplayerErrors = watch.Ready, watch.Errors
+	}
 	if compatCmd != nil {
 		if e := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)+"\r\n"), 0644); e != nil {
 			appendLog(logPath, "WARN: nao foi possivel publicar PID do openOMSI para facade: "+e.Error()+"\r\n")
 		} else {
 			appendLog(logPath, fmt.Sprintf("Published openOMSI PID %d to facade.\r\n", cmd.Process.Pid))
 		}
-		watchOpenOMSIReady(logPath, openOMSIOutputStart, openOMSIReadyPath)
+		watchOpenOMSIReady(logPath, openOMSIOutputStart, openOMSIReadyPath, networkReady, launchDone)
 	}
 
 	childDone := make(chan error, 1)
 	go func() { childDone <- cmd.Wait() }()
 	compatExited := false
+ nextGate:=newNextTripGate(trip.ShiftID,decodeText(bcsBeforeLaunch))
+ nextTicker:=time.NewTicker(500*time.Millisecond)
+ defer nextTicker.Stop()
+ var nextTrip *TripInfo
+ var transitionTimeout <-chan time.Time
+ evaluationFrozen:=false
 	waiting := true
 	for waiting {
 		select {
+  case <-nextTicker.C:
+   if current,e:=os.ReadFile(bcsLog);e==nil {
+    text:=decodeText(current)
+    if !evaluationFrozen && closureGate.accepts(text) {
+     if e:=os.WriteFile(evaluationPath,[]byte(trip.ShiftID),0600);e!=nil{appendLog(logPath,"WARN: evaluation freeze marker: "+e.Error()+"\r\n")}else{evaluationFrozen=true}
+    }
+    if nextTrip==nil {
+     if selected,ok:=nextGate.observe(text);ok {
+      nextTrip=&selected
+      stopWatchers()
+      postOpenOMSIClose(uint32(cmd.Process.Pid))
+      transitionTimeout=time.After(10*time.Second)
+      appendLog(logPath,fmt.Sprintf("Next BCS shift %s selected after completion of %s; closing the owned game before relaunch.\r\n",selected.ShiftID,trip.ShiftID))
+     }
+    }
+   }
+  case <-transitionTimeout:
+   transitionTimeout=nil
+   appendLog(logPath,"The owned game did not close during the next-trip transition; ending this process only.\r\n")
+   closeGameJob()
+   _ = cmd.Process.Kill()
+		case networkErr := <-multiplayerErrors:
+			multiplayerErrors = nil
+			appendLog(logPath, "Multiplayer startup guard: "+networkErr.Error()+"\r\n")
+			// This child never confirmed the requested world. Stop this launch
+			// before it can proceed as an unnoticed single-player BBS trip.
+			_ = cmd.Process.Kill()
+			if compatCmd != nil && !compatExited {
+				_ = compatCmd.Process.Kill()
+			}
+			showLaunchError(cfg.Language, localText(cfg.Language, "A conexão multiplayer não confirmou a data e o horário desta viagem. O lançamento foi encerrado.\n", "Multiplayer did not confirm this trip's date and time. The launch was stopped.\n", "Multiplayer hat Datum und Uhrzeit dieser Fahrt nicht bestätigt. Der Start wurde beendet.\n")+networkErr.Error())
 		case er = <-childDone:
 			waiting = false
 		case facadeErr := <-compatDone:
@@ -989,6 +1164,15 @@ func main() {
 	if compatCmd != nil && !compatExited {
 		_ = compatCmd.Process.Kill()
 		<-compatDone
+	}
+	closeGameJob()
+	stopWatchers()
+	if nextTrip!=nil {
+		clearLaunchSession(activeStatePath)
+		releaseLock()
+		self,e:=os.Executable()
+		if e==nil { child:=exec.Command(self,"--bcs-next-shift",nextTrip.ShiftID);child.Dir=packageDir;e=child.Start();if e==nil{_ = child.Process.Release()} }
+		if e!=nil {appendLog(logPath,"ERROR: next-trip relaunch: "+e.Error()+"\r\n");showLaunchError(cfg.Language,e.Error())}
 	}
 	if er != nil {
 		appendLog(logPath, "openOMSI exited with error/status: "+er.Error()+"\r\n")

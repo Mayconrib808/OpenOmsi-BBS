@@ -2,10 +2,85 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestCarraoRepeatedDutyAfterMidnight(t *testing.T) {
+	root, pkg, mapRel := basicMap(t)
+	tt := filepath.Join(root, "maps", "Test Map", "TTData")
+	var ttl strings.Builder
+	ttl.WriteString("[newtour]\n01\nDepot\n1023\n")
+	// The diagnostic duty contains 64 alternating trips from 04:00 to 25:00.
+	for i := 0; i < 64; i++ {
+		fmt.Fprintf(&ttl, "[addtrip]\n2201rota%d\n0\n%.3f\n", 1+i%2, float64(240+20*i))
+	}
+	path := filepath.Join(tt, "2201.ttl")
+	writeTestFile(t, path, ttl.String())
+	for _, p := range []struct{ name, first, last string }{
+		{"2201rota1", "CPTM Guaianazes 2201", "Divisa de Feraz 2201"},
+		{"2201rota2", "Divisa de Feraz 2201", "CPTM Guaianazes 2201"},
+	} {
+		profile := strings.ReplaceAll(endpointProfile(p.last, p.first, "Middle", p.last), "\n10\n", "\n2201\n")
+		writeTestFile(t, filepath.Join(tt, p.name+".ttp"), profile)
+	}
+	info := TripInfo{Line: "2201", Tour: "01", TripStart: "00:20", RouteText: "Divisa de Feraz 2201 - CPTM Guaianazes 2201", StartPoint: "Divisa de Ferraz 2201"}
+	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-07", info)
+	defer removeTimetableOverlay(res)
+	if !res.Ready || res.Applied || res.TripIndex != 62 || res.TripName != "2201rota2" || res.OriginalDeparture != 1460 || res.BCSDeparture != 1460 || res.BCSCivilDeparture != 20 || res.OffsetMinutes != 0 || res.OverrideZIP != "" {
+  t.Fatalf("00:20 must select the unique 24:20 trip with no logical offset: %+v", res)
+ }
+	original, err := os.ReadFile(path)
+	if err != nil || string(original) != ttl.String() {
+		t.Fatal("installed TTL must stay byte-identical")
+	}
+	info.TripStart = "00:30"
+	blocked := prepareTimetableSync(root, pkg, mapRel, "2026-10-07", info)
+	if blocked.Ready || !strings.Contains(blocked.Reason, "ambiguous") {
+		t.Fatalf("must not guess the nearest overnight trip: %+v", blocked)
+	}
+	info.TripStart = "00:20"
+	info.RouteText = "CPTM Guaianazes 2201 - Divisa de Feraz 2201"
+	info.StartPoint = "CPTM Guaianazes 2201"
+	blocked = prepareTimetableSync(root, pkg, mapRel, "2026-10-07", info)
+	if blocked.Ready {
+		t.Fatalf("00:20 must not select the opposite direction: %+v", blocked)
+	}
+}
+
+func TestOvernightDuplicateCivilDeparturesStayAmbiguous(t *testing.T) {
+	root, pkg, mapRel := basicMap(t)
+	tt := filepath.Join(root, "maps", "Test Map", "TTData")
+	writeTestFile(t, filepath.Join(tt, "10.ttl"), "[newtour]\nA\nDepot\n1023\n[addtrip]\nOUT\n0\n20.000\n[addtrip]\nOUT\n0\n1460.000\n")
+	writeTestFile(t, filepath.Join(tt, "OUT.ttp"), endpointProfile("Beta", "Alpha", "Middle", "Beta"))
+	info := TripInfo{Line: "10", Tour: "A", TripStart: "00:20", RouteText: "Alpha - Beta"}
+	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-07", info)
+	if res.Ready || res.OverrideZIP != "" || !strings.Contains(res.Reason, "ambiguous") {
+		t.Fatalf("00:20 and 24:20 cannot be silently distinguished: %+v", res)
+	}
+	info.TripStart = "24:20"
+	res = prepareTimetableSync(root, pkg, mapRel, "2026-10-07", info)
+	if !res.Ready || res.Applied || res.TripIndex != 2 {
+		t.Fatalf("explicit extended departure must remain exact: %+v", res)
+	}
+}
+
+func TestBCSDepartureCivilAndExtendedHours(t *testing.T) {
+	for _, tc := range []struct {
+		departure, bcs float64
+		want           bool
+	}{
+		{1440, 0, true}, {1460, 20, true}, {1500, 60, true},
+		{1460, 1460, true}, {20, 1460, false}, {1460, 21, false},
+		{2900, 20, true}, {1440, 1439, false}, {1439, 0, false},
+	} {
+		if got := sameBCSDeparture(tc.departure, tc.bcs); got != tc.want {
+			t.Fatalf("departure %v BCS %v: %t, want %t", tc.departure, tc.bcs, got, tc.want)
+		}
+	}
+}
 
 func endpointProfile(display, first, middle, last string) string {
 	return fmt.Sprintf("[trip]\nLoopTrack\n%s\n10\n[station]\n1\n0\n%s\n0\n0\n0\n0\n0\n[station]\n2\n1\n%s\n0\n0\n0\n0\n0\n[station]\n3\n2\n%s\n0\n0\n0\n0\n0\n[profile]\nstandard\n20.000\n",
@@ -76,4 +151,42 @@ func TestType2TripRetainsDisplayDestinationFallback(t *testing.T) {
 	if !res.Ready || res.Applied || res.TripIndex != 1 {
 		t.Fatalf("display fallback should preserve supported type-2 behavior: %+v", res)
 	}
+}
+
+func TestSzczecin522OperationalDepartureWithoutOffset(t *testing.T) {
+ root,pkg,mapRel := basicMap(t)
+ tt := filepath.Join(root,"maps","Test Map","TTData")
+ var ttl strings.Builder
+ ttl.WriteString("[newtour]\n1 (ni-sr)\nDepot\n1023\n")
+ for _,v := range []float64{140,340,540,740,940,1540,1740,1940,2140,2340,2540} {
+  fmt.Fprintf(&ttl,"[addtrip]\n522_Kor-Koll\n0\n%.3f\n",v)
+ }
+ path := filepath.Join(tt,"522.ttl")
+ writeTestFile(t,path,ttl.String())
+ writeTestFile(t,filepath.Join(tt,"522_Kor-Koll.ttp"),"[trip]\n\nKollataja\n522\n[station_typ2]\n123\n[station_typ2]\n456\n")
+ info := TripInfo{Line:"522",Tour:"1 (ni-sr)",TripStart:"01:40",TripEnd:"01:48",RouteText:"Kormoranow - Kollataja",ShiftID:"4930868"}
+ res := prepareTimetableSync(root,pkg,mapRel,"2026-10-07",info)
+ defer removeTimetableOverlay(res)
+ if !res.Ready || res.Applied || res.TripIndex!=6 || res.TripName!="522_Kor-Koll" || res.BCSDeparture!=1540 || res.BCSCivilDeparture!=100 || res.OffsetMinutes!=0 || res.OverrideZIP!="" {
+  t.Fatalf("522 must select #6 25:40 with offset zero: %+v",res)
+ }
+ original,err:=os.ReadFile(path)
+ if err!=nil || string(original)!=ttl.String(){t.Fatal("installed timetable changed")}
+ if !strings.Contains(timetableSyncDiagnostic(res),"25:40"){t.Fatal("operational time missing from diagnostic")}
+}
+func TestExtended49HourRuntimePreservesLogicalOffsetAndInventory(t *testing.T) {
+ root,pkg,mapRel:=basicMap(t)
+ tt:=filepath.Join(root,"maps","Test Map","TTData")
+ path:=filepath.Join(tt,"10.ttl")
+ original:="[newtour]\nA\nDepot\n1023\n[addtrip]\nOUT\n0\n600.000\n[addtrip]\nOUT\n0\n2980.000\n"
+ writeTestFile(t,path,original)
+ writeTestFile(t,filepath.Join(tt,"OUT.ttp"),endpointProfile("Beta","Alpha","Middle","Beta"))
+ res:=prepareTimetableSync(root,pkg,mapRel,"2026-10-07",TripInfo{Line:"10",Tour:"A",TripStart:"01:40",RouteText:"Alpha - Beta"})
+ defer removeTimetableOverlay(res)
+ if !res.Ready || !res.Applied || res.TripIndex!=2 || res.BCSDeparture!=2980 || res.OffsetMinutes!=0 || res.RuntimeDayAdjustmentMinutes!=-1440 {t.Fatalf("49-hour alignment: %+v",res)}
+ _,body:=readOnlyZipEntry(t,res.OverrideZIP)
+ tours:=parseTTL(body)
+ if len(tours)!=1 || len(tours[0].Trips)!=2 || tours[0].Trips[0].Departure!=600 || tours[0].Trips[1].Departure!=1540 {t.Fatal("unexpected runtime overlay",body)}
+ b,err:=os.ReadFile(path)
+ if err!=nil || string(b)!=original {t.Fatal("installed TTL changed")}
 }

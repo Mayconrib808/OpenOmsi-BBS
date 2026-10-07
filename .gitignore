@@ -5,6 +5,8 @@
 /app/bridge.ini
 /app/bridge.ini.backup
 /Diagnosticos/
+/Companies/
+/app/multiplayer-requirements.html
 /diagnostics/
 *.exe
 *.dll
@@ -24,3 +26,7 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Host-only runtime paths and temporary administration configuration
+CompanyHost.local.json
+company-host-*.cfg

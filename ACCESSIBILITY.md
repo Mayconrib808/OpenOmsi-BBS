@@ -2,7 +2,7 @@
 
 ## Available interfaces
 
-The Windows Setup uses a text-based menu with keyboard selection and Portuguese, English and German messages. Installation and support instructions are available as text. The ZIP includes an offline HTML tutorial.
+The Windows Setup opens a native graphical menu in Portuguese. The advanced console assistant remains available with `Setup.exe --cli` and offers Portuguese, English and German messages. Installation and support instructions are available as text. The ZIP includes an offline HTML tutorial.
 
 Repository artwork and badges have alternative text. Download links identify the package, version and platform in text. Documentation uses headings and tables so information does not depend only on colours or images.
 
@@ -20,7 +20,7 @@ You can also contact **Mayconrib808**, Discord **`.zmaycon.`**.
 
 ## Português do Brasil
 
-O Setup usa um menu de texto com seleção pelo teclado e mensagens em português, inglês e alemão. Há guias em texto e um tutorial HTML offline.
+O Setup abre um menu gráfico nativo em português. O assistente avançado `Setup.exe --cli` mantém seleção pelo teclado e mensagens em português, inglês e alemão. Há guias em texto e um tutorial HTML offline.
 
 Leitores de tela específicos, temas de alto contraste e fontes ampliadas ainda não foram validados formalmente. As interfaces dos jogos e o painel BBS pertencem aos respectivos produtos.
 

@@ -26,7 +26,9 @@ type TimetableSyncResult struct {
 	TripName          string
 	TripIndex         int // 1-based index inside the selected tour, as openOMSI --trip expects.
 	OriginalDeparture float64
+	BCSCivilDeparture float64
 	BCSDeparture      float64
+	RuntimeDayAdjustmentMinutes float64
 	OffsetMinutes     float64
 	OverrideZIP       string
 	TourTrips         int
@@ -542,13 +544,14 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 		return ttlTrip{}, "", fmt.Errorf("no trip matches the BCS route")
 	}
 	if len(all) > 1 && all[0].score == all[1].score {
-		// A unique exact departure can disambiguate repeats already aligned
-		// with BCS. Never choose the nearest departure across an unknown offset.
+		// BCS displays civil hours: 00:20 can be the map's 24:20 service.
+		// Require one exact civil departure, including overnight entries;
+		// never choose the nearest departure across an unknown offset.
 		at, err := parseClockMinutes(info.TripStart)
 		if err == nil {
 			var exact []scored
 			for _, s := range all {
-				if s.score == all[0].score && math.Abs(s.trip.Departure-at) < 0.001 {
+				if s.score == all[0].score && sameBCSDeparture(s.trip.Departure, at) {
 					exact = append(exact, s)
 				}
 			}
@@ -559,6 +562,21 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 		return ttlTrip{}, "", fmt.Errorf("trip match is ambiguous (%d trips, best score %d)", len(t.Trips), all[0].score)
 	}
 	return all[0].trip, strings.Join(all[0].reason, "; "), nil
+}
+
+// Interpret a civil clock in the service day nearest this candidate. Explicit
+// extended BCS hours keep their stated day. Equal civil times in two separate
+// records still remain ambiguous; this helper does not select a candidate.
+func operationalBCSDeparture(bcs, departure float64) float64 {
+ if bcs < 0 || bcs >= 1440 || !validDeparture(departure) { return bcs }
+ day := math.Round((departure-bcs)/1440)
+ aligned := bcs + day*1440
+ if aligned < 0 || !validDeparture(aligned) { return bcs }
+ return aligned
+}
+
+func sameBCSDeparture(departure, bcs float64) bool {
+ return math.Abs(departure-operationalBCSDeparture(bcs, departure)) < 0.001
 }
 
 // Match full place names, ignoring only a separate line decoration used by BCS.
@@ -714,21 +732,32 @@ func prepareTimetableSync(root, packageDir, mapRel, runDate string, info TripInf
 	}
 	res.TripName = matched.Name
 	res.OriginalDeparture = matched.Departure
-	res.BCSDeparture = bcsMin
-	res.OffsetMinutes = bcsMin - matched.Departure
-	if math.Abs(res.OffsetMinutes) < 0.001 {
-		// No overlay needed, but a correct 1-based --trip is still useful.
-		res.Applied = false
-		res.Ready = true
-		res.TripIndex = matched.Index
-		res.Reason = "already synchronized; matched " + why
-		return res
-	}
-	shifted, err := shiftTourTTL(text, tour, res.OffsetMinutes)
-	if err != nil {
-		res.Reason = err.Error()
-		return res
-	}
+	res.BCSCivilDeparture = bcsMin
+ res.BCSDeparture = operationalBCSDeparture(bcsMin, matched.Departure)
+ res.OffsetMinutes = res.BCSDeparture - matched.Departure
+ // Upstream duty_time adjusts by one day only. Fold only a selected 49h+
+ // runtime record into that supported window, while retaining logical offset
+ // zero and every installed byte. This is separate from a company time shift.
+ if res.BCSDeparture >= 2880 {
+  res.RuntimeDayAdjustmentMinutes = 1440 + math.Mod(res.BCSDeparture,1440) - res.BCSDeparture
+ }
+ if math.Abs(res.OffsetMinutes) < 0.001 && res.RuntimeDayAdjustmentMinutes == 0 {
+  res.Ready = true
+  res.TripIndex = matched.Index
+  res.Reason = "already synchronized; matched " + why
+  return res
+ }
+ shifted := text
+ if math.Abs(res.OffsetMinutes) >= 0.001 {
+  shifted, err = shiftTourTTL(text, tour, res.OffsetMinutes)
+  if err != nil { res.Reason = err.Error(); return res }
+ }
+ if res.RuntimeDayAdjustmentMinutes != 0 {
+  runtimeTrip := matched
+  runtimeTrip.Departure += res.OffsetMinutes
+  shifted, err = shiftTourTTL(shifted, ttlTour{Trips: []ttlTrip{runtimeTrip}}, res.RuntimeDayAdjustmentMinutes)
+  if err != nil { res.Reason = err.Error(); return res }
+ }
 	entryRel := relOMSI(root, ttlPath)
 	if filepath.IsAbs(entryRel) || strings.HasPrefix(entryRel, "../") || strings.HasPrefix(entryRel, `..\`) {
 		res.Reason = "TTL is outside OMSI root"
@@ -775,7 +804,9 @@ func timetableSyncDiagnostic(res TimetableSyncResult) string {
 	if res.TripName != "" {
 		fmt.Fprintf(&b, "Matched timetable trip: %s (#%d of %d)\r\n", res.TripName, res.TripIndex, res.TourTrips)
 		fmt.Fprintf(&b, "Original departure: %s (%.3f min)\r\n", formatMinutesClock(res.OriginalDeparture), res.OriginalDeparture)
-		fmt.Fprintf(&b, "BCS departure: %s (%.3f min)\r\n", formatMinutesClock(res.BCSDeparture), res.BCSDeparture)
+		fmt.Fprintf(&b, "BCS civil departure: %s (%.3f min)\r\n", formatMinutesClock(res.BCSCivilDeparture), res.BCSCivilDeparture)
+		fmt.Fprintf(&b, "BCS operational departure: %s (%.3f min)\r\n", formatMinutesClock(res.BCSDeparture), res.BCSDeparture)
+		if res.RuntimeDayAdjustmentMinutes != 0 { fmt.Fprintf(&b, "Runtime-only day adjustment: %+.3f min (installed TTL unchanged)\r\n",res.RuntimeDayAdjustmentMinutes) }
 		fmt.Fprintf(&b, "Applied offset: %+.3f min\r\n", res.OffsetMinutes)
 	}
 	if res.OverrideZIP != "" {

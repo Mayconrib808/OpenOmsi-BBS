@@ -217,3 +217,62 @@ func TestTemporarilyBlockedOutputIsRetriedWithoutNewF9(t *testing.T) {
 		t.Fatal("retry did not update BCS profile")
 	}
 }
+
+func TestSavedCollisionAndDrivingPenaltyReachBCSUnchanged(t *testing.T) {
+	s := newSync(t)
+	saved := s.Last
+	saved.Crashes[0] += 2
+	saved.Crashes[1]++
+	saved.Crashes[3]++
+	saved.Rating[4] = 0.625
+	writeSaved(t, s, saved)
+	_, _ = s.poll()
+	if changed, err := s.poll(); !changed || err != nil {
+		t.Fatal("saved collision and penalty were not published", changed, err)
+	}
+	memory := s.Last.memoryBlock()
+	for i, want := range saved.Crashes {
+		if got := int32(binary.LittleEndian.Uint32(memory[48+4*i:])); got != want {
+			t.Fatalf("collision counter %d: BCS memory %d, simulator %d", i, got, want)
+		}
+	}
+	if got := math.Float64frombits(binary.LittleEndian.Uint64(memory[64:])); got != saved.Rating[4] {
+		t.Fatalf("BCS driving penalty %g, simulator %g", got, saved.Rating[4])
+	}
+	nativeBytes, err := os.ReadFile(s.NativePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	native, err := parseDriver(nativeBytes, false)
+	if err != nil || native.Crashes != saved.Crashes || native.Rating[4] != saved.Rating[4] {
+		t.Fatal("native personnel fallback differs from actual simulator data", native, err)
+	}
+	state, err := os.ReadFile(s.StatePath)
+	if err != nil || !bytes.Contains(state, []byte("Saved driving penalty: 0.625000000")) || !bytes.Contains(state, []byte("Red-light offences: unavailable")) {
+		t.Fatal("penalty diagnostics omit actual values or red-light limitation", err)
+	}
+}
+
+func TestSavedDrivingPenaltyCanRecoverWithoutInventingEvents(t *testing.T) {
+	s := newSync(t)
+	saved := s.Last
+	saved.Rating[4] = 0.8
+	writeSaved(t, s, saved)
+	_, _ = s.poll()
+	if _, err := s.poll(); err != nil {
+		t.Fatal(err)
+	}
+	// openOMSI decreases P with distance driven. P is a proportion, not a
+	// monotonically increasing offence counter or a red-light event.
+	recovered := saved
+	recovered.Hectom += 20
+	recovered.Rating[4] = 0.7
+	writeSaved(t, s, recovered)
+	_, _ = s.poll()
+	if changed, err := s.poll(); !changed || err != nil {
+		t.Fatal("real driving-penalty recovery was rejected", changed, err)
+	}
+	if s.Last.Crashes != saved.Crashes || s.Last.Rating[4] != recovered.Rating[4] {
+		t.Fatal("penalty recovery changed collision counters or its real value")
+	}
+}
