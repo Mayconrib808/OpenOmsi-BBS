@@ -13,7 +13,14 @@
 <meta property="og:title" content="OpenOmsi - BBS 2.0.1 — guia do jogador">
 <meta property="og:description" content="Guia de instalação e configuração do OpenOMSI BCS Bridge para integrar openOMSI ao Bus Company Simulator/BBS no Windows.">
 <meta property="og:url" content="https://mayconrib808.github.io/OpenOmsi-BBS/TUTORIAL.html">
-<meta name="twitter:card" content="summary">
+<meta name="robots" content="index,follow,max-image-preview:large">
+<link rel="icon" href="docs/assets/favicon.svg" type="image/svg+xml">
+<meta property="og:image" content="https://mayconrib808.github.io/OpenOmsi-BBS/docs/assets/social-preview.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta property="og:image:alt" content="OpenOmsi + BBS, por Mayconrib808">
+<meta name="twitter:image" content="https://mayconrib808.github.io/OpenOmsi-BBS/docs/assets/social-preview.png">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="OpenOmsi - BBS 2.0.1 — guia do jogador">
 <meta name="twitter:description" content="Guia de instalação e configuração do OpenOMSI BCS Bridge para integrar openOMSI ao Bus Company Simulator/BBS no Windows.">
 <style>
@@ -25,18 +32,18 @@
 <header>
 <span class="tag">2.0.1 · POR MAYCONRIB808</span>
 <h1>OpenOmsi - BBS</h1>
-<p class="intro">Configure uma vez. Escolha sua viagem no BBS e entre na sessão da empresa.</p>
+<p class="intro">Configure uma vez. Escolha sua viagem no BBS. O multiplayer da empresa é opcional.</p>
 <p class="muted">O Setup guarda seus caminhos, seu nome e o perfil. Para jogar, não precisa editar JSON ou digitar comandos.</p>
-<nav aria-label="Navegação"><a href="#pt">Começar</a><a href="#jogar">Jogar</a><a href="#atualizar">Atualizar</a><a href="#duas-pessoas">Duas pessoas</a><a href="#en">English</a><a href="#de">Deutsch</a></nav>
+<nav aria-label="Navegação"><a href="https://mayconrib808.github.io/OpenOmsi-BBS/">Site</a><a href="https://mayconrib808.github.io/OpenOmsi-BBS/releases.html">Releases</a><a href="#pt">Começar</a><a href="#jogar">Jogar</a><a href="#atualizar">Atualizar</a><a href="#duas-pessoas">Duas pessoas</a><a href="#en">English</a><a href="#de">Deutsch</a></nav>
 </header>
 
 <section id="pt" lang="pt-BR">
 <h2>Preparar uma vez</h2>
-<p>Tenha <strong>OMSI 2, BCS/BBS e OpenOMSI para Windows</strong> instalados, com o mapa e os ônibus da empresa. Peça ao administrador o <strong>perfil da empresa</strong>: um arquivo JSON ou link HTTPS.</p>
+<p>Tenha <strong>OMSI 2, BCS/BBS e OpenOMSI para Windows</strong> instalados, com o mapa e o ônibus da viagem. Se quiser o multiplayer da empresa, peça ao administrador o <strong>perfil da empresa</strong>: um arquivo JSON ou link HTTPS.</p>
 <ol class="steps">
 <li><strong>Feche os jogos.</strong> Se o CompanyHost estiver aberto no seu computador, feche-o também. Extraia todo o ZIP <strong>OpenOmsi + BBS 2.0.1</strong>.</li>
 <li><strong>Abra Setup.exe.</strong> Em <strong>Pasta do OMSI 2</strong>, escolha a pasta do jogo original. Em <strong>Executável do OpenOMSI</strong>, escolha seu <code>openomsi.exe</code>.</li>
-<li><strong>Configure a empresa.</strong> Marque <strong>Ativar multiplayer da empresa</strong>. Em <strong>Perfil da empresa (arquivo JSON ou link HTTPS)</strong>, selecione o arquivo ou cole o link recebido. Digite <strong>Seu nome no multiplayer</strong>.</li>
+<li><strong>Escolha se quer multiplayer.</strong> Sem multiplayer, deixe <strong>Ativar multiplayer da empresa</strong> desmarcado: perfil e nome podem ficar vazios. Para entrar na empresa, marque a caixa, selecione o perfil ou cole o link recebido e digite seu nome.</li>
 <li><strong>Clique em Salvar e ativar.</strong> Aceite a permissão do Windows. A ponte importa o perfil e guarda sua configuração para as próximas viagens e atualizações.</li>
 <li><strong>Confira o BCS.</strong> Em <strong>Definições → Definições avançadas → OMSI</strong>, deixe <strong>Iniciar o OMSI mais depressa</strong> desmarcado. No OpenOMSI, desative a sincronização com o relógio real.</li>
 </ol>
@@ -46,9 +53,9 @@
 <section id="jogar" lang="pt-BR">
 <h2>Jogar</h2>
 <ol class="steps">
-<li><strong>Espere o servidor da empresa ficar pronto.</strong> O administrador confirma isso depois de aparecer <span class="status">SINCRONIZADO</span> no CompanyHost.</li>
-<li><strong>Abra o BCS e inicie a viagem normalmente.</strong> A ponte prepara o OpenOMSI e procura a sessão compatível com seu mapa e o relógio da empresa.</li>
-<li><strong>Espere o mapa carregar.</strong> O estado <strong>Online: in …</strong> no jogo confirma a conexão ao servidor.</li>
+<li><strong>Se ativou multiplayer, espere o servidor da empresa ficar pronto.</strong> O administrador confirma isso depois de aparecer <span class="status">SINCRONIZADO</span> no CompanyHost. Sem multiplayer, não precisa de servidor.</li>
+<li><strong>Abra o BCS e inicie a viagem normalmente.</strong> A ponte prepara o OpenOMSI. Com multiplayer ligado, também procura a sessão compatível com seu mapa e o relógio da empresa.</li>
+<li><strong>Espere o mapa carregar.</strong> Se usa multiplayer, o estado <strong>Online: in …</strong> confirma a conexão ao servidor.</li>
 </ol>
 <div class="finish"><strong>No ponto final:</strong> pressione <strong>F9</strong>, aguarde pelo menos <strong>2 segundos</strong> e finalize no <strong>BCS com o OpenOMSI aberto</strong>.</div>
 <p><strong>Próxima viagem:</strong> depois de concluir a viagem, clique nesse botão no BCS e aguarde. A ponte acompanha uma nova viagem com identificador próprio e encerra a sessão anterior antes de preparar a seguinte. Deixe o OpenOMSI aberto durante essa troca. Esse fluxo ainda precisa de teste real.</p>
@@ -61,6 +68,7 @@
 <p>Feche os jogos, extraia todo o pacote novo e abra seu <strong>Setup.exe</strong>. Confira os dados recuperados e clique em <strong>Salvar e ativar</strong>. A cópia do perfil fica nas configurações do usuário e continua disponível mesmo depois de remover o ZIP antigo.</p>
 <p>Se o administrador enviar um perfil novo em arquivo, selecione esse arquivo no Setup. Se forneceu um link HTTPS, a ponte consulta esse link ao preparar a viagem; ele precisa continuar disponível.</p>
 <p>Para voltar ao OMSI original, feche os jogos e clique em <strong>Desativar ponte</strong>.</p>
+<p><strong>Para desligar apenas o multiplayer:</strong> feche os jogos, desmarque <strong>Ativar multiplayer da empresa</strong> e clique em <strong>Salvar e ativar</strong>. A ponte continua ativa; não precisa apagar o perfil ou o nome.</p>
 </section>
 
 <section id="duas-pessoas" lang="pt-BR">
@@ -84,26 +92,28 @@
 
 <section id="en" class="language" lang="en">
 <h2>Quick start</h2>
-<p>Install OMSI 2, BCS/BBS and OpenOMSI separately, including the company's map and buses. Ask the administrator for the company profile file or HTTPS link.</p>
-<ol><li>Close the games and extract the entire <strong>OpenOmsi + BBS 2.0.1</strong> ZIP.</li><li>Open <strong>Setup.exe</strong>. Select the original OMSI folder and your <code>openomsi.exe</code>.</li><li>Enable <strong>Ativar multiplayer da empresa</strong>, choose the profile file or paste its HTTPS link, and enter your player name.</li><li>Click <strong>Salvar e ativar</strong> (save and activate) and accept the Windows permission request.</li><li>In BCS/BBS, leave <strong>Start OMSI faster</strong> unchecked. Disable real-time clock synchronisation in OpenOMSI.</li><li>Once the company server is ready, start your trip through BCS. The in-game <strong>Online: in …</strong> status confirms your connection.</li></ol>
+<p>Install OMSI 2, BCS/BBS and OpenOMSI separately, including the company's map and buses. For company multiplayer, ask the administrator for the profile file or HTTPS link.</p>
+<ol><li>Close the games and extract the entire <strong>OpenOmsi + BBS 2.0.1</strong> ZIP.</li><li>Open <strong>Setup.exe</strong>. Select the original OMSI folder and your <code>openomsi.exe</code>.</li><li>Multiplayer is optional. Leave <strong>Ativar multiplayer da empresa</strong> unchecked to play without it; profile and name can be blank. To join the company, enable it, choose the profile or HTTPS link and enter your player name.</li><li>Click <strong>Salvar e ativar</strong> (save and activate) and accept the Windows permission request.</li><li>In BCS/BBS, leave <strong>Start OMSI faster</strong> unchecked. Disable real-time clock synchronisation in OpenOMSI.</li><li>Start your trip through BCS. With multiplayer enabled, wait until the company server is ready; <strong>Online: in …</strong> confirms the connection.</li></ol>
 <div class="finish"><strong>Last stop:</strong> F9 → wait at least 2 seconds → finish in BCS while OpenOMSI remains open.</div>
 <p>Players do not need to edit JSON or host their own server. Settings and an imported profile copy are saved across updates. Extract the new package, open its Setup, check your saved details and click <strong>Salvar e ativar</strong>. Use <strong>Desativar ponte</strong> to restore original OMSI launches.</p>
+<p>To disable only multiplayer, close the games, uncheck <strong>Ativar multiplayer da empresa</strong> and click <strong>Salvar e ativar</strong>. The bridge remains enabled.</p>
 <p><strong>Coletar logs</strong> creates local diagnostics; review them before sharing. Chat: <strong>/</strong> or click the message box, then <strong>Enter</strong> to send. <strong>V</strong> toggles visibility. Key bindings may vary.</p>
 <p class="muted">Server joining, chat, shared passengers and BCS evaluation have been observed with one player. Two-client rendering and boarding another player's bus still need a live test.</p>
 </section>
 
 <section id="de" class="language" lang="de">
 <h2>Kurzanleitung</h2>
-<p>Installiere OMSI 2, BBS und OpenOMSI separat, einschließlich der Karte und Busse der Firma. Der Administrator stellt das Firmenprofil als Datei oder HTTPS-Link bereit.</p>
-<ol><li>Schließe die Spiele und entpacke die gesamte ZIP-Datei <strong>OpenOmsi + BBS 2.0.1</strong>.</li><li>Öffne <strong>Setup.exe</strong>. Wähle den originalen OMSI-Ordner und deine <code>openomsi.exe</code>.</li><li>Aktiviere <strong>Ativar multiplayer da empresa</strong>, wähle die Profildatei oder füge den HTTPS-Link ein und gib deinen Spielernamen ein.</li><li>Klicke auf <strong>Salvar e ativar</strong> (speichern und aktivieren) und bestätige die Windows-Abfrage.</li><li>Deaktiviere in BBS <strong>OMSI schneller starten</strong> und in OpenOMSI die Echtzeitsynchronisierung.</li><li>Sobald der Firmenserver bereit ist, starte die Fahrt über BBS. <strong>Online: in …</strong> im Spiel bestätigt die Verbindung.</li></ol>
+<p>Installiere OMSI 2, BBS und OpenOMSI separat, einschließlich der Karte und Busse der Firma. Für den optionalen Firmen-Multiplayer stellt der Administrator das Profil als Datei oder HTTPS-Link bereit.</p>
+<ol><li>Schließe die Spiele und entpacke die gesamte ZIP-Datei <strong>OpenOmsi + BBS 2.0.1</strong>.</li><li>Öffne <strong>Setup.exe</strong>. Wähle den originalen OMSI-Ordner und deine <code>openomsi.exe</code>.</li><li>Multiplayer ist optional. Ohne Multiplayer lasse <strong>Ativar multiplayer da empresa</strong> deaktiviert; Profil und Name dürfen leer bleiben. Für Firmen-Multiplayer aktiviere die Option, wähle das Profil oder den HTTPS-Link und gib deinen Spielernamen ein.</li><li>Klicke auf <strong>Salvar e ativar</strong> (speichern und aktivieren) und bestätige die Windows-Abfrage.</li><li>Deaktiviere in BBS <strong>OMSI schneller starten</strong> und in OpenOMSI die Echtzeitsynchronisierung.</li><li>Starte die Fahrt über BBS. Bei aktiviertem Multiplayer warte auf den Firmenserver; <strong>Online: in …</strong> bestätigt die Verbindung.</li></ol>
 <div class="finish"><strong>Endhaltestelle:</strong> F9 → mindestens 2 Sekunden warten → in BBS abschließen, während OpenOMSI geöffnet bleibt.</div>
 <p>Spieler müssen keine JSON-Datei bearbeiten und keinen eigenen Server hosten. Einstellungen und eine importierte Profilkopie bleiben bei Updates erhalten. Entpacke das neue Paket, öffne dessen Setup, prüfe die gespeicherten Angaben und klicke auf <strong>Salvar e ativar</strong>. <strong>Desativar ponte</strong> stellt den Start des originalen OMSI wieder her.</p>
+<p>Um nur Multiplayer abzuschalten, schließe die Spiele, deaktiviere <strong>Ativar multiplayer da empresa</strong> und klicke auf <strong>Salvar e ativar</strong>. Die Bridge bleibt aktiv.</p>
 <p><strong>Coletar logs</strong> erstellt lokale Diagnosen. Prüfe diese vor dem Teilen. Chat: <strong>/</strong> oder Nachrichtenfeld anklicken, dann mit <strong>Enter</strong> senden. <strong>V</strong> blendet den Chat ein oder aus. Die Tastenbelegung kann abweichen.</p>
 <p class="muted">Serverbeitritt, Chat, gemeinsame Fahrgäste und BBS-Auswertung wurden mit einem Spieler beobachtet. Die Darstellung zwischen zwei Clients und das Einsteigen beim anderen Spieler benötigen noch einen Praxistest.</p>
 </section>
 
 <footer class="small">
-<p><strong>Teste e compatibilidade:</strong> a viagem observada usou OpenOMSI 0.2.0 e BCS/BBS 5.0.0.1. A ponte verifica os recursos necessários da versão escolhida; a 0.2.11 foi revisada no código oficial, mas ainda precisa de viagem real. <a href="docs/VALIDATION.md">Veja a validação</a>.</p>
+<p><strong>Teste e compatibilidade:</strong> a viagem observada usou OpenOMSI 0.2.0 e BCS/BBS 5.0.0.1. A ponte verifica os recursos necessários da versão escolhida; os executáveis oficiais 0.2.0 e 0.2.11 passaram pela checagem de requisitos, mas a 0.2.11 ainda precisa de viagem real. <a href="docs/VALIDATION.md">Veja a validação</a>.</p>
 <p><strong>Sinal vermelho:</strong> a penalidade específica ainda não está disponível. A ponte transfere os contadores reais de colisões e condução, mas não inventa infrações. <a href="docs/TRAFFIC_PENALTIES.md">Veja o motivo</a>. Avaliação e pagamento idênticos ao OMSI original não são prometidos.</p>
 <p>Projeto independente da comunidade. O pacote contém os componentes próprios da ponte; jogos, mapas, ônibus e a DLL original do BBS são instalados separadamente. A ponte grava dados locais e configura a inicialização no Windows; <a href="docs/RUNTIME_EFFECTS.md">veja os efeitos locais</a>.</p>
 <p>Suporte: Discord <strong>.zmaycon.</strong>, com os pontos nas duas pontas. <a href="CREDITS.md">Créditos</a> · <a href="THIRD_PARTY_NOTICES.md">Licenças</a> · <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases">Releases</a></p>

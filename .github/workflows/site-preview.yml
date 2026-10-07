@@ -1,0 +1,43 @@
+name: Site preview
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'releases.html'
+      - 'TUTORIAL.html'
+      - 'docs/assets/**'
+      - '.github/workflows/site-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Render desktop and mobile pages
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/site-preview"
+          python3 -m http.server 8097 --bind 127.0.0.1 > "$RUNNER_TEMP/site-server.log" 2>&1 &
+          site_server_pid=$!
+          trap 'kill "$site_server_pid"' EXIT
+          for attempt in 1 2 3 4 5; do
+            if curl -fsS http://127.0.0.1:8097/ > /dev/null; then break; fi
+            sleep 1
+          done
+          google-chrome --version
+          google-chrome --headless --no-sandbox --disable-dev-shm-usage --hide-scrollbars --screenshot="$RUNNER_TEMP/site-preview/home-desktop.png" --window-size=1280,1600 http://127.0.0.1:8097/
+          google-chrome --headless --no-sandbox --disable-dev-shm-usage --hide-scrollbars --screenshot="$RUNNER_TEMP/site-preview/home-mobile.png" --window-size=390,2200 http://127.0.0.1:8097/
+          google-chrome --headless --no-sandbox --disable-dev-shm-usage --hide-scrollbars --screenshot="$RUNNER_TEMP/site-preview/releases-mobile.png" --window-size=390,2400 http://127.0.0.1:8097/releases.html
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: site-preview
+          path: ${{ runner.temp }}/site-preview/*.png
+          if-no-files-found: error
+          retention-days: 7

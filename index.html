@@ -3,41 +3,83 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="google-site-verification" content="ESZ9LpiLMpJPmDHdkYE2o9MWS17KtjcYgEDei9Hadtc" />
-  <title>OpenOMSI BCS Bridge</title>
-  <meta name="description" content="Ponte experimental para integrar openOMSI ao Bus Company Simulator/BBS no Windows. Downloads, instalação e configuração do OpenOMSI BCS Bridge.">
+  <meta name="google-site-verification" content="ESZ9LpiLMpJPmDHdkYE2o9MWS17KtjcYgEDei9Hadtc">
+  <title>OpenOmsi + BBS — integração com Bus Company Simulator</title>
+  <meta name="description" content="Jogue suas viagens do Bus Company Simulator/BBS no OpenOMSI. Baixe a ponte 2.0.1 para Windows, com Setup gráfico e multiplayer opcional da empresa.">
+  <meta name="robots" content="index,follow,max-image-preview:large">
   <link rel="canonical" href="https://mayconrib808.github.io/OpenOmsi-BBS/">
-<meta property="og:type" content="website">
-<meta property="og:locale" content="pt_BR">
-<meta property="og:site_name" content="OpenOMSI BCS Bridge">
-<meta property="og:title" content="OpenOMSI BCS Bridge">
-<meta property="og:description" content="Ponte experimental para integrar openOMSI ao Bus Company Simulator/BBS no Windows. Downloads, instalação e configuração do OpenOMSI BCS Bridge.">
-<meta property="og:url" content="https://mayconrib808.github.io/OpenOmsi-BBS/">
-<meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="OpenOMSI BCS Bridge">
-<meta name="twitter:description" content="Ponte experimental para integrar openOMSI ao Bus Company Simulator/BBS no Windows. Downloads, instalação e configuração do OpenOMSI BCS Bridge.">
-<style>
-    :root{color-scheme:dark;--ink:#e9eef8;--muted:#aebcd1;--accent:#78d4b0}
-    *{box-sizing:border-box}
-    body{margin:0;background:#101925;color:var(--ink);font:17px/1.65 system-ui,sans-serif}
-    main{max-width:850px;margin:auto;padding:56px 24px}
-    h1{font-size:clamp(30px,6vw,48px);line-height:1.15;margin:0 0 12px}
-    p{max-width:70ch}
-    a{color:var(--accent)}
-    nav{display:flex;gap:18px;flex-wrap:wrap;margin-top:26px}
-    .muted{color:var(--muted)}
-  </style>
+  <link rel="icon" href="docs/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="docs/assets/site.css">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:site_name" content="OpenOmsi + BBS">
+  <meta property="og:title" content="OpenOmsi + BBS — suas viagens do BBS no OpenOMSI">
+  <meta property="og:description" content="Ponte 2.0.1 para Windows. Setup gráfico, configurações salvas e multiplayer opcional da empresa. Download e tutorial.">
+  <meta property="og:url" content="https://mayconrib808.github.io/OpenOmsi-BBS/">
+  <meta property="og:image" content="https://mayconrib808.github.io/OpenOmsi-BBS/docs/assets/social-preview.png">
+  <meta property="og:image:width" content="1280">
+  <meta property="og:image:height" content="640">
+  <meta property="og:image:alt" content="OpenOmsi + BBS, por Mayconrib808: suas viagens do BBS no OpenOMSI">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="OpenOmsi + BBS — integração com Bus Company Simulator">
+  <meta name="twitter:description" content="Download da ponte 2.0.1 para Windows, com Setup gráfico e multiplayer opcional.">
+  <meta name="twitter:image" content="https://mayconrib808.github.io/OpenOmsi-BBS/docs/assets/social-preview.png">
+  <script type="application/ld+json">
+  {"@context":"https://schema.org","@type":"SoftwareSourceCode","name":"OpenOmsi + BBS","alternateName":"OpenOMSI BCS Bridge","description":"Ponte de código aberto para integrar OpenOMSI ao Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS) no Windows, com multiplayer opcional da empresa.","url":"https://mayconrib808.github.io/OpenOmsi-BBS/","codeRepository":"https://github.com/Mayconrib808/OpenOmsi-BBS","image":"https://mayconrib808.github.io/OpenOmsi-BBS/docs/assets/social-preview.png","license":"https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/LICENSE","programmingLanguage":"Go","operatingSystem":"Windows","version":"2.0.1","dateModified":"2026-10-07","author":{"@type":"Person","name":"Mayconrib808","url":"https://github.com/Mayconrib808"}}
+  </script>
 </head>
 <body>
-  <main>
-    <h1>OpenOMSI BCS Bridge</h1>
-    <p class="muted">Ponte experimental para integração entre openOMSI e Bus Company Simulator/BBS no Windows.</p>
-    <nav>
-      <a href="TUTORIAL.html">Guia de instalação</a>
-      <a href="README.pt-BR.md">README em Português</a>
-      <a href="README.md">README in English</a>
-      <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases">Releases</a>
-    </nav>
+  <a class="skip" href="#conteudo">Pular para o conteúdo</a>
+  <header class="topbar wrap">
+    <a class="brand" href="./"><img src="docs/assets/favicon.svg" width="36" height="36" alt="">OpenOmsi <span>+ BBS</span></a>
+    <nav aria-label="Principal"><a href="#recursos">Recursos</a><a href="TUTORIAL.html">Tutorial</a><a href="releases.html">Releases</a><a href="https://github.com/Mayconrib808/OpenOmsi-BBS">GitHub ↗</a></nav>
+  </header>
+  <main id="conteudo" class="wrap">
+    <section class="hero" aria-labelledby="titulo">
+      <div>
+        <p class="eyebrow"><span class="dot" aria-hidden="true"></span> Versão 2.0.1 · Windows · código aberto</p>
+        <h1 id="titulo">Suas viagens do BBS.<br><span>No OpenOMSI.</span></h1>
+        <p class="lead">O <strong>OpenOmsi + BBS</strong> conecta o OpenOMSI ao <strong>Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)</strong>. Escolha sua viagem no BBS; a ponte prepara o ônibus e o horário no OpenOMSI.</p>
+        <div class="actions"><a class="button primary" href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip">Baixar 2.0.1 para Windows ↓</a><a class="button" href="TUTORIAL.html">Como instalar →</a></div>
+        <p class="caption">Publicado em <time datetime="2026-10-07">7 de outubro de 2026</time> · por Mayconrib808</p>
+      </div>
+      <aside class="hero-card" aria-label="Novidades da versão 2.0.1">
+        <img class="art" src="docs/assets/readme-banner.png" alt="OpenOmsi + BBS — viagens do BBS no OpenOMSI" width="1280" height="360">
+        <p class="eyebrow">O que mudou na 2.0.1</p>
+        <h2>Configure uma vez.<br>Depois, dirija.</h2>
+        <ul class="checklist"><li>Setup com janela gráfica</li><li>Caminhos e perfil guardados</li><li>Horários depois da meia-noite corrigidos</li><li>Multiplayer da empresa opcional</li></ul>
+        <a href="releases.html#v2-0-1">Ver novidades e testes →</a>
+      </aside>
+    </section>
+    <div class="requirements"><strong>Você precisa ter:</strong> OMSI 2, BCS/BBS e OpenOMSI instalados separadamente, além do mapa e do ônibus da viagem.</div>
+    <section id="recursos" class="section" aria-labelledby="recursos-titulo">
+      <p class="eyebrow">Da escolha da viagem ao ponto final</p>
+      <h2 id="recursos-titulo">Uma ponte para continuar jogando pelo BBS.</h2>
+      <div class="grid three">
+        <article class="card"><span class="number">01</span><h3>Um Setup com janela</h3><p>Escolha as pastas dos jogos e clique em <strong>Salvar e ativar</strong>. Seus caminhos ficam salvos para as próximas viagens.</p></article>
+        <article class="card"><span class="number">02</span><h3>Viagem preparada</h3><p>A ponte combina a linha, o trajeto e a partida do BBS com o timetable do mapa. A 2.0.1 reconhece <strong>01:40 e 25:40</strong> como horários equivalentes do dia operacional.</p></article>
+        <article class="card"><span class="number">03</span><h3>Multiplayer opcional</h3><p>Jogue sem a sessão da empresa ou use o perfil fornecido pelo administrador. No multiplayer, o CompanyHost mantém o relógio sincronizado e exporta o perfil com o HTTPS do servidor.</p></article>
+      </div>
+    </section>
+    <section class="section split" aria-labelledby="comecar-titulo">
+      <div><p class="eyebrow">Começar é simples</p><h2 id="comecar-titulo">Instale a ponte.<br>Abra o BBS normalmente.</h2><p>O ZIP inclui o Setup, a ponte, o CompanyHost e o tutorial offline. Para jogar, não é necessário instalar Go ou Python.</p><a href="TUTORIAL.html">Abrir o passo a passo completo →</a></div>
+      <ol class="steps"><li><strong>Baixe e extraia todo o ZIP.</strong><span>Feche BCS, OpenOMSI e CompanyHost antes de instalar ou atualizar.</span></li><li><strong>Abra Setup.exe e escolha os jogos.</strong><span>Multiplayer desligado? Deixe a caixa desmarcada; perfil e nome podem ficar vazios.</span></li><li><strong>Clique em Salvar e ativar.</strong><span>No BCS, deixe “Iniciar o OMSI mais depressa” desmarcado. Inicie a viagem pelo BBS.</span></li></ol>
+    </section>
+    <section class="section validation" aria-labelledby="testes-titulo">
+      <div><p class="eyebrow">Compatibilidade e testes</p><h2 id="testes-titulo">O que já foi conferido.</h2><p>Os testes automáticos passaram no Linux e no Windows. Os executáveis oficiais <strong>OpenOMSI 0.2.0 e 0.2.11</strong>, cliente e servidor, passaram pela verificação de requisitos da ponte. Outras versões são avaliadas pelos recursos necessários e pelo protocolo.</p><p>Uma viagem real com a 0.2.0 confirmou ingresso no servidor, chat, passageiros compartilhados e conclusão no BCS.</p><a href="https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/docs/VALIDATION.md">Consultar o registro dos testes →</a></div>
+      <div class="note"><h3>O projeto continua em testes.</h3><p>A viagem completa com 0.2.11, o botão <strong>Próxima viagem</strong> e a visualização entre dois jogadores ainda precisam de validação no jogo.</p><p>A penalidade específica por sinal vermelho <strong>não está implementada</strong> na 2.0.1. Os dados reais de colisões e condução continuam sendo transferidos.</p></div>
+    </section>
+    <section class="section" aria-labelledby="perguntas-titulo">
+      <p class="eyebrow">Antes de baixar</p><h2 id="perguntas-titulo">Dúvidas frequentes.</h2>
+      <div class="faq">
+        <details><summary>Posso usar a ponte sem o multiplayer?</summary><p>Sim. Deixe <strong>Ativar multiplayer da empresa</strong> desmarcado e clique em <strong>Salvar e ativar</strong>. O perfil e o nome não são obrigatórios nesse modo. Para desligar apenas o multiplayer depois, feche os jogos, desmarque essa caixa e salve novamente. <strong>Desativar ponte</strong> desliga a integração inteira.</p></details>
+        <details><summary>Qual arquivo preciso baixar nas Releases?</summary><p>O pacote <strong>OpenOmsi + BBS 2.0.1.zip</strong>, em Assets. Extraia tudo e abra Setup.exe. Os arquivos automáticos “Source code” são para quem quer compilar o código.</p></details>
+        <details><summary>Preciso manter um servidor no meu computador?</summary><p>Para jogar sem multiplayer, não. Para entrar na sessão de uma empresa, o administrador hospeda o servidor e fornece o perfil pronto. Cada jogador não precisa descobrir seu próprio endereço de rede.</p></details>
+        <details><summary>Como finalizo a viagem no BCS?</summary><p>No ponto final, pressione <strong>F9</strong>, espere pelo menos <strong>dois segundos</strong> e finalize no BCS com o OpenOMSI ainda aberto. Veja os detalhes no tutorial.</p></details>
+      </div>
+    </section>
+    <section class="cta section"><div><p class="eyebrow">Projeto da comunidade</p><h2>Encontrou um problema?<br>Seu teste ajuda a próxima versão.</h2><p>Informe o mapa, o ônibus e a mensagem de erro. O Setup oferece <strong>Coletar logs</strong> para gerar um diagnóstico local.</p></div><div class="actions"><a class="button primary" href="https://github.com/Mayconrib808/OpenOmsi-BBS/issues/new/choose">Relatar no GitHub →</a><a class="button" href="https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/CONTRIBUTING.md">Como contribuir</a></div></section>
   </main>
+  <footer class="wrap"><p><strong>OpenOmsi + BBS</strong> · por Mayconrib808 · licença MIT</p><nav aria-label="Rodapé"><a href="releases.html">Releases</a><a href="TUTORIAL.html">Tutorial</a><a href="https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/README.md">English</a><a href="https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/SUPPORT.md">Suporte</a><a href="sitemap.xml">Mapa do site</a></nav><p class="caption">Projeto independente da comunidade. Os jogos, addons e o plugin original do BBS são instalados separadamente.</p></footer>
 </body>
 </html>

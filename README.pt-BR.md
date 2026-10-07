@@ -10,6 +10,7 @@
 </p>
 
 <p align="center">
+  <a href="https://mayconrib808.github.io/OpenOmsi-BBS/">Site do projeto</a> ·
   <b><a href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases">Releases</a></b> ·
   <a href="#instalação">Como instalar</a> ·
   <a href="#documentação">Documentação</a> ·
@@ -17,7 +18,9 @@
   <a href="README.md">English</a>
 </p>
 
-**OpenOmsi + BBS** conecta o **openOMSI** ao **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)** no Windows. Escolha a viagem no BBS e abra o openOMSI com o ônibus e os horários preparados pela ponte.
+# OpenOmsi + BBS — integração entre OpenOMSI e Bus Company Simulator
+
+**OpenOmsi + BBS** conecta o **openOMSI** ao **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)** no Windows. Escolha a viagem no BBS e abra o openOMSI com o ônibus e os horários preparados pela ponte. O multiplayer da empresa é opcional.
 
 > [!WARNING]
 > **Projeto experimental da comunidade.** A integração principal e o ingresso em uma sessão foram observados em viagens reais. A visualização entre dois jogadores e a equivalência completa da avaliação e do pagamento ainda precisam de testes. Veja o [registro da validação](docs/VALIDATION.md).
@@ -31,12 +34,14 @@
 
 | Pacote | Versão | Download |
 | --- | --- | --- |
-| Pacote completo para Windows | **2.0.1 · experimental** | [OpenOmsi + BBS 2.0.1.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip) |
+| Pacote completo para Windows | **2.0.1 · versão atual** | [OpenOmsi + BBS 2.0.1.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip) |
 | Verificação SHA-256 | 2.0.1 | [Checksum](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip.sha256) |
 | Versão anterior | 1.1.3 | [Releases da 1.1.3](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3) |
 | Histórico e notas das versões | Versões publicadas | [Abrir Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases) |
 
 O ZIP completo contém **Setup.exe**, **CompanyHost.exe**, lançador da ponte, fachada de compatibilidade, auxiliar de 32 bits instalado automaticamente, tutorial offline, código-fonte, créditos e licenças. **Para jogar, você não precisa baixar outro auxiliar nem instalar Go ou Python.**
+
+**Atualização de 7 de outubro de 2026:** a 2.0.1 inclui Setup gráfico, configurações persistentes, exportação do perfil dos jogadores, horários operacionais como 01:40/25:40 e tratamento de chamadas duplicadas. [Novidades e alcance dos testes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.1) · [Histórico visual de versões](https://mayconrib808.github.io/OpenOmsi-BBS/releases.html) · [Changelog](CHANGELOG.md).
 
 Em **Assets**, escolha o ZIP para Windows com esse nome. Os arquivos automáticos “Source code” do GitHub contêm o código-fonte e precisam ser compilados.
 
@@ -57,12 +62,14 @@ Em **Assets**, escolha o ZIP para Windows com esse nome. Os arquivos automático
 1. Instale **OMSI 2**, **BCS/BBS** e [**OpenOMSI**](https://github.com/openOMSI-Project/openOMSI/releases) separadamente, com o mapa e os ônibus da empresa.
 2. Baixe o ZIP completo e **extraia tudo em uma pasta fixa**.
 3. Com os jogos fechados, abra **Setup.exe** e escolha a pasta do OMSI 2 original e o `openomsi.exe`.
-4. Para multiplayer, marque **Ativar multiplayer da empresa**, selecione o arquivo ou cole o link do perfil fornecido pelo administrador e digite seu nome.
+4. O multiplayer é opcional. Para jogar sem ele, deixe **Ativar multiplayer da empresa** desmarcado; perfil e nome podem ficar vazios. Para entrar na empresa, marque a caixa, selecione o arquivo ou link do perfil fornecido pelo administrador e digite seu nome.
 5. Clique em **Salvar e ativar** e aceite a solicitação de permissão do Windows.
 6. No BCS/BBS, deixe **“Iniciar o OMSI mais depressa” desmarcado**. No OpenOMSI, desative a sincronização com o relógio real.
-7. Com o servidor da empresa pronto, inicie a viagem normalmente pelo BBS.
+7. Inicie a viagem normalmente pelo BBS. Se ativou o multiplayer, espere o servidor da empresa ficar pronto.
 
 **O jogador não precisa editar o JSON nem abrir um servidor no próprio PC.** O administrador fornece o perfil e mantém a sessão hospedada. A ponte guarda uma cópia do perfil para as próximas viagens.
+
+Para desligar apenas o multiplayer, feche os jogos, desmarque **Ativar multiplayer da empresa** e clique novamente em **Salvar e ativar**. A ponte permanece ativa. **Desativar ponte** desliga a integração inteira.
 
 No ponto final: **F9 → aguarde pelo menos dois segundos → finalize no BCS/BBS com o OpenOMSI aberto**.
 
@@ -70,7 +77,7 @@ Para voltar ao OMSI original, feche os jogos e clique em **Desativar ponte**. O 
 
 ## Compatibilidade e testes
 
-A referência de jogo testada é **Windows x64 + OpenOMSI 0.2.0 + BCS/BBS 5.0.0.1**. A versão escolhida pode ser diferente: a ponte verifica as opções necessárias do executável e a interface do auxiliar, e o servidor multiplayer precisa usar o protocolo compatível. O código oficial da **0.2.11** foi revisado para essas interfaces; uma viagem real com essa versão ainda precisa de validação.
+A referência de jogo testada é **Windows x64 + OpenOMSI 0.2.0 + BCS/BBS 5.0.0.1**. A versão escolhida pode ser diferente: a ponte verifica as opções necessárias do executável e a interface do auxiliar, e o servidor multiplayer precisa usar o protocolo compatível. Os executáveis oficiais **0.2.0 e 0.2.11**, cliente e servidor Windows, passaram por probes reais dos requisitos de CLI nas [verificações Linux/Windows](https://github.com/Mayconrib808/OpenOmsi-BBS/actions/runs/37599919085). Uma viagem real com 0.2.11 ainda precisa de validação.
 
 Em **07/10/2026**, uma viagem em **Carrão City, linha N407**, com **Caio Apache VIP I OF 1721 manual**, confirmou o ingresso no servidor, identificação do ônibus, chat, passageiros compartilhados e conclusão com **67% de avaliação no BCS**. A saída foi voluntária pelo botão **Voltar ao escritório**. Houve uma queda seguida de reconexão durante o teste.
 
