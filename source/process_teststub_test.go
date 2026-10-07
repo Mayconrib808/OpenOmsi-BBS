@@ -8,3 +8,4 @@ func postOpenOMSIClose(pid uint32) int { panic("Windows closing must not run in 
 
 func acquireBridgeLock(root string) (func(), error) { return func() {}, nil }
 func showLaunchError(lang, message string)          {}
+func openMultiplayerDocument(path string) error     { return nil }

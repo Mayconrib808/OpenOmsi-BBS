@@ -1,4 +1,12 @@
-OpenOMSI BCS Bridge v1.1.3 — por Mayconrib808
+OpenOMSI BCS Bridge v2.0.0-dev.1 — por Mayconrib808
+
+VERSÃO DE DESENVOLVIMENTO 2.0
+O multiplayer da empresa é opcional e vem desativado. No Setup, a opção 8
+configura o perfil fornecido pelo administrador; a opção 9 cria esse perfil
+com versões, hashes e links dos ônibus e mapas. As sessões devem estar
+hospedadas. Consulte docs/MULTIPLAYER.md antes de ativar.
+A viagem com dois jogadores e a avaliação BBS ainda precisam de teste real.
+Para testar uma viagem normal sozinho, deixe o multiplayer desativado.
 
 INSTALAÇÃO
 1. Tenha OMSI 2, BCS/BBS e openOMSI 0.2.0 para Windows x64 instalados.

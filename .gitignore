@@ -5,6 +5,8 @@
 /app/bridge.ini
 /app/bridge.ini.backup
 /Diagnosticos/
+/Companies/
+/app/multiplayer-requirements.html
 /diagnostics/
 *.exe
 *.dll

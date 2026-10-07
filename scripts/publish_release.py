@@ -116,6 +116,9 @@ def main() -> None:
     if args.verify_only:
         verify_package(args.verify_only)
         return
+    if "-" in VERSION:
+        print(f"Development build {VERSION}: retained as a CI artifact; no release or tag published.")
+        return
     if not args.run_id or not args.run_id.isdecimal() or not args.commit or not re.fullmatch(r"[0-9a-f]{40}", args.commit) or args.artifact_dir is None:
         parser.error("Publishing requires a CI run ID, full commit SHA and artifact directory")
     repo = os.environ["GH_REPO"]

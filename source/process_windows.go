@@ -30,6 +30,19 @@ func showLaunchError(lang, message string) {
 	syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(s)), uintptr(unsafe.Pointer(title)), 0x10)
 }
 
+func openMultiplayerDocument(path string) error {
+	verb, _ := syscall.UTF16PtrFromString("open")
+	file, err := syscall.UTF16PtrFromString(path)
+	if err != nil {
+		return err
+	}
+	r, _, e := syscall.NewLazyDLL("shell32.dll").NewProc("ShellExecuteW").Call(0, uintptr(unsafe.Pointer(verb)), uintptr(unsafe.Pointer(file)), 0, 0, 1)
+	if r <= 32 {
+		return fmt.Errorf("open requirements page: %v", e)
+	}
+	return nil
+}
+
 // Ask only the render windows of this launch to close, so openOMSI can run its
 // normal end-session save. BCS acceptance is checked by the caller first.
 func postOpenOMSIClose(pid uint32) int {

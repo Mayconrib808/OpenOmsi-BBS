@@ -7,7 +7,7 @@ python3 scripts/build.py --check-only
 python3 scripts/build.py
 ```
 
-Windows: `py -3 scripts/build.py` or `source/BUILD.cmd`. The default output is `dist/OpenOmsi.+.BBS.1.1.3/`, its complete ZIP and a ZIP checksum. Existing outputs are preserved; use `--output NEW_PATH` to build elsewhere.
+Windows: `py -3 scripts/build.py` or `source/BUILD.cmd`. On this development branch the default output is `dist/OpenOmsi.+.BBS.2.0.0-dev.1/`, its complete ZIP and a ZIP checksum. Existing outputs are preserved; use `--output NEW_PATH` to build elsewhere. CI names its artifact from `source/version.go`; the release publisher skips development versions.
 
 The script tests the bridge and new host, runs vet, compiles the Windows x86 host first, hashes it, and injects that digest into Setup/launcher. It compiles all three other components and verifies the facade's three BCS RVAs against the writable 4 MiB backing in matching stripped/unstripped builds. It then includes source, config example, tutorial, credits and licences, generates the complete inventory/SHA-256 manifest, and tests package integrity and actual helper staging/removal.
 
@@ -16,6 +16,8 @@ For the approved v1.1.3 release, Go's embedded build ID is restored from `docs/r
 The host uses explicit source files, `-trimpath`, `-buildvcs=false` and an empty linker build ID so identical source/toolchain produces identical helper bytes across local checkout paths. This keeps exact-hash helper recognition stable between rebuilds.
 
 `--check-only` performs the same assembly/checks in a temporary directory without retaining a ZIP. Use the explicit build entry points: the parent source directory contains three separate main programs, so `go build .` is inappropriate.
+
+The 2.0 development build has no live-approved executable hash file; its compiled code is intentionally different. Package integrity and native tests still run. Binary approval and promotion to a release require the pending integration tests in [MULTIPLAYER.md](MULTIPLAYER.md).
 
 ## Native Windows checks
 

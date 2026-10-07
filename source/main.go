@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -41,11 +42,29 @@ func appendLog(path, text string) {
 	_, _ = f.WriteString(text)
 }
 
-func watchOpenOMSIReady(logPath string, startOffset int64, readyPath string) {
+func watchOpenOMSIReady(logPath string, startOffset int64, readyPath string, networkReady <-chan struct{}, done <-chan struct{}) {
 	go func() {
 		deadline := time.Now().Add(startupTimeout)
 		var puttingSeen time.Time
 		for time.Now().Before(deadline) {
+			select {
+			case <-done:
+				return
+			default:
+			}
+			if networkReady != nil {
+				select {
+				case <-networkReady:
+					networkReady = nil
+				default:
+					select {
+					case <-done:
+						return
+					case <-time.After(200 * time.Millisecond):
+					}
+					continue
+				}
+			}
 			b, err := os.ReadFile(logPath)
 			if err == nil && int64(len(b)) >= startOffset {
 				chunk := strings.ToLower(string(b[startOffset:]))
@@ -644,7 +663,7 @@ func main() {
 	cfg := readConfig(filepath.Join(dir, "bridge.ini"))
 
 	appendLog(logPath, "\r\n============================================================\r\n")
-	appendLog(logPath, "OpenOMSI BCS Bridge v1.1.3 - by "+bridgeAuthor+"\r\n")
+	appendLog(logPath, "OpenOMSI BCS Bridge v"+bridgeVersion+" - by "+bridgeAuthor+"\r\n")
 	appendLog(logPath, "Time: "+time.Now().Format(time.RFC3339)+"\r\n")
 	appendLog(logPath, "Bridge argv: "+qargs(os.Args)+"\r\n")
 	if cwd, err := os.Getwd(); err == nil {
@@ -716,7 +735,7 @@ func main() {
 	runPaint, paintSource := choosePaint(cfg, mapRel, busRel)
 
 	diag := &strings.Builder{}
-	fmt.Fprintf(diag, "OpenOMSI BCS Bridge v1.1.3 - by %s\r\n\r\n", bridgeAuthor)
+	fmt.Fprintf(diag, "OpenOMSI BCS Bridge v%s - by %s\r\n\r\n", bridgeVersion, bridgeAuthor)
 	fmt.Fprintf(diag, "BCS log: %s\r\n", bcsLog)
 	fmt.Fprintf(diag, "BCS Schicht ID: %s\r\n", trip.ShiftID)
 	fmt.Fprintf(diag, "BBS backups: %s\r\n", backups)
@@ -759,6 +778,32 @@ func main() {
 	}()+" ("+dateSource+")\r\n")
 	appendLog(logPath, fmt.Sprintf("All tiles: %v | Autostart: %v | BCS compat facade: %v | Timetable sync: %v | BCS marker wait: %d ms\r\n", cfg.AllTiles, cfg.AutoStart, cfg.BCSCompat, cfg.TimetableSync, cfg.BCSMarkerWaitMS))
 
+	var multiplayer *MultiplayerPlan
+	if cfg.Multiplayer {
+		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+		mpTrip := MultiplayerTrip{trip.MapName, mapRel, busRel, runDate, trip.TripStart}
+		var problems []CompanyProblem
+		multiplayer, problems, err = prepareMultiplayer(ctx, cfg, dir, mpTrip, companyHTTPClient())
+		cancel()
+		if err != nil || len(problems) != 0 || multiplayer == nil {
+			if err != nil {
+				problems = append(problems, CompanyProblem{"Multiplayer", err.Error(), ""})
+			}
+			if len(problems) == 0 {
+				problems = append(problems, CompanyProblem{"Multiplayer", "No compatible company session", ""})
+			}
+			appendLog(logPath, fmt.Sprintf("Multiplayer preflight refused the launch: %v\r\n", problems))
+			if report, e := writeCompanyReport(dir, cfg.Language, cfg.CompanyID, problems); e == nil {
+				_ = openMultiplayerDocument(report)
+				showLaunchError(cfg.Language, localText(cfg.Language, "A sessão não está pronta para esta viagem. Confira a página de requisitos aberta.\n", "The session is not ready for this trip. Check the requirements page.\n", "Die Sitzung ist für diese Fahrt noch nicht bereit. Prüfe die geöffnete Anforderungsseite.\n")+report)
+			} else {
+				showLaunchError(cfg.Language, fmt.Sprint(problems))
+			}
+			return
+		}
+		appendLog(logPath, fmt.Sprintf("Multiplayer company=%s session=%s map=%s date=%s player=%s\r\n", multiplayer.CompanyID, multiplayer.Session.ID, multiplayer.Session.MapFile, multiplayer.Session.Date, multiplayer.PlayerName))
+		appendLog(tripPath, fmt.Sprintf("\r\nMultiplayer: %s / %s\r\n", multiplayer.CompanyName, multiplayer.Session.Name))
+	}
 	if mapRel == "" || busRel == "" || trip.Line == "" || trip.Tour == "" || trip.TripStart == "" {
 		appendLog(logPath, "ERROR: dados insuficientes; nao vou abrir uma viagem errada. Veja bridge-v1.1.3-trip.txt\r\n")
 		showLaunchError(cfg.Language, localText(cfg.Language, "Não consegui identificar o mapa, o ônibus e o horário desta viagem. Use o Setup, opção 5, para coletar o diagnóstico.", "Could not identify this trip's map, bus and time. Use Setup option 5 to collect diagnostics.", "Karte, Bus und Abfahrtszeit dieser Fahrt konnten nicht ermittelt werden. Sammle mit Setup-Option 5 die Diagnoseprotokolle."))
@@ -844,6 +889,24 @@ func main() {
 		// openOMSI 0.2.0 accepts a clock or a 1-based ordinal. An identified ordinal avoids selecting the wrong direction.
 		args = append(args, "--trip", strconv.Itoa(timetable.TripIndex))
 	}
+	args = append(args, multiplayerArguments(multiplayer)...)
+	var multiplayerContent string
+	if multiplayer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 6*time.Second)
+		err = recheckMultiplayer(ctx, multiplayer, companyHTTPClient())
+		cancel()
+		if err != nil {
+			appendLog(logPath, "Multiplayer changed before launch: "+err.Error()+"\r\n")
+			showLaunchError(cfg.Language, err.Error())
+			return
+		}
+		multiplayerContent, err = os.MkdirTemp(compatDir, "multiplayer-content-")
+		if err != nil {
+			showLaunchError(cfg.Language, err.Error())
+			return
+		}
+		defer os.RemoveAll(multiplayerContent)
+	}
 
 	appendLog(logPath, "Launching: "+fmt.Sprintf("%q ", cfg.OpenOMSI)+qargs(args)+"\r\n")
 	f, _ := os.OpenFile(tripPath, os.O_WRONLY|os.O_APPEND, 0644)
@@ -920,6 +983,9 @@ func main() {
 	cmd := exec.Command(cfg.OpenOMSI, args...)
 	cmd.Dir = cfg.Root
 	cmd.Env = pluginEnvironment(os.Environ(), host)
+	if multiplayer != nil {
+		cmd.Env = multiplayerEnvironment(cmd.Env, multiplayerContent)
+	}
 	lf, er := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	var openOMSIOutputStart int64
 	if er == nil {
@@ -939,13 +1005,21 @@ func main() {
 		return
 	}
 	appendLog(logPath, fmt.Sprintf("openOMSI started. PID=%d\r\n", cmd.Process.Pid))
+	launchDone := make(chan struct{})
+	defer close(launchDone)
+	var networkReady <-chan struct{}
+	var multiplayerErrors <-chan error
+	if multiplayer != nil {
+		watch := watchMultiplayerLaunch(logPath, openOMSIOutputStart, multiplayer, launchDone)
+		networkReady, multiplayerErrors = watch.Ready, watch.Errors
+	}
 	if compatCmd != nil {
 		if e := os.WriteFile(pidPath, []byte(strconv.Itoa(cmd.Process.Pid)+"\r\n"), 0644); e != nil {
 			appendLog(logPath, "WARN: nao foi possivel publicar PID do openOMSI para facade: "+e.Error()+"\r\n")
 		} else {
 			appendLog(logPath, fmt.Sprintf("Published openOMSI PID %d to facade.\r\n", cmd.Process.Pid))
 		}
-		watchOpenOMSIReady(logPath, openOMSIOutputStart, openOMSIReadyPath)
+		watchOpenOMSIReady(logPath, openOMSIOutputStart, openOMSIReadyPath, networkReady, launchDone)
 	}
 
 	childDone := make(chan error, 1)
@@ -954,6 +1028,16 @@ func main() {
 	waiting := true
 	for waiting {
 		select {
+		case networkErr := <-multiplayerErrors:
+			multiplayerErrors = nil
+			appendLog(logPath, "Multiplayer startup guard: "+networkErr.Error()+"\r\n")
+			// This child never confirmed the requested world. Stop this launch
+			// before it can proceed as an unnoticed single-player BBS trip.
+			_ = cmd.Process.Kill()
+			if compatCmd != nil && !compatExited {
+				_ = compatCmd.Process.Kill()
+			}
+			showLaunchError(cfg.Language, localText(cfg.Language, "A conexão multiplayer não confirmou a data e o horário desta viagem. O lançamento foi encerrado.\n", "Multiplayer did not confirm this trip's date and time. The launch was stopped.\n", "Multiplayer hat Datum und Uhrzeit dieser Fahrt nicht bestätigt. Der Start wurde beendet.\n")+networkErr.Error())
 		case er = <-childDone:
 			waiting = false
 		case facadeErr := <-compatDone:

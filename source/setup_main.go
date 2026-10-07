@@ -10,31 +10,6 @@ import (
 	"time"
 )
 
-type setupUI struct {
-	input     *bufio.Scanner
-	lang, dir string
-}
-
-func (u *setupUI) say(pt, en, de string) { fmt.Println(localText(u.lang, pt, en, de)) }
-func (u *setupUI) line(pt, en, de, defaultValue string) (string, error) {
-	fmt.Print(localText(u.lang, pt, en, de))
-	if defaultValue != "" {
-		fmt.Printf(" [%s]", defaultValue)
-	}
-	fmt.Print(": ")
-	if !u.input.Scan() {
-		return "", fmt.Errorf("input closed")
-	}
-	s := strings.TrimSpace(u.input.Text())
-	if s == "" {
-		s = defaultValue
-	}
-	return s, nil
-}
-func (u *setupUI) yes(pt, en, de string) bool {
-	s, e := u.line(pt, en, de, "")
-	return e == nil && affirmativeAnswer(s)
-}
 func (u *setupUI) chooseLanguage() error {
 	fmt.Println("\n1 - Português (Brasil)\n2 - English\n3 - Deutsch")
 	for {
@@ -211,6 +186,11 @@ func (u *setupUI) changeActivation(action string) error {
 func (u *setupUI) status(c Config) error {
 	fmt.Printf("\nOpenOMSI BCS Bridge v%s - by %s\nOMSI: %s\nopenOMSI: %s\n", bridgeVersion, bridgeAuthor, c.Root, c.OpenOMSI)
 	fmt.Print(pluginHostDiagnostics(c, u.dir))
+	if c.Multiplayer {
+		fmt.Printf("Multiplayer: %s / %s\n", c.CompanyID, c.PlayerName)
+	} else {
+		u.say("Multiplayer da empresa: desativado", "Company multiplayer: disabled", "Firmen-Multiplayer: deaktiviert")
+	}
 	for _, view := range []int{64, 32} {
 		v, e := newWindowsRegistry().Read(view, ifeoBridge, "Debugger")
 		if e != nil {
@@ -322,7 +302,7 @@ func main() {
 	}
 	for {
 		u.say("\nPara começar: 1 = pastas e idioma, depois 2 = ativar. No ponto final: F9 → espere 2 segundos → finalize no BCS.", "\nGetting started: 1 = folders and language, then 2 = activate. At the last stop: F9 → wait 2 seconds → finish in BCS.", "\nErste Schritte: 1 = Ordner und Sprache, danach 2 = aktivieren. An der Endhaltestelle: F9 → mindestens 2 Sekunden warten → Fahrt in BBS abschließen.")
-		u.say("\n1 - Configurar pastas e idioma\n2 - Ativar / atualizar\n3 - Desativar\n4 - Conferir estado\n5 - Coletar logs\n6 - Conferir integridade\n7 - Abrir tutorial\n0 - Sair", "\n1 - Configure folders and language\n2 - Activate / update\n3 - Deactivate\n4 - Check status\n5 - Collect logs\n6 - Verify integrity\n7 - Open tutorial\n0 - Exit", "\n1 - Ordner und Sprache einstellen\n2 - Aktivieren / aktualisieren\n3 - Deaktivieren\n4 - Status prüfen\n5 - Protokolle sammeln\n6 - Dateiintegrität prüfen\n7 - Anleitung öffnen\n0 - Beenden")
+		u.say("\n1 - Configurar pastas e idioma\n2 - Ativar / atualizar\n3 - Desativar\n4 - Conferir estado\n5 - Coletar logs\n6 - Conferir integridade\n7 - Abrir tutorial\n8 - Configurar / desativar multiplayer da empresa\n9 - Criar perfil da empresa (administrador)\n0 - Sair", "\n1 - Configure folders and language\n2 - Activate / update\n3 - Deactivate\n4 - Check status\n5 - Collect logs\n6 - Verify integrity\n7 - Open tutorial\n8 - Configure / disable company multiplayer\n9 - Create company profile (administrator)\n0 - Exit", "\n1 - Ordner und Sprache einstellen\n2 - Aktivieren / aktualisieren\n3 - Deaktivieren\n4 - Status prüfen\n5 - Protokolle sammeln\n6 - Dateiintegrität prüfen\n7 - Anleitung öffnen\n8 - Firmen-Multiplayer einrichten / deaktivieren\n9 - Firmenprofil erstellen (Administrator)\n0 - Beenden")
 		s, e := u.line("Opção", "Option", "Option", "")
 		if e != nil {
 			return
@@ -344,6 +324,19 @@ func main() {
 			e = u.verify()
 		case "7":
 			e = openDocument(filepath.Join(dir, "TUTORIAL.html"))
+		case "8", "9":
+			var running bool
+			running, e = gamesRunning()
+			if e == nil && running {
+				e = fmt.Errorf("%s", localText(u.lang, "Feche o jogo antes de alterar o multiplayer.", "Close the game before changing multiplayer.", "Schließe das Spiel, bevor du Multiplayer änderst."))
+			}
+			if e == nil {
+				if s == "8" {
+					c, e = u.configureCompany(c)
+				} else {
+					_, e = u.createCompany(c)
+				}
+			}
 		default:
 			u.say("Escolha uma opção do menu.", "Choose a menu option.", "Wähle eine Option aus dem Menü.")
 		}

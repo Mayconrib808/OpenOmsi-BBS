@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.0-dev.1 — development
+
+- Optional company profiles loaded from a local JSON file or administrator HTTPS URL.
+- Automatic selection of a compatible registered session when starting a BBS trip.
+- Required asset hashes and full-folder inventories, with administrator-provided download links for missing or different bus/map/repaint packages.
+- Server map, clock, capacity, version/protocol and declared-fleet checks; joined-world date/time confirmation before BBS readiness.
+- Setup options 8 and 9 for player configuration and company-profile creation.
+- Multiplayer disabled by default; CI artifacts only while real two-player BBS validation is pending.
+
 This file distinguishes the imported software version from subsequent repository preparation. Earlier full runtime ZIPs are not represented as cleared GitHub releases.
 
 ## v1.1.3 — 2026-10-06

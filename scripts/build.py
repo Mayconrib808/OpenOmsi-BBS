@@ -22,21 +22,21 @@ PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
     "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
-    "paths.go version.go"
+    "paths.go version.go company.go multiplayer.go setup_ui.go company_setup.go"
 ).split()
 TEST_FILES = (
     "driver_test.go session_test.go setup_test.go diagnostics_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go "
-    "launch_checks_test.go"
+    "launch_checks_test.go company_test.go multiplayer_test.go"
 ).split()
 PROGRAMS = {
     "Setup.exe": (
         "setup_main.go setup_files.go diagnostics.go setup_windows.go "
-        "config.go plugin_host.go registry.go paths.go version.go"
+        "config.go plugin_host.go registry.go paths.go version.go company.go setup_ui.go company_setup.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
         "main.go timetable.go diagnostics.go launch_checks.go driver.go session.go "
-        "config.go plugin_host.go paths.go version.go process_windows.go"
+        "config.go plugin_host.go paths.go version.go process_windows.go company.go multiplayer.go"
     ).split(),
     "app/compat/Omsi.exe": (
         "compat.go facade_memory.go driver.go version.go"
@@ -82,7 +82,7 @@ def pin_release_build_id(path: Path, relative_path: str) -> None:
 
 def assemble(stage: Path, host_hash: str) -> None:
     ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "*.exe", "*.dll", "*.obj", "*.lib", "*.exp")
-    for name in ("source", "docs", "scripts"):
+    for name in ("source", "docs", "scripts", "examples"):
         shutil.copytree(ROOT / name, stage / name, ignore=ignore)
     for p in ROOT.glob("*.md"):
         shutil.copy2(p, stage / p.name)
@@ -97,6 +97,7 @@ def assemble(stage: Path, host_hash: str) -> None:
         "The historical host with unresolved provenance is not bundled.\n"
         "Expected integration: openOMSI 0.2.0 Windows x64 + BCS/BBS 5.0.0.1.\n"
         "Automated checks do not certify a real vendor-plugin session or trip evaluation.\n"
+        "Company multiplayer is a development feature; two-player BBS validation is pending.\n"
         "See docs/VALIDATION.md and docs/TEST_ON_WINDOWS.md.\n",
         encoding="utf-8",
     )
@@ -133,6 +134,9 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=ROOT / "dist" / PACKAGE_NAME,
                         help="New full-package directory. A ZIP and checksum are written beside it.")
     args = parser.parse_args()
+    if output := os.environ.get("GITHUB_OUTPUT"):
+        with Path(output).open("a", encoding="utf-8") as stream:
+            stream.write(f"version={VERSION}\n")
     go = shutil.which("go")
     if go is None:
         parser.error("Install Go 1.23.2 and put its bin directory on PATH.")
