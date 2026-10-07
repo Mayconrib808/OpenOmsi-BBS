@@ -26,6 +26,16 @@ Um arquivo `robots.txt` só controla rastreamento quando fica na raiz do host. E
 
 ## GitHub e divulgação
 
+### Verificação em 7 de outubro de 2026
+
+A página inicial e o sitemap retornaram HTTP 200 no acesso público. As páginas do repositório usam URLs canônicas do GitHub Pages, e a página inicial declara `index,follow`. A publicação mais recente do Pages estava concluída. O repositório é público e já possui tópicos relacionados a OpenOMSI, OMSI 2 e BBS.
+
+Não foi encontrado um bloqueio que explique, por si só, a ausência nas buscas. O site foi publicado/atualizado recentemente: o Google informa que rastrear alterações pode levar de dias a semanas. Uma consulta pública sem resultados não substitui o relatório de indexação. O diagnóstico exato — desconhecida, descoberta, rastreada, excluída ou indexada — exige **Inspeção de URL** na conta do proprietário.
+
+O `robots.txt` na raiz do host retornou HTTP 404. Isso não equivale a uma regra de bloqueio; acrescentar um arquivo na pasta do projeto não corrigiria a indexação. Não foram adicionados arquivos ou palavras-chave para simular popularidade. Recomendações e posição no Google não são um erro de versão do aplicativo que possa ser resolvido pelo Setup.
+
+Próxima verificação do proprietário: inspecionar `https://mayconrib808.github.io/OpenOmsi-BBS/`, conferir o sitemap já publicado e observar o motivo mostrado em **Indexação de páginas**. O envio do sitemap e a solicitação de indexação não foram executados na conta do proprietário por esta atualização.
+
 Mantenha a descrição, o link do site e tópicos que realmente representem o projeto, como OpenOMSI, OMSI 2, BBS/BCS, Windows e multiplayer. Tópicos permitem encontrar repositórios por assunto; não certificam qualidade ou compatibilidade.
 
 Publique versões quando houver mudanças reais. Atualize o changelog e as notas, responda aos relatos e diferencie os testes aprovados dos testes ainda pendentes. Compartilhe o projeto em comunidades pertinentes seguindo as regras de cada comunidade. Não crie estrelas, avaliações, commits ou links artificiais para simular atividade.

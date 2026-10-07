@@ -21,6 +21,10 @@ The 2.0 development build has no live-approved executable hash file; its compile
 
 ## Native Windows checks
 
+For the 2.0.2 development Setup, `scripts/setup_resources.py` builds a Windows x86 COFF resource object from `source/resources/setup.ico` and `setup-banner.bmp` using Python's standard library. Setup is compiled from its explicit file list in an isolated directory so Go links that resource object without including the other main programs. The build verifies the actual PE bitmap/icon bytes. No resource compiler, Go dependency or image library is added to the normal build.
+
+Windows CI switches the real native controls through Portuguese, English and German, verifies that typed fields survive, checks optional-multiplayer field enablement and loads both window icons and the bitmap. It uploads actual window captures as **Setup-Windows-previews** for visual review. Normal Setup does not take screenshots. Language selection is saved when the user chooses **Salvar e ativar / Save and activate / Speichern / aktivieren**.
+
 On Windows, the script also compiles an original synthetic C DLL and exercises the actual PE32 host: stdcall callbacks, startup root/environment, export flags, float and Unicode string writes, triggers, same-thread calls, message pumping, finalization, EOF cleanup and rejection of other DLL names. CompanyHost native process tests also verify that closing its Windows Job Object terminates both the owned server and a simulated tunnel child.
 
 For these development tests only, install Visual Studio C++ x86 tools and the Windows SDK. The GitHub Windows runner already supplies them. Neither the C toolchain nor the compiled fixture DLL is shipped in the runtime ZIP. Linux can cross-compile the full runtime ZIP; native checks run on Windows CI.

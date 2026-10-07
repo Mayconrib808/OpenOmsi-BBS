@@ -14,13 +14,15 @@ import sys
 import tempfile
 import zipfile
 
+import setup_resources
+
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "source"
 REFERENCE_GO = "go1.23.2"
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (SOURCE / "version.go").read_text()).group(1)
 PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
-    "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go "
+    "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
     "paths.go version.go company.go company_clock.go company_host.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
@@ -34,7 +36,7 @@ PROGRAMS = {
         "company_host_main.go company_host.go company_host_share.go company_host_process_windows.go company.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "Setup.exe": (
-         "setup_main.go setup_files.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_model.go openomsi_compatibility.go openomsi_probe_windows.go "
+         "setup_main.go setup_files.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
         "config.go plugin_host.go registry.go paths.go version.go company.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
@@ -51,9 +53,9 @@ HOST_SOURCES = ["pluginhost/" + name for name in (
 )]
 
 
-def run(go: str, args: list[str], env: dict[str, str]) -> None:
+def run(go: str, args: list[str], env: dict[str, str], cwd: Path = SOURCE) -> None:
     print("+ go " + " ".join(args), flush=True)
-    subprocess.run([go, *args], cwd=SOURCE, env=env, check=True)
+    subprocess.run([go, *args], cwd=cwd, env=env, check=True)
 
 
 def pin_release_build_id(path: Path, relative_path: str) -> None:
@@ -184,14 +186,28 @@ def main() -> int:
             flags = "-s -w" + (" -H=windowsgui" if rel != "CompanyHost.exe" else "")
             if "plugin_host.go" in sources:
                 flags += " " + digest_flag
-            run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=" + flags, "-o", str(target), *sources], windows)
+            if rel == "Setup.exe":
+                # A file-list build ignores .syso resources. Use an isolated
+                # package with only Setup's explicitly selected source files.
+                setup_source = Path(temporary) / "setup-source"
+                setup_source.mkdir()
+                for name in sources:
+                    shutil.copy2(SOURCE / name, setup_source / name)
+                resources = setup_resources.prepare(setup_source, SOURCE / "resources")
+                run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=" + flags,
+                         "-o", str(target), "."], windows, setup_source)
+                setup_resources.verify_executable(target, resources)
+            else:
+                run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=" + flags, "-o", str(target), *sources], windows)
             pin_release_build_id(target, rel)
         symbols = Path(temporary) / "facade-symbols.exe"
         run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-H=windowsgui", "-o", str(symbols),
                  *PROGRAMS["app/compat/Omsi.exe"]], windows)
         run(go, ["run", "tools/release_tools.go", "layout", str(stage / "app/compat/Omsi.exe"), str(symbols)], native)
         if os.name == "nt":
-            subprocess.run([str(stage / "Setup.exe"), "--gui-smoke"], check=True, timeout=20)
+            preview_env = os.environ.copy()
+            preview_env["BRIDGE_SETUP_PREVIEWS"] = str(ROOT / "build/setup-previews")
+            subprocess.run([str(stage / "Setup.exe"), "--gui-smoke"], check=True, timeout=30, env=preview_env)
             subprocess.run([sys.executable, str(ROOT / "scripts/test_openomsi_compat.py"), "--report", str(ROOT / "build/openomsi-compatibility.json")], check=True, timeout=600)
             subprocess.run([sys.executable, str(ROOT / "scripts/test_pluginhost_windows.py"), str(host)], check=True, timeout=180)
             # Exercise the 32-bit Job Object layout used by CompanyHost.exe,

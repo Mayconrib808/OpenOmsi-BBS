@@ -240,26 +240,32 @@ func main() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	dir := packageRoot()
- // The elevated helper performs one fixed operation and exits. The graphical
- // parent owns the UAC request, completion message and error display.
- if len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "--admin=") {
-  action := strings.TrimPrefix(os.Args[1], "--admin=")
-  err := adminAction(dir, action)
-  logSetup(dir, action, err)
-  if err != nil { os.Exit(1) }
-  return
- }
- if len(os.Args) == 1 || (len(os.Args) == 2 && os.Args[1] == "--gui-smoke") {
-  smoke := len(os.Args) == 2
-  if err := runSetupGUI(dir, smoke); err != nil {
-   logSetup(dir, "graphical-setup", err)
-   if !smoke { guiMessageBox(0, err.Error(), 0x10) }
-   os.Exit(1)
-  }
-  return
- }
- if len(os.Args) > 1 && os.Args[1] == "--cli" { os.Args = append([]string{os.Args[0]}, os.Args[2:]...) }
- prepareConsole()
+	// The elevated helper performs one fixed operation and exits. The graphical
+	// parent owns the UAC request, completion message and error display.
+	if len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "--admin=") {
+		action := strings.TrimPrefix(os.Args[1], "--admin=")
+		err := adminAction(dir, action)
+		logSetup(dir, action, err)
+		if err != nil {
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) == 1 || (len(os.Args) == 2 && os.Args[1] == "--gui-smoke") {
+		smoke := len(os.Args) == 2
+		if err := runSetupGUI(dir, smoke); err != nil {
+			logSetup(dir, "graphical-setup", err)
+			if !smoke {
+				guiMessageBox(0, err.Error(), 0x10)
+			}
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "--cli" {
+		os.Args = append([]string{os.Args[0]}, os.Args[2:]...)
+	}
+	prepareConsole()
 	c := readInstalledConfig(dir)
 	u := &setupUI{bufio.NewScanner(os.Stdin), c.Language, dir}
 	fmt.Printf("OpenOMSI BCS Bridge v%s - by %s\n", bridgeVersion, bridgeAuthor)
@@ -273,8 +279,10 @@ func main() {
 		case "--verify":
 			e = u.verify()
 		case "--company-admin":
-			e = setupChangesAllowed()
-			if e == nil { _, e = u.manageCompanyProfile(c) }
+			e = setupChangesAllowed(u.lang)
+			if e == nil {
+				_, e = u.manageCompanyProfile(c)
+			}
 		default:
 			e = fmt.Errorf("unknown option")
 		}

@@ -34,6 +34,14 @@ These sources establish the missing interface in the inspected version. They do 
 
 ## What would make red-light detection possible
 
+### Rechecked for 2.0.2 preparation
+
+On 2026-10-07, the current official release was rechecked at **OpenOMSI 0.2.14**, commit [`37d9e61b90c6dcbeecb7913011b70995262791d7`](https://github.com/openOMSI-Project/openOMSI/tree/37d9e61b90c6dcbeecb7913011b70995262791d7). Its [`game_info` / plugin adapter](https://github.com/openOMSI-Project/openOMSI/blob/37d9e61b90c6dcbeecb7913011b70995262791d7/crates/omsi-app/src/plugins.rs), [career state](https://github.com/openOMSI-Project/openOMSI/blob/37d9e61b90c6dcbeecb7913011b70995262791d7/crates/omsi-app/src/career.rs) and [plugin contract](https://github.com/openOMSI-Project/openOMSI/blob/37d9e61b90c6dcbeecb7913011b70995262791d7/docs/PLUGINS.md) still provide no authoritative player red-light crossing event/counter.
+
+The internal multiplayer [`LightState`](https://github.com/openOMSI-Project/openOMSI/blob/37d9e61b90c6dcbeecb7913011b70995262791d7/crates/omsi-net/src/world.rs) contains a crossing object's ID, controller time and held state. This is part of game-world synchronization, not a supported bridge detector: it does not itself identify a player's lane, stop-line crossing or applicable red signal. Adding a nearby-light heuristic or copying OMSI memory offsets would not establish a correct BBS offence.
+
+Consequently, **2.0.2-dev.1 does not implement red-light penalties**. The investigation establishes an upstream/interface dependency; it is not an in-game BBS validation of OpenOMSI 0.2.14. The existing 0.2.0/0.2.11 compatibility probes and live-validation scope remain as documented.
+
 A future integration needs an authoritative event from the simulator, or a documented interface exposing the player's controlling lane, stop-line crossing and signal state at that instant. It should identify each crossing so an event is counted once, and distinguish red, red/yellow, yellow, dark signals, reversing, teleporting and reconnecting. Multiplayer checks must use the host's actual shared light state.
 
 After that interface exists, the bridge can be connected to BCS's supported detector/evaluation path and tested with actual passages on red and green. Neither a new upstream implementation nor a BCS red-light result has been validated for 2.0.1. The bridge does not create fines or guessed violation counts.

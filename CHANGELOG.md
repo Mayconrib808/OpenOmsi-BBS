@@ -1,3 +1,11 @@
+# 2.0.2-dev.1 — preparação da 2.0.2
+
+- Seleção de português, inglês e alemão na janela do Setup. A interface muda sem apagar os campos; o idioma é salvo junto com a configuração ao usar Salvar e ativar.
+- Multiplayer identificado como opcional. Perfil e nome ficam desabilitados quando a opção está desligada, com orientação explícita de que podem ficar vazios.
+- Arte do projeto no cabeçalho e ícone incorporado ao Setup.exe, à janela e à barra de tarefas.
+- Verificação dos recursos incorporados e teste nativo dos idiomas e controles no Windows, com capturas para revisão visual.
+- Revisão da descoberta do site e da interface de semáforos do OpenOMSI 0.2.14. Não foi identificado bloqueio público de rastreamento nas páginas verificadas; o motivo exato da indexação depende do Search Console. A multa de sinal vermelho continua dependendo de uma interface adicional no simulador.
+
 # 2.0.1 — 2026-10-07
 
 - Menu gráfico nativo para configurar, ativar e coletar logs.
