@@ -230,6 +230,7 @@ func TestCompanyDownloadReportEscapesOwnerTextAndUsesConfiguredLink(t *testing.T
 }
 
 func TestCompanyConfigurationIsOneTimeAndOptional(t *testing.T) {
+	t.Setenv("LOCALAPPDATA", t.TempDir())
 	c, p, _, dir := companyFixture(t)
 	os.MkdirAll(appDir(dir), 0755)
 	profile := saveTestCompany(t, dir, p)
@@ -243,7 +244,7 @@ func TestCompanyConfigurationIsOneTimeAndOptional(t *testing.T) {
 		t.Fatal(err)
 	}
 	saved := readConfig(configPath(dir))
-	if !got.Multiplayer || saved.CompanyID != p.CompanyID || saved.PlayerName != "Maycon" || saved.CompanyProfile != profile {
+	if !got.Multiplayer || saved.CompanyID != p.CompanyID || saved.PlayerName != "Maycon" || saved.CompanyProfileSource != profile || saved.CompanyProfile == profile {
 		t.Fatal(saved)
 	}
 	u.input = bufio.NewScanner(strings.NewReader("2\n"))
@@ -251,7 +252,7 @@ func TestCompanyConfigurationIsOneTimeAndOptional(t *testing.T) {
 	if err != nil || got.Multiplayer || readConfig(configPath(dir)).Multiplayer {
 		t.Fatal(got, err)
 	}
-	if got.Root != c.Root || got.CompanyProfile != profile {
+	if got.Root != c.Root || got.CompanyProfile != saved.CompanyProfile || got.CompanyProfileSource != profile {
 		t.Fatal("disable discarded unrelated settings")
 	}
 }

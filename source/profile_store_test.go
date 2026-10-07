@@ -3,7 +3,7 @@ import ("context";"encoding/json";"os";"path/filepath";"testing";"reflect")
 func TestInstalledSettingsSurvivePackageUpdate(t *testing.T){
  t.Setenv("LOCALAPPDATA", t.TempDir())
  old, next := t.TempDir(), t.TempDir()
- c:=defaultConfig();c.Root=filepath.Join(t.TempDir(),"omsi");c.OpenOMSI=filepath.Join(t.TempDir(),"openomsi.exe")
+ c:=defaultConfig();c.Language="pt";c.Root=filepath.Join(t.TempDir(),"omsi");c.OpenOMSI=filepath.Join(t.TempDir(),"openomsi.exe")
  c.Multiplayer=true;c.CompanyID="company-a";c.CompanyProfile="saved.json";c.PlayerName="Maycon";c.CompanyProfileSource="original.json"
  if e:=saveInstalledConfig(old,c);e!=nil{t.Fatal(e)}
  if got:=readInstalledConfig(next);!reflect.DeepEqual(got,c){t.Fatalf("new package forgot settings: %+v",got)}
