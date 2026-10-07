@@ -66,6 +66,9 @@ func enrollCompany(ctx context.Context, packageDir, source, player string, c Con
  if !companyText(player, 32) || strings.Contains(player, "|") { return c, nil, fmt.Errorf("use um nome de 1 a 32 caracteres, sem | ou caracteres de controle") }
  if !strings.Contains(source, "://") && !filepath.IsAbs(source) { source = filepath.Join(packageDir, source) }
  p, err := loadCompanyProfile(ctx, source, packageDir, companyHTTPClient())
+ if err != nil && !strings.Contains(source, "://") && os.IsNotExist(err) && c.CompanyID != "" && (source == c.CompanyProfileSource || source == c.CompanyProfile) {
+  p, err = loadInstalledCompanyProfile(ctx,c,packageDir,companyHTTPClient())
+ }
  if err != nil { return c, nil, err }
  internal, err := saveManagedProfile(packageDir, p)
  if err != nil { return c, nil, err }

@@ -1,60 +1,79 @@
-OpenOMSI BCS Bridge v2.0.0-dev.1 — por Mayconrib808
+OpenOmsi - BBS 2.0.1 — por Mayconrib808
 
-VERSÃO DE DESENVOLVIMENTO 2.0
-O multiplayer da empresa é opcional e vem desativado. No Setup, a opção 8
-configura o perfil fornecido pelo administrador; a opção 9 cria esse perfil
-com versões, hashes e links dos ônibus e mapas. As sessões devem estar
-hospedadas. Consulte docs/MULTIPLAYER.md antes de ativar.
-A viagem com dois jogadores e a avaliação BBS ainda precisam de teste real.
-Para testar uma viagem normal sozinho, deixe o multiplayer desativado.
+COMEÇAR
+1. Tenha OMSI 2, BCS/BBS e OpenOMSI para Windows instalados, além do mapa
+   e dos ônibus usados pela empresa.
+2. Feche os jogos e extraia TODO este ZIP.
+3. Abra Setup.exe e escolha a pasta do OMSI original e o openomsi.exe.
+4. Para multiplayer, marque "Ativar multiplayer da empresa", selecione o
+   perfil JSON ou cole o link HTTPS fornecido pelo administrador e digite
+   seu nome no multiplayer.
+5. Clique em "Salvar e ativar" e aceite a permissão do Windows.
+6. No BCS, deixe "Iniciar o OMSI mais depressa" desmarcado. No OpenOMSI,
+   desative a sincronização com o relógio real.
+7. Espere o servidor da empresa ficar pronto e inicie a viagem pelo BCS.
 
-INSTALAÇÃO
-1. Tenha OMSI 2, BCS/BBS e openOMSI 0.2.0 para Windows x64 instalados.
-2. Feche os jogos. Extraia TODO este ZIP em uma pasta fixa.
-3. Abra Setup.exe. Escolha o idioma e informe os caminhos dos jogos.
-4. Escolha a opção 2 (Ativar / atualizar) e aceite a permissão do Windows.
-   O auxiliar já está incluído e será preparado automaticamente.
-5. No BCS/BBS: Definições > Definições avançadas > OMSI.
-   Deixe DESMARCADO "Iniciar o OMSI mais depressa".
-6. No openOMSI, desative a sincronização do relógio real.
-7. Inicie sua viagem normalmente pelo BCS/BBS.
-8. No ponto final: F9, aguarde pelo menos 2 segundos e finalize a viagem
-   no BCS/BBS com o openOMSI ainda aberto.
+NO PONTO FINAL
+F9 -> aguarde pelo menos 2 segundos -> finalize no BCS com o OpenOMSI aberto.
 
+Para testar a continuidade, clique em "Próxima viagem" no BCS e aguarde.
+Deixe o OpenOMSI aberto; a ponte encerra a sessão anterior ao preparar a
+nova viagem. Esse fluxo ainda precisa de teste real.
+
+O Setup guarda os caminhos, seu nome e uma cópia do perfil para as próximas
+viagens e atualizações. O jogador não precisa editar JSON ou abrir servidor.
+Para voltar ao OMSI original, feche os jogos e clique em "Desativar ponte".
+"Coletar logs" cria um diagnóstico local. Revise antes de compartilhar;
+nada é enviado automaticamente.
+
+TUTORIAL
 Abra TUTORIAL.html para o guia offline em português, inglês e alemão.
-Para voltar ao OMSI original, feche os jogos e use a opção 3 do Setup.
-Se estiver trocando de pasta, desative primeiro pelo Setup da pasta anterior.
+O passo a passo do jogador também está em docs/GUIA_JOGADOR.md.
+CompanyHost.exe é para quem hospeda a sessão da empresa: espere
+SINCRONIZADO e mantenha sua janela aberta. O endereço 127.0.0.1 funciona
+somente no computador do servidor; os colegas recebem o perfil com o
+endereço acessível a eles.
+
+ATUALIZAR
+Feche os jogos, extraia o novo pacote, abra seu Setup.exe, confira os dados
+recuperados e clique em "Salvar e ativar". Se o administrador enviar um
+perfil atualizado em arquivo, selecione-o no Setup.
+
+COMPATIBILIDADE E VALIDAÇÃO
+A ponte verifica os recursos necessários da versão de OpenOMSI escolhida
+e o protocolo do servidor multiplayer. Não limita a uma única versão.
+A referência de jogo observada é OpenOMSI 0.2.0 + BCS/BBS 5.0.0.1.
+O código oficial da 0.2.11 foi revisado para a integração; uma viagem real
+com ela ainda precisa de teste.
+
+Uma viagem real em Carrão City, linha N407, confirmou ingresso no servidor,
+chat, passageiros compartilhados e conclusão com 67% de avaliação no BCS.
+A saída foi voluntária por "Voltar ao escritório". Houve uma reconexão.
+Visualização entre dois jogadores, embarque no ônibus do colega e
+"Próxima viagem" ainda precisam de validação real.
+
+A penalidade específica por furar sinal vermelho ainda não está disponível.
+Os contadores reais de colisões e condução continuam sendo transferidos.
+Veja docs/TRAFFIC_PENALTIES.md e docs/VALIDATION.md. Não há promessa de
+avaliação ou pagamento idêntico ao OMSI original.
 
 O PACOTE
-Inclui todos os componentes desta ponte, seu código-fonte, licenças,
-créditos e verificações de integridade. Não precisa baixar um auxiliar
-separado, instalar Python ou Go para usar. Os próprios jogos são instalados
-separadamente, com as licenças e os conteúdos que você já possui.
+Inclui os componentes próprios da ponte, código-fonte, licenças e créditos.
+Não precisa instalar Go ou Python para jogar. Os jogos, mapas, ônibus e a
+DLL original do BBS são instalados separadamente.
 
 PROJETO INDEPENDENTE
-Não há vínculo, aprovação ou suporte oficial da PeDePe, openOMSI Project,
-MR-Software, Aerosoft ou Valve. Créditos completos em CREDITS.md e avisos
-em THIRD_PARTY_NOTICES.md. Código próprio: MIT; referência de protocolo
-openOMSI: MIT, copyright 2026 usonskyyyy; programas compilados incluem o
-runtime e a biblioteca padrão Go com seus avisos preservados.
+Sem vínculo, aprovação ou suporte oficial da PeDePe, OpenOMSI Project,
+MR-Software, Aerosoft ou Valve. Código próprio: MIT. A referência OpenOMSI
+mantém seu aviso MIT de 2026 usonskyyyy. Avisos Go acompanham os programas.
+Créditos completos em CREDITS.md e THIRD_PARTY_NOTICES.md.
 
-A ponte não substitui nem aplica patches aos executáveis, JARs ou DLLs
-originais do OMSI/BCS. Ela atualiza o perfil local Drivers/bbs.odr, grava
-arquivos próprios e configura um redirecionamento específico no Registro
-do Windows. Por isso não afirmamos que todos os dados da PeDePe ficam
-inalterados. Leia NOTICE_FOR_PEDEPE.md e docs/RUNTIME_EFFECTS.md.
-Os termos e as regras do BCS/BBS continuam aplicáveis.
+Executáveis, JARs e DLLs proprietários originais não recebem patches.
+A ponte grava Drivers/bbs.odr, arquivos próprios e um redirecionamento de
+inicialização no Registro do Windows. Leia NOTICE_FOR_PEDEPE.md e
+docs/RUNTIME_EFFECTS.md para os efeitos locais.
 
-LIMITES
-Referência: openOMSI 0.2.0 x64 e BCS/BBS 5.0.0.1.
-Berlin-Spandau tem problema de carregamento registrado na versão anterior.
-A data automática segue a data local do Windows.
-Os testes automatizados não substituem uma viagem real com o plugin BCS.
-Não há promessa de avaliação ou pagamento idêntico ao OMSI original.
-Confira docs/VALIDATION.md para o alcance exato das verificações.
-
-AJUDA
-Setup opção 5 cria um ZIP local de diagnóstico; nada é enviado sozinho.
-Revise os dados antes de compartilhar. Contato Discord: .zmaycon.
-Os pontos no começo e no final fazem parte do nome.
+SUPORTE
+Discord: .zmaycon. (com os pontos nas duas pontas).
 Repositório: https://github.com/Mayconrib808/OpenOmsi-BBS
+Releases: https://github.com/Mayconrib808/OpenOmsi-BBS/releases

@@ -83,7 +83,7 @@ func TestCompanyProfileRejectsUnsafeOrInconsistentRequirements(t *testing.T) {
 			p.Sessions[0].RequiredPackages = append(p.Sessions[0].RequiredPackages, "other")
 		}},
 		{"another protocol", func(p *CompanyProfile) { p.Protocol = 5 }},
-		{"another game", func(p *CompanyProfile) { p.OpenOMSIVersion = "0.1.7" }},
+		{"malformed release label", func(p *CompanyProfile) { p.OpenOMSIVersion = "not-openomsi" }},
 		{"ambiguous date", func(p *CompanyProfile) { p.Sessions[0].Date = "auto" }},
 		{"tolerance hides wrong hour", func(p *CompanyProfile) { p.Sessions[0].ClockToleranceSec = 3600 }},
 		{"server query", func(p *CompanyProfile) { p.Sessions[0].ServerURL = "https://example.invalid/?target=another" }},
@@ -316,18 +316,18 @@ func TestCompanyOwnerWizardRetriesInvalidInputAndReusesCompanyClock(t *testing.T
 	}
 }
 
-func TestOfficialV020HTTPVersionUsesPinnedBuildIdentity(t *testing.T) {
-	for _, version := range []string{"0.2.0", "0.2.0 (test-build)", "0.1.0 (538ad31 2026-10-05 23:39)", "0.1.0 (538ad31)", "0.1.0 (538ad31b2a2c664cb0726db2547bf6238411eedf)"} {
+func TestCompanyServerUsesSupportedProtocolInsteadOfReleaseAllowlist(t *testing.T) {
+	for _, version := range []string{"0.2.0", "0.2.11", "0.2.9", "1.0.0-beta.1", "0.2.0 (test-build)", "0.1.0", "0.1.0 (0874dac 2026-10-07 04:13)", "0.1.0 (538ad31 2026-10-05 23:39)", "0.1.0 (538ad31)", "0.1.0 (538ad31b2a2c664cb0726db2547bf6238411eedf)"} {
 		if !compatibleCompanyServer(version, 6) {
-			t.Errorf("official release rejected: %s", version)
+			t.Errorf("supported protocol rejected because of release label: %s", version)
 		}
 		if compatibleCompanyServer(version, 7) {
 			t.Errorf("wrong protocol accepted: %s", version)
 		}
 	}
-	for _, version := range []string{"", "0.1.0", "0.1.0 (unknown)", "0.1.0 (538ad31bad)", "0.2.9", "0.1.0 (538ad31) extra"} {
+	for _, version := range []string{"", "not openOMSI", "0.2", "0.1.0 (538ad31) extra", "0.1.0 (bad\nlabel)", "0.1.0 (bad\x00label)", "0.1.0 (nested (label))"} {
 		if compatibleCompanyServer(version, 6) {
-			t.Errorf("unverified release accepted: %s", version)
+			t.Errorf("invalid server description accepted: %s", version)
 		}
 	}
 	_, profile, trip, _ := companyFixture(t)

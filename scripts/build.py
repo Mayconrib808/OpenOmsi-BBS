@@ -20,25 +20,25 @@ REFERENCE_GO = "go1.23.2"
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (SOURCE / "version.go").read_text()).group(1)
 PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
-    "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go "
+    "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
     "paths.go version.go company.go company_clock.go company_host.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
 TEST_FILES = (
-    "driver_test.go session_test.go setup_test.go diagnostics_test.go "
+    "driver_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go "
     "launch_checks_test.go company_test.go company_clock_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go profile_store_test.go"
 ).split()
 PROGRAMS = {
     "CompanyHost.exe": (
-        "company_host_main.go company_host.go company_host_process_windows.go company.go company_clock.go version.go"
+        "company_host_main.go company_host.go company_host_share.go company_host_process_windows.go company.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "Setup.exe": (
-        "setup_main.go setup_files.go diagnostics.go setup_windows.go "
+         "setup_main.go setup_files.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_model.go openomsi_compatibility.go openomsi_probe_windows.go "
         "config.go plugin_host.go registry.go paths.go version.go company.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
-        "main.go timetable.go diagnostics.go launch_checks.go driver.go session.go "
+         "main.go timetable.go diagnostics.go launch_checks.go driver.go session.go launch_session.go session_transition.go openomsi_compatibility.go openomsi_probe_windows.go company_host_process_windows.go "
         "config.go plugin_host.go paths.go version.go process_windows.go company.go company_clock.go multiplayer.go profile_store.go"
     ).split(),
     "app/compat/Omsi.exe": (
@@ -98,9 +98,9 @@ def assemble(stage: Path, host_hash: str) -> None:
         "All five executables are built from the source included in this package.\n"
         f"Plugin host SHA-256: {host_hash}\n"
         "The historical host with unresolved provenance is not bundled.\n"
-        "Expected integration: openOMSI 0.2.0 Windows x64 + BCS/BBS 5.0.0.1.\n"
+        "Integration uses executable capabilities and multiplayer protocol 6. Official 0.2.0 and 0.2.11 metadata are checked on Windows CI.\n"
         "Automated checks do not certify a real vendor-plugin session or trip evaluation.\n"
-        "Company multiplayer is a development feature; two-player BBS validation is pending.\n"
+        "Company multiplayer, new next-trip transition and 0.2.11 full-game validation with two players are pending.\n"
         "See docs/VALIDATION.md and docs/TEST_ON_WINDOWS.md.\n",
         encoding="utf-8",
     )
@@ -157,7 +157,8 @@ def main() -> int:
         parser.error("The output directory/ZIP/checksum already exists; choose a new --output path.")
     platform_file = "process_windows.go" if os.name == "nt" else "process_teststub_test.go"
     host_platform_file = "company_host_process_windows.go" if os.name == "nt" else "company_host_process_other.go"
-    test_sources = [*TEST_COMMON, platform_file, host_platform_file, *TEST_FILES]
+    probe_platform_file = "openomsi_probe_windows.go" if os.name == "nt" else "openomsi_probe_other.go"
+    test_sources = [*TEST_COMMON, platform_file, host_platform_file, probe_platform_file, *TEST_FILES]
     if os.name == "nt":
         test_sources.append("company_host_process_windows_test.go")
     run(go, ["test", "-v", *test_sources], native)
@@ -180,7 +181,7 @@ def main() -> int:
         for rel, sources in PROGRAMS.items():
             target = stage / rel
             target.parent.mkdir(parents=True, exist_ok=True)
-            flags = "-s -w" + (" -H=windowsgui" if rel not in ("Setup.exe", "CompanyHost.exe") else "")
+            flags = "-s -w" + (" -H=windowsgui" if rel != "CompanyHost.exe" else "")
             if "plugin_host.go" in sources:
                 flags += " " + digest_flag
             run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=" + flags, "-o", str(target), *sources], windows)
@@ -190,12 +191,15 @@ def main() -> int:
                  *PROGRAMS["app/compat/Omsi.exe"]], windows)
         run(go, ["run", "tools/release_tools.go", "layout", str(stage / "app/compat/Omsi.exe"), str(symbols)], native)
         if os.name == "nt":
+            subprocess.run([str(stage / "Setup.exe"), "--gui-smoke"], check=True, timeout=20)
+            subprocess.run([sys.executable, str(ROOT / "scripts/test_openomsi_compat.py"), "--report", str(ROOT / "build/openomsi-compatibility.json")], check=True, timeout=600)
             subprocess.run([sys.executable, str(ROOT / "scripts/test_pluginhost_windows.py"), str(host)], check=True, timeout=180)
             # Exercise the 32-bit Job Object layout used by CompanyHost.exe,
             # as well as the runner-native layout in the normal test suite.
             run(go, ["test", "-v", "company_host_process_windows.go", "company_host_process_windows_test.go"], windows)
         else:
             print("Native DLL/message-pump checks run on the Windows CI job, not on this host.")
+        print("RELEASE_BINARY_HASHES=" + json.dumps({rel: hashlib.sha256((stage / rel).read_bytes()).hexdigest() for rel in [*PROGRAMS, HOST]}, sort_keys=True), flush=True)
         assemble(stage, host_hash)
         package_env = native.copy()
         package_env["BRIDGE_BUILT_PACKAGE"] = str(stage)

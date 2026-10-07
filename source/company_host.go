@@ -28,6 +28,7 @@ const companyHostClockTolerance = 90 * time.Second
 
 type companyHostOptions struct {
 	Profile, Session, Server, Root, Config string
+	Share                                  string
 	onReady                                func()
 }
 
@@ -199,7 +200,7 @@ func companyHostClock(s string) (float64, error) {
 
 func validateCompanyHostStatus(status companyHostStatus, session CompanySession, fleet []string) error {
 	if !compatibleCompanyServer(status.Version, status.Protocol) {
-		return fmt.Errorf("local server reported %q / protocol %d; requires openOMSI %s / protocol %d", status.Version, status.Protocol, multiplayerGameVersion, multiplayerProtocol)
+		return fmt.Errorf("local server reported %q / protocol %d; its company multiplayer capabilities are not supported", status.Version, status.Protocol)
 	}
 	if !companyText(status.Name, 120) || companyAssetKey(status.Map) != companyAssetKey(session.MapFile) {
 		return fmt.Errorf("local server map does not match the selected company session")
@@ -346,6 +347,11 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	if err != nil {
 		return err
 	}
+	executable, _ := os.Executable()
+	sharePath, err := companyHostSharePath(options.Profile, options.Share, profile.CompanyID, filepath.Dir(executable))
+	if err != nil {
+		return err
+	}
 	var session CompanySession
 	found := false
 	for _, candidate := range profile.Sessions {
@@ -417,6 +423,8 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	child := exec.Command(options.Server, "--root", options.Root, "--server", privateConfig)
 	child.Dir = filepath.Dir(options.Server)
 	child.Env = companyHostEnvironment(os.Environ(), contentDir)
+	tunnelOutput := newCompanyHostTunnelOutput(output)
+	output = tunnelOutput
 	child.Stdout, child.Stderr = output, output
 	prepareCompanyHostProcess(child)
 	if err := child.Start(); err != nil {
@@ -449,6 +457,11 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	base := "http://127.0.0.1:" + strconv.Itoa(cfg.WebPort)
 	client := companyHostClient()
 	defer client.CloseIdleConnections()
+	publicClient := companyHostClient()
+	defer publicClient.CloseIdleConnections()
+	var tunnelAddress, exportedAddress string
+	var nextShareAttempt time.Time
+	shareFailureReported := false
 	monitor := companyHostMonitor{serverCivil: civil, sampledAt: started}
 	deadline := started.Add(startupTimeout)
 	ready := false
@@ -468,6 +481,15 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 			}
 			return fmt.Errorf("the dedicated server stopped unexpectedly")
 		case sampled := <-ticker.C:
+			select {
+			case address := <-tunnelOutput.urls:
+				if address != tunnelAddress {
+					tunnelAddress = address
+					nextShareAttempt = time.Time{}
+					shareFailureReported = false
+				}
+			default:
+			}
 			if !ready && sampled.After(deadline) {
 				return fmt.Errorf("the dedicated server did not synchronize within %s", startupTimeout)
 			}
@@ -506,12 +528,34 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 					options.onReady()
 				}
 				fmt.Fprintf(output, "SINCRONIZADO: %s. Servidor local: %s\n", target.Format("2006-01-02 15:04:05"), base)
-				fmt.Fprintln(output, "Use no perfil o endereço acessível aos jogadores que o servidor imprimir. O sincronizador continua ativo nesta janela.")
+				fmt.Fprintln(output, "O sincronizador continua ativo nesta janela. No mesmo PC, o perfil local continua usando o endereço local.")
+				if tunnelAddress == "" {
+					fmt.Fprintln(output, "Ainda aguardando o endereço HTTPS do túnel para gerar o perfil dos outros jogadores. Se o túnel estiver desativado, este servidor fica disponível pelo endereço configurado.")
+				}
 			}
 			if err := postCompanyHostClock(ctx, client, base, password, target); err != nil {
 				return err
 			}
 			monitor.pending = true
+			// Sharing is independent of clock supervision: a slow tunnel or an
+			// unwritable export cannot stop the already running local game.
+			if ready && tunnelAddress != "" && tunnelAddress != exportedAddress && !sampled.Before(nextShareAttempt) {
+				nextShareAttempt = sampled.Add(30 * time.Second)
+				shareErr := verifyCompanyHostTunnel(ctx, publicClient, tunnelAddress, status, session, fleet)
+				if shareErr == nil {
+					shareErr = exportCompanyHostPlayerProfile(sharePath, profile, session.ID, tunnelAddress)
+				}
+				if shareErr != nil {
+					if !shareFailureReported {
+						fmt.Fprintf(output, "Ainda não foi possível preparar o perfil para os outros jogadores: %v. O servidor local continua ativo; vou tentar novamente.\n", shareErr)
+						shareFailureReported = true
+					}
+				} else {
+					exportedAddress = tunnelAddress
+					fmt.Fprintf(output, "PERFIL PARA OS JOGADORES: %s\n", sharePath)
+					fmt.Fprintln(output, "Envie este arquivo aos jogadores ou atualize o perfil no link HTTPS da empresa. O endereço do túnel muda quando o servidor reinicia; este arquivo é atualizado automaticamente, mas o envio ou a hospedagem precisam usar a cópia nova.")
+				}
+			}
 		}
 	}
 }

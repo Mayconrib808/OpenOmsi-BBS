@@ -15,7 +15,8 @@ import (
 // its Job Object also terminates the server's tunnel, including when the console
 // is closed or the supervisor exits unexpectedly.
 func prepareCompanyHostProcess(child *exec.Cmd) {
-	child.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000200 | 0x00000004}
+	if child.SysProcAttr == nil { child.SysProcAttr = &syscall.SysProcAttr{} }
+	child.SysProcAttr.CreationFlags |= 0x00000200 | 0x00000004
 }
 
 func ownCompanyHostProcess(child *exec.Cmd) (func(), error) {
@@ -25,7 +26,7 @@ func ownCompanyHostProcess(child *exec.Cmd) (func(), error) {
 	assignJob := kernel.NewProc("AssignProcessToJobObject")
 	job, _, err := createJob.Call(0, 0)
 	if job == 0 {
-		return nil, fmt.Errorf("cannot own dedicated server process: %w", err)
+		return nil, fmt.Errorf("cannot own owned child process: %w", err)
 	}
 	closeJob := func() { _ = syscall.CloseHandle(syscall.Handle(job)) }
 	size := 112
@@ -39,7 +40,7 @@ func ownCompanyHostProcess(child *exec.Cmd) (func(), error) {
 	ok, _, err := setJob.Call(job, 9, uintptr(unsafe.Pointer(&limits[0])), uintptr(len(limits)))
 	if ok == 0 {
 		closeJob()
-		return nil, fmt.Errorf("cannot configure server process ownership: %w", err)
+		return nil, fmt.Errorf("cannot configure child process ownership: %w", err)
 	}
 	// AssignProcessToJobObject requires PROCESS_SET_QUOTA | PROCESS_TERMINATE.
 	process, err := syscall.OpenProcess(0x0100|0x0001, false, uint32(child.Process.Pid))
@@ -51,7 +52,7 @@ func ownCompanyHostProcess(child *exec.Cmd) (func(), error) {
 	ok, _, err = assignJob.Call(job, uintptr(process))
 	if ok == 0 {
 		closeJob()
-		return nil, fmt.Errorf("cannot assign dedicated server process: %w", err)
+		return nil, fmt.Errorf("cannot assign owned child process: %w", err)
 	}
 	// The primary thread was created suspended. Assign the job before it can
 	// start cloudflared, then resume that thread through documented Win32 APIs.

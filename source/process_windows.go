@@ -19,7 +19,7 @@ func acquireBridgeLock(root string) (func(), error) {
 	}
 	if err == syscall.Errno(183) {
 		syscall.CloseHandle(syscall.Handle(h))
-		return nil, fmt.Errorf("a bridge session is already running for this OMSI folder")
+		return nil, errBridgeBusy
 	}
 	return func() { syscall.CloseHandle(syscall.Handle(h)) }, nil
 }

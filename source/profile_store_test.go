@@ -31,3 +31,19 @@ func TestManagedProfileCannotAdoptChangedIdentityOrPlayerAssets(t *testing.T){
  os.WriteFile(filepath.Join(c.Root,"Vehicles","A","script","main.osc"),[]byte("different script"),0600)
  if got:=checkCompanyPackages(c.Root,cached,cached.Sessions[0]);len(got)==0{t.Fatalf("import changed asset trust: %+v",trip)}
 }
+
+func TestManagedCompanyCanBeReactivatedAfterOriginalRemoval(t *testing.T) {
+ packageDir:=t.TempDir()
+ t.Setenv("LOCALAPPDATA",t.TempDir())
+ source:=filepath.Join(packageDir,"company.json")
+ _,p,_,_:=companyFixture(t)
+ b,err:=json.Marshal(p);if err!=nil{t.Fatal(err)}
+ if err=os.WriteFile(source,b,0600);err!=nil{t.Fatal(err)}
+ c,_,err:=enrollCompany(context.Background(),packageDir,source,"First",Config{})
+ if err!=nil{t.Fatal(err)}
+ if err=os.Remove(source);err!=nil{t.Fatal(err)}
+ c,got,err:=enrollCompany(context.Background(),packageDir,source,"Second",c)
+ if err!=nil||got==nil||c.PlayerName!="Second"||c.CompanyID!=p.CompanyID{t.Fatal(c,got,err)}
+ _,_,err=enrollCompany(context.Background(),packageDir,filepath.Join(packageDir,"different-missing.json"),"Third",c)
+ if err==nil{t.Fatal("unknown missing administrator profile silently accepted")}
+}

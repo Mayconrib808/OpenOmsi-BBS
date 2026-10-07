@@ -1,6 +1,7 @@
 package main
 
-// Driver translation for openOMSI 0.1.1740 (3df2f99) and BCS 5.0.0.1.
+// Driver translation for the openOMSI .odr format (verified through 0.2.11)
+// and BCS 5.0.0.1.
 // The two .odr formats have the same counters but different [rating] orders.
 // BCS receives the actual saved simulator counters; it owns the remuneration.
 
@@ -157,7 +158,7 @@ func (d driverRecord) encode(openFormat bool) []byte {
 	var t strings.Builder
 	creator := "BCS Bridge v" + bridgeVersion + " by " + bridgeAuthor + " - OMSI format"
 	if openFormat {
-		creator = "BCS Bridge v" + bridgeVersion + " by " + bridgeAuthor + " - openOMSI 0.1.1740 format"
+		creator = "BCS Bridge v" + bridgeVersion + " by " + bridgeAuthor + " - openOMSI personnel format"
 	}
 	fmt.Fprintf(&t, "Driver File\r\nCreated by %s\r\n\r\n[ident]\r\n%s\r\n%s\r\n%s\r\n%s\r\n\r\n", creator, d.Ident[0], d.Ident[1], d.Ident[2], d.Ident[3])
 	fmt.Fprintf(&t, "[busstops]\r\n%d\r\n%d\r\n%d\r\n\r\n[hektom]\r\n%d\r\n\r\n", d.Stops[0], d.Stops[1], d.Stops[2], d.Hectom)
@@ -264,7 +265,31 @@ type driverSync struct {
 	NativeHash                                    [32]byte
 	NativeConflicted                              bool
 	Pending                                       bool
+	EvaluationFrozen                              bool
 	LastBytes, Candidate                          []byte
+}
+
+// A completion flag belongs to one exact shift. A leftover flag, a partial
+// identifier, or a missing shift must never freeze a different trip's data.
+func evaluationFreezeRequested(path, shiftID string) bool {
+	if shiftID == "" || shiftID[0] < '1' || shiftID[0] > '9' {
+		return false
+	}
+	for i := 1; i < len(shiftID); i++ {
+		if shiftID[i] < '0' || shiftID[i] > '9' {
+			return false
+		}
+	}
+	b, err := os.ReadFile(path)
+	return err == nil && strings.TrimSpace(string(b)) == shiftID
+}
+
+// BCS has already accepted its evaluation. Keep the actual record it read
+// stable while the results/next-trip screen is open; later simulator saves
+// belong to no active BCS shift and must not overwrite the next baseline.
+func (s *driverSync) freezeEvaluation() error {
+	s.EvaluationFrozen = true
+	return s.writeState("EVALUATION_COMPLETE: real saved data retained; waiting for the next BCS shift.")
 }
 
 func prepareDriver(nativePath, dir string) (*driverSync, error) {
@@ -324,12 +349,16 @@ func loadDriverSync(openPath, nativePath, dir string) (*driverSync, error) {
 
 func (s *driverSync) writeState(status string) error {
 	t := fmt.Sprintf("BCS Bridge v%s\r\n%s\r\n\r\nopenOMSI driver: %s\r\nBCS driver: %s\r\nSaved stops: %d (late %d, early %d)\r\nSaved distance: %d hectometres\r\nSaved tickets: %d / %.6f\r\nBCS Auswertungsdaten expected:\r\n%s\r\n", bridgeVersion, status, s.OpenPath, s.NativePath, s.Last.Stops[0], s.Last.Stops[1], s.Last.Stops[2], s.Last.Hectom, s.Last.Tickets, s.Last.Money, s.Last.evaluation())
+	t += fmt.Sprintf("Saved collision counters (crashes, pedestrians hurt, abscondings, heavy): %d, %d, %d, %d\r\nSaved driving penalty: %.9f (driving rating %.6f%%)\r\nRed-light offences: unavailable; no actual signal-crossing telemetry is exposed by the verified openOMSI plugin API.\r\n", s.Last.Crashes[0], s.Last.Crashes[1], s.Last.Crashes[2], s.Last.Crashes[3], s.Last.Rating[4], 100*(1-s.Last.Rating[4]))
 	return writeDriverAtomic(s.StatePath, []byte(t))
 }
 
 // Require two identical complete reads. Retain the last valid record on a
 // transient write, malformed profile, reset counter, or changed identity.
 func (s *driverSync) poll() (bool, error) {
+	if s.EvaluationFrozen {
+		return false, nil
+	}
 	b, err := os.ReadFile(s.OpenPath)
 	if err != nil {
 		return false, err

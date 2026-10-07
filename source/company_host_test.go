@@ -90,7 +90,7 @@ func TestCompanyHostStatusRejectsWrongServerAndFleet(t *testing.T) {
 		edit func(*companyHostStatus)
 	}{
 		{"protocol", func(s *companyHostStatus) { s.Protocol++ }},
-		{"version", func(s *companyHostStatus) { s.Version = "0.2.9" }},
+		{"version", func(s *companyHostStatus) { s.Version = "not-openomsi" }},
 		{"map", func(s *companyHostStatus) { s.Map = "maps/Other/global.cfg" }},
 		{"clock", func(s *companyHostStatus) { s.Time = "24:00" }},
 		{"emptyfleet", func(s *companyHostStatus) { s.Vehicles = json.RawMessage(`""`) }},

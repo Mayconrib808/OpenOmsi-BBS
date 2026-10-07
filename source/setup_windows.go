@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -129,6 +130,15 @@ func (r windowsRegistry) Keys(view int, key string) ([]string, error) {
 	return out, nil
 }
 func prepareConsole() {
+ window, _, _ := setupKernel.NewProc("GetConsoleWindow").Call()
+ if window == 0 {
+  attached, _, _ := setupKernel.NewProc("AttachConsole").Call(0xFFFFFFFF)
+  if attached == 0 { setupKernel.NewProc("AllocConsole").Call() }
+ }
+ // GUI-subsystem executables start without standard console handles. Only
+ // explicit CLI/admin-profile actions create and bind a console.
+ if input, err := os.OpenFile("CONIN$", os.O_RDONLY, 0); err == nil { os.Stdin = input }
+ if output, err := os.OpenFile("CONOUT$", os.O_WRONLY, 0); err == nil { os.Stdout, os.Stderr = output, output }
 	setupKernel.NewProc("SetConsoleCP").Call(65001)
 	setupKernel.NewProc("SetConsoleOutputCP").Call(65001)
 	setupKernel.NewProc("SetConsoleTitleW").Call(uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge v" + bridgeVersion + " - by " + bridgeAuthor))))
@@ -161,6 +171,8 @@ type shellExecuteInfo struct {
 }
 
 func elevateSetup(action, lang string) error {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	if action != "activate" && action != "deactivate" {
 		return fmt.Errorf("invalid elevation action")
 	}

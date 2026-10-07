@@ -25,8 +25,8 @@ import (
 
 const companyProfileLimit = 8 << 20
 const companyFileLimit = 30000
-const multiplayerProtocol = 6 // openOMSI 0.2.0, reference commit 538ad31b.
-const multiplayerGameVersion = "0.2.0"
+const multiplayerProtocol = 6           // Verified in official openOMSI 0.2.0 and 0.2.11.
+const multiplayerGameVersion = "0.2.11" // New profiles' descriptive release label.
 
 type CompanyProfile struct {
 	SchemaVersion   int              `json:"schema_version"`
@@ -128,8 +128,8 @@ func validateCompanyProfile(p CompanyProfile) error {
 	if p.SchemaVersion != 1 || !companyIDPattern.MatchString(p.CompanyID) || !companyText(p.CompanyName, 120) {
 		return fmt.Errorf("invalid company identity or unsupported profile schema")
 	}
-	if p.OpenOMSIVersion != multiplayerGameVersion || p.Protocol != multiplayerProtocol {
-		return fmt.Errorf("this development build requires openOMSI %s / protocol %d", multiplayerGameVersion, multiplayerProtocol)
+	if !validOpenOMSIVersion(p.OpenOMSIVersion) || p.Protocol != multiplayerProtocol {
+		return fmt.Errorf("company profile requires a valid openOMSI release label and network protocol %d", multiplayerProtocol)
 	}
 	if p.Clock != nil {
 		if err := validateCompanyClock(*p.Clock); err != nil {
@@ -599,15 +599,10 @@ func writeCompanyReport(runtimeDir, lang, company string, problems []CompanyProb
 	return path, nil
 }
 
-// The official 0.2.0 server reports the unchanged workspace crate version
-// (0.1.0) through /status. Recognize only its pinned release build, never all
-// 0.1.0 servers. The network protocol must still match.
-var companyV020StatusBuild = regexp.MustCompile(`^0\.1\.0 \((?:538ad31|538ad31b2a2c664cb0726db2547bf6238411eedf)(?: [^()\r\n]+)?\)$`)
-
+// The gateway's version can be a workspace version plus a build description.
+// Its declared network protocol is the compatibility boundary. Map, world,
+// clock, fleet and capacity are checked by the caller; the actual game also
+// negotiates its protocol on joining and refuses a mismatching client.
 func compatibleCompanyServer(version string, protocol int) bool {
-	if protocol != multiplayerProtocol {
-		return false
-	}
-	parts := strings.Fields(version)
-	return (len(parts) > 0 && parts[0] == multiplayerGameVersion) || companyV020StatusBuild.MatchString(strings.TrimSpace(version))
+	return protocol == multiplayerProtocol && validOpenOMSIVersion(strings.TrimSpace(version))
 }

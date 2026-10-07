@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -24,55 +23,12 @@ func companyHostInput(reader *bufio.Reader, prompt string) (string, error) {
 	return strings.Trim(strings.TrimSpace(line), `"`), nil
 }
 
-func companyHostLocalSettingsPath() string {
-	executable, err := os.Executable()
-	if err != nil {
-		return ""
-	}
-	return filepath.Join(filepath.Dir(executable), "CompanyHost.local.json")
-}
-
-func loadCompanyHostLocalOptions(path string) (companyHostOptions, bool) {
-	var options companyHostOptions
-	text, err := os.ReadFile(path)
-	if err != nil || len(text) > 16<<10 {
-		return options, false
-	}
-	if err := json.Unmarshal(text, &options); err != nil || !filepath.IsAbs(options.Server) || !filepath.IsAbs(options.Root) || !filepath.IsAbs(options.Profile) || options.Session == "" || strings.Contains(options.Profile, "://") {
-		return companyHostOptions{}, false
-	}
-	return options, true
-}
-
-func saveCompanyHostLocalOptions(path string, options companyHostOptions) error {
-	if path == "" {
-		return fmt.Errorf("cannot locate CompanyHost.local.json")
-	}
-	text, err := json.MarshalIndent(options, "", "  ")
-	if err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(filepath.Dir(path), "company-host-options-*.tmp")
-	if err != nil {
-		return err
-	}
-	defer os.Remove(f.Name())
-	_, writeErr := f.Write(append(text, '\n'))
-	closeErr := f.Close()
-	if writeErr != nil {
-		return writeErr
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	return os.Rename(f.Name(), path)
-}
-
 func interactiveCompanyHost(reader *bufio.Reader) (companyHostOptions, error) {
 	var options companyHostOptions
 	fmt.Println("OpenOmsi + BBS — servidor com relógio da empresa")
 	fmt.Println("Cole os caminhos completos. Não precisa digitar comandos do CMD nem editar o relógio do Windows.")
-	if previous, found := loadCompanyHostLocalOptions(companyHostLocalSettingsPath()); found {
+	executable, _ := os.Executable()
+	if previous, found := loadPreviousCompanyHostOptions(filepath.Dir(executable)); found {
 		fmt.Printf("Configuração anterior:\nServidor: %s\nOMSI 2: %s\nPerfil: %s\nSessão: %s\n", previous.Server, previous.Root, previous.Profile, previous.Session)
 		choice, err := companyHostInput(reader, "Enter para iniciar com estes caminhos; digite n para configurar novamente")
 		if err != nil {
@@ -156,6 +112,7 @@ func interactiveCompanyHost(reader *bufio.Reader) (companyHostOptions, error) {
 
 func main() {
 	var options companyHostOptions
+	var saved bool
 	interactive := len(os.Args) == 1
 	reader := bufio.NewReader(os.Stdin)
 	flag.StringVar(&options.Profile, "profile", "", "Local JSON profile of the company")
@@ -163,7 +120,35 @@ func main() {
 	flag.StringVar(&options.Server, "server", "", "Absolute path to the dedicated openomsi.exe")
 	flag.StringVar(&options.Root, "root", "", "Absolute path to the original OMSI 2 folder")
 	flag.StringVar(&options.Config, "config", "", "Existing server.cfg (default: beside the server executable)")
+	flag.StringVar(&options.Share, "share", "", "Absolute path for the generated player JSON (default: persistent Companies folder)")
+	flag.BoolVar(&saved, "saved", false, "Reuse the previous successful host paths without prompts")
 	flag.Parse()
+	if saved {
+		executable, _ := os.Executable()
+		previous, found := loadPreviousCompanyHostOptions(filepath.Dir(executable))
+		if !found {
+			fmt.Fprintln(os.Stderr, "CompanyHost: configure os caminhos uma vez abrindo o CompanyHost sem argumentos.")
+			os.Exit(2)
+		}
+		if options.Profile == "" {
+			options.Profile = previous.Profile
+		}
+		if options.Session == "" {
+			options.Session = previous.Session
+		}
+		if options.Server == "" {
+			options.Server = previous.Server
+		}
+		if options.Root == "" {
+			options.Root = previous.Root
+		}
+		if options.Config == "" {
+			options.Config = previous.Config
+		}
+		if options.Share == "" {
+			options.Share = previous.Share
+		}
+	}
 	if interactive {
 		var err error
 		options, err = interactiveCompanyHost(reader)
@@ -172,16 +157,25 @@ func main() {
 			_, _ = companyHostInput(reader, "Pressione Enter para fechar")
 			os.Exit(1)
 		}
-		savedOptions := options
-		options.onReady = func() {
-			if err := saveCompanyHostLocalOptions(companyHostLocalSettingsPath(), savedOptions); err != nil {
-				fmt.Fprintln(os.Stderr, "Não foi possível lembrar os caminhos para a próxima execução:", err)
-			}
-		}
 	}
 	if flag.NArg() != 0 || options.Profile == "" || options.Session == "" || options.Server == "" || options.Root == "" {
 		flag.Usage()
 		os.Exit(2)
+	}
+	compatibility, err := checkOpenOMSICompatibility(options.Server, true, false)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "CompanyHost:", err)
+		if interactive {
+			_, _ = companyHostInput(reader, "Pressione Enter para fechar")
+		}
+		os.Exit(1)
+	}
+	fmt.Println("Servidor OpenOMSI:", compatibility.Version)
+	savedOptions := options
+	options.onReady = func() {
+		if err := saveCompanyHostLocalOptions(companyHostLocalSettingsPath(), savedOptions); err != nil {
+			fmt.Fprintln(os.Stderr, "Não foi possível lembrar os caminhos para a próxima execução:", err)
+		}
 	}
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()

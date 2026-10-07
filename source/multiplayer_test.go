@@ -66,7 +66,7 @@ func TestCompanySelectsWorkingRoomWhenAnotherIsOfflineWrongMapOrWrongClock(t *te
 		{"wrong clock", func(s map[string]any) { s["time"] = "18:00" }},
 		{"full", func(s map[string]any) { s["players"] = 16 }},
 		{"wrong protocol", func(s map[string]any) { s["protocol"] = 5 }},
-		{"wrong game", func(s map[string]any) { s["version"] = "0.1.7" }},
+		{"invalid game description", func(s map[string]any) { s["version"] = "not-openomsi" }},
 		{"bus not offered", func(s map[string]any) { s["vehicles"] = "Vehicles/B/b.bus" }},
 		{"undeclared remote bus", func(s map[string]any) { s["vehicles"] = "Vehicles/A/a.bus;Vehicles/B/b.bus;Vehicles/C/c.bus" }},
 	} {

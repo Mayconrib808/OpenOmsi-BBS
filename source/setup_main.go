@@ -105,15 +105,9 @@ func (u *setupUI) configure(c Config) (Config, error) {
 		fmt.Printf("%s: %s\n", localText(u.lang, "Auxiliar BCS a preparar na ativação", "BCS helper to prepare during activation", "BBS-Hilfsprogramm, das bei der Aktivierung bereitgestellt wird"), host)
 	}
 	if !u.yes("Salvar? [s/N]", "Save? [y/N]", "Speichern? [j/N]") {
-		return readConfig(configPath(u.dir)), nil
+		return readInstalledConfig(u.dir), nil
 	}
-	path := configPath(u.dir)
-	if b, e := os.ReadFile(path); e == nil {
-		if e = writeSetupAtomic(path+".backup", b); e != nil {
-			return c, e
-		}
-	}
-	if e := writeSetupAtomic(path, encodeConfig(c)); e != nil {
+	if e := saveInstalledConfig(u.dir, c); e != nil {
 		return c, e
 	}
 	u.say("Configuração salva. Use a opção 2 para ativar. Depois, inicie a viagem pelo BCS.", "Configuration saved. Use option 2 to activate. Then start your trip through BCS.", "Einstellungen gespeichert. Wähle Option 2 zum Aktivieren. Starte die Fahrt anschließend über BBS.")
@@ -129,7 +123,7 @@ func logSetup(dir, action string, e error) {
 	fmt.Fprintf(f, "%s v%s by %s %s: %v\r\n", time.Now().Format(time.RFC3339), bridgeVersion, bridgeAuthor, action, e)
 }
 func adminAction(dir, action string) error {
-	c := readConfig(configPath(dir))
+	c := readInstalledConfig(dir)
 	if action != "activate" && action != "deactivate" {
 		return fmt.Errorf("unknown admin action")
 	}
@@ -162,7 +156,7 @@ func (u *setupUI) changeActivation(action string) error {
 	if action == "activate" {
 		fmt.Println(usageNotices(u.lang))
 		u.say("\nA opção 2 ativa o openOMSI para esta instalação. Depois, abra o BCS e inicie a viagem normalmente. Para voltar ao OMSI original (inclusive pela Steam), use a opção 3.", "\nOption 2 enables openOMSI for this installation. Then open BCS and start your trip normally. To use original OMSI again (including Steam launches), use option 3.", "\nOption 2 aktiviert openOMSI für diese Installation. Öffne anschließend BBS und starte die Fahrt wie gewohnt. Mit Option 3 kehrst du zum originalen OMSI zurück, auch beim Start über Steam.")
-		c := readConfig(configPath(u.dir))
+		c := readInstalledConfig(u.dir)
 		if host, e := pluginHostPath(c); e == nil {
 			fmt.Printf("%s: %s\n", localText(u.lang, "A ativação prepara uma cópia do auxiliar BCS", "Activation prepares a copy of the BCS helper", "Bei der Aktivierung wird eine Kopie des BBS-Hilfsprogramms bereitgestellt"), host)
 		}
@@ -245,30 +239,30 @@ func (u *setupUI) verify() error {
 func main() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	prepareConsole()
 	dir := packageRoot()
-	c := readConfig(configPath(dir))
+ // The elevated helper performs one fixed operation and exits. The graphical
+ // parent owns the UAC request, completion message and error display.
+ if len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "--admin=") {
+  action := strings.TrimPrefix(os.Args[1], "--admin=")
+  err := adminAction(dir, action)
+  logSetup(dir, action, err)
+  if err != nil { os.Exit(1) }
+  return
+ }
+ if len(os.Args) == 1 || (len(os.Args) == 2 && os.Args[1] == "--gui-smoke") {
+  smoke := len(os.Args) == 2
+  if err := runSetupGUI(dir, smoke); err != nil {
+   logSetup(dir, "graphical-setup", err)
+   if !smoke { guiMessageBox(0, err.Error(), 0x10) }
+   os.Exit(1)
+  }
+  return
+ }
+ if len(os.Args) > 1 && os.Args[1] == "--cli" { os.Args = append([]string{os.Args[0]}, os.Args[2:]...) }
+ prepareConsole()
+	c := readInstalledConfig(dir)
 	u := &setupUI{bufio.NewScanner(os.Stdin), c.Language, dir}
 	fmt.Printf("OpenOMSI BCS Bridge v%s - by %s\n", bridgeVersion, bridgeAuthor)
-	if len(os.Args) > 1 && strings.HasPrefix(os.Args[1], "--admin=") {
-		action := strings.TrimPrefix(os.Args[1], "--admin=")
-		if len(os.Args) > 2 {
-			u.lang = normalizeLanguage(strings.TrimPrefix(os.Args[2], "--lang="))
-		}
-		e := adminAction(dir, action)
-		logSetup(dir, action, e)
-		if e != nil {
-			u.say("Falha na alteração:", "Change failed:", "Änderung fehlgeschlagen:")
-			fmt.Println(e)
-		} else {
-			u.say("Alteração concluída.", "Change completed.", "Änderung abgeschlossen.")
-		}
-		_, _ = u.line("Pressione Enter para fechar", "Press Enter to close", "Zum Schließen Enter drücken", "")
-		if e != nil {
-			os.Exit(1)
-		}
-		return
-	}
 	if len(os.Args) > 1 {
 		var e error
 		switch os.Args[1] {
@@ -278,6 +272,9 @@ func main() {
 			e = u.collect(c)
 		case "--verify":
 			e = u.verify()
+		case "--company-admin":
+			e = setupChangesAllowed()
+			if e == nil { _, e = u.manageCompanyProfile(c) }
 		default:
 			e = fmt.Errorf("unknown option")
 		}
