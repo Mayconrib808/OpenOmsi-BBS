@@ -88,6 +88,48 @@ func parseCompanyHostConfig(text []byte) (companyHostConfig, error) {
 	return cfg, err
 }
 
+// A fresh official server ZIP need not contain server.cfg. Prepare a usable
+// company configuration before launching, so an initial run never opens the
+// upstream default map or starts an unsupervised server just to obtain a file.
+func loadCompanyHostConfig(path string, profile CompanyProfile, session CompanySession, fleet []string, civil time.Time) (companyHostConfig, bool, error) {
+	text, err := os.ReadFile(path)
+	created := false
+	if os.IsNotExist(err) {
+		base := companyHostConfig{Text: []byte("# Created by OpenOmsi + BBS. Existing configurations are preserved.\n" +
+			"name = " + profile.CompanyName + "\n" +
+			"motd = OpenOmsi + BBS\nweather =\ntraffic = 30\ntimetable = 1\npassengers = 1\n" +
+			"port = 27015\nweb_port = 27025\nmax_players = 16\ntunnel = 1\nradius = 0\n" +
+			"metar_sync = 0\nshare_positions = 0\n")}
+		text = renderCompanyHostConfig(base, session, fleet, civil, "")
+		file, createErr := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0644)
+		if os.IsExist(createErr) {
+			// Another host/user created it after our read. Their settings win.
+			text, err = os.ReadFile(path)
+		} else if createErr != nil {
+			return companyHostConfig{}, false, fmt.Errorf("cannot create server.cfg at %s: %w", path, createErr)
+		} else {
+			_, writeErr := file.Write(text)
+			if writeErr == nil {
+				writeErr = file.Sync()
+			}
+			closeErr := file.Close()
+			if writeErr == nil {
+				writeErr = closeErr
+			}
+			if writeErr != nil {
+				_ = os.Remove(path)
+				return companyHostConfig{}, false, fmt.Errorf("cannot write server.cfg at %s: %w", path, writeErr)
+			}
+			created, err = true, nil
+		}
+	}
+	if err != nil {
+		return companyHostConfig{}, false, fmt.Errorf("cannot read server.cfg at %s: %w", path, err)
+	}
+	cfg, err := parseCompanyHostConfig(text)
+	return cfg, created, err
+}
+
 // Preserve the owner's comments and unrelated settings. Replace every occurrence
 // of controlled keys, so a later duplicate cannot silently restore real_time.
 func renderCompanyHostConfig(cfg companyHostConfig, session CompanySession, fleet []string, now time.Time, password string) []byte {
@@ -380,13 +422,17 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	if err != nil {
 		return err
 	}
-	text, err := os.ReadFile(options.Config)
-	if err != nil {
-		return fmt.Errorf("open the existing server.cfg first: %w", err)
-	}
-	cfg, err := parseCompanyHostConfig(text)
+	started := time.Now()
+	civil, err := companyNow(*profile.Clock, started)
 	if err != nil {
 		return err
+	}
+	cfg, created, err := loadCompanyHostConfig(options.Config, profile, session, fleet, civil)
+	if err != nil {
+		return err
+	}
+	if created {
+		fmt.Fprintf(output, "Configuração inicial criada automaticamente: %s\n", options.Config)
 	}
 	if err := ensureCompanyHostPortsFree(cfg); err != nil {
 		return err
@@ -396,11 +442,6 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 		return err
 	}
 	password := hex.EncodeToString(secret)
-	started := time.Now()
-	civil, err := companyNow(*profile.Clock, started)
-	if err != nil {
-		return err
-	}
 	f, err := os.CreateTemp(filepath.Dir(options.Config), "company-host-*.cfg")
 	if err != nil {
 		return fmt.Errorf("cannot create the private host configuration: %w", err)

@@ -266,8 +266,9 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 	}
 	wg.Wait()
 	var unavailable, requirements []CompanyProblem
+	bbsBackups := companyBBSBackupInventory(c.Root, candidateBackups(c, candidateBCSLog(c)))
 	for i, session := range candidates {
-		problems := checkCompanyPackages(c.Root, p, session)
+		problems := checkCompanyPackagesWithOriginals(c.Root, p, session, bbsBackups)
 		if len(problems) != 0 && len(requirements) == 0 {
 			requirements = problems
 		}

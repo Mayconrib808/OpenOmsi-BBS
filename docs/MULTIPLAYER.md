@@ -1,4 +1,4 @@
-# Multiplayer da empresa — 2.0.1
+# Multiplayer da empresa — 2.0.2-dev.2
 
 Esta versão oferece configuração gráfica e perfis persistentes. A entrada é automática depois de salvar um perfil da empresa no Setup. A sessão precisa estar funcionando em um anfitrião ou servidor openOMSI. A ponte não cria servidores na nuvem e não identifica automaticamente a empresa da conta BBS.
 
@@ -35,7 +35,7 @@ O perfil deve representar os arquivos usados pela empresa e pelo anfitrião. A o
 
 Os jogadores configuram esse arquivo/link uma vez. Um perfil remoto é lido novamente a cada viagem, permitindo atualizar endereços e links sem reconfigurar cada cliente. Um JSON compartilhado como arquivo precisa ser reenviado quando mudar. Não altere `company_id`: trocar a identidade exige configurar novamente a empresa no Setup.
 
-Para mudar links, datas e salas, edite o JSON. Para registrar mudanças no conteúdo dos arquivos já declarados, com BCS e CompanyHost fechados, use **9 → 2 — Atualizar os hashes do perfil existente**. Confira a lista e confirme a instalação atual como a referência da empresa. O assistente preserva identidade, sessões, relógio e links, guarda uma cópia exata do JSON anterior e recusa arquivos ausentes ou extras. Ele não atualiza o inventário nem aceita automaticamente as diferenças de um jogador. Ao adicionar/remover pacotes ou arquivos, atualize o inventário em separado. Os hashes conferem os arquivos locais; não hospedam os mods nem certificam que um link externo é confiável.
+Para mudar links, datas e salas, edite o JSON. Com BCS e CompanyHost fechados, use **Setup.exe --cli → 9 → 2** para atualizar os hashes dos arquivos já declarados ou **9 → 3** para revisar também inclusões e remoções nas pastas cadastradas. A opção 3 mostra `+` para inclusão, `-` para remoção do inventário e `~` para conteúdo alterado; nenhum arquivo do jogo é apagado. Confira a lista e confirme a instalação atual como referência. O assistente preserva identidade, sessões, relógio e links e guarda uma cópia exata do JSON anterior. Alterações durante a revisão impedem a gravação. A entrada de um jogador não modifica a referência da empresa. Os hashes conferem os arquivos locais; não hospedam os mods nem certificam que um link externo é confiável.
 
 O perfil organiza o destino das conexões. **Não é uma autenticação de funcionário no BBS nem uma lista de acesso do servidor.** A associação com a empresa é escolhida no Setup; o acesso à sessão depende do anfitrião e de sua rede.
 
@@ -47,7 +47,9 @@ Sessões com data `company` usam o servidor dedicado com CompanyHost. Aguarde **
 
 A ponte lê `GET /status` no mesmo endereço que passa ao openOMSI. O status precisa informar mapa, versão, protocolo, relógio, quantidade de jogadores e frota. Status fora do ar, incompatível ou com a sala cheia impede a entrada. A primeira sala compatível é escolhida na ordem do perfil. O perfil aceita até 16 salas e consulta no máximo quatro ao mesmo tempo.
 
-O servidor deve restringir `vehicles` aos ônibus dos pacotes registrados. Se oferecer um modelo que o perfil não contempla, a ponte avisa ao administrador para incluir o pacote ou limitar a frota. Isso evita que um jogador entre com um ônibus que os demais não têm.
+O servidor deve restringir `vehicles` aos ônibus dos pacotes registrados. Se oferecer um modelo que o perfil não contempla, a ponte avisa ao administrador para incluir o pacote ou limitar a frota. Isso evita que um jogador entre com um ônibus que os demais não têm. Todos os modelos `.bus` da pasta cadastrada entram na frota; a dev.2 evita recadastrar essa mesma pasta ao selecionar outro modelo na mesma sessão.
+
+CompanyHost cria `server.cfg` quando ele estiver ausente, já para a sessão selecionada. As portas iniciais são UDP 27015 e web 27025, com 16 vagas. Configurações existentes são preservadas. Veja [a inicialização automática](COMPANY_CLOCK.md#iniciar-o-servidor-sincronizado).
 
 Trecho ilustrativo de `server.cfg` (substitua o mapa e os caminhos dos ônibus pelos seus):
 
@@ -81,7 +83,11 @@ Cada pacote contém `id`, `name`, `version`, `download_url`, `folders` e `files`
 
 O cliente usa a instalação original que foi conferida e o ZIP temporário de horários da ponte. No processo multiplayer, conteúdo adicional do openOMSI é isolado e a transferência automática de mods entre colegas é desativada. Esse ajuste se aplica ao filho iniciado pela ponte; não altera as configurações ou o ambiente do Windows.
 
-Arquivos `.hof` não entram no inventário, pois são preparados pelo BBS a cada viagem. Situações salvas `.osn` também ficam fora: ônibus, pintura e posição salvos diferem entre jogadores. Executáveis, DLLs, logs e perfis de conta também não entram. Somente arquivos de conteúdo do jogo podem ser exigidos. Nenhum arquivo de jogo é enviado pela ponte.
+Arquivos `.hof` não entram no inventário, pois são preparados pelo BBS a cada viagem. Situações salvas `.osn` também ficam fora: ônibus, pintura e posição salvos diferem entre jogadores. A dev.2 também exclui seus acompanhantes `*.osn.owt` e `*.osn_<x>_<y>.dds` na raiz do mapa, inclusive registros antigos. Cópias chamadas `timezone.txt.backup.txt` e `Holidays.txt.backup.txt` ficam fora; **`timezone.txt` e `Holidays.txt` reais continuam sendo conteúdo do mapa**. Executáveis, DLLs, logs e perfis de conta também não entram. Nenhum arquivo de jogo é enviado pela ponte.
+
+Quando o BBS prepara uma viagem, a conferência pode identificar a versão-base do calendário raiz `Holidays.txt`, de arquivos `.bus`, scripts `.osc` e listas `*_varlist.txt`/`*_stringvarlist.txt` pelo original preservado. São necessárias as duas provas: o caminho constar na lista local `BBS_Backups.txt` e o arquivo vizinho `.backup` ter o SHA-256 exato cadastrado no perfil. A ponte lê listas UTF-8/UTF-16, respeita o caminho de backups configurado no launcher e não restaura nem modifica os arquivos ativos. Isso confere o original do pacote; não compara semanticamente cada modificação de script. Sem lista, com backup diferente ou com arquivo ativo ausente/ilegível, a entrada continua bloqueada. Modelos, pinturas, timetables e fuso continuam exigindo os bytes exatos. A revisão de referência pelo administrador também exige os bytes atuais exatos.
+
+Se pacotes antigos cadastrarem a mesma pasta de ônibus várias vezes, relatórios idênticos são exibidos uma vez. Diferenças em pacotes distintos continuam aparecendo.
 
 O exemplo [company.example.json](../examples/company.example.json) serve para entender os campos. Seus links e hashes são fictícios e precisam ser substituídos.
 
@@ -97,10 +103,12 @@ Sem outro jogador, é possível testar instalação, Setup, perfil, relatório d
 
 ## English overview
 
-This is version 2.0.1 of optional company multiplayer, checking executable capabilities and protocol 6 instead of one release number. The default graphical Setup saves player/profile settings across updates. The following numbered options remain available through `Setup.exe --cli`. Setup option 9 → 1 generates administrator-owned JSON profiles, asset-folder inventories, hashes and curated download links. Setup option 8 binds one local file or HTTPS profile URL and a player name once. Starting a BBS trip selects an already hosted compatible session, validates its status and local content, then adds `--lan-join` / `--lan-name`.
+This is version 2.0.2-dev.2 of optional company multiplayer, checking executable capabilities and protocol 6 instead of one release number. The default graphical Setup saves player/profile settings across updates. The following numbered options remain available through `Setup.exe --cli`. Setup option 9 → 1 generates administrator-owned JSON profiles, asset-folder inventories, hashes and curated download links. Setup option 8 binds one local file or HTTPS profile URL and a player name once. Starting a BBS trip selects an already hosted compatible session, validates its status and local content, then adds `--lan-join` / `--lan-name`.
 
 The profile is a routing configuration, not BBS company-membership authentication. Registered sessions have a fixed map and date, a web-gateway base URL, required package IDs and a 1-300 second clock tolerance. The HTTP status omits the date; the launched game's host-world log must confirm it before BBS readiness is published. Failed or mismatched startup is stopped. Runtime reconnect and BBS evaluation behavior remain unverified.
 
 Missing, changed or extra assets produce a local requirements page with the administrator's links. No search, automatic archive installation, peer asset upload or game-file redistribution is performed. Multiplayer is disabled by default and can be disabled separately from the bridge. Two-player rendering, boarding and live BBS trip evaluation have not been validated.
 
 Setup 9 → 2 lets the administrator review and refresh hashes of already declared installed files in an existing local JSON. Company/session/clock/link metadata is preserved, an exact previous-profile backup is saved, and missing or additional files are refused. Joining players never automatically learn changed content. Company-clock sessions require an active dedicated world; wait for SINCRONIZADO in CompanyHost before starting BCS.
+
+In dev.2, Setup 9 → 3 also reviews file additions/removals within declared folders. CompanyHost creates a missing configuration for the selected session and preserves existing configurations. Map situation companions are excluded, while real timezone and calendar files remain checked. Supported BBS session inputs may use an exact original `.backup` hash only when their path is also recorded in `BBS_Backups.txt`; this verifies the package baseline, not the semantics of every script edit. Missing live files, unrelated assets and administrator reference review still require exact content. Duplicate identical folder reports appear once.

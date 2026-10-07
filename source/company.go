@@ -380,12 +380,19 @@ func companyFileHash(path string) (string, error) {
 }
 
 func checkCompanyPackages(root string, p CompanyProfile, session CompanySession) []CompanyProblem {
+	return checkCompanyPackagesWithOriginals(root, p, session, companyBBSBackupInventory(root))
+}
+
+// A nil originals inventory requires exact live bytes, including while the
+// administrator reviews a new company reference.
+func checkCompanyPackagesWithOriginals(root string, p CompanyProfile, session CompanySession, bbsBackups map[string]bool) []CompanyProblem {
 	wanted := map[string]bool{}
 	for _, id := range session.RequiredPackages {
 		wanted[id] = true
 	}
 	var problems []CompanyProblem
 	checked := map[string]string{}
+	reported := map[string]bool{}
 	for _, pkg := range p.Packages {
 		if !wanted[pkg.ID] {
 			continue
@@ -393,6 +400,9 @@ func checkCompanyPackages(root string, p CompanyProfile, session CompanySession)
 		var missing, different, extra []string
 		declared := map[string]bool{}
 		for _, file := range pkg.Files {
+			if companyRuntimeArtifact(file.Path) {
+				continue
+			}
 			key := companyAssetKey(file.Path)
 			declared[key] = true
 			digest, ok := checked[key]
@@ -408,7 +418,7 @@ func checkCompanyPackages(root string, p CompanyProfile, session CompanySession)
 			}
 			if digest == "" {
 				missing = append(missing, file.Path)
-			} else if !strings.EqualFold(digest, file.SHA256) {
+			} else if !strings.EqualFold(digest, file.SHA256) && !companyBBSOriginalMatches(root, file, bbsBackups) {
 				different = append(different, file.Path)
 			}
 		}
@@ -443,7 +453,7 @@ func checkCompanyPackages(root string, p CompanyProfile, session CompanySession)
 					return err
 				}
 				rel = filepath.ToSlash(rel)
-				if validCompanyAsset(rel) && !declared[companyAssetKey(rel)] {
+				if validCompanyAsset(rel) && !companyRuntimeArtifact(rel) && !declared[companyAssetKey(rel)] {
 					extra = append(extra, rel)
 					if len(extra) >= 100 {
 						return filepath.SkipAll
@@ -456,6 +466,12 @@ func checkCompanyPackages(root string, p CompanyProfile, session CompanySession)
 			}
 		}
 		if len(missing)+len(different)+len(extra) != 0 {
+			signature, _ := json.Marshal([][]string{missing, different, extra})
+			reportKey := pkg.Name + "\n" + pkg.DownloadURL + "\n" + string(signature)
+			if reported[reportKey] {
+				continue
+			}
+			reported[reportKey] = true
 			detail := fmt.Sprintf("%s: ausentes/ilegíveis %d; conteúdo alterado %d; adicionais não cadastrados %d. / missing or unreadable: %d; changed content: %d; undeclared extra files: %d.", pkg.Version, len(missing), len(different), len(extra), len(missing), len(different), len(extra))
 			list := append(append(missing, different...), extra...)
 			if len(list) > 8 {
@@ -486,6 +502,19 @@ func refreshCompanyHashes(root string, original CompanyProfile) (CompanyProfile,
 	checked := map[string]string{}
 	var changed []string
 	for i := range updated.Packages {
+		var retained []CompanyFile
+		for _, file := range updated.Packages[i].Files {
+			if companyRuntimeArtifact(file.Path) {
+				key := companyAssetKey(file.Path)
+				if _, seen := checked[key]; !seen {
+					changed = append(changed, file.Path)
+					checked[key] = ""
+				}
+				continue
+			}
+			retained = append(retained, file)
+		}
+		updated.Packages[i].Files = retained
 		for j := range updated.Packages[i].Files {
 			file := &updated.Packages[i].Files[j]
 			key := companyAssetKey(file.Path)
@@ -513,7 +542,7 @@ func refreshCompanyHashes(root string, original CompanyProfile) (CompanyProfile,
 	for _, pkg := range updated.Packages {
 		all.RequiredPackages = append(all.RequiredPackages, pkg.ID)
 	}
-	if problems := checkCompanyPackages(root, updated, all); len(problems) != 0 {
+	if problems := checkCompanyPackagesWithOriginals(root, updated, all, nil); len(problems) != 0 {
 		return original, nil, fmt.Errorf("profile update needs the same declared file inventory: %s", problems[0].Detail)
 	}
 	if err := validateCompanyProfile(updated); err != nil {
@@ -545,7 +574,7 @@ func snapshotCompanyFolder(root, folder string) ([]CompanyFile, error) {
 			return err
 		}
 		rel = filepath.ToSlash(rel)
-		if !validCompanyAsset(rel) {
+		if !validCompanyAsset(rel) || companyRuntimeArtifact(rel) {
 			return nil
 		}
 		actual, err := companyAssetPath(root, rel)
@@ -567,6 +596,71 @@ func snapshotCompanyFolder(root, folder string) ([]CompanyFile, error) {
 	}
 	sort.Slice(files, func(i, j int) bool { return files[i].Path < files[j].Path })
 	return files, err
+}
+
+// Explicit administrator action for additions such as timezone.txt. Unlike
+// hash-only refresh, this rebuilds the declared folders' inventory and shows a
+// reviewable diff. Client checks and server startup never invoke it.
+func refreshCompanyInventory(root string, original CompanyProfile) (CompanyProfile, []string, error) {
+	if err := validateCompanyProfile(original); err != nil {
+		return original, nil, err
+	}
+	data, err := json.Marshal(original)
+	if err != nil {
+		return original, nil, err
+	}
+	var updated CompanyProfile
+	if err := json.Unmarshal(data, &updated); err != nil {
+		return original, nil, err
+	}
+	folders := map[string][]CompanyFile{}
+	changes := map[string]bool{}
+	for i, pkg := range updated.Packages {
+		previous := map[string]CompanyFile{}
+		for _, file := range pkg.Files {
+			previous[companyAssetKey(file.Path)] = file
+		}
+		current := map[string]CompanyFile{}
+		for _, folder := range pkg.Folders {
+			key := companyAssetKey(folder)
+			files, seen := folders[key]
+			if !seen {
+				files, err = snapshotCompanyFolder(root, folder)
+				if err != nil {
+					return original, nil, fmt.Errorf("cannot update folder %s: %w", folder, err)
+				}
+				folders[key] = files
+			}
+			for _, file := range files {
+				current[companyAssetKey(file.Path)] = file
+			}
+		}
+		updated.Packages[i].Files = nil
+		for key, file := range current {
+			updated.Packages[i].Files = append(updated.Packages[i].Files, file)
+			old, existed := previous[key]
+			if !existed {
+				changes["+ "+file.Path] = true
+			} else if !strings.EqualFold(old.SHA256, file.SHA256) {
+				changes["~ "+file.Path] = true
+			}
+		}
+		for key, old := range previous {
+			if _, exists := current[key]; !exists {
+				changes["- "+old.Path] = true
+			}
+		}
+		sort.Slice(updated.Packages[i].Files, func(a, b int) bool { return updated.Packages[i].Files[a].Path < updated.Packages[i].Files[b].Path })
+	}
+	if err := validateCompanyProfile(updated); err != nil {
+		return original, nil, err
+	}
+	var list []string
+	for change := range changes {
+		list = append(list, change)
+	}
+	sort.Strings(list)
+	return updated, list, nil
 }
 
 var companyReportTemplate = template.Must(template.New("requirements").Parse(`<!doctype html>

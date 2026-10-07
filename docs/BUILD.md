@@ -40,3 +40,5 @@ The separate **Publish tested release** workflow runs after successful main-bran
 A ZIP supplies this bridge, not OMSI 2, BCS/BBS, openOMSI or game assets. Preserve the included licences/notices. A complete package and passing automated tests do not establish live trip evaluation or vendor authorisation.
 
 The Windows check also creates the native graphical Setup controls and runs the actual metadata probe against SHA-256-pinned official OpenOMSI 0.2.0 and 0.2.11 player/server builds. These checks do not load a map or certify a BCS trip, next-trip button or two-player gameplay.
+
+The dev.2 regression suite covers missing/existing CompanyHost configurations, map situation companions versus real timezone assets, BBS original-backup identity with UTF-8/UTF-16 lists, strict administrator review, inventory additions and duplicate folder reports. Its BBS fixtures are synthetic; a successful check does not establish that every changed Solaris script on a player's installation has a matching recorded original.

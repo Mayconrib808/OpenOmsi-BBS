@@ -9,10 +9,50 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 )
+
+func TestCompanyHostCreatesMissingConfigAndPreservesExistingSettings(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "server.cfg")
+	session, fleet := hostTestSession(), hostTestFleet()
+	profile := CompanyProfile{CompanyName: "Transfort - BR"}
+	civil := time.Date(2026, 10, 7, 13, 18, 20, 0, time.UTC)
+	cfg, created, err := loadCompanyHostConfig(path, profile, session, fleet, civil)
+	if err != nil || !created || cfg.Port != 27015 || cfg.WebPort != 27025 {
+		t.Fatal(cfg, created, err)
+	}
+	for _, line := range []string{"name = Transfort - BR", "map = " + session.MapFile, "date = 2026-10-07", "time = 13:18:20", "real_time = 0", "vehicles = " + strings.Join(fleet, ";"), "admin_password = \n"} {
+		if !strings.Contains(string(cfg.Text), line) {
+			t.Fatal("missing initial setting", line)
+		}
+	}
+	custom := []byte("# owner's settings\r\nport = 27115\r\nweb_port = 27125\r\nmax_players = 10\r\ntunnel = 0\r\n")
+	if err := os.WriteFile(path, custom, 0644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, created, err = loadCompanyHostConfig(path, profile, session, fleet, civil.Add(time.Hour))
+	if err != nil || created || cfg.Port != 27115 || cfg.WebPort != 27125 {
+		t.Fatal(cfg, created, err)
+	}
+	current, _ := os.ReadFile(path)
+	if !bytes.Equal(custom, current) {
+		t.Fatal("overwrote existing user settings")
+	}
+	if err := os.WriteFile(path, []byte("port = invalid\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, created, err := loadCompanyHostConfig(path, profile, session, fleet, civil); err == nil || created {
+		t.Fatal("invalid existing config replaced with defaults")
+	}
+	directory := t.TempDir()
+	if _, created, err := loadCompanyHostConfig(directory, profile, session, fleet, civil); err == nil || created {
+		t.Fatal("a directory/read error treated as a missing configuration")
+	}
+}
 
 func hostTestSession() CompanySession {
 	return CompanySession{ID: "carrao", Name: "Carrão", MapName: "SP_Carrao City", MapFile: "maps/Map Carrao City/global.cfg", Date: "company", RequiredPackages: []string{"map", "bus"}}

@@ -1,3 +1,12 @@
+# 2.0.2-dev.2 — inicialização e conteúdo da empresa
+
+- CompanyHost cria `server.cfg` quando ausente, já com mapa, relógio e frota do perfil. Configurações existentes, incluindo portas e limite de jogadores, são preservadas.
+- A conferência ignora `*.osn.owt` e `*.osn_<x>_<y>.dds` na raiz do mapa, inclusive registros de perfis antigos. O `timezone.txt` real continua sendo verificado; cópias chamadas `timezone.txt.backup.txt` e `Holidays.txt.backup.txt` ficam fora do inventário.
+- Alterações de sessão em `Holidays.txt`, arquivos `.bus`, scripts `.osc` e listas de variáveis podem usar o original do BBS como referência: o caminho precisa constar em `BBS_Backups.txt` e a cópia `.backup` precisa ter exatamente o SHA-256 cadastrado. Arquivos ausentes, backups diferentes e alterações em modelos, pinturas, horários ou fuso continuam bloqueando.
+- Setup 9 → 3 permite revisar inclusões, remoções e hashes do inventário, preservando os dados da empresa e uma cópia do JSON anterior. A revisão do administrador exige os bytes atuais exatos.
+- Relatórios idênticos de uma pasta não se repetem por modelo de ônibus; o assistente também evita cadastrar a mesma pasta de frota novamente na sessão.
+- Testes cobrem a primeira configuração, situações salvas, fuso, alterações com/sem original comprovado, inventários BBS UTF-16 e atualização do perfil. A viagem real com o Solaris permanece pendente de teste no jogo.
+
 # 2.0.2-dev.1 — preparação da 2.0.2
 
 - Seleção de português, inglês e alemão na janela do Setup. A interface muda sem apagar os campos; o idioma é salvo junto com a configuração ao usar Salvar e ativar.

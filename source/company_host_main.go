@@ -119,7 +119,7 @@ func main() {
 	flag.StringVar(&options.Session, "session", "", "Session ID from the company profile")
 	flag.StringVar(&options.Server, "server", "", "Absolute path to the dedicated openomsi.exe")
 	flag.StringVar(&options.Root, "root", "", "Absolute path to the original OMSI 2 folder")
-	flag.StringVar(&options.Config, "config", "", "Existing server.cfg (default: beside the server executable)")
+	flag.StringVar(&options.Config, "config", "", "server.cfg (created if missing; default: beside the server executable)")
 	flag.StringVar(&options.Share, "share", "", "Absolute path for the generated player JSON (default: persistent Companies folder)")
 	flag.BoolVar(&saved, "saved", false, "Reuse the previous successful host paths without prompts")
 	flag.Parse()

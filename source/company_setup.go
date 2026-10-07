@@ -60,11 +60,15 @@ func (u *setupUI) configureCompany(old Config) (Config, error) {
 		importCtx, importCancel := context.WithTimeout(context.Background(), 6*time.Second)
 		c, _, err = enrollCompany(importCtx, u.dir, source, name, c)
 		importCancel()
-		if err != nil { return old, err }
+		if err != nil {
+			return old, err
+		}
 	} else {
 		return old, fmt.Errorf("choose 1 or 2")
 	}
-	if err = saveInstalledConfig(u.dir, c); err != nil { return old, err }
+	if err = saveInstalledConfig(u.dir, c); err != nil {
+		return old, err
+	}
 	u.say("Configuração salva. Inicie a viagem pelo BBS normalmente. Você pode desativar o multiplayer na opção 8.", "Configuration saved. Start the trip normally through BBS. You can disable multiplayer with option 8.", "Einstellung gespeichert. Starte die Fahrt wie gewohnt über BBS. Multiplayer lässt sich mit Option 8 deaktivieren.")
 	return c, nil
 }
@@ -185,6 +189,7 @@ func (u *setupUI) createCompany(c Config) (string, error) {
 		p.Packages = append(p.Packages, mapPackage)
 		session.RequiredPackages = append(session.RequiredPackages, mapPackage.ID)
 		busCount := 0
+		busFolders := map[string]bool{}
 		for {
 			input, err := u.line("Ônibus .bus da frota (caminho completo ou Vehicles/Pasta/Onibus.bus; 0 para terminar)", "Fleet .bus file (full path or Vehicles/Folder/Bus.bus; 0 to finish)", ".bus-Datei der Flotte (vollständiger Pfad oder Vehicles/Ordner/Bus.bus; 0 zum Beenden)", "")
 			if err != nil {
@@ -204,11 +209,16 @@ func (u *setupUI) createCompany(c Config) (string, error) {
 				return "", err
 			}
 			folder := filepath.ToSlash(filepath.Dir(filepath.FromSlash(bus)))
+			if busFolders[companyAssetKey(folder)] {
+				u.say("Essa pasta já está na frota; todos os modelos .bus dela estão incluídos.", "This folder is already in the fleet; all its .bus models are included.", "Dieser Ordner gehört bereits zur Flotte; alle enthaltenen .bus-Modelle sind eingeschlossen.")
+				continue
+			}
 			files, err := snapshotCompanyFolder(c.Root, folder)
 			if err != nil {
 				return "", err
 			}
 			busCount++
+			busFolders[companyAssetKey(folder)] = true
 			pkg := CompanyPackage{ID: fmt.Sprintf("%s-bus-%d", session.ID, busCount), Files: files, Folders: []string{folder}}
 			pkg.Name, err = u.line("Nome do pacote do ônibus", "Bus package name", "Name des Buspakets", filepath.Base(filepath.FromSlash(folder)))
 			if err != nil {
@@ -294,7 +304,7 @@ func (u *setupUI) createCompany(c Config) (string, error) {
 }
 
 func (u *setupUI) manageCompanyProfile(c Config) (string, error) {
-	u.say("\n1 - Criar perfil novo\n2 - Atualizar os hashes do perfil existente\n0 - Voltar", "\n1 - Create a new profile\n2 - Update an existing profile's hashes\n0 - Back", "\n1 - Neues Profil erstellen\n2 - Hashes eines vorhandenen Profils aktualisieren\n0 - Zurück")
+	u.say("\n1 - Criar perfil novo\n2 - Atualizar os hashes do perfil existente\n3 - Atualizar inventário e hashes (adicionar/remover arquivos)\n0 - Voltar", "\n1 - Create a new profile\n2 - Update an existing profile's hashes\n3 - Update inventory and hashes (add/remove files)\n0 - Back", "\n1 - Neues Profil erstellen\n2 - Hashes eines vorhandenen Profils aktualisieren\n3 - Inventar und Hashes aktualisieren (Dateien hinzufügen/entfernen)\n0 - Zurück")
 	mode, err := u.line("Opção", "Option", "Option", "1")
 	if err != nil {
 		return "", err
@@ -304,14 +314,16 @@ func (u *setupUI) manageCompanyProfile(c Config) (string, error) {
 		return u.createCompany(c)
 	case "2":
 		return u.refreshCompanyProfile(c)
+	case "3":
+		return u.refreshCompanyProfile(c, true)
 	case "0":
 		return "", nil
 	default:
-		return "", fmt.Errorf("choose 1, 2 or 0")
+		return "", fmt.Errorf("choose 1, 2, 3 or 0")
 	}
 }
 
-func (u *setupUI) refreshCompanyProfile(c Config) (string, error) {
+func (u *setupUI) refreshCompanyProfile(c Config, inventory ...bool) (string, error) {
 	if !filepath.IsAbs(c.Root) {
 		return "", fmt.Errorf("configure the OMSI 2 folder first (option 1)")
 	}
@@ -343,7 +355,14 @@ func (u *setupUI) refreshCompanyProfile(c Config) (string, error) {
 		return "", err
 	}
 	u.say("Conferindo os arquivos cadastrados; isso pode levar alguns minutos.", "Checking the declared files; this may take a few minutes.", "Registrierte Dateien werden geprüft; dies kann einige Minuten dauern.")
-	updated, changed, err := refreshCompanyHashes(c.Root, profile)
+	var updated CompanyProfile
+	var changed []string
+	if len(inventory) > 0 && inventory[0] {
+		u.say("Revisão do inventário: + adiciona, - remove, ~ atualiza o conteúdo. Nenhum arquivo do jogo será apagado.", "Inventory review: + adds, - removes, ~ updates content. No game files will be deleted.", "Inventarprüfung: + fügt hinzu, - entfernt, ~ aktualisiert Inhalte. Spieldateien werden nicht gelöscht.")
+		updated, changed, err = refreshCompanyInventory(c.Root, profile)
+	} else {
+		updated, changed, err = refreshCompanyHashes(c.Root, profile)
+	}
 	if err != nil {
 		return "", err
 	}
@@ -351,7 +370,7 @@ func (u *setupUI) refreshCompanyProfile(c Config) (string, error) {
 		u.say("O perfil já corresponde aos arquivos instalados. Nada foi alterado.", "The profile already matches the installed files. Nothing changed.", "Das Profil entspricht bereits den installierten Dateien. Keine Änderung.")
 		return source, nil
 	}
-	fmt.Printf("%s: %d\n", localText(u.lang, "Arquivos com conteúdo alterado", "Files with changed content", "Dateien mit geänderten Inhalten"), len(changed))
+	fmt.Printf("%s: %d\n", localText(u.lang, "Alterações propostas no perfil", "Proposed profile changes", "Vorgeschlagene Profiländerungen"), len(changed))
 	for _, path := range changed {
 		fmt.Println(path)
 	}
@@ -365,7 +384,7 @@ func (u *setupUI) refreshCompanyProfile(c Config) (string, error) {
 	for _, pkg := range updated.Packages {
 		all.RequiredPackages = append(all.RequiredPackages, pkg.ID)
 	}
-	if problems := checkCompanyPackages(c.Root, updated, all); len(problems) != 0 {
+	if problems := checkCompanyPackagesWithOriginals(c.Root, updated, all, nil); len(problems) != 0 {
 		return "", fmt.Errorf("assets changed during review; try again with BCS and CompanyHost closed: %s", problems[0].Detail)
 	}
 	backup, err := saveCompanyProfileRefresh(source, before, updated)
