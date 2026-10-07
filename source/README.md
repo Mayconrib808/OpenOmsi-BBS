@@ -18,3 +18,5 @@ Use [scripts/build.py](../scripts/build.py) for explicit build entry points. The
 | `reference/` | Exact openOMSI MIT protocol library and notice |
 
 Original code: [MIT](../LICENSE). Host protocol adaptation retains the [openOMSI notice](reference/OPENOMSI_LICENSE.txt). Preserve [third-party notices](../THIRD_PARTY_NOTICES.md). The bridge updates `Drivers/bbs.odr` and a scoped Registry filter; see [runtime effects](../docs/RUNTIME_EFFECTS.md). Vendor service rules remain separate from these source licences.
+
+Version 2.0.1 adds `setup_gui_windows.go` / `setup_gui_model.go` for the default native Setup, `profile_store.go` for persistent settings, `openomsi_compatibility.go` for bounded executable capability probes, `launch_session.go` for exact duplicate-shift suppression, `session_transition.go` for next-shift event ordering and `company_host_share.go` for verified player-profile exports. See the explicit source lists in `scripts/build.py`.

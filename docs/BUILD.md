@@ -7,7 +7,7 @@ python3 scripts/build.py --check-only
 python3 scripts/build.py
 ```
 
-Windows: `py -3 scripts/build.py` or `source/BUILD.cmd`. On this development branch the default output is `dist/OpenOmsi.+.BBS.2.0.0-dev.5/`, its complete ZIP and a ZIP checksum. Existing outputs are preserved; use `--output NEW_PATH` to build elsewhere. CI names its artifact from `source/version.go`; the release publisher skips development versions.
+Windows: `py -3 scripts/build.py` or `source/BUILD.cmd`. The default output is `dist/OpenOmsi.+.BBS.2.0.1/`, its complete ZIP and a ZIP checksum. Existing outputs are preserved; use `--output NEW_PATH` to build elsewhere. CI names its artifact from `source/version.go`; the release publisher skips development versions.
 
 The script tests the bridge and new host, runs vet, compiles the Windows x86 host first, hashes it, and injects that digest into Setup/launcher. It compiles the bridge, Setup, facade and CompanyHost components and verifies the facade's three BCS RVAs against the writable 4 MiB backing in matching stripped/unstripped builds. It then includes source, config example, tutorial, credits and licences, generates the complete inventory/SHA-256 manifest, and tests package integrity and actual helper staging/removal.
 
@@ -31,6 +31,8 @@ Portable helper tests use inert PE fixtures and a memory Registry. An optional h
 
 The pinned Source checks workflow runs Linux checks and Windows full packaging/native tests. A successful Windows job uploads **OpenOMSI-BCS-Bridge-v<version>**, containing the runtime ZIP and checksum, for 30 days. Its repository-content permissions remain read-only.
 
-The separate **Publish tested release** workflow runs after successful main-branch push checks from this same repository. It downloads that exact CI run’s artifact, verifies the ZIP/internal manifest and the four approved v1.1.3 executable hashes, then uploads the ZIP/checksum as a draft and publishes an experimental prerelease. Its publication job alone has contents-write and actions-read permissions. Pull-request artifacts cannot trigger publication, and an existing version is preserved. A matching file under `docs/releases/` is required for release notes and approved binary hashes. Repository visibility is not changed. The persistent download is on [Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3).
+The separate **Publish tested release** workflow runs after successful main-branch push checks from this same repository. It downloads that exact CI run’s artifact, verifies the ZIP/internal manifest and the five approved executable hashes for the selected release, then uploads the ZIP/checksum as a draft and publishes the versioned release. Its publication job alone has contents-write and actions-read permissions. Pull-request artifacts cannot trigger publication, and an existing version is preserved. A matching file under `docs/releases/` is required for release notes and approved binary hashes. Repository visibility is not changed. The persistent download is on [Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.1).
 
 A ZIP supplies this bridge, not OMSI 2, BCS/BBS, openOMSI or game assets. Preserve the included licences/notices. A complete package and passing automated tests do not establish live trip evaluation or vendor authorisation.
+
+The Windows check also creates the native graphical Setup controls and runs the actual metadata probe against SHA-256-pinned official OpenOMSI 0.2.0 and 0.2.11 player/server builds. These checks do not load a map or certify a BCS trip, next-trip button or two-player gameplay.

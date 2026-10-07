@@ -1,4 +1,4 @@
-# OpenOMSI BCS Bridge v2.0.0-dev.1 - by Mayconrib808
+# OpenOMSI BCS Bridge v2.0.1 - by Mayconrib808
 # Setup.exe creates app/bridge.ini. You do not need to edit this example.
 # Language / Idioma / Sprache: pt, en, de
 language=pt
@@ -17,9 +17,12 @@ bcs_compat=true
 timetable_sync=true
 # Require the BCS-owned startup marker within this wait; never create/delete it.
 bcs_marker_wait_ms=2000
-# Optional development feature. Setup option 8 binds a company profile once.
+# Optional company multiplayer. The graphical Setup imports the profile once.
 # Disabled by default; the existing BBS trip flow remains available.
 multiplayer=false
 company_profile=
 company_id=
 player_name=
+
+# Administrator source retained for automatic refresh; managed profile is cached.
+company_profile_source=

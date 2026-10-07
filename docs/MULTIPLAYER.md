@@ -1,8 +1,8 @@
-# Multiplayer da empresa — 2.0.0-dev.5
+# Multiplayer da empresa — 2.0.1
 
-Esta é a primeira versão de desenvolvimento da integração. A entrada é automática depois de salvar um perfil da empresa no Setup. A sessão precisa estar funcionando em um anfitrião ou servidor openOMSI. A ponte não cria servidores na nuvem e não identifica automaticamente a empresa da conta BBS.
+Esta versão oferece configuração gráfica e perfis persistentes. A entrada é automática depois de salvar um perfil da empresa no Setup. A sessão precisa estar funcionando em um anfitrião ou servidor openOMSI. A ponte não cria servidores na nuvem e não identifica automaticamente a empresa da conta BBS.
 
-Referência de implementação: openOMSI 0.2.0, protocolo 6, código `538ad31b2a2c664cb0726db2547bf6238411eedf`. Os testes automatizados verificam perfis, arquivos, seleção de sessão e sinais de conexão simulados. A viagem BBS com dois jogadores, os ônibus físicos e o embarque entre jogadores continuam pendentes de validação real. O teste de viagem da 1.1.3 não certifica esta versão.
+Referências de implementação: openOMSI 0.2.0 e 0.2.11, protocolo 6. A ponte verifica os recursos do executável e o protocolo do servidor, sem limitar a escolha a um único número de versão. Os testes automatizados verificam perfis, arquivos, seleção de sessão e sinais de conexão simulados. A viagem BBS com dois jogadores, os ônibus físicos e o embarque entre jogadores continuam pendentes de validação real. O teste de viagem da 1.1.3 não certifica esta versão.
 
 ## Relógio da empresa
 
@@ -10,7 +10,7 @@ A **2.0.0-dev.2** adiciona `CompanyHost.exe` para iniciar e manter o servidor no
 
 ## Para o jogador
 
-1. Configure as pastas e a ativação pelo Setup, como na 1.1.3.
+1. Abra `Setup.exe` e selecione a pasta do OMSI 2 e o executável do OpenOMSI.
 2. Com os jogos fechados, escolha **8 — Configurar / desativar multiplayer da empresa**.
 3. Informe o arquivo JSON ou o link HTTPS fornecido pelo administrador e seu nome no multiplayer. Salve uma vez.
 4. Instale o mapa e a frota da sessão nas versões indicadas pelo administrador, na instalação original do OMSI 2.
@@ -20,7 +20,7 @@ Se faltar um ônibus ou seus arquivos forem diferentes, abre uma página local c
 
 Todos precisam ter a frota oferecida pela sessão para enxergar os modelos e as pinturas corretos. Dirigir ônibus diferentes é permitido. Arquivos extras dentro das pastas registradas também são apontados: uma pintura adicional pode mudar o índice de pintura enviado pela rede. A ponte preserva os arquivos e informa a diferença; não remove conteúdo.
 
-Para jogar uma viagem sozinho, desative apenas o multiplayer na opção 8. A ponte BBS continua ativada. O multiplayer vem **desativado por padrão**, inclusive ao carregar uma configuração antiga.
+Para jogar uma viagem sozinho, desmarque o multiplayer no menu gráfico e use **Salvar e ativar**. A opção 8 permanece no assistente `--cli`. A ponte BBS continua ativada. O multiplayer vem **desativado por padrão**, inclusive ao carregar uma configuração antiga.
 
 ## Para o administrador
 
@@ -31,7 +31,7 @@ O perfil deve representar os arquivos usados pela empresa e pelo anfitrião. A o
 3. Informe a versão e a página de download do mapa.
 4. Cadastre os ônibus da frota, versões e links. O assistente registra os arquivos da pasta do ônibus, incluindo scripts, modelos, sons e pinturas.
 5. Adicione as pastas de dependências externas necessárias: Sceneryobjects, Splines, Texture, Fonts etc. O assistente não descobre sozinho todas as dependências dos addons.
-6. Cadastre outras sessões se necessário. Compartilhe o JSON criado em `Companies`, ou hospede esse mesmo JSON em um endereço HTTPS que entregue o conteúdo do arquivo, e compartilhe o link.
+6. Cadastre outras sessões se necessário. Abra CompanyHost e espere **SINCRONIZADO** e **PERFIL PARA OS JOGADORES**. Compartilhe o arquivo `.players.json` exportado, ou hospede esse mesmo JSON em um endereço HTTPS que entregue o conteúdo do arquivo, e compartilhe o link.
 
 Os jogadores configuram esse arquivo/link uma vez. Um perfil remoto é lido novamente a cada viagem, permitindo atualizar endereços e links sem reconfigurar cada cliente. Um JSON compartilhado como arquivo precisa ser reenviado quando mudar. Não altere `company_id`: trocar a identidade exige configurar novamente a empresa no Setup.
 
@@ -97,7 +97,7 @@ Sem outro jogador, é possível testar instalação, Setup, perfil, relatório d
 
 ## English overview
 
-This is a development build of optional company multiplayer, targeting openOMSI 0.2.0 / protocol 6. Setup option 9 → 1 generates administrator-owned JSON profiles, asset-folder inventories, hashes and curated download links. Setup option 8 binds one local file or HTTPS profile URL and a player name once. Starting a BBS trip selects an already hosted compatible session, validates its status and local content, then adds `--lan-join` / `--lan-name`.
+This is version 2.0.1 of optional company multiplayer, checking executable capabilities and protocol 6 instead of one release number. The default graphical Setup saves player/profile settings across updates. The following numbered options remain available through `Setup.exe --cli`. Setup option 9 → 1 generates administrator-owned JSON profiles, asset-folder inventories, hashes and curated download links. Setup option 8 binds one local file or HTTPS profile URL and a player name once. Starting a BBS trip selects an already hosted compatible session, validates its status and local content, then adds `--lan-join` / `--lan-name`.
 
 The profile is a routing configuration, not BBS company-membership authentication. Registered sessions have a fixed map and date, a web-gateway base URL, required package IDs and a 1-300 second clock tolerance. The HTTP status omits the date; the launched game's host-world log must confirm it before BBS readiness is published. Failed or mismatched startup is stopped. Runtime reconnect and BBS evaluation behavior remain unverified.
 

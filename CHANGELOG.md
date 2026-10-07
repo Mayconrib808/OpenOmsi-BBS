@@ -1,3 +1,12 @@
+# 2.0.1 — 2026-10-07
+
+- Menu gráfico nativo para configurar, ativar e coletar logs.
+- Perfil e nome do jogador persistem nas atualizações; o administrador exporta o perfil com o HTTPS verificado da sessão.
+- Compatibilidade baseada em recursos do executável e no protocolo multiplayer, com verificações das versões oficiais 0.2.0 e 0.2.11.
+- Correção de horários operacionais: 01:40 e 25:40 selecionam a mesma partida com offset lógico zero. Nenhum timetable instalado é alterado.
+- Chamadas duplicadas da mesma viagem são ignoradas; transição para outro Schicht ID preserva a avaliação concluída.
+- Tutorial simples e limitações documentadas. Testes reais de 0.2.11, Próxima viagem e dois jogadores continuam necessários; a API atual não permite reproduzir a multa específica por sinal vermelho.
+
 # Changelog
 
 ## 2.0.0-dev.5
