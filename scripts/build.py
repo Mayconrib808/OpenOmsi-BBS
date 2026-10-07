@@ -193,9 +193,14 @@ def main() -> int:
                 setup_source.mkdir()
                 for name in sources:
                     shutil.copy2(SOURCE / name, setup_source / name)
+                # A fixed module path keeps checkout/temp directory names out
+                # of package metadata, making resource-bearing builds repeatable.
+                (setup_source / "go.mod").write_text("module openomsi-bbs/setup\n\ngo 1.23.2\n", encoding="utf-8")
+                setup_env = windows.copy()
+                setup_env["GO111MODULE"] = "on"
                 resources = setup_resources.prepare(setup_source, SOURCE / "resources")
                 run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=" + flags,
-                         "-o", str(target), "."], windows, setup_source)
+                         "-o", str(target), "."], setup_env, setup_source)
                 setup_resources.verify_executable(target, resources)
             else:
                 run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=" + flags, "-o", str(target), *sources], windows)

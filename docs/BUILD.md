@@ -7,7 +7,7 @@ python3 scripts/build.py --check-only
 python3 scripts/build.py
 ```
 
-Windows: `py -3 scripts/build.py` or `source/BUILD.cmd`. The default output is `dist/OpenOmsi.+.BBS.2.0.1/`, its complete ZIP and a ZIP checksum. Existing outputs are preserved; use `--output NEW_PATH` to build elsewhere. CI names its artifact from `source/version.go`; the release publisher skips development versions.
+Windows: `py -3 scripts/build.py` or `source/BUILD.cmd`. The default output is `dist/OpenOmsi.+.BBS.<version>/`, its complete ZIP and a ZIP checksum; the version comes from `source/version.go`. Existing outputs are preserved; use `--output NEW_PATH` to build elsewhere. CI names its artifact from that same version; the release publisher skips development versions.
 
 The script tests the bridge and new host, runs vet, compiles the Windows x86 host first, hashes it, and injects that digest into Setup/launcher. It compiles the bridge, Setup, facade and CompanyHost components and verifies the facade's three BCS RVAs against the writable 4 MiB backing in matching stripped/unstripped builds. It then includes source, config example, tutorial, credits and licences, generates the complete inventory/SHA-256 manifest, and tests package integrity and actual helper staging/removal.
 
@@ -21,7 +21,7 @@ The 2.0 development build has no live-approved executable hash file; its compile
 
 ## Native Windows checks
 
-For the 2.0.2 development Setup, `scripts/setup_resources.py` builds a Windows x86 COFF resource object from `source/resources/setup.ico` and `setup-banner.bmp` using Python's standard library. Setup is compiled from its explicit file list in an isolated directory so Go links that resource object without including the other main programs. The build verifies the actual PE bitmap/icon bytes. No resource compiler, Go dependency or image library is added to the normal build.
+For the 2.0.2 development Setup, `scripts/setup_resources.py` builds a Windows x86 COFF resource object from `source/resources/setup.ico` and `setup-banner.bmp` using Python's standard library. Setup is compiled from its explicit file list in an isolated directory so Go links that resource object without including the other main programs. A generated local module with a fixed import path keeps temporary directory names out of the executable; it has no external dependencies. The build verifies the actual PE bitmap/icon bytes. No resource compiler, Go dependency or image library is added to the normal build.
 
 Windows CI switches the real native controls through Portuguese, English and German, verifies that typed fields survive, checks optional-multiplayer field enablement and loads both window icons and the bitmap. It uploads actual window captures as **Setup-Windows-previews** for visual review. Normal Setup does not take screenshots. Language selection is saved when the user chooses **Salvar e ativar / Save and activate / Speichern / aktivieren**.
 
