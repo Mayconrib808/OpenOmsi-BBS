@@ -34,6 +34,7 @@ type CompanyProfile struct {
 	CompanyName     string           `json:"company_name"`
 	OpenOMSIVersion string           `json:"openomsi_version"`
 	Protocol        int              `json:"protocol"`
+	Clock           *CompanyClock    `json:"clock,omitempty"`
 	Packages        []CompanyPackage `json:"packages"`
 	Sessions        []CompanySession `json:"sessions"`
 }
@@ -130,6 +131,11 @@ func validateCompanyProfile(p CompanyProfile) error {
 	if p.OpenOMSIVersion != multiplayerGameVersion || p.Protocol != multiplayerProtocol {
 		return fmt.Errorf("this development build requires openOMSI %s / protocol %d", multiplayerGameVersion, multiplayerProtocol)
 	}
+	if p.Clock != nil {
+		if err := validateCompanyClock(*p.Clock); err != nil {
+			return err
+		}
+	}
 	if len(p.Packages) == 0 || len(p.Packages) > 100 || len(p.Sessions) == 0 || len(p.Sessions) > 16 {
 		return fmt.Errorf("a profile needs 1-100 packages and 1-16 sessions")
 	}
@@ -184,8 +190,12 @@ func validateCompanyProfile(p CompanyProfile) error {
 		if !validCompanyAsset(session.MapFile) || !strings.HasPrefix(companyAssetKey(session.MapFile), "maps/") || !strings.HasSuffix(companyAssetKey(session.MapFile), "/global.cfg") {
 			return fmt.Errorf("invalid map in %s", session.ID)
 		}
-		if _, err := time.Parse("2006-01-02", session.Date); err != nil {
-			return fmt.Errorf("session %s needs a fixed date (YYYY-MM-DD)", session.ID)
+		if session.Date == "company" {
+			if p.Clock == nil {
+				return fmt.Errorf("session %s needs an explicit company clock", session.ID)
+			}
+		} else if _, err := time.Parse("2006-01-02", session.Date); err != nil {
+			return fmt.Errorf("session %s needs YYYY-MM-DD or company", session.ID)
 		}
 		u, err := companyWebURL(session.ServerURL, false)
 		if err != nil || (u != nil && (u.RawQuery != "" || (u.Path != "" && u.Path != "/"))) {

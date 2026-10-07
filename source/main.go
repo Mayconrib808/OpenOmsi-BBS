@@ -801,6 +801,13 @@ func main() {
 			}
 			return
 		}
+		// Preflight resolves the company calendar before timetable generation and --date.
+		runDate = multiplayer.Trip.Date
+		if multiplayer.Clock != nil {
+			dateSource = "company clock: " + multiplayer.Clock.TimeZone + fmt.Sprintf(" %+d minutes", multiplayer.Clock.ShiftMinutes)
+			appendLog(logPath, "Company date: "+runDate+" ("+dateSource+")\r\n")
+			appendLog(tripPath, "\r\nCompany date: "+runDate+" ("+dateSource+")\r\n")
+		}
 		appendLog(logPath, fmt.Sprintf("Multiplayer company=%s session=%s map=%s date=%s player=%s\r\n", multiplayer.CompanyID, multiplayer.Session.ID, multiplayer.Session.MapFile, multiplayer.Session.Date, multiplayer.PlayerName))
 		appendLog(tripPath, fmt.Sprintf("\r\nMultiplayer: %s / %s\r\n", multiplayer.CompanyName, multiplayer.Session.Name))
 	}

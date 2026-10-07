@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0-dev.2
+
+- Added an explicit company reference timezone and BCS time shift, with portable timezone data and automatic company calendar selection.
+- Added CompanyHost.exe to launch an independently installed OpenOMSI 0.2.0 server with the company clock and maintain it through local administrative clock corrections.
+- Live sessions validate the shared company clock independently of each player's departure. Fixed-date profiles and manual historical choices remain supported.
+- Setup explains/retries invalid company IDs and supports `company` dates with one-time BCS shift configuration.
+- Real multiplayer rendering, boarding and BCS evaluation remain pending user testing.
+
 ## 2.0.0-dev.1 — development
 
 - Optional company profiles loaded from a local JSON file or administrator HTTPS URL.

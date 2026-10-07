@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -43,6 +44,14 @@ func (u *setupUI) configureCompany(old Config) (Config, error) {
 			return old, fmt.Errorf("use a name with 1-32 characters, without control characters or |")
 		}
 		fmt.Printf("\n%s (%s): %d %s\n", p.CompanyName, p.CompanyID, len(p.Sessions), localText(u.lang, "sessão(ões) cadastrada(s)", "registered session(s)", "registrierte Sitzung(en)"))
+		if p.Clock != nil {
+			now, err := companyNow(*p.Clock, time.Now())
+			if err != nil {
+				return old, err
+			}
+			fmt.Printf("%s: %s (%s, %+d min)\n", localText(u.lang, "Relógio da empresa agora", "Company clock now", "Aktuelle Firmenzeit"), now.Format("2006-01-02 15:04:05"), p.Clock.TimeZone, p.Clock.ShiftMinutes)
+			u.say("Confira se esse relógio corresponde ao mostrado no BCS. Sessões com data company acompanham esse relógio automaticamente; uma data manual diferente na bridge impede a entrada.", "Check that this clock matches BCS. Sessions dated company follow this clock automatically; a different manual bridge date prevents joining.", "Prüfe, ob diese Uhr mit BCS übereinstimmt. Sitzungen mit Datum company folgen ihr automatisch; ein anderes manuelles Bridge-Datum verhindert den Beitritt.")
+		}
 		u.say("Ao iniciar uma viagem no BBS, a ponte procurará uma sessão com mapa, data e horário compatíveis. Uma sessão já deve estar hospedada.", "Starting a BBS trip will find a session with a compatible map, date and clock. A session must already be hosted.", "Beim Start einer BBS-Fahrt wird eine Sitzung mit passender Karte, Datum und Uhrzeit gesucht. Sie muss bereits gehostet sein.")
 		if !u.yes("Salvar e ativar multiplayer? [s/N]", "Save and enable multiplayer? [y/N]", "Speichern und Multiplayer aktivieren? [j/N]") {
 			return old, nil
@@ -86,12 +95,15 @@ func (u *setupUI) createCompany(c Config) (string, error) {
 	u.say("\nEste assistente cria o perfil com os links e hashes dos seus arquivos. Ele não inclui nem envia os mods. Cada sessão precisa de um anfitrião ou servidor openOMSI já configurado.", "\nThis wizard creates a profile with links and hashes of your files. It does not include or upload mods. Each session needs an already configured openOMSI host or server.", "\nDer Assistent erstellt ein Profil mit Links und Hashes deiner Dateien. Mods werden weder eingebunden noch hochgeladen. Jede Sitzung benötigt einen eingerichteten openOMSI-Host oder -Server.")
 	p := CompanyProfile{SchemaVersion: 1, OpenOMSIVersion: multiplayerGameVersion, Protocol: multiplayerProtocol}
 	var err error
-	p.CompanyID, err = u.line("Identificador da empresa (letras minúsculas, números, - ou _)", "Company ID (lowercase letters, digits, - or _)", "Firmen-ID (Kleinbuchstaben, Ziffern, - oder _)", "")
-	if err != nil {
-		return "", err
-	}
-	if !companyIDPattern.MatchString(p.CompanyID) {
-		return "", fmt.Errorf("invalid company ID")
+	for {
+		p.CompanyID, err = u.line("Identificador da empresa (ex.: transfort-br; sem espaços)", "Company ID (e.g. transfort-br; no spaces)", "Firmen-ID (z. B. transfort-br; ohne Leerzeichen)", "")
+		if err != nil {
+			return "", err
+		}
+		if companyIDPattern.MatchString(p.CompanyID) {
+			break
+		}
+		u.say("Use de 1 a 64 caracteres: letras minúsculas, números, - ou _. Comece com uma letra ou número. Exemplo: transfort-br. O nome visível será pedido a seguir.", "Use 1-64 characters: lowercase letters, digits, - or _. Start with a letter or digit. Example: transfort-br. The display name is requested next.", "Nutze 1-64 Zeichen: Kleinbuchstaben, Ziffern, - oder _. Beginne mit einem Buchstaben oder einer Ziffer. Beispiel: transfort-br. Der Anzeigename folgt danach.")
 	}
 	p.CompanyName, err = u.line("Nome da empresa", "Company name", "Firmenname", "")
 	if err != nil {
@@ -124,9 +136,35 @@ func (u *setupUI) createCompany(c Config) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		session.Date, err = u.line("Data do mundo da sessão (YYYY-MM-DD)", "Session world date (YYYY-MM-DD)", "Weltdatum der Sitzung (YYYY-MM-DD)", time.Now().Format("2006-01-02"))
-		if err != nil {
-			return "", err
+		for {
+			session.Date, err = u.line("Data do mundo da sessão (YYYY-MM-DD; company para sincronizar com o BCS)", "Session world date (YYYY-MM-DD; company to sync with BCS)", "Weltdatum der Sitzung (YYYY-MM-DD; company für BCS-Synchronisierung)", time.Now().Format("2006-01-02"))
+			if err != nil {
+				return "", err
+			}
+			if strings.EqualFold(session.Date, "company") {
+				session.Date = "company"
+				if p.Clock == nil {
+					for {
+						shift, err := u.line("Mudança de horário da empresa no BCS (horas inteiras, de -24 a 24; ex.: -8)", "Company time shift in BCS (whole hours, -24 to 24; e.g. -8)", "BCS-Zeitverschiebung der Firma (ganze Stunden, -24 bis 24; z. B. -8)", "0")
+						if err != nil {
+							return "", err
+						}
+						hours, parseErr := strconv.Atoi(shift)
+						if parseErr != nil || hours < -24 || hours > 24 {
+							u.say("Digite o número de horas mostrado nas definições da empresa, por exemplo -8. O valor deve ser um número inteiro entre -24 e 24.", "Enter the hours shown in the company settings, for example -8. Use a whole number between -24 and 24.", "Gib die Stunden aus den Firmeneinstellungen ein, zum Beispiel -8. Nutze eine ganze Zahl zwischen -24 und 24.")
+							continue
+						}
+						p.Clock = &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: hours * 60}
+						break
+					}
+				}
+				break
+			}
+			date, parseErr := time.Parse("2006-01-02", session.Date)
+			if parseErr == nil && date.Format("2006-01-02") == session.Date {
+				break
+			}
+			u.say("Use uma data válida como 2026-10-06, ou company para acompanhar a data e o horário da empresa automaticamente.", "Use a valid date such as 2026-10-06, or company to follow the company's date and time automatically.", "Nutze ein gültiges Datum wie 2026-10-06 oder company für das automatische Firmendatum und die Firmenzeit.")
 		}
 		session.ServerURL, err = u.line("Endereço HTTP(S) do servidor (porta web, sem /status)", "Server HTTP(S) address (web port, without /status)", "HTTP(S)-Serveradresse (Web-Port, ohne /status)", "")
 		if err != nil {
@@ -251,6 +289,9 @@ func (u *setupUI) createCompany(c Config) (string, error) {
 		return "", err
 	}
 	u.say("Perfil criado. Compartilhe este JSON, ou hospede o JSON em um endereço HTTPS e compartilhe o link. Os jogadores configuram esse arquivo/link uma vez na opção 8. Para alterar links e sessões depois, edite o perfil; para arquivos novos, gere os hashes novamente.", "Profile created. Share this JSON, or host the JSON at an HTTPS address and share its link. Players configure that file/link once with option 8. Edit the profile to change links or sessions; generate hashes again when assets change.", "Profil erstellt. Teile die JSON-Datei oder hoste sie unter einer HTTPS-Adresse und teile den Link. Spieler richten Datei/Link einmal mit Option 8 ein. Links und Sitzungen lassen sich im Profil bearbeiten; bei geänderten Dateien müssen die Hashes neu erzeugt werden.")
+	if p.Clock != nil {
+		u.say("Para sincronizar o servidor com esse relógio, o anfitrião deve iniciar CompanyHost.exe com este perfil. Confira primeiro se a hora calculada corresponde ao BCS.", "To synchronize the server to this clock, the host must start CompanyHost.exe with this profile. First check that the calculated clock matches BCS.", "Für die Serversynchronisierung muss der Gastgeber CompanyHost.exe mit diesem Profil starten. Prüfe zuerst, ob die berechnete Zeit mit BCS übereinstimmt.")
+	}
 	fmt.Println(path)
 	return path, nil
 }

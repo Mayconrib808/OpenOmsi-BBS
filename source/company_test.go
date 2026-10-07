@@ -266,6 +266,9 @@ func TestCompanyOwnerWizardWritesReusableProfileWithoutMods(t *testing.T) {
 	if err != nil || p.CompanyID != "my-company" || len(p.Packages) != 2 || p.Packages[1].DownloadURL != "https://example.invalid/bus" {
 		t.Fatal(p, err)
 	}
+	if p.Clock != nil || p.Sessions[0].Date != "2026-10-06" {
+		t.Fatal("fixed-date wizard flow unexpectedly enabled the company clock", p)
+	}
 	if got := checkCompanyPackages(c.Root, p, p.Sessions[0]); len(got) != 0 {
 		t.Fatal(got)
 	}
@@ -275,5 +278,37 @@ func TestCompanyOwnerWizardWritesReusableProfileWithoutMods(t *testing.T) {
 	entries, _ := os.ReadDir(filepath.Dir(path))
 	if len(entries) != 1 {
 		t.Fatal("wizard wrote mod files")
+	}
+}
+
+func TestCompanyOwnerWizardRetriesInvalidInputAndReusesCompanyClock(t *testing.T) {
+	c, _, _, dir := companyFixture(t)
+	input := strings.Join([]string{
+		"Transfort - BR", "transfort-br", "Transfort - BR",
+		"Manhã", "maps/Sample/global.cfg", "Sample", "2026-02-30", "company",
+		"-25", "texto", "-8", "http://127.0.0.1:27025",
+		"1.0", "", "Vehicles/A/a.bus", "Apache", "1.2", "", "0", "0", "s",
+		"Noite", "maps/Sample/global.cfg", "Sample", "company", "http://127.0.0.1:27026",
+		"1.0", "", "Vehicles/B/b.bus", "Outro ônibus", "1.0", "", "0", "0", "n", "",
+	}, "\n")
+	u := setupUI{bufio.NewScanner(strings.NewReader(input)), "pt", dir}
+	path, err := u.createCompany(c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p, err := loadCompanyProfile(context.Background(), path, dir, companyHTTPClient())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.CompanyID != "transfort-br" || p.CompanyName != "Transfort - BR" || p.Clock == nil || p.Clock.TimeZone != "Europe/Berlin" || p.Clock.ShiftMinutes != -480 {
+		t.Fatal("wizard lost the display name or the configured BCS shift", p)
+	}
+	if len(p.Sessions) != 2 || p.Sessions[0].Date != "company" || p.Sessions[1].Date != "company" || p.Sessions[1].ServerURL != "http://127.0.0.1:27026" {
+		t.Fatal("company clock was not reused for the next session", p.Sessions)
+	}
+	for _, session := range p.Sessions {
+		if got := checkCompanyPackages(c.Root, p, session); len(got) != 0 {
+			t.Fatal(got)
+		}
 	}
 }

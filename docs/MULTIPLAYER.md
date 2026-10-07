@@ -1,8 +1,12 @@
-# Multiplayer da empresa — 2.0.0-dev.1
+# Multiplayer da empresa — 2.0.0-dev.2
 
 Esta é a primeira versão de desenvolvimento da integração. A entrada é automática depois de salvar um perfil da empresa no Setup. A sessão precisa estar funcionando em um anfitrião ou servidor openOMSI. A ponte não cria servidores na nuvem e não identifica automaticamente a empresa da conta BBS.
 
 Referência de implementação: openOMSI 0.2.0, protocolo 6, código `538ad31b2a2c664cb0726db2547bf6238411eedf`. Os testes automatizados verificam perfis, arquivos, seleção de sessão e sinais de conexão simulados. A viagem BBS com dois jogadores, os ônibus físicos e o embarque entre jogadores continuam pendentes de validação real. O teste de viagem da 1.1.3 não certifica esta versão.
+
+## Relógio da empresa
+
+A **2.0.0-dev.2** adiciona `CompanyHost.exe` para iniciar e manter o servidor no relógio da empresa. No assistente, use data **company** e informe a mudança de horário configurada no BCS. Consulte [o guia do relógio automático](COMPANY_CLOCK.md). Perfis com data fixa permanecem compatíveis.
 
 ## Para o jogador
 
@@ -61,7 +65,7 @@ O servidor dedicado pertence ao openOMSI, instalado separadamente. Consulte sua 
 
 ## Data e relógio
 
-Cada sessão declara uma data fixa `YYYY-MM-DD`. Na ponte, a data automática ainda é a data local do Windows, como na 1.1.3; se escolher outro dia no calendário do BBS, configure `date=YYYY-MM-DD` em `app/bridge.ini`.
+Cada sessão declara uma data fixa `YYYY-MM-DD` ou `company` para o calendário automático definido em `clock`. Com `date=auto`, perfis com relógio usam a data da empresa; sem relógio explícito, o comportamento anterior usa o Windows. Uma data manual no calendário do BBS exige `date=YYYY-MM-DD` em `app/bridge.ini`; não é deduzida apenas do horário de partida.
 
 `clock_tolerance_seconds` aceita 1 a 300 segundos; o assistente usa 180. Uma sessão às 09:20 pode receber uma partida próxima desse horário. Uma viagem às 18h não entra nela. A ponte não muda o relógio de uma sala ocupada, não troca a viagem escolhida no BBS e não escolhe outro mapa para conseguir conectar.
 

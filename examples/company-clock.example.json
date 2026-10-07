@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "company_id": "example-company",
+  "company_name": "Empresa Exemplo — substitua os dados",
+  "openomsi_version": "0.2.0",
+  "protocol": 6,
+  "packages": [
+    {
+      "id": "map",
+      "name": "Mapa Exemplo",
+      "version": "1.0",
+      "download_url": "https://replace.invalid/map-download-page",
+      "folders": [
+        "maps/Example"
+      ],
+      "files": [
+        {
+          "path": "maps/Example/global.cfg",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    },
+    {
+      "id": "bus",
+      "name": "Ônibus Exemplo e pinturas",
+      "version": "1.0",
+      "download_url": "https://replace.invalid/bus-download-page",
+      "folders": [
+        "Vehicles/Example"
+      ],
+      "files": [
+        {
+          "path": "Vehicles/Example/Example.bus",
+          "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+        }
+      ]
+    }
+  ],
+  "sessions": [
+    {
+      "id": "morning",
+      "name": "Turno da manhã",
+      "map_name": "Example",
+      "map_file": "maps/Example/global.cfg",
+      "date": "company",
+      "server_url": "https://replace.invalid",
+      "required_packages": [
+        "map",
+        "bus"
+      ],
+      "clock_tolerance_seconds": 180
+    }
+  ],
+  "clock": {
+    "timezone": "Europe/Berlin",
+    "shift_minutes": -480
+  }
+}

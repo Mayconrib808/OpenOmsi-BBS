@@ -21,6 +21,7 @@ type MultiplayerPlan struct {
 	Session                            CompanySession
 	Trip                               MultiplayerTrip
 	Fleet                              map[string]bool
+	Clock                              *CompanyClock
 }
 
 type companyServerStatus struct {
@@ -84,6 +85,10 @@ func readCompanyServer(ctx context.Context, client *http.Client, session Company
 }
 
 func validateCompanyServer(status companyServerStatus, session CompanySession, trip MultiplayerTrip) error {
+	return validateCompanyServerAt(status, session, trip, nil, time.Now())
+}
+
+func validateCompanyServerAt(status companyServerStatus, session CompanySession, trip MultiplayerTrip, clock *CompanyClock, now time.Time) error {
 	version := strings.Fields(status.Version)
 	if len(version) == 0 || version[0] != multiplayerGameVersion || status.Protocol != multiplayerProtocol {
 		return fmt.Errorf("openOMSI/protocol incompatible: %s / %d; expected %s / %d", status.Version, status.Protocol, multiplayerGameVersion, multiplayerProtocol)
@@ -101,12 +106,26 @@ func validateCompanyServer(status companyServerStatus, session CompanySession, t
 	if err != nil {
 		return err
 	}
-	startTime, err := multiplayerClock(trip.Start)
+	expected := trip.Start
+	if clock != nil {
+		civil, e := companyNow(*clock, now)
+		if e != nil {
+			return e
+		}
+		expected = civil.Format("15:04:05")
+	}
+	startTime, err := multiplayerClock(expected)
 	if err != nil {
 		return err
 	}
-	if math.Abs(serverTime-startTime) > float64(session.ClockToleranceSec) {
-		return fmt.Errorf("horário incompatível / incompatible clock: sessão %s, BBS %s (limite %d s)", status.Time, trip.Start, session.ClockToleranceSec)
+	gap := math.Abs(serverTime - startTime)
+	// /status has no date; circular comparison only preflights a live clock.
+	// The joined-world date is verified separately before BBS readiness.
+	if clock != nil && gap > 43200 {
+		gap = 86400 - gap
+	}
+	if gap > float64(session.ClockToleranceSec) {
+		return fmt.Errorf("horário incompatível / incompatible clock: sessão %s, referência %s (limite %d s)", status.Time, expected, session.ClockToleranceSec)
 	}
 	buses, err := companyVehicleList(status.Vehicles)
 	if err != nil {
@@ -159,8 +178,12 @@ func validateCompanyFleet(status companyServerStatus, covered map[string]bool) e
 }
 
 // Pick among explicitly registered company sessions, in profile order. No BBS
-// credentials, company-membership API, world-clock mutation or server creation.
+// credentials, company-membership API, client-driven world-clock mutation or server creation.
 func prepareMultiplayer(ctx context.Context, c Config, runtimeDir string, trip MultiplayerTrip, client *http.Client) (*MultiplayerPlan, []CompanyProblem, error) {
+	return prepareMultiplayerAt(ctx, c, runtimeDir, trip, client, time.Now())
+}
+
+func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip MultiplayerTrip, client *http.Client, now time.Time) (*MultiplayerPlan, []CompanyProblem, error) {
 	if !c.Multiplayer {
 		return nil, nil, nil
 	}
@@ -174,6 +197,13 @@ func prepareMultiplayer(ctx context.Context, c Config, runtimeDir string, trip M
 	if p.CompanyID != c.CompanyID {
 		return nil, nil, fmt.Errorf("the company profile identity changed; configure the company again in Setup option 8")
 	}
+	if p.Clock != nil && automaticBridgeDate(c.Date) {
+		civil, e := companyNow(*p.Clock, now)
+		if e != nil {
+			return nil, nil, e
+		}
+		trip.Date = civil.Format("2006-01-02")
+	}
 	if _, err = time.Parse("2006-01-02", trip.Date); err != nil {
 		return nil, nil, fmt.Errorf("BBS trip date is not known; configure date=YYYY-MM-DD")
 	}
@@ -186,7 +216,15 @@ func prepareMultiplayer(ctx context.Context, c Config, runtimeDir string, trip M
 		if trip.MapFile != "" {
 			matches = companyAssetKey(session.MapFile) == companyAssetKey(trip.MapFile)
 		}
-		if matches && session.Date == trip.Date {
+		date := session.Date
+		if date == "company" {
+			civil, e := companyNow(*p.Clock, now)
+			if e != nil {
+				return nil, nil, e
+			}
+			date = civil.Format("2006-01-02")
+		}
+		if matches && date == trip.Date {
 			candidates = append(candidates, session)
 		}
 	}
@@ -215,7 +253,11 @@ func prepareMultiplayer(ctx context.Context, c Config, runtimeDir string, trip M
 			defer func() { <-sem }()
 			answers[i].status, answers[i].err = readCompanyServer(ctx, client, session)
 			if answers[i].err == nil {
-				answers[i].err = validateCompanyServer(answers[i].status, session, trip)
+				var clock *CompanyClock
+				if session.Date == "company" {
+					clock = p.Clock
+				}
+				answers[i].err = validateCompanyServerAt(answers[i].status, session, trip, clock, now)
 			}
 		}(i, session)
 	}
@@ -252,7 +294,11 @@ func prepareMultiplayer(ctx context.Context, c Config, runtimeDir string, trip M
 			unavailable = append(unavailable, CompanyProblem{session.Name, "O ônibus escolhido no BBS não está coberto pelos pacotes da sessão. / The BBS bus must be included in the session's hashed packages: " + trip.BusFile, ""})
 			continue
 		}
-		return &MultiplayerPlan{CompanyID: p.CompanyID, CompanyName: p.CompanyName, PlayerName: c.PlayerName, Session: session, Trip: trip, Fleet: fleet}, nil, nil
+		var clock *CompanyClock
+		if session.Date == "company" {
+			clock = p.Clock
+		}
+		return &MultiplayerPlan{CompanyID: p.CompanyID, CompanyName: p.CompanyName, PlayerName: c.PlayerName, Session: session, Trip: trip, Fleet: fleet, Clock: clock}, nil, nil
 	}
 	if len(requirements) != 0 {
 		return nil, append(requirements, unavailable...), nil
@@ -264,11 +310,20 @@ func recheckMultiplayer(ctx context.Context, plan *MultiplayerPlan, client *http
 	if plan == nil {
 		return nil
 	}
+	if plan.Clock != nil {
+		civil, err := companyNow(*plan.Clock, time.Now())
+		if err != nil {
+			return err
+		}
+		if civil.Format("2006-01-02") != plan.Trip.Date {
+			return fmt.Errorf("company day changed during launch; start the BBS trip again")
+		}
+	}
 	status, err := readCompanyServer(ctx, client, plan.Session)
 	if err != nil {
 		return err
 	}
-	if err = validateCompanyServer(status, plan.Session, plan.Trip); err != nil {
+	if err = validateCompanyServerAt(status, plan.Session, plan.Trip, plan.Clock, time.Now()); err != nil {
 		return err
 	}
 	return validateCompanyFleet(status, plan.Fleet)
@@ -300,6 +355,10 @@ var multiplayerWorldLine = regexp.MustCompile(`LAN: taking the host's world: (\d
 // from this launch's log before publishing the BBS-ready flag. A successful
 // /status response alone does not prove that openOMSI connected.
 func checkMultiplayerLog(text string, plan *MultiplayerPlan) (bool, error) {
+	return checkMultiplayerLogAt(text, plan, time.Now())
+}
+
+func checkMultiplayerLogAt(text string, plan *MultiplayerPlan, now time.Time) (bool, error) {
 	for _, failure := range []string{"LAN: cannot join", "LAN: cannot reach", "LAN: turned away:", "LAN: disconnected from the server:", "LAN: the session is on the host's map"} {
 		if at := strings.Index(text, failure); at >= 0 {
 			line := strings.SplitN(text[at:], "\n", 2)[0]
@@ -309,6 +368,26 @@ func checkMultiplayerLog(text string, plan *MultiplayerPlan) (bool, error) {
 	m := multiplayerWorldLine.FindStringSubmatch(text)
 	if len(m) == 0 {
 		return false, nil
+	}
+	if plan.Clock != nil {
+		if m[1] != plan.Trip.Date {
+			return false, fmt.Errorf("host date %s differs from BBS trip date %s; start the BBS trip again if the company day changed", m[1], plan.Trip.Date)
+		}
+		joined, e := time.Parse("2006-01-02 15:04:05", m[1]+" "+m[2])
+		if e != nil {
+			return false, e
+		}
+		expected, e := companyNow(*plan.Clock, now)
+		if e != nil {
+			return false, e
+		}
+		if expected.Format("2006-01-02") != plan.Trip.Date {
+			return false, fmt.Errorf("company day changed during launch; start the BBS trip again")
+		}
+		if math.Abs(joined.Sub(expected).Seconds()) > float64(plan.Session.ClockToleranceSec) {
+			return false, fmt.Errorf("host world %s differs from company clock %s", joined.Format("2006-01-02 15:04:05"), expected.Format("2006-01-02 15:04:05"))
+		}
+		return true, nil
 	}
 	if m[1] != plan.Trip.Date {
 		return false, fmt.Errorf("host date %s differs from BBS trip date %s", m[1], plan.Trip.Date)

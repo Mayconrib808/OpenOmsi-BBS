@@ -1,7 +1,8 @@
 # openOMSI BBS Bridge
 
-> **2.0.0-dev.1 development branch:** company profiles, administrator-provided addon links and automatic joining of already hosted sessions. Setup options 8 and 9 configure it. Multiplayer is off by default; two-player rendering, boarding and live BBS evaluation are pending. See [the multiplayer guide](docs/MULTIPLAYER.md). The published 1.1.3 remains available below.
+> **2.0.0-dev.2 development branch:** company profiles, administrator-provided addon links and automatic joining of already hosted sessions. Setup options 8 and 9 configure it. Multiplayer is off by default; two-player rendering, boarding and live BBS evaluation are pending. See [the multiplayer guide](docs/MULTIPLAYER.md). The published 1.1.3 remains available below.
 
+> Company clock / Relógio da empresa: [automatic host and calendar setup](docs/COMPANY_CLOCK.md).
 An experimental, unofficial bridge between **openOMSI** and **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)**, maintained by **Mayconrib808**.
 
 [Português do Brasil](README.pt-BR.md) · [Download v1.1.3](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3) · [Installation](docs/INSTALL.md) · [Build](docs/BUILD.md) · [Credits](CREDITS.md)
@@ -37,7 +38,7 @@ python3 scripts/build.py --check-only
 python3 scripts/build.py
 ```
 
-On Windows use `py -3 scripts/build.py` or `source/BUILD.cmd`. The complete folder, ZIP and checksum are produced in `dist/`. End users need neither Go nor Python. Tests, vet, four Windows builds, facade layout and package integrity are checked. Windows native DLL tests also require Visual Studio C++ x86 tools for developers only.
+On Windows use `py -3 scripts/build.py` or `source/BUILD.cmd`. The complete folder, ZIP and checksum are produced in `dist/`. End users need neither Go nor Python. Tests, vet, five Windows builds, facade layout and package integrity are checked. Windows native DLL tests also require Visual Studio C++ x86 tools for developers only.
 
 [GitHub Actions](https://github.com/Mayconrib808/OpenOmsi-BBS/actions) runs Linux and Windows checks and attaches the complete ZIP/checksum to each successful Windows run as **OpenOMSI-BCS-Bridge-v1.1.3**. A separate publication workflow accepts only successful main-branch push runs, verifies that all four executable hashes match the live-tested package and publishes the complete ZIP/checksum as an **experimental prerelease**. Existing releases are preserved. Repository visibility/authentication still apply; publication does not make a private repository public.
 

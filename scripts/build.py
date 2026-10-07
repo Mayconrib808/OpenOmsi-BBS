@@ -22,21 +22,24 @@ PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
     "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
-    "paths.go version.go company.go multiplayer.go setup_ui.go company_setup.go"
+    "paths.go version.go company.go company_clock.go company_host.go multiplayer.go setup_ui.go company_setup.go"
 ).split()
 TEST_FILES = (
     "driver_test.go session_test.go setup_test.go diagnostics_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go "
-    "launch_checks_test.go company_test.go multiplayer_test.go"
+    "launch_checks_test.go company_test.go company_clock_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go"
 ).split()
 PROGRAMS = {
+    "CompanyHost.exe": (
+        "company_host_main.go company_host.go company_host_process_windows.go company.go company_clock.go version.go"
+    ).split(),
     "Setup.exe": (
         "setup_main.go setup_files.go diagnostics.go setup_windows.go "
-        "config.go plugin_host.go registry.go paths.go version.go company.go setup_ui.go company_setup.go"
+        "config.go plugin_host.go registry.go paths.go version.go company.go company_clock.go setup_ui.go company_setup.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
         "main.go timetable.go diagnostics.go launch_checks.go driver.go session.go "
-        "config.go plugin_host.go paths.go version.go process_windows.go company.go multiplayer.go"
+        "config.go plugin_host.go paths.go version.go process_windows.go company.go company_clock.go multiplayer.go"
     ).split(),
     "app/compat/Omsi.exe": (
         "compat.go facade_memory.go driver.go version.go"
@@ -92,7 +95,7 @@ def assemble(stage: Path, host_hash: str) -> None:
     (stage / "docs/BUILD-INFO.txt").write_text(
         f"OpenOMSI BCS Bridge v{VERSION} - by Mayconrib808\n"
         f"Toolchain: {REFERENCE_GO}; GOOS=windows; GOARCH=386; GO386=sse2; CGO_ENABLED=0\n"
-        "All four executables are built from the source included in this package.\n"
+        "All five executables are built from the source included in this package.\n"
         f"Plugin host SHA-256: {host_hash}\n"
         "The historical host with unresolved provenance is not bundled.\n"
         "Expected integration: openOMSI 0.2.0 Windows x64 + BCS/BBS 5.0.0.1.\n"
@@ -153,7 +156,10 @@ def main() -> int:
     )):
         parser.error("The output directory/ZIP/checksum already exists; choose a new --output path.")
     platform_file = "process_windows.go" if os.name == "nt" else "process_teststub_test.go"
-    test_sources = [*TEST_COMMON, platform_file, *TEST_FILES]
+    host_platform_file = "company_host_process_windows.go" if os.name == "nt" else "company_host_process_other.go"
+    test_sources = [*TEST_COMMON, platform_file, host_platform_file, *TEST_FILES]
+    if os.name == "nt":
+        test_sources.append("company_host_process_windows_test.go")
     run(go, ["test", "-v", *test_sources], native)
     run(go, ["vet", *test_sources], native)
     run(go, ["test", "-v", "./pluginhost"], native)
@@ -174,7 +180,7 @@ def main() -> int:
         for rel, sources in PROGRAMS.items():
             target = stage / rel
             target.parent.mkdir(parents=True, exist_ok=True)
-            flags = "-s -w" + (" -H=windowsgui" if rel != "Setup.exe" else "")
+            flags = "-s -w" + (" -H=windowsgui" if rel not in ("Setup.exe", "CompanyHost.exe") else "")
             if "plugin_host.go" in sources:
                 flags += " " + digest_flag
             run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=" + flags, "-o", str(target), *sources], windows)
@@ -185,6 +191,9 @@ def main() -> int:
         run(go, ["run", "tools/release_tools.go", "layout", str(stage / "app/compat/Omsi.exe"), str(symbols)], native)
         if os.name == "nt":
             subprocess.run([sys.executable, str(ROOT / "scripts/test_pluginhost_windows.py"), str(host)], check=True, timeout=180)
+            # Exercise the 32-bit Job Object layout used by CompanyHost.exe,
+            # as well as the runner-native layout in the normal test suite.
+            run(go, ["test", "-v", "company_host_process_windows.go", "company_host_process_windows_test.go"], windows)
         else:
             print("Native DLL/message-pump checks run on the Windows CI job, not on this host.")
         assemble(stage, host_hash)
@@ -198,7 +207,7 @@ def main() -> int:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(stage, args.output)
             archive_package(args.output)
-    print("Bridge/host tests, vet, all four Windows builds, facade layout and full-package integrity passed.")
+    print("Bridge/host tests, vet, all five Windows builds, facade layout and full-package integrity passed.")
     print("Live BCS panel, UAC and game-trip evaluation require the separately installed products.")
     return 0
 
