@@ -89,8 +89,7 @@ func validateCompanyServer(status companyServerStatus, session CompanySession, t
 }
 
 func validateCompanyServerAt(status companyServerStatus, session CompanySession, trip MultiplayerTrip, clock *CompanyClock, now time.Time) error {
-	version := strings.Fields(status.Version)
-	if len(version) == 0 || version[0] != multiplayerGameVersion || status.Protocol != multiplayerProtocol {
+	if !compatibleCompanyServer(status.Version, status.Protocol) {
 		return fmt.Errorf("openOMSI/protocol incompatible: %s / %d; expected %s / %d", status.Version, status.Protocol, multiplayerGameVersion, multiplayerProtocol)
 	}
 	if !companyText(status.Name, 120) || companyAssetKey(status.Map) != companyAssetKey(session.MapFile) {

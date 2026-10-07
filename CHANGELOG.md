@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.0-dev.3
+
+- Fixed official OpenOMSI 0.2.0 server rejection: its HTTP status reports workspace version 0.1.0. Both the host supervisor and joining bridge now recognize the exact pinned 538ad31 release build with protocol 6.
+- Unknown legacy builds, other protocols and OpenOMSI 0.2.9 remain unsupported. Diagnostics now include the actual reported version/protocol.
+
 ## 2.0.0-dev.2
 
 - Added an explicit company reference timezone and BCS time shift, with portable timezone data and automatic company calendar selection.

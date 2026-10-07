@@ -198,9 +198,8 @@ func companyHostClock(s string) (float64, error) {
 }
 
 func validateCompanyHostStatus(status companyHostStatus, session CompanySession, fleet []string) error {
-	version := strings.Fields(status.Version)
-	if len(version) == 0 || version[0] != multiplayerGameVersion || status.Protocol != multiplayerProtocol {
-		return fmt.Errorf("local server requires openOMSI %s / protocol %d", multiplayerGameVersion, multiplayerProtocol)
+	if !compatibleCompanyServer(status.Version, status.Protocol) {
+		return fmt.Errorf("local server reported %q / protocol %d; requires openOMSI %s / protocol %d", status.Version, status.Protocol, multiplayerGameVersion, multiplayerProtocol)
 	}
 	if !companyText(status.Name, 120) || companyAssetKey(status.Map) != companyAssetKey(session.MapFile) {
 		return fmt.Errorf("local server map does not match the selected company session")

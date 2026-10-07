@@ -312,3 +312,28 @@ func TestCompanyOwnerWizardRetriesInvalidInputAndReusesCompanyClock(t *testing.T
 		}
 	}
 }
+
+func TestOfficialV020HTTPVersionUsesPinnedBuildIdentity(t *testing.T) {
+	for _, version := range []string{"0.2.0", "0.2.0 (test-build)", "0.1.0 (538ad31 2026-10-05 23:39)", "0.1.0 (538ad31)", "0.1.0 (538ad31b2a2c664cb0726db2547bf6238411eedf)"} {
+		if !compatibleCompanyServer(version, 6) {
+			t.Errorf("official release rejected: %s", version)
+		}
+		if compatibleCompanyServer(version, 7) {
+			t.Errorf("wrong protocol accepted: %s", version)
+		}
+	}
+	for _, version := range []string{"", "0.1.0", "0.1.0 (unknown)", "0.1.0 (538ad31bad)", "0.2.9", "0.1.0 (538ad31) extra"} {
+		if compatibleCompanyServer(version, 6) {
+			t.Errorf("unverified release accepted: %s", version)
+		}
+	}
+	_, profile, trip, _ := companyFixture(t)
+	status := companyHostStatus{Name: "Official server", Map: trip.MapFile, Version: "0.1.0 (538ad31 2026-10-05 23:39)", Protocol: 6, Time: trip.Start, MaxPlayers: 16, Vehicles: []byte(`"Vehicles/A/a.bus;Vehicles/B/b.bus"`)}
+	if err := validateCompanyHostStatus(status, profile.Sessions[0], []string{"Vehicles/A/a.bus", "Vehicles/B/b.bus"}); err != nil {
+		t.Fatal(err)
+	}
+	joined := companyServerStatus{Name: status.Name, Map: status.Map, Version: status.Version, Protocol: status.Protocol, Time: status.Time, MaxPlayers: status.MaxPlayers, Vehicles: status.Vehicles}
+	if err := validateCompanyServer(joined, profile.Sessions[0], trip); err != nil {
+		t.Fatal(err)
+	}
+}

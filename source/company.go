@@ -534,3 +534,16 @@ func writeCompanyReport(runtimeDir, lang, company string, problems []CompanyProb
 	}
 	return path, nil
 }
+
+// The official 0.2.0 server reports the unchanged workspace crate version
+// (0.1.0) through /status. Recognize only its pinned release build, never all
+// 0.1.0 servers. The network protocol must still match.
+var companyV020StatusBuild = regexp.MustCompile(`^0\.1\.0 \((?:538ad31|538ad31b2a2c664cb0726db2547bf6238411eedf)(?: [^()\r\n]+)?\)$`)
+
+func compatibleCompanyServer(version string, protocol int) bool {
+	if protocol != multiplayerProtocol {
+		return false
+	}
+	parts := strings.Fields(version)
+	return (len(parts) > 0 && parts[0] == multiplayerGameVersion) || companyV020StatusBuild.MatchString(strings.TrimSpace(version))
+}
