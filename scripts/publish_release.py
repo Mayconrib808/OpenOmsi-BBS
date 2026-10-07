@@ -137,6 +137,12 @@ def main() -> None:
     for release in existing:
         if release["tag_name"] == tag:
             finish_asset_rename(repo, release, args.artifact_dir)
+            # Documentation-only pushes may clarify an existing release. Update
+            # its notes while retaining the tested ZIP, checksum and tag target.
+            if release["body"] != notes.read_text(encoding="utf-8"):
+                gh("release", "edit", tag, "--repo", repo,
+                   "--notes-file", str(notes))
+                print("Release notes updated; existing tag and assets preserved.")
             print(f"Release already exists; existing assets preserved: {release['html_url']}")
             return
     args.artifact_dir.mkdir(parents=True, exist_ok=False)

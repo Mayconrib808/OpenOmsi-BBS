@@ -9,7 +9,7 @@ Você precisa de **OMSI 2, BCS/BBS e OpenOMSI para Windows** instalados, além d
 1. Feche o BCS, o OpenOMSI e o CompanyHost, se estiver aberto nesse computador.
 2. Extraia **todo o ZIP OpenOmsi + BBS 2.0.1** e abra **Setup.exe**.
 3. Em **Pasta do OMSI 2**, escolha a pasta que contém o `Omsi.exe` original. Em **Executável do OpenOMSI**, escolha o `openomsi.exe` do seu OpenOMSI.
-4. Marque **Ativar multiplayer da empresa**. Em **Perfil da empresa (arquivo JSON ou link HTTPS)**, selecione o arquivo ou cole o link recebido. Digite **Seu nome no multiplayer**.
+4. O multiplayer é opcional. Para jogar sem ele, deixe **Ativar multiplayer da empresa** desmarcado; perfil e nome podem ficar vazios. Para entrar na empresa, marque a caixa, selecione o perfil ou cole o link recebido e digite **Seu nome no multiplayer**.
 5. Clique em **Salvar e ativar** e aceite a permissão do Windows. O Setup guarda os caminhos, seu nome e uma cópia do perfil.
 6. No BCS, em **Definições → Definições avançadas → OMSI**, deixe **Iniciar o OMSI mais depressa** desmarcado. No OpenOMSI, desative a sincronização com o relógio real.
 
@@ -17,9 +17,9 @@ Você precisa de **OMSI 2, BCS/BBS e OpenOMSI para Windows** instalados, além d
 
 ## Jogar
 
-1. Aguarde o administrador avisar que o servidor está pronto.
+1. Se ativou multiplayer, aguarde o administrador avisar que o servidor está pronto. Sem multiplayer, não é necessário servidor.
 2. Abra o **BCS** e inicie sua viagem normalmente.
-3. Espere o mapa carregar. Confira **Online: in …** dentro do OpenOMSI para confirmar sua conexão.
+3. Espere o mapa carregar. Se usa multiplayer, confira **Online: in …** dentro do OpenOMSI para confirmar sua conexão.
 4. No ponto final: **F9 → aguarde pelo menos dois segundos → finalize a viagem no BCS com o OpenOMSI aberto**.
 
 Para continuar, clique em **Próxima viagem** no BCS e aguarde a nova sessão. A ponte só inicia a transição depois de a viagem anterior ser concluída e de o BCS registrar outra viagem com identificador próprio. Deixe o OpenOMSI aberto durante essa troca; a ponte encerra a sessão anterior. Esse fluxo ainda precisa de teste real.
@@ -35,6 +35,8 @@ Feche os jogos, extraia todo o pacote novo e abra seu **Setup.exe**. Confira os 
 Se o administrador enviar um perfil atualizado em arquivo, selecione esse novo arquivo no Setup. Perfis fornecidos por link HTTPS são consultados pela ponte ao preparar a viagem; o endereço precisa continuar disponível.
 
 Para voltar ao OMSI original, feche os jogos e clique em **Desativar ponte**.
+
+Para desligar **apenas o multiplayer da empresa**, feche os jogos, desmarque **Ativar multiplayer da empresa** e clique em **Salvar e ativar**. A ponte continua ativa. Pode deixar perfil e nome preenchidos.
 
 ## Teste com duas pessoas
 
