@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.0.0-dev.5
+
+- Fixed exact trip matching after midnight when BCS displays 00:20 and the map records 24:20. A unique route-compatible overnight departure is required; duplicate civil hours and unknown offsets still fail safely.
+- Aligns only the selected overnight record in a temporary timetable ZIP, preserving its ordinal, other departures and the installed map bytes. Company date and world clock are unchanged.
+- Added regression coverage for the reported 64-trip Carrão duty, opposite directions, duplicate departures and explicit extended hours.
+
 ## 2.0.0-dev.4
 
 - Added administrator-only refresh of existing local company-profile hashes in Setup 9 → 2, preserving company/session/link/clock settings and the declared inventory, with an exact previous-JSON backup.

@@ -1,4 +1,4 @@
-# Relógio automático da empresa — 2.0.0-dev.4
+# Relógio automático da empresa — 2.0.0-dev.5
 
 A configuração **Mudança de horário** do BCS é relativa ao seu relógio de referência, não ao fuso do computador do jogador. A ponte usa um relógio explícito compartilhado no perfil da empresa. No exemplo observado, o valor configurado foi **-8 horas**.
 

@@ -1,4 +1,4 @@
-# Multiplayer da empresa — 2.0.0-dev.4
+# Multiplayer da empresa — 2.0.0-dev.5
 
 Esta é a primeira versão de desenvolvimento da integração. A entrada é automática depois de salvar um perfil da empresa no Setup. A sessão precisa estar funcionando em um anfitrião ou servidor openOMSI. A ponte não cria servidores na nuvem e não identifica automaticamente a empresa da conta BBS.
 

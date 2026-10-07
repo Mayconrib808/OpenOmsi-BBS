@@ -1,6 +1,6 @@
 # openOMSI BBS Bridge
 
-> **Ramo de desenvolvimento 2.0.0-dev.4:** perfis de empresa, links de addons definidos pelo administrador e entrada automática em sessões já hospedadas. Configure pelo Setup, opções 8 e 9. Multiplayer vem desativado; a viagem com dois jogadores e a avaliação BBS ainda precisam de validação real. Veja [o guia da 2.0](docs/MULTIPLAYER.md). A versão publicada 1.1.3 continua disponível no link abaixo.
+> **Ramo de desenvolvimento 2.0.0-dev.5:** perfis de empresa, links de addons definidos pelo administrador e entrada automática em sessões já hospedadas. Configure pelo Setup, opções 8 e 9. Multiplayer vem desativado; a viagem com dois jogadores e a avaliação BBS ainda precisam de validação real. Veja [o guia da 2.0](docs/MULTIPLAYER.md). A versão publicada 1.1.3 continua disponível no link abaixo.
 
 > Company clock / Relógio da empresa: [automatic host and calendar setup](docs/COMPANY_CLOCK.md).
 Ponte experimental e não oficial entre **openOMSI** e **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)**, mantida por **Mayconrib808**.

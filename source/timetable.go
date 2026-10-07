@@ -542,13 +542,14 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 		return ttlTrip{}, "", fmt.Errorf("no trip matches the BCS route")
 	}
 	if len(all) > 1 && all[0].score == all[1].score {
-		// A unique exact departure can disambiguate repeats already aligned
-		// with BCS. Never choose the nearest departure across an unknown offset.
+		// BCS displays civil hours: 00:20 can be the map's 24:20 service.
+		// Require one exact civil departure, including overnight entries;
+		// never choose the nearest departure across an unknown offset.
 		at, err := parseClockMinutes(info.TripStart)
 		if err == nil {
 			var exact []scored
 			for _, s := range all {
-				if s.score == all[0].score && math.Abs(s.trip.Departure-at) < 0.001 {
+				if s.score == all[0].score && sameBCSDeparture(s.trip.Departure, at) {
 					exact = append(exact, s)
 				}
 			}
@@ -559,6 +560,16 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 		return ttlTrip{}, "", fmt.Errorf("trip match is ambiguous (%d trips, best score %d)", len(t.Trips), all[0].score)
 	}
 	return all[0].trip, strings.Join(all[0].reason, "; "), nil
+}
+
+// An explicitly extended BCS hour stays exact. For a civil BCS hour, support
+// the next service day only: openOMSI's duty clock adjusts by at most one day.
+// Two records such as 00:20 and 24:20 still count as two possible matches.
+func sameBCSDeparture(departure, bcs float64) bool {
+	if math.Abs(departure-bcs) < 0.001 {
+		return true
+	}
+	return bcs >= 0 && bcs < 1440 && departure >= 1440 && departure < 2880 && math.Abs(departure-1440-bcs) < 0.001
 }
 
 // Match full place names, ignoring only a separate line decoration used by BCS.
@@ -724,7 +735,16 @@ func prepareTimetableSync(root, packageDir, mapRel, runDate string, info TripInf
 		res.Reason = "already synchronized; matched " + why
 		return res
 	}
-	shifted, err := shiftTourTTL(text, tour, res.OffsetMinutes)
+	shiftTarget := tour
+	if sameBCSDeparture(matched.Departure, bcsMin) {
+		// This is a civil/service-day representation change, not a company
+		// offset. Only the picked trip is driven (--trip, without --whole-tour).
+		// Align that record to the current civil day; shifting the whole duty
+		// would make its earlier daytime departures negative. Keep its ordinal
+		// and every other record intact, and never change the installed TTL.
+		shiftTarget.Trips = []ttlTrip{matched}
+	}
+	shifted, err := shiftTourTTL(text, shiftTarget, res.OffsetMinutes)
 	if err != nil {
 		res.Reason = err.Error()
 		return res
