@@ -81,3 +81,9 @@ The four executable hashes in [the approved binary manifest](releases/v1.1.3-bin
 Cross-platform comparison found only 39–40 changed bytes per Setup/launcher/facade binary, entirely inside Go's embedded build-ID string. Restoring the recorded ID made each whole-file SHA-256 identical to the live-tested executable; the plugin host already matched without changes. The build restores this metadata before package tests and rejects any remaining whole-file difference. Details are in [the build guide](BUILD.md).
 
 No vendor approval or malware certification is claimed.
+
+## Verificações da 2.0.1
+
+Em 2026-10-07, [Source checks #37598136666](https://github.com/Mayconrib808/OpenOmsi-BBS/actions/runs/37598136666) passou no Linux e no Windows para o commit `8977f5309e4ea73d517a516e337fd549f4dded3e`. Incluiu os testes de horários operacionais (linha 522, 01:40/25:40, offset zero), repetição de Schicht ID, transição de viagem, persistência de perfil, exportação HTTPS, criação nativa dos controles do Setup, DLL/message pump do auxiliar e integridade do pacote.
+
+O probe real da ponte aceitou os quatro ZIPs oficiais com SHA-256 verificado: OpenOMSI 0.2.0 e 0.2.11, cliente e servidor Windows x64. Isso confirma os pré-requisitos de CLI/host; não carregou mapas nem executou viagens BCS nessas versões. Os cinco executáveis aprovados estão registrados em `v2.0.1-binaries.sha256`. O teste real de dois jogadores, o botão Próxima viagem e uma viagem completa com 0.2.11 continuam pendentes.
