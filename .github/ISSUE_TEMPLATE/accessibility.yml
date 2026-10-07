@@ -1,0 +1,30 @@
+name: "Accessibility / Acessibilidade"
+description: "Report a barrier in Setup or documentation / Relate uma barreira de uso."
+title: "[Accessibility]: "
+body:
+  - type: markdown
+    attributes:
+      value: "Read [ACCESSIBILITY.md](https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/ACCESSIBILITY.md). No medical information is needed / Não é necessário informar condições médicas."
+  - type: input
+    id: interface
+    attributes:
+      label: "Affected page or interface / Página ou interface afetada"
+      placeholder: "Setup, README, offline tutorial, BBS panel..."
+    validations:
+      required: true
+  - type: textarea
+    id: barrier
+    attributes:
+      label: "Task and barrier / Tarefa e barreira"
+      description: "What did you need to do, and what prevented it? / O que precisava fazer e o que impediu?"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment / Ambiente"
+      description: "Relevant Windows version, zoom/font settings or assistive technology / Windows, zoom, fontes ou tecnologia assistiva relevante."
+  - type: textarea
+    id: improvement
+    attributes:
+      label: "Suggested improvement / Melhoria sugerida"

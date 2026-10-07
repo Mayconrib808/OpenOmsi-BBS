@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1280" height="640" viewBox="0 0 1280 640" role="img" aria-labelledby="title desc">
+  <title id="title">OpenOmsi + BBS — by Mayconrib808</title>
+  <desc id="desc">Bring your BBS trips to openOMSI. Independent experimental Windows bridge with setup included and open source.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2=".5">
+      <stop stop-color="#0c1119"/><stop offset="1" stop-color="#1b2b38"/>
+    </linearGradient>
+    <symbol id="bus" viewBox="0 0 390 178">
+      <path d="M22 136h340" stroke="#8d9aaa" stroke-width="2"/>
+      <rect x="14" y="17" width="356" height="118" rx="17" fill="#172535" stroke="#f47f30" stroke-width="3"/>
+      <path d="M26 99h330" stroke="#f47f30" stroke-width="6"/>
+      <path d="M28 110h213" stroke="#a9b9c8" stroke-width="2" opacity=".6"/>
+      <g fill="#304656" stroke="#b5c6d7" stroke-width="1.5">
+        <rect x="29" y="32" width="53" height="48" rx="4"/>
+        <rect x="89" y="32" width="54" height="48" rx="4"/>
+        <rect x="150" y="32" width="54" height="48" rx="4"/>
+        <rect x="211" y="32" width="54" height="48" rx="4"/>
+        <rect x="281" y="31" width="68" height="91" rx="4"/>
+      </g>
+      <path d="M315 32v90M287 79h56" stroke="#b5c6d7" stroke-width="1.5"/>
+      <path d="M35 37l18 37M97 37l18 37M158 37l18 37M219 37l18 37" stroke="#e3f2ff" stroke-width="4" opacity=".12"/>
+      <path d="M369 42h12v22" fill="none" stroke="#f47f30" stroke-width="3" stroke-linecap="round"/>
+      <rect x="353" y="107" width="10" height="8" rx="2" fill="#ffd6ac"/>
+      <rect x="20" y="105" width="7" height="9" rx="2" fill="#f47f30"/>
+      <g fill="#0c1119" stroke="#9bafc1" stroke-width="3">
+        <circle cx="75" cy="134" r="21"/><circle cx="257" cy="134" r="21"/>
+      </g>
+      <g fill="#9bafc1"><circle cx="75" cy="134" r="8"/><circle cx="257" cy="134" r="8"/></g>
+      <rect x="131" y="20" width="109" height="7" rx="3" fill="#f47f30" opacity=".55"/>
+    </symbol>
+  </defs>
+  <rect width="1280" height="640" fill="url(#bg)"/>
+  <circle cx="1140" cy="350" r="334" fill="#f47f30" opacity=".035"/>
+  <circle cx="1140" cy="350" r="275" fill="none" stroke="#b0c4d8" opacity=".06"/>
+  <path d="M825 534h354" stroke="#f47f30" stroke-width="2" stroke-dasharray="24 18" opacity=".4"/>
+  <rect x="72" y="83" width="35" height="5" rx="2.5" fill="#f47f30"/>
+  <text x="124" y="93" fill="#b4c5d7" font-family="DejaVu Sans,sans-serif" font-size="17" letter-spacing="3">WINDOWS · EXPERIMENTAL</text>
+  <text x="68" y="234" fill="#f7f9fc" font-family="DejaVu Sans,sans-serif" font-size="84" font-weight="700" font-style="italic">OpenOmsi</text>
+  <text x="589" y="234" fill="#f47f30" font-family="DejaVu Sans,sans-serif" font-size="84" font-weight="700" font-style="italic">+ BBS</text>
+  <text x="74" y="316" fill="#c0d0df" font-family="DejaVu Sans,sans-serif" font-size="32">Bring your BBS trips</text>
+  <text x="74" y="363" fill="#c0d0df" font-family="DejaVu Sans,sans-serif" font-size="32">to openOMSI.</text>
+  <rect x="74" y="402" width="202" height="42" rx="8" fill="#f47f30" fill-opacity=".12" stroke="#f47f30" stroke-opacity=".5"/>
+  <text x="96" y="429" fill="#fac397" font-family="DejaVu Sans,sans-serif" font-size="14" font-weight="700" letter-spacing="1">SETUP INCLUDED</text>
+  <rect x="289" y="402" width="178" height="42" rx="8" fill="#a9b9c8" fill-opacity=".05" stroke="#4c6174"/>
+  <text x="310" y="429" fill="#c0d0df" font-family="DejaVu Sans,sans-serif" font-size="14" font-weight="700" letter-spacing="1">OPEN SOURCE</text>
+  <use xlink:href="#bus" x="830" y="336" width="366" height="167"/>
+  <path d="M74 497h655" stroke="#435363" stroke-width="1"/>
+  <text x="74" y="541" fill="#f7f9fc" font-family="DejaVu Sans,sans-serif" font-size="21" font-weight="700">by Mayconrib808</text>
+  <text x="74" y="577" fill="#91a3b5" font-family="DejaVu Sans,sans-serif" font-size="18">github.com/Mayconrib808/OpenOmsi-BBS</text>
+  <rect x="0" y="635" width="1280" height="5" fill="#f47f30"/>
+</svg>
