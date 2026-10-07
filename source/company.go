@@ -100,8 +100,8 @@ func validCompanyAsset(s string) bool {
 		return false
 	}
 	switch strings.ToLower(filepath.Ext(s)) {
-	case ".exe", ".dll", ".jar", ".bat", ".cmd", ".ps1", ".lnk", ".zip", ".rar", ".7z", ".log", ".odr", ".tmp", ".bak", ".backup", ".hof":
-		return false // HOF files are prepared by BBS for each duty.
+	case ".exe", ".dll", ".jar", ".bat", ".cmd", ".ps1", ".lnk", ".zip", ".rar", ".7z", ".log", ".odr", ".osn", ".tmp", ".bak", ".backup", ".hof":
+		return false // Per-duty HOF and saved situation files differ by player.
 	}
 	return true
 }
@@ -339,7 +339,11 @@ func companyAssetPath(root, relative string) (string, error) {
 	if !st.Mode().IsRegular() {
 		return "", fmt.Errorf("asset is not a regular file")
 	}
-	return actual, nil
+	// Keep the path under the user's chosen root. Windows may expand a DOS
+	// short name or junction in EvalSymlinks; using that spelling with the
+	// original root in filepath.Rel would hide folder-inventory entries.
+	// Containment and file type were checked against the resolved target above.
+	return path, nil
 }
 
 func companyFileHash(path string) (string, error) {

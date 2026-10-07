@@ -75,7 +75,7 @@ Cada pacote contém `id`, `name`, `version`, `download_url`, `folders` e `files`
 
 O cliente usa a instalação original que foi conferida e o ZIP temporário de horários da ponte. No processo multiplayer, conteúdo adicional do openOMSI é isolado e a transferência automática de mods entre colegas é desativada. Esse ajuste se aplica ao filho iniciado pela ponte; não altera as configurações ou o ambiente do Windows.
 
-Arquivos `.hof` não entram no inventário, pois são preparados pelo BBS a cada viagem. Executáveis, DLLs, logs e perfis de conta também não entram. Somente arquivos de conteúdo do jogo podem ser exigidos. Nenhum arquivo de jogo é enviado pela ponte.
+Arquivos `.hof` não entram no inventário, pois são preparados pelo BBS a cada viagem. Situações salvas `.osn` também ficam fora: ônibus, pintura e posição salvos diferem entre jogadores. Executáveis, DLLs, logs e perfis de conta também não entram. Somente arquivos de conteúdo do jogo podem ser exigidos. Nenhum arquivo de jogo é enviado pela ponte.
 
 O exemplo [company.example.json](../examples/company.example.json) serve para entender os campos. Seus links e hashes são fictícios e precisam ser substituídos.
 

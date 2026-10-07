@@ -163,7 +163,7 @@ func TestCompanyProfileReadRejectsUnknownFieldsAndTrailingData(t *testing.T) {
 
 func TestCompanyWizardExcludesMutableHOFAndExecutables(t *testing.T) {
 	c, _, _, _ := companyFixture(t)
-	for _, name := range []string{"selected.hof", "run.exe", "account.log"} {
+	for _, name := range []string{"selected.hof", "laststn.osn", "run.exe", "account.log"} {
 		os.WriteFile(filepath.Join(c.Root, "Vehicles/A", name), []byte("not a packaged requirement"), 0644)
 	}
 	files, err := snapshotCompanyFolder(c.Root, "Vehicles/A")
@@ -175,12 +175,39 @@ func TestCompanyWizardExcludesMutableHOFAndExecutables(t *testing.T) {
 	}
 }
 
+func TestCompanySavedMapSituationIsNotAStaticFleetRequirement(t *testing.T) {
+	c, p, _, _ := companyFixture(t)
+	if err := os.WriteFile(filepath.Join(c.Root, "maps/Sample/laststn.osn"), []byte("this player's saved bus and paint"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := checkCompanyPackages(c.Root, p, p.Sessions[0]); len(got) != 0 {
+		t.Fatal(got)
+	}
+}
+
 func TestCompanyExtraRepaintCannotChangeRemotePaintIndicesUnnoticed(t *testing.T) {
 	c, p, _, _ := companyFixture(t)
-	os.WriteFile(filepath.Join(c.Root, "Vehicles/A/Texture/extra.cti"), []byte("extra repaint"), 0644)
+	if err := os.WriteFile(filepath.Join(c.Root, "Vehicles/A/Texture/extra.cti"), []byte("extra repaint"), 0644); err != nil {
+		t.Fatal(err)
+	}
 	got := checkCompanyPackages(c.Root, p, p.Sessions[0])
 	if len(got) != 1 || !strings.Contains(got[0].Detail, "extra.cti") || got[0].DownloadURL != "https://example.invalid/bus-a" {
 		t.Fatal(got)
+	}
+}
+
+func TestCompanyInventoryKeepsChosenRootWhenRootIsAnAlias(t *testing.T) {
+	c, p, _, _ := companyFixture(t)
+	alias := filepath.Join(t.TempDir(), "OMSI-alias")
+	if err := os.Symlink(c.Root, alias); err != nil {
+		t.Skip("root aliases unavailable", err)
+	}
+	if err := os.WriteFile(filepath.Join(c.Root, "Vehicles/A/Texture/extra.cti"), []byte("extra repaint"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got := checkCompanyPackages(alias, p, p.Sessions[0])
+	if len(got) != 1 || !strings.Contains(got[0].Detail, "extra.cti") {
+		t.Fatal("extra repaint hidden by canonical-root spelling", got)
 	}
 }
 
