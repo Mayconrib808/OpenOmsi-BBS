@@ -52,8 +52,8 @@ func TestCompanySituationCompanionsAreIgnoredWithoutIgnoringMapContent(t *testin
 		}
 	}
 	writeTestFile(t, filepath.Join(c.Root, "maps/Sample/timezone.txt"), "[timezone]\n1\n")
-	if got := checkCompanyPackages(c.Root, clean, clean.Sessions[0]); len(got) != 1 || !strings.Contains(got[0].Detail, "timezone.txt") {
-		t.Fatal("timezone must still require registration", got)
+	if got := checkCompanyPackages(c.Root, clean, clean.Sessions[0]); len(got) != 0 {
+		t.Fatal("undeclared timezone blocked joining under tolerant extra-file policy", got)
 	}
 }
 
