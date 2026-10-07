@@ -383,8 +383,10 @@ func checkCompanyPackages(root string, p CompanyProfile, session CompanySession)
 	return checkCompanyPackagesWithOriginals(root, p, session, companyBBSBackupInventory(root))
 }
 
-// A nil originals inventory requires exact live bytes, including while the
-// administrator reviews a new company reference.
+// Verify only assets that the company explicitly declared. A player's OMSI
+// installation may contain additional repaints, buses, scripts from other mods,
+// editor leftovers or operating-system metadata. Those extras are not used as
+// trust evidence and must not prevent joining a session.
 func checkCompanyPackagesWithOriginals(root string, p CompanyProfile, session CompanySession, bbsBackups map[string]bool) []CompanyProblem {
 	wanted := map[string]bool{}
 	for _, id := range session.RequiredPackages {
@@ -397,17 +399,20 @@ func checkCompanyPackagesWithOriginals(root string, p CompanyProfile, session Co
 		if !wanted[pkg.ID] {
 			continue
 		}
-		var missing, different, extra []string
-		declared := map[string]bool{}
+		var missing, different []string
 		for _, file := range pkg.Files {
 			if companyRuntimeArtifact(file.Path) {
 				continue
 			}
 			key := companyAssetKey(file.Path)
-			declared[key] = true
 			digest, ok := checked[key]
 			if !ok {
 				path, err := companyAssetPath(root, file.Path)
+				if err != nil {
+					if alias := companyCompatibilityAlias(file.Path); alias != "" {
+						path, err = companyAssetPath(root, alias)
+					}
+				}
 				if err == nil {
 					digest, err = companyFileHash(path)
 				}
@@ -422,62 +427,21 @@ func checkCompanyPackagesWithOriginals(root string, p CompanyProfile, session Co
 				different = append(different, file.Path)
 			}
 		}
-		for _, folder := range pkg.Folders {
-			// The first declared file resolves the real Windows-style folder
-			// spelling without rescanning thousands of parent entries per file.
-			base := filepath.Join(root, filepath.FromSlash(strings.ReplaceAll(folder, `\`, "/")))
-			for _, file := range pkg.Files {
-				if strings.HasPrefix(companyAssetKey(file.Path), companyAssetKey(folder)+"/") {
-					if resolved, err := companyAssetPath(root, file.Path); err == nil {
-						suffix := strings.TrimPrefix(companyAssetKey(file.Path), companyAssetKey(folder)+"/")
-						base = resolved
-						for range strings.Split(suffix, "/") {
-							base = filepath.Dir(base)
-						}
-						break
-					}
-				}
-			}
-			walkErr := filepath.WalkDir(base, func(path string, entry os.DirEntry, err error) error {
-				if err != nil {
-					return err
-				}
-				if entry.Type()&os.ModeSymlink != 0 {
-					return fmt.Errorf("linked folder content")
-				}
-				if entry.IsDir() {
-					return nil
-				}
-				rel, err := filepath.Rel(root, path)
-				if err != nil {
-					return err
-				}
-				rel = filepath.ToSlash(rel)
-				if validCompanyAsset(rel) && !companyRuntimeArtifact(rel) && !declared[companyAssetKey(rel)] {
-					extra = append(extra, rel)
-					if len(extra) >= 100 {
-						return filepath.SkipAll
-					}
-				}
-				return nil
-			})
-			if walkErr != nil && !os.IsNotExist(walkErr) {
-				missing = append(missing, folder+": "+walkErr.Error())
-			}
-		}
-		if len(missing)+len(different)+len(extra) != 0 {
-			signature, _ := json.Marshal([][]string{missing, different, extra})
+		if len(missing)+len(different) != 0 {
+			signature, _ := json.Marshal([][]string{missing, different})
 			reportKey := pkg.Name + "\n" + pkg.DownloadURL + "\n" + string(signature)
 			if reported[reportKey] {
 				continue
 			}
 			reported[reportKey] = true
-			detail := fmt.Sprintf("%s: ausentes/ilegíveis %d; conteúdo alterado %d; adicionais não cadastrados %d. / missing or unreadable: %d; changed content: %d; undeclared extra files: %d.", pkg.Version, len(missing), len(different), len(extra), len(missing), len(different), len(extra))
-			list := append(append(missing, different...), extra...)
+			detail := fmt.Sprintf("%s: ausentes/ilegíveis %d; conteúdo alterado %d. / missing or unreadable: %d; changed content: %d.", pkg.Version, len(missing), len(different), len(missing), len(different))
+			list := append(append([]string(nil), missing...), different...)
 			if len(list) > 8 {
 				list = list[:8]
 			}
-			detail += "\n" + strings.Join(list, "\n")
+			if len(list) != 0 {
+				detail += "\n" + strings.Join(list, "\n")
+			}
 			problems = append(problems, CompanyProblem{pkg.Name, detail, pkg.DownloadURL})
 		}
 	}
@@ -521,6 +485,11 @@ func refreshCompanyHashes(root string, original CompanyProfile) (CompanyProfile,
 			digest, exists := checked[key]
 			if !exists {
 				path, e := companyAssetPath(root, file.Path)
+				if e != nil {
+					if alias := companyCompatibilityAlias(file.Path); alias != "" {
+						path, e = companyAssetPath(root, alias)
+					}
+				}
 				if e != nil {
 					return original, nil, fmt.Errorf("cannot update declared asset %s: %w", file.Path, e)
 				}
