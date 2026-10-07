@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: "Support and installation / Suporte e instalação"
+    url: https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/SUPPORT.md
+    about: "Read the guides and diagnostic instructions / Consulte os guias e o diagnóstico."
+  - name: "Private security report / Relato privado de segurança"
+    url: https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/SECURITY.md
+    about: "Use the private contact for vulnerabilities / Use o contato privado para vulnerabilidades."

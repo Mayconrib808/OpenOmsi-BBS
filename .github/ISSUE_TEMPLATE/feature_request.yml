@@ -1,0 +1,26 @@
+name: "Feature request / Sugerir recurso"
+description: "Suggest an improvement to OpenOmsi + BBS / Sugira uma melhoria."
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: "Portuguese and English are welcome. Describe the player or maintainer need."
+  - type: textarea
+    id: problem
+    attributes:
+      label: "Problem to solve / Problema a resolver"
+      description: "What is difficult or missing today? / O que está difícil ou faltando?"
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: "Proposed behaviour / Comportamento proposto"
+      description: "Describe a concrete example / Descreva um exemplo concreto."
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: "Alternatives and context / Alternativas e contexto"
+      description: "Relevant versions, screenshots or references / Versões, imagens ou referências úteis."

@@ -1,5 +1,7 @@
 # Contributing
 
+Portuguese and English contributions are welcome. Follow the [Code of Conduct](CODE_OF_CONDUCT.md). Use the [issue forms](https://github.com/Mayconrib808/OpenOmsi-BBS/issues/new/choose) for bugs, feature ideas and accessibility barriers. Send vulnerability reports through the private contact in [SECURITY.md](SECURITY.md).
+
 Use [the build guide](docs/BUILD.md) and run `python3 scripts/build.py --check-only` before submitting a change. Runtime changes should be explained with the affected version, trigger, resulting behaviour and relevant validation. UI and BCS integration require a real Windows check in addition to unit tests.
 
 Submit only original code or code whose provenance and licence you can document. Retain applicable copyright and licence notices. Do not include vendor binaries, decompiled proprietary source, paid content, credentials, real account logs or personal driver files. Use synthetic fixtures for reproducible tests.

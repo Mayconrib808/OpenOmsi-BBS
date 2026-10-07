@@ -1,0 +1,54 @@
+name: "Bug report / Relatar problema"
+description: "Report a bridge problem with reproducible steps / Relate uma falha da ponte."
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Portuguese and English are welcome. See the [troubleshooting guide](https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/docs/TROUBLESHOOTING.md).
+        For vulnerabilities, use the private contact in [SECURITY.md](https://github.com/Mayconrib808/OpenOmsi-BBS/blob/main/SECURITY.md).
+  - type: input
+    id: bridge-version
+    attributes:
+      label: "Bridge version / Versão da ponte"
+      placeholder: "1.1.3"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: "Environment / Ambiente"
+      description: "openOMSI, BCS/BBS and Windows versions / Versões do openOMSI, BCS/BBS e Windows."
+      placeholder: "openOMSI 0.2.0; BCS/BBS 5.0.0.1; Windows 11"
+    validations:
+      required: true
+  - type: input
+    id: trip
+    attributes:
+      label: "Map, bus and trip / Mapa, ônibus e viagem"
+      description: "Include route, departure and date when relevant / Inclua linha, horário e data quando relevante."
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps to reproduce / Como reproduzir"
+      placeholder: "1. ...\n2. ...\n3. ..."
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: "Expected and actual result / Resultado esperado e observado"
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: "Reviewed diagnostics or screenshots / Diagnóstico revisado ou imagens"
+      description: "Setup option 5 creates a local ZIP. Remove account data and private paths before sharing; do not attach proprietary binaries or paid content."
+  - type: checkboxes
+    id: review
+    attributes:
+      label: "Before submitting / Antes de enviar"
+      options:
+        - label: "I reviewed shared files for private data / Revisei os arquivos para remover dados privados."
+          required: true

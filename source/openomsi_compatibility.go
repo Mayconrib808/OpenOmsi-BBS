@@ -158,7 +158,7 @@ func checkOpenOMSICompatibility(executable string, dedicated, multiplayer bool) 
 	}
 	name, label, ok := strings.Cut(strings.TrimSpace(version), " ")
 	if !ok || !strings.EqualFold(name, "openomsi") || !validOpenOMSIVersion(strings.TrimSpace(label)) {
-		return result, fmt.Errorf("openOMSI returned an invalid version description")
+		return result, fmt.Errorf("openOMSI returned an invalid version description: %q", strings.TrimSpace(version))
 	}
 	result.Version = strings.TrimSpace(label)
 	if !dedicated {
