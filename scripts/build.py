@@ -22,12 +22,12 @@ PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
     "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
-    "paths.go version.go company.go company_clock.go company_host.go multiplayer.go setup_ui.go company_setup.go"
+    "paths.go version.go company.go company_clock.go company_host.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
 TEST_FILES = (
     "driver_test.go session_test.go setup_test.go diagnostics_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go "
-    "launch_checks_test.go company_test.go company_clock_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go"
+    "launch_checks_test.go company_test.go company_clock_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go profile_store_test.go"
 ).split()
 PROGRAMS = {
     "CompanyHost.exe": (
@@ -35,11 +35,11 @@ PROGRAMS = {
     ).split(),
     "Setup.exe": (
         "setup_main.go setup_files.go diagnostics.go setup_windows.go "
-        "config.go plugin_host.go registry.go paths.go version.go company.go company_clock.go setup_ui.go company_setup.go"
+        "config.go plugin_host.go registry.go paths.go version.go company.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
         "main.go timetable.go diagnostics.go launch_checks.go driver.go session.go "
-        "config.go plugin_host.go paths.go version.go process_windows.go company.go company_clock.go multiplayer.go"
+        "config.go plugin_host.go paths.go version.go process_windows.go company.go company_clock.go multiplayer.go profile_store.go"
     ).split(),
     "app/compat/Omsi.exe": (
         "compat.go facade_memory.go driver.go version.go"

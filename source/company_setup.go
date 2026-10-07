@@ -57,18 +57,14 @@ func (u *setupUI) configureCompany(old Config) (Config, error) {
 		if !u.yes("Salvar e ativar multiplayer? [s/N]", "Save and enable multiplayer? [y/N]", "Speichern und Multiplayer aktivieren? [j/N]") {
 			return old, nil
 		}
-		c.Multiplayer, c.CompanyProfile, c.CompanyID, c.PlayerName = true, source, p.CompanyID, name
+		importCtx, importCancel := context.WithTimeout(context.Background(), 6*time.Second)
+		c, _, err = enrollCompany(importCtx, u.dir, source, name, c)
+		importCancel()
+		if err != nil { return old, err }
 	} else {
 		return old, fmt.Errorf("choose 1 or 2")
 	}
-	if oldBytes, err := os.ReadFile(configPath(u.dir)); err == nil {
-		if err = writeSetupAtomic(configPath(u.dir)+".backup", oldBytes); err != nil {
-			return old, err
-		}
-	}
-	if err = writeSetupAtomic(configPath(u.dir), encodeConfig(c)); err != nil {
-		return old, err
-	}
+	if err = saveInstalledConfig(u.dir, c); err != nil { return old, err }
 	u.say("Configuração salva. Inicie a viagem pelo BBS normalmente. Você pode desativar o multiplayer na opção 8.", "Configuration saved. Start the trip normally through BBS. You can disable multiplayer with option 8.", "Einstellung gespeichert. Starte die Fahrt wie gewohnt über BBS. Multiplayer lässt sich mit Option 8 deaktivieren.")
 	return c, nil
 }

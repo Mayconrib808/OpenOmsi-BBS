@@ -660,7 +660,7 @@ func main() {
 	dir := appDir(packageDir)
 	logPath := filepath.Join(dir, "bridge-v1.1.3.log")
 	tripPath := filepath.Join(dir, "bridge-v1.1.3-trip.txt")
-	cfg := readConfig(filepath.Join(dir, "bridge.ini"))
+	cfg := readInstalledConfig(packageDir)
 
 	appendLog(logPath, "\r\n============================================================\r\n")
 	appendLog(logPath, "OpenOMSI BCS Bridge v"+bridgeVersion+" - by "+bridgeAuthor+"\r\n")

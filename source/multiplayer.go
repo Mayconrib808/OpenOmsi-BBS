@@ -193,7 +193,7 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 	if c.CompanyProfile == "" || c.CompanyID == "" || !companyText(c.PlayerName, 32) || strings.Contains(c.PlayerName, "|") {
 		return nil, nil, fmt.Errorf("configure the company and player name in Setup option 8")
 	}
-	p, err := loadCompanyProfile(ctx, c.CompanyProfile, runtimeDir, client)
+	p, err := loadInstalledCompanyProfile(ctx, c, runtimeDir, client)
 	if err != nil {
 		return nil, nil, err
 	}
