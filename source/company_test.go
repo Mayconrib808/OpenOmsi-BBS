@@ -187,18 +187,27 @@ func TestCompanySavedMapSituationIsNotAStaticFleetRequirement(t *testing.T) {
 	}
 }
 
-func TestCompanyExtraRepaintCannotChangeRemotePaintIndicesUnnoticed(t *testing.T) {
+func TestCompanyExtraFilesDoNotBlockMultiplayer(t *testing.T) {
 	c, p, _, _ := companyFixture(t)
-	if err := os.WriteFile(filepath.Join(c.Root, "Vehicles/A/Texture/extra.cti"), []byte("extra repaint"), 0644); err != nil {
-		t.Fatal(err)
+	for path, content := range map[string]string{
+		"Vehicles/A/Texture/extra.cti":        "extra repaint",
+		"Vehicles/A/script/IBIS_constfile.txt": "local script companion",
+		"Vehicles/A/Vip 5 AI.bus":              "extra AI bus variant",
+	} {
+		full := filepath.Join(c.Root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
 	}
-	got := checkCompanyPackages(c.Root, p, p.Sessions[0])
-	if len(got) != 1 || !strings.Contains(got[0].Detail, "extra.cti") || got[0].DownloadURL != "https://example.invalid/bus-a" {
-		t.Fatal(got)
+	if got := checkCompanyPackages(c.Root, p, p.Sessions[0]); len(got) != 0 {
+		t.Fatal("undeclared local files blocked multiplayer", got)
 	}
 }
 
-func TestCompanyInventoryKeepsChosenRootWhenRootIsAnAlias(t *testing.T) {
+func TestCompanyExtraFilesStayIgnoredThroughRootAlias(t *testing.T) {
 	c, p, _, _ := companyFixture(t)
 	alias := filepath.Join(t.TempDir(), "OMSI-alias")
 	if err := os.Symlink(c.Root, alias); err != nil {
@@ -207,9 +216,58 @@ func TestCompanyInventoryKeepsChosenRootWhenRootIsAnAlias(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(c.Root, "Vehicles/A/Texture/extra.cti"), []byte("extra repaint"), 0644); err != nil {
 		t.Fatal(err)
 	}
-	got := checkCompanyPackages(alias, p, p.Sessions[0])
-	if len(got) != 1 || !strings.Contains(got[0].Detail, "extra.cti") {
-		t.Fatal("extra repaint hidden by canonical-root spelling", got)
+	if got := checkCompanyPackages(alias, p, p.Sessions[0]); len(got) != 0 {
+		t.Fatal("extra file blocked through canonical-root spelling", got)
+	}
+}
+
+func TestCompanyWindowsMetadataIsNotPackageIdentity(t *testing.T) {
+	c, p, _, _ := companyFixture(t)
+	path := filepath.Join(c.Root, "Vehicles/A/Texture/Thumbs.db")
+	if err := os.WriteFile(path, []byte("machine-local thumbnail cache"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := companyFileHash(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Packages[1].Files = append(p.Packages[1].Files, CompanyFile{Path: "Vehicles/A/Texture/Thumbs.db", SHA256: digest})
+	if got := checkCompanyPackages(c.Root, p, p.Sessions[0]); len(got) != 0 {
+		t.Fatal("legacy profile treated Thumbs.db as required content", got)
+	}
+	files, err := snapshotCompanyFolder(c.Root, "Vehicles/A")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range files {
+		if strings.EqualFold(filepath.Base(file.Path), "Thumbs.db") {
+			t.Fatal("new inventory included Windows metadata")
+		}
+	}
+}
+
+func TestCompanyTimezoneDoubleExtensionCompatibilityAlias(t *testing.T) {
+	c, p, _, _ := companyFixture(t)
+	canonical := filepath.Join(c.Root, "maps/Sample/timezone.txt")
+	if err := os.WriteFile(canonical, []byte("1\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	digest, err := companyFileHash(canonical)
+	if err != nil {
+		t.Fatal(err)
+	}
+	p.Packages[0].Files = append(p.Packages[0].Files, CompanyFile{Path: "maps/Sample/timezone.txt", SHA256: digest})
+	if err := os.Rename(canonical, canonical+".txt"); err != nil {
+		t.Fatal(err)
+	}
+	if got := checkCompanyPackages(c.Root, p, p.Sessions[0]); len(got) != 0 {
+		t.Fatal("timezone.txt.txt with identical bytes was rejected", got)
+	}
+	if err := os.WriteFile(canonical+".txt", []byte("different timezone\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if got := checkCompanyPackages(c.Root, p, p.Sessions[0]); len(got) != 1 || !strings.Contains(got[0].Detail, "timezone.txt") {
+		t.Fatal("changed timezone alias was silently accepted", got)
 	}
 }
 
@@ -406,24 +464,28 @@ func TestCompanyOwnerRefreshUpdatesOnlyDeclaredHashesAndPreservesMetadata(t *tes
 	}
 }
 
-func TestCompanyOwnerRefreshRefusesMissingAndUndeclaredFiles(t *testing.T) {
-	for _, mode := range []string{"missing", "undeclared"} {
-		t.Run(mode, func(t *testing.T) {
-			c, original, _, _ := companyFixture(t)
-			before, _ := json.Marshal(original)
-			if mode == "missing" {
-				os.Remove(filepath.Join(c.Root, "Vehicles/A/script/main.osc"))
-			} else {
-				os.WriteFile(filepath.Join(c.Root, "Vehicles/A/script/unregistered.osc"), []byte("new script"), 0644)
-			}
-			if _, _, err := refreshCompanyHashes(c.Root, original); err == nil {
-				t.Fatal("refresh accepted a changed inventory")
-			}
-			after, _ := json.Marshal(original)
-			if !bytes.Equal(before, after) {
-				t.Fatal("failed refresh changed the original profile")
-			}
-		})
+func TestCompanyOwnerRefreshRefusesMissingButAllowsUndeclaredFiles(t *testing.T) {
+	c, original, _, _ := companyFixture(t)
+	before, _ := json.Marshal(original)
+	os.Remove(filepath.Join(c.Root, "Vehicles/A/script/main.osc"))
+	if _, _, err := refreshCompanyHashes(c.Root, original); err == nil {
+		t.Fatal("refresh accepted a missing declared file")
+	}
+	after, _ := json.Marshal(original)
+	if !bytes.Equal(before, after) {
+		t.Fatal("failed refresh changed the original profile")
+	}
+
+	c, original, _, _ = companyFixture(t)
+	if err := os.WriteFile(filepath.Join(c.Root, "Vehicles/A/script/unregistered.osc"), []byte("new script"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	updated, _, err := refreshCompanyHashes(c.Root, original)
+	if err != nil {
+		t.Fatal("refresh rejected an unrelated extra file", err)
+	}
+	if len(updated.Packages[1].Files) != len(original.Packages[1].Files) {
+		t.Fatal("hash-only refresh silently added undeclared files")
 	}
 }
 
