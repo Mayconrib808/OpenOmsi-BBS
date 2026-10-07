@@ -150,8 +150,12 @@ def main() -> None:
             download_release(version, platform, digest, archive)
             executable = extract_release(archive, directory / f"{version}-{platform}")
             mode = "server" if platform.startswith("server-") else "player"
-            result = subprocess.run([str(probe), str(executable), mode], check=True, capture_output=True,
+            result = subprocess.run([str(probe), str(executable), mode], capture_output=True,
                                     text=True, encoding="utf-8", timeout=25)
+            if result.returncode != 0:
+                print(result.stdout, flush=True)
+                print(result.stderr, flush=True)
+                raise ValueError(f"Bridge compatibility probe failed for {version} / {platform}")
             metadata = json.loads(result.stdout)
             report.append({"official_release": version, "platform": platform, "archive_sha256": digest,
                            "reported_version": metadata["Version"], "cli_and_host_prerequisites": "passed"})
