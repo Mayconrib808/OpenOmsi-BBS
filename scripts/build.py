@@ -15,6 +15,7 @@ import tempfile
 import zipfile
 
 import setup_resources
+import plugin_host_resources
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "source"
@@ -101,6 +102,7 @@ def assemble(stage: Path, host_hash: str) -> None:
         f"OpenOMSI BCS Bridge v{VERSION} - by Mayconrib808\n"
         f"Toolchain: {REFERENCE_GO}; GOOS=windows; GOARCH=386; GO386=sse2; CGO_ENABLED=0\n"
         "All six executables are built from the source included in this package.\n"
+        "The plugin host includes Windows version/product/icon resources and retains normal Go symbols/build identity.\n"
         f"Plugin host SHA-256: {host_hash}\n"
         "The historical host with unresolved provenance is not bundled.\n"
         "Integration uses executable capabilities and multiplayer protocol 6. Official 0.2.0 and 0.2.11 metadata are checked on Windows CI.\n"
@@ -177,9 +179,25 @@ def main() -> int:
         stage = Path(temporary) / "package"
         host = stage / HOST
         host.parent.mkdir(parents=True, exist_ok=True)
-        # Explicit files give the main program a stable import path outside
-        # GOPATH/modules; -trimpath then removes checkout-machine paths.
-        run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w -H=windowsgui -buildid=", "-o", str(host), *HOST_SOURCES], windows)
+        # Package builds include the native resource object. A fixed module
+        # path and trimpath remove checkout paths without stripping inspection
+        # metadata or the normal Go build ID. The helper protocol is unchanged.
+        host_source = Path(temporary) / "host-source"
+        host_source.mkdir()
+        for name in HOST_SOURCES:
+            shutil.copy2(SOURCE / name, host_source / Path(name).name)
+        (host_source / "go.mod").write_text("module openomsi-bbs/pluginhost\n\ngo 1.23.2\n", encoding="utf-8")
+        host_env = windows.copy()
+        host_env["GO111MODULE"] = "on"
+        host_resources = plugin_host_resources.prepare(host_source, SOURCE / "resources", VERSION)
+        run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-H=windowsgui", "-o", str(host), "."], host_env, host_source)
+        setup_resources.verify_executable(host, host_resources)
+        # Rebuild the dev.1 helper from the same protocol sources to prove its
+        # runtime code is unchanged and exercise a real old-to-new Setup upgrade.
+        previous_host = Path(temporary) / "dev1-host.exe"
+        run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w -H=windowsgui -buildid=", "-o", str(previous_host), *HOST_SOURCES], windows)
+        if hashlib.sha256(previous_host.read_bytes()).hexdigest() != "1c7f1f25bd18edb2b010ec42de2e34db5f3fc8ed2b1d948003635528b8a11a1a":
+            raise ValueError("Helper runtime source differs from the published dev.1; review upgrade verification")
         host_hash = hashlib.sha256(host.read_bytes()).hexdigest()
         print(f"Source-backed host SHA-256: {host_hash}", flush=True)
         digest_flag = "-X=main.bundledPluginHostSHA256=" + host_hash
@@ -229,6 +247,7 @@ def main() -> int:
         assemble(stage, host_hash)
         package_env = native.copy()
         package_env["BRIDGE_BUILT_PACKAGE"] = str(stage)
+        package_env["BRIDGE_PREVIOUS_HOST"] = str(previous_host)
         # go test compiles the tested package under command-line-arguments and
         # creates a separate generated main; target the tested package's symbol.
         test_digest_flag = "-X=command-line-arguments.bundledPluginHostSHA256=" + host_hash

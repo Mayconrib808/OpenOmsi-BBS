@@ -1,3 +1,11 @@
+# 2.0.3-dev.2 — identificação do auxiliar e análise do Defender
+
+- Auxiliar com produto, autor, versão, descrição e ícone nas propriedades do Windows; conserva símbolos e identificação normal da compilação Go.
+- Setup reconhece o auxiliar da dev1 para atualização e restaura o arquivo anterior em falhas de ativação.
+- Mantém o código/protocolo do auxiliar, a abertura sem CMD e todas as funções da dev1, incluindo servidor automático, mapas, perfil, próxima viagem e clima.
+- Testes com os bytes reais do auxiliar anterior, leitura de versão pela API nativa e comunicação com DLL sintética.
+- Publicação exige análise do ZIP e dos seis executáveis pelo Defender com nuvem e proteção em tempo real ativas. Um resultado limpo no CI não confirma o fim do bloqueio no computador afetado; veja `docs/ANTIVIRUS.md`.
+
 # 2.0.3-dev.1 — próxima viagem, clima e painel BCS
 
 - Mantém a observação da próxima seleção por até 15 minutos após a conclusão e saída do jogo; confirma a transferência entre chamadas concorrentes e ignora conclusões duplicadas.

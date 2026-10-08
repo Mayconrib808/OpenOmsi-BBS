@@ -1,4 +1,4 @@
-# Multiplayer da empresa — 2.0.3-dev.1
+# Multiplayer da empresa — 2.0.3-dev.2
 
 O multiplayer mantém a política permissiva do openOMSI. Hashes, arquivos extras, mudanças do BCS em `Holidays.txt`, scripts, repaints e modelos de outros jogadores não bloqueiam a entrada. A bridge verifica servidor/protocolo, vagas, relógio/data e se o ônibus escolhido é oferecido pela sessão. O openOMSI carrega os recursos locais; instalar o mapa e os ônibus continua necessário para conseguir jogar e visualizar os modelos.
 
@@ -12,7 +12,7 @@ A pasta `relay/` contém o serviço do diretório online. Ele precisa ser public
 
 ## Jogadores
 
-1. Atualize a bridge para 2.0.3 dev1 e abra Setup.
+1. Atualize a bridge para 2.0.3 dev2 e abra Setup.
 2. Selecione o OMSI 2 e o OpenOMSI. Ative o multiplayer e escolha o novo `.players.json` ou link `/profile` fornecido pelo administrador.
 3. Informe seu nome e use **Salvar e ativar** com os jogos fechados.
 4. Instale o mapa e os ônibus que pretende usar. Inicie a viagem pelo BCS normalmente.

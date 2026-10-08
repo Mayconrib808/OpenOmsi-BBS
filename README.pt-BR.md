@@ -34,7 +34,7 @@
 
 | Pacote | Versão | Download |
 | --- | --- | --- |
-| Pacote de desenvolvimento | **2.0.3 dev1 · pré-lançamento** | [Download e notas de teste](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.3-dev.1) |
+| Pacote de desenvolvimento | **2.0.3 dev2 · pré-lançamento** | [Download e notas de teste](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.3-dev.2) |
 | Pacote completo para Windows | **2.0.1 · versão atual** | [OpenOmsi + BBS 2.0.1.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip) |
 | Verificação SHA-256 | 2.0.1 | [Checksum](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip.sha256) |
 | Versão anterior | 1.1.3 | [Releases da 1.1.3](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3) |

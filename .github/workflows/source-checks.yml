@@ -11,7 +11,7 @@ permissions:
 jobs:
   check:
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -33,6 +33,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: bash
         run: python scripts/build.py
+      - name: Microsoft Defender scan of candidate ZIP and all six executables
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/scan_release_package.ps1 -PackagePath 'dist/OpenOmsi.+.BBS.${{ steps.windows_build.outputs.version }}.zip'
       - name: Upload complete bridge ZIP and checksum
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -42,6 +46,14 @@ jobs:
             dist/*.zip
             dist/*.zip.sha256
           if-no-files-found: error
+          retention-days: 30
+      - name: Upload Defender scan evidence
+        if: runner.os == 'Windows' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: Defender-package-report
+          path: ${{ runner.temp }}/openomsi-defender-report/*
+          if-no-files-found: ignore
           retention-days: 30
       - name: Upload native Setup previews
         if: runner.os == 'Windows' && always()
@@ -54,7 +66,7 @@ jobs:
 
   publish-development:
     needs: check
-    if: github.event_name == 'push' && github.repository == 'Mayconrib808/OpenOmsi-BBS' && github.ref == 'refs/heads/codex/2.0.3-dev.1'
+    if: github.event_name == 'push' && github.repository == 'Mayconrib808/OpenOmsi-BBS' && github.ref == 'refs/heads/codex/2.0.3-dev.2'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -65,7 +77,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Publish the checked 2.0.3 dev1 prerelease
+      - name: Publish the checked 2.0.3 dev2 prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/publish_dev_release.py --run-id '${{ github.run_id }}' --commit '${{ github.sha }}' --artifact-dir '${{ runner.temp }}/development-release'

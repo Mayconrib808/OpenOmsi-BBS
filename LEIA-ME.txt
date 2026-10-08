@@ -1,14 +1,21 @@
-OpenOmsi - BBS 2.0.3-dev.1 — por Mayconrib808
+OpenOmsi - BBS 2.0.3-dev.2 — por Mayconrib808
 
-NESTA DEV1
+NESTA DEV2
+O auxiliar inclui nome do produto, autor, versão e ícone do projeto, com
+símbolos da compilação preservados. O Setup atualiza também o auxiliar da dev1.
+A publicação exige análise do ZIP e dos seis executáveis pelo Defender.
+O resultado no CI não confirma o fim do bloqueio no PC afetado: teste o
+novo download com o Defender ativo. Veja docs/ANTIVIRUS.md.
+Mantém o servidor automático e todas as funções abaixo, da dev1.
+
 Próxima viagem: a ponte aguarda a nova seleção por até 15 minutos depois
 que a viagem concluída fecha. O cliente reabre com a seleção completa.
 Clima: usa a situação e o arquivo de clima recentes preparados pelo BCS.
 No multiplayer, vale o clima do servidor. Para transmitir o clima do primeiro
 jogador ao abrir um mapa novo, atualize HostAgent.exe e o serviço de relay/.
-Painel BCS: corrigida a confirmação UTF-16BE e a chegada rápida da resposta.
+Painel BCS: reconhece UTF-8/UTF-16 e preserva confirmações que chegam cedo.
 O auxiliar de 32 bits também abre sem CMD. O painel real ainda precisa de teste.
-Notas completas: docs/releases/v2.0.3-dev.1.md.
+Notas completas: docs/releases/v2.0.3-dev.2.md e v2.0.3-dev.1.md.
 
 NOVO: SERVIDOR AUTOMÁTICO
 Setup > Empresa / servidor abre HostAgent.exe. Configure os mapas e a frota
@@ -17,7 +24,7 @@ jogadores e mantém o relógio da empresa sincronizado.
 O PC do host deve estar ligado com o agente ativo. A URL fixa do diretório
 online precisa ser configurada uma vez: veja docs/AUTO_HOST.md e relay/.
 Após isso, o mesmo perfil dos jogadores recebe os novos endereços de túnel,
-sem reenviar JSON a cada reinício. Atualize os jogadores para esta 2.0.3 dev1.
+sem reenviar JSON a cada reinício. Atualize os jogadores para esta 2.0.3 dev2.
 O multiplayer permissivo continua ativo; arquivos extras/hashes não bloqueiam.
 
 COMEÇAR

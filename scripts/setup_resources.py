@@ -1,4 +1,4 @@
-"""Build Setup's Windows x86 COFF resources using only Python's standard library.
+"""Build Windows x86 COFF resources using only Python's standard library.
 
 The bitmap and icon are derivatives of the project's existing MIT SVG artwork.
 No resource compiler or image library is required to build the application.
@@ -82,12 +82,12 @@ def verify_executable(path: Path, expected: dict[int, dict[int, bytes]]) -> None
     data = path.read_bytes()
     pe = struct.unpack_from("<I", data, 0x3C)[0]
     if data[pe:pe + 4] != b"PE\0\0":
-        raise ValueError("Setup is not a PE executable")
+        raise ValueError("Resource check expects a PE executable")
     machine, sections = struct.unpack_from("<HH", data, pe + 4)
     optional_size = struct.unpack_from("<H", data, pe + 20)[0]
     optional = pe + 24
     if machine != 0x014C or struct.unpack_from("<H", data, optional)[0] != 0x10B:
-        raise ValueError("Setup resource check expects Windows x86 PE32")
+        raise ValueError("Resource check expects Windows x86 PE32")
     resource_rva, _ = struct.unpack_from("<II", data, optional + 96 + 2 * 8)
 
     def file_offset(rva: int, size: int = 1) -> int:
@@ -103,7 +103,7 @@ def verify_executable(path: Path, expected: dict[int, dict[int, bytes]]) -> None
     def entries(offset: int) -> dict[int, int]:
         named, count = struct.unpack_from("<HH", data, root + offset + 12)
         if named:
-            raise ValueError("Unexpected named Setup resource")
+            raise ValueError("Unexpected named PE resource")
         return dict(struct.unpack_from("<II", data, root + offset + 16 + i * 8) for i in range(count))
 
     actual = {}
@@ -112,12 +112,12 @@ def verify_executable(path: Path, expected: dict[int, dict[int, bytes]]) -> None
         for name, lang_offset in entries(type_offset & 0x7FFFFFFF).items():
             langs = entries(lang_offset & 0x7FFFFFFF)
             if set(langs) != {0}:
-                raise ValueError("Unexpected Setup resource language")
+                raise ValueError("Unexpected PE resource language")
             rva, size = struct.unpack_from("<II", data, root + langs[0])
             start = file_offset(rva, size)
             actual[kind][name] = data[start:start + size]
     if actual != expected:
-        raise ValueError("Linked Setup artwork differs from the source assets")
+        raise ValueError("Linked PE resources differ from the source assets")
 
 
 def prepare(directory: Path, assets: Path) -> dict[int, dict[int, bytes]]:

@@ -10,13 +10,16 @@ import re
 import struct
 import subprocess
 import zipfile
+import tempfile
 
 from publish_release import hashes
+import setup_resources
+import plugin_host_resources
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = "Mayconrib808/OpenOmsi-BBS"
-VERSION = "2.0.3-dev.1"
-BRANCH = "codex/2.0.3-dev.1"
+VERSION = "2.0.3-dev.2"
+BRANCH = "codex/2.0.3-dev.2"
 PACKAGE = f"OpenOmsi.+.BBS.{VERSION}.zip"
 BINARIES = {"Setup.exe", "HostAgent.exe", "CompanyHost.exe", "app/OpenOMSI_BCS_Bridge.exe", "app/compat/Omsi.exe", "app/compat/omsi-plugin-host32.exe"}
 
@@ -59,6 +62,10 @@ def verify_package(path):
                     raise ValueError(f"Artifact source differs from this commit: {name}")
         if archive.read("source/version.go") != (ROOT / "source/version.go").read_bytes():
             raise ValueError("Development version source mismatch")
+        with tempfile.TemporaryDirectory(prefix="verify-plugin-host-") as temporary:
+            host = Path(temporary) / "omsi-plugin-host32.exe"
+            host.write_bytes(archive.read("app/compat/omsi-plugin-host32.exe"))
+            setup_resources.verify_executable(host, plugin_host_resources.resources_from_assets(ROOT / "source/resources", VERSION))
     print(f"Verified development ZIP, source, six binaries and complete manifest: {digest}", flush=True)
     return digest
 
@@ -86,10 +93,25 @@ def main():
         matching = [j for j in jobs if j["name"] == name]
         if len(matching) != 1 or matching[0]["conclusion"] != "success":
             raise ValueError(f"Required CI job did not pass: {name}")
+        if name == "check (windows-latest)":
+            scans = [s for s in matching[0]["steps"] if s["name"] == "Microsoft Defender scan of candidate ZIP and all six executables"]
+            if len(scans) != 1 or scans[0]["conclusion"] != "success":
+                raise ValueError("Required Defender scan did not pass")
     args.artifact_dir.mkdir(parents=True, exist_ok=True)
     gh("run", "download", args.run_id, "--repo", REPO, "--name", "OpenOMSI-BCS-Bridge-v" + VERSION, "--dir", str(args.artifact_dir))
     package = args.artifact_dir / PACKAGE
     digest = verify_package(package)
+    report_dir = args.artifact_dir / "defender-report"
+    gh("run", "download", args.run_id, "--repo", REPO, "--name", "Defender-package-report", "--dir", str(report_dir))
+    report = json.loads((report_dir / "report.json").read_text(encoding="utf-8-sig"))
+    if report["package"] != PACKAGE or report["status"] != "clean_in_this_environment_not_a_microsoft_false_positive_ruling" or report["actual_zip_sha256"] != digest or report["expected_zip_sha256"] != digest or report["cloud_connection_exit_code"] != 0:
+        raise ValueError("Defender report does not approve this exact candidate ZIP")
+    expected_scans = {"candidate-zip": digest}
+    with zipfile.ZipFile(package) as archive:
+        expected_scans.update({name: hashlib.sha256(archive.read(name)).hexdigest() for name in BINARIES})
+    scans = report["scans"]
+    if len(scans) != 7 or any(s["exit_code"] != 0 for s in scans) or {s["item"]: s["sha256"] for s in scans} != expected_scans:
+        raise ValueError("Defender scan results do not match the seven exact package inputs")
     releases = json.loads(gh("api", f"repos/{REPO}/releases?per_page=100"))
     tag = "v" + VERSION
     if any(r["tag_name"] == tag for r in releases):
@@ -99,7 +121,7 @@ def main():
         f"\nValidação automática: [Linux e Windows]({run['html_url']}), commit `{args.commit}`.\n\nZIP SHA-256: `{digest}`.\n", encoding="utf-8")
     gh("release", "create", tag, str(package), str(package.with_name(package.name + ".sha256")),
        "--repo", REPO, "--target", args.commit, "--prerelease", "--latest=false",
-       "--title", "OpenOmsi + BBS 2.0.3 dev1", "--notes-file", str(notes))
+       "--title", "OpenOmsi + BBS 2.0.3 dev2", "--notes-file", str(notes))
     release = json.loads(gh("api", f"repos/{REPO}/releases/tags/{tag}"))
     assets = {a["name"]:a for a in release["assets"]}
     for path in (package, package.with_name(package.name + ".sha256")):

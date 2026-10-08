@@ -4,6 +4,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import queue
+import re
 import shutil
 import struct
 import subprocess
@@ -11,6 +12,8 @@ import sys
 import tempfile
 import threading
 import time
+
+import plugin_host_resources
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -67,6 +70,8 @@ def string(s: str) -> bytes:
 def main() -> None:
     if os.name != "nt": raise RuntimeError("Run the native test on Windows.")
     built_host = Path(sys.argv[1]).resolve()
+    version = re.search(r'const bridgeVersion = "([^"]+)"', (ROOT / "source/version.go").read_text()).group(1)
+    plugin_host_resources.verify_native_version(built_host, version)
     env = compiler_environment()
     with tempfile.TemporaryDirectory(prefix="bridge-native-") as temporary:
         root = Path(temporary) / "OMSI teste ç"
@@ -129,6 +134,6 @@ def main() -> None:
             assert session.read(2) == b"\x00\x00"
             assert session.process.wait(timeout=10) != 0
         finally: session.close()
-    print("Native PE32/stdcall DLL: startup context, flags, float/string/trigger ABI, Unicode, Windows messages, finalization, EOF cleanup and non-BCS rejection passed.")
+    print("Native Windows version.dll identity and PE32/stdcall DLL: startup context, flags, float/string/trigger ABI, Unicode, Windows messages, finalization, EOF cleanup and non-BCS rejection passed.")
 
 if __name__ == "__main__": main()

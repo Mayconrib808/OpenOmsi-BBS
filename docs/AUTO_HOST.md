@@ -1,4 +1,4 @@
-# Servidor automático — 2.0.3-dev.1
+# Servidor automático — 2.0.3-dev.2
 
 Abra **Setup → Empresa / servidor**, ou **HostAgent.exe**. O aplicativo configura cada mapa e mantém um agente em segundo plano. Quando alguém inicia uma viagem pelo BCS, a bridge pede esse mapa; o agente abre o servidor dedicado, aguarda o mundo carregar, sincroniza o relógio e publica o endereço validado. A conexão do jogo continua sendo o multiplayer nativo do openOMSI.
 
@@ -37,7 +37,7 @@ Documentação da plataforma: [primeiros passos com Durable Objects](https://dev
 
 ## Jogadores
 
-Atualize a bridge para 2.0.3 dev1. No Setup, ative o multiplayer, escolha o novo `.players.json` ou link `/profile`, informe seu nome e clique **Salvar e ativar**. Inicie a viagem pelo BCS normalmente.
+Atualize a bridge para 2.0.3 dev2. No Setup, ative o multiplayer, escolha o novo `.players.json` ou link `/profile`, informe seu nome e clique **Salvar e ativar**. Inicie a viagem pelo BCS normalmente.
 
 A bridge consulta o perfil atualizado, solicita o mapa e espera o carregamento. O servidor só é anunciado online depois de confirmar o mundo ativo, o relógio e o endereço HTTPS. Se o anfitrião estiver offline, a bridge informa isso. Não é necessário reenviar o JSON quando o túnel mudar. Perfis anteriores sem `directory_url` continuam funcionando pelo modo manual.
 
