@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Publish a checked CI package whose executables match a approved release."""
+"""Publish a checked CI package whose executables match an approved release."""
 from __future__ import annotations
 
 import argparse
@@ -17,6 +17,14 @@ PACKAGE = f"OpenOmsi.+.BBS.{VERSION}.zip"
 PACKAGE_LABEL = f"OpenOmsi + BBS {VERSION}.zip"
 LEGACY_PACKAGE = f"OpenOMSI_BCS_Bridge_v{VERSION}_by_Mayconrib808.zip"
 RELEASE_DIR = ROOT / "docs/releases"
+NATIVE_SERVER_EXE = "app/server/openomsi.exe"
+NATIVE_SERVER_RUNTIME = {
+    "openomsi.exe",
+    "steam_api64.dll",
+    "vcruntime140.dll",
+    "vcruntime140_1.dll",
+    "msvcp140.dll",
+}
 
 
 def hashes(text: str) -> dict[str, str]:
@@ -29,6 +37,31 @@ def hashes(text: str) -> dict[str, str]:
             raise ValueError("Invalid or duplicate checksum entry")
         result[name] = digest
     return result
+
+
+def verify_native_server(archive: zipfile.ZipFile, manifest: dict[str, str]) -> None:
+    try:
+        info = json.loads(archive.read("app/server/bbs-server.json").decode("utf-8"))
+    except (KeyError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ValueError("Missing or invalid native server provenance") from exc
+    pin = json.loads((ROOT / "native/upstream.json").read_text(encoding="utf-8"))
+    patch_digest = hashlib.sha256((ROOT / "native/free-player-vehicles.patch").read_bytes()).hexdigest()
+    if (
+        info.get("version") != pin["version"]
+        or info.get("upstream_url") != pin["url"]
+        or info.get("upstream_sha256") != pin["sha256"]
+        or info.get("patch_sha256") != patch_digest
+    ):
+        raise ValueError("Native server provenance differs from the pinned source")
+    files = info.get("files")
+    if not isinstance(files, dict) or set(files) != NATIVE_SERVER_RUNTIME:
+        raise ValueError("Unexpected native server runtime inventory")
+    for name, expected in files.items():
+        if not isinstance(expected, str) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+            raise ValueError(f"Invalid native server checksum: {name}")
+        packaged = f"app/server/{name}"
+        if manifest.get(packaged) != expected:
+            raise ValueError(f"Native server runtime differs from its provenance: {packaged}")
 
 
 def verify_package(path: Path) -> str:
@@ -52,14 +85,18 @@ def verify_package(path: Path) -> str:
             if hashlib.sha256(archive.read(name)).hexdigest() != expected:
                 raise ValueError(f"Package checksum mismatch: {name}")
         executables = {name for name in names if name.lower().endswith(".exe")}
-        if executables != set(approved):
+        if executables != set(approved) | {NATIVE_SERVER_EXE}:
             raise ValueError("Unexpected executable inventory")
         for name, expected in approved.items():
-            if manifest[name] != expected:
+            if manifest.get(name) != expected:
                 raise ValueError(f"Executable differs from the approved package: {name}")
+        verify_native_server(archive, manifest)
         if archive.read("source/version.go") != (ROOT / "source/version.go").read_bytes():
             raise ValueError("Package version source mismatch")
-    print(f"Verified full ZIP, internal manifest and all five approved executables: {digest}", flush=True)
+    print(
+        f"Verified full ZIP, internal manifest, approved bridge executables and native server runtime: {digest}",
+        flush=True,
+    )
     return digest
 
 
