@@ -667,53 +667,58 @@ func TestBuiltRuntimePackage(t *testing.T) {
 	if _, e := os.Stat(target); !os.IsNotExist(e) {
 		t.Fatal("built helper not removed", e)
 	}
-	previousPath := os.Getenv("BRIDGE_PREVIOUS_HOST")
-	if previousPath == "" {
-		t.Fatal("complete package test requires the exact previous dev.1 helper")
-	}
-	previous, e := os.ReadFile(previousPath)
-	if e != nil || fmt.Sprintf("%x", sha256.Sum256(previous)) != previousGUIPluginHostSHA256 {
-		t.Fatal("incorrect previous release helper", e)
-	}
-	for _, failure := range []bool{false, true} {
-		t.Run(fmt.Sprintf("dev1Upgrade/registryFailure=%t", failure), func(t *testing.T) {
-			c, fixtureDir, _ := pluginHostFixture(t)
-			target, _ := pluginHostPath(c)
-			if e := os.WriteFile(target, previous, 0755); e != nil {
-				t.Fatal(e)
-			}
-			if e := os.WriteFile(filepath.Join(appDir(fixtureDir), "compat", "omsi-plugin-host32.exe"), payload, 0755); e != nil {
-				t.Fatal(e)
-			}
-			m := newMemoryRegistry(false)
-			before := cloneValues(m)
-			if failure {
-				m.failAt = 8
-			}
-			bridge := bridgePath(fixtureDir)
-			_, e := activateRegistryWithHost(m, c, fixtureDir, bridge)
-			if (e != nil) != failure {
-				t.Fatal("dev.1 upgrade activation", e)
-			}
-			want := payload
-			if failure {
-				want = previous
-				if !reflect.DeepEqual(before, m.values) {
-					t.Fatal("dev.1 upgrade Registry rollback incomplete")
-				}
-			}
-			if actual, e := os.ReadFile(target); e != nil || !bytes.Equal(actual, want) {
-				t.Fatal("dev.1 upgrade did not preserve exact update/rollback bytes", e)
-			}
-			if !failure {
-				if e := deactivateRegistryWithHost(m, bridge); e != nil {
+	for _, release := range []struct{ name, variable, digest string }{
+		{"dev1", "BRIDGE_PREVIOUS_HOST", previousGUIPluginHostSHA256},
+		{"dev2", "BRIDGE_PREVIOUS_METADATA_HOST", previousMetadataPluginHostSHA256},
+	} {
+		previousPath := os.Getenv(release.variable)
+		if previousPath == "" {
+			t.Fatal("complete package requires previous helper", release.name)
+		}
+		previous, e := os.ReadFile(previousPath)
+		if e != nil || fmt.Sprintf("%x", sha256.Sum256(previous)) != release.digest {
+			t.Fatal("incorrect previous release helper", release.name, e)
+		}
+		for _, failure := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%sUpgrade/registryFailure=%t", release.name, failure), func(t *testing.T) {
+				c, fixtureDir, _ := pluginHostFixture(t)
+				target, _ := pluginHostPath(c)
+				if e := os.WriteFile(target, previous, 0755); e != nil {
 					t.Fatal(e)
 				}
-				if _, e := os.Stat(target); !os.IsNotExist(e) {
-					t.Fatal("upgraded helper not removed", e)
+				if e := os.WriteFile(filepath.Join(appDir(fixtureDir), "compat", "omsi-plugin-host32.exe"), payload, 0755); e != nil {
+					t.Fatal(e)
 				}
-			}
-		})
+				m := newMemoryRegistry(false)
+				before := cloneValues(m)
+				if failure {
+					m.failAt = 8
+				}
+				bridge := bridgePath(fixtureDir)
+				_, e := activateRegistryWithHost(m, c, fixtureDir, bridge)
+				if (e != nil) != failure {
+					t.Fatal("previous release upgrade activation", e)
+				}
+				want := payload
+				if failure {
+					want = previous
+					if !reflect.DeepEqual(before, m.values) {
+						t.Fatal("previous release upgrade Registry rollback incomplete")
+					}
+				}
+				if actual, e := os.ReadFile(target); e != nil || !bytes.Equal(actual, want) {
+					t.Fatal("previous release upgrade did not preserve exact update/rollback bytes", e)
+				}
+				if !failure {
+					if e := deactivateRegistryWithHost(m, bridge); e != nil {
+						t.Fatal(e)
+					}
+					if _, e := os.Stat(target); !os.IsNotExist(e) {
+						t.Fatal("upgraded helper not removed", e)
+					}
+				}
+			})
+		}
 	}
 }
 

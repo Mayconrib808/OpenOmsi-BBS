@@ -1,0 +1,13 @@
+{
+  "url": "https://codeload.github.com/openOMSI-Project/openOMSI/zip/refs/tags/v0.2.11",
+  "sha256": "d465580c1b58b93d6205efad012d199e2d7dac24f82c651285c6335f78be37bb",
+  "archive_root": "openOMSI-0.2.11",
+  "version": "0.2.11-bbs-free1",
+  "patched_files": {
+    "crates/omsi-app/src/server.rs": "2706a207ec9169b728aa2c94d43a19eb4e59a841bae23827e489d6d1f367c2be",
+    "crates/omsi-net/src/ws.rs": "2bf47ad7fea256606df285fe4815da4e25267c4fd4d8f43075f1aee83051d8fd",
+    "crates/omsi-app/src/lib.rs": "8f6d90dfaa8e31c838babbc4b408588d103f1da96a0910e0cb1dd9a90af79568",
+    "crates/omsi-app/src/lan.rs": "93cb82350b98cdac0cbdfc66d4b2f9c0d34588a92179d80450c3e2cc8fc7a4d0",
+    "crates/omsi-app/src/free_vehicles.rs": "c101a819914d6d0ea665a874dc47948b2b9c5689f5bc611be8ae8936fb279aeb"
+  }
+}

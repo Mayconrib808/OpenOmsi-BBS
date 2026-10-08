@@ -16,6 +16,7 @@ import zipfile
 
 import setup_resources
 import plugin_host_resources
+import build_native_server
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "source"
@@ -91,7 +92,7 @@ def pin_release_build_id(path: Path, relative_path: str) -> None:
 
 def assemble(stage: Path, host_hash: str) -> None:
     ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "*.exe", "*.dll", "*.obj", "*.lib", "*.exp")
-    for name in ("source", "docs", "scripts", "examples", "relay"):
+    for name in ("source", "docs", "scripts", "examples", "relay", "native"):
         shutil.copytree(ROOT / name, stage / name, ignore=ignore)
     for p in ROOT.glob("*.md"):
         shutil.copy2(p, stage / p.name)
@@ -101,7 +102,9 @@ def assemble(stage: Path, host_hash: str) -> None:
     (stage / "docs/BUILD-INFO.txt").write_text(
         f"OpenOMSI BCS Bridge v{VERSION} - by Mayconrib808\n"
         f"Toolchain: {REFERENCE_GO}; GOOS=windows; GOARCH=386; GO386=sse2; CGO_ENABLED=0\n"
-        "All six executables are built from the source included in this package.\n"
+        "The six bridge executables are built from the Go source included in this package.\n"
+        "app/server is a modified dedicated openOMSI server built from the pinned upstream source and native/free-player-vehicles.patch.\n"
+        "Its native/bbs-server.json counterpart in app/server records compiler, tested commit and file hashes.\n"
         "The plugin host includes Windows version/product/icon resources and retains normal Go symbols/build identity.\n"
         f"Plugin host SHA-256: {host_hash}\n"
         "The historical host with unresolved provenance is not bundled.\n"
@@ -141,9 +144,14 @@ def archive_package(directory: Path) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check-only", action="store_true", help="Run complete build/checks in a temporary folder.")
+    parser.add_argument("--native-server", type=Path, help="Verified dedicated server directory built by build_native_server.py.")
     parser.add_argument("--output", type=Path, default=ROOT / "dist" / PACKAGE_NAME,
                         help="New full-package directory. A ZIP and checksum are written beside it.")
     args = parser.parse_args()
+    if not args.check_only and not args.native_server:
+        parser.error("The complete release requires --native-server from the tested native build.")
+    if args.native_server:
+        build_native_server.verify_package(args.native_server)
     if output := os.environ.get("GITHUB_OUTPUT"):
         with Path(output).open("a", encoding="utf-8") as stream:
             stream.write(f"version={VERSION}\n")
@@ -198,6 +206,11 @@ def main() -> int:
         run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w -H=windowsgui -buildid=", "-o", str(previous_host), *HOST_SOURCES], windows)
         if hashlib.sha256(previous_host.read_bytes()).hexdigest() != "1c7f1f25bd18edb2b010ec42de2e34db5f3fc8ed2b1d948003635528b8a11a1a":
             raise ValueError("Helper runtime source differs from the published dev.1; review upgrade verification")
+        previous_metadata_host = Path(temporary) / "dev2-host.exe"
+        plugin_host_resources.prepare(host_source, SOURCE / "resources", "2.0.3-dev.2")
+        run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-H=windowsgui", "-o", str(previous_metadata_host), "."], host_env, host_source)
+        if hashlib.sha256(previous_metadata_host.read_bytes()).hexdigest() != "2e6dca9ca9f2732d88e5ad3c3787479549d76de3d60c4b90bc874790ecfbf6fd":
+            raise ValueError("Rebuilt dev.2 helper differs from the published bytes")
         host_hash = hashlib.sha256(host.read_bytes()).hexdigest()
         print(f"Source-backed host SHA-256: {host_hash}", flush=True)
         digest_flag = "-X=main.bundledPluginHostSHA256=" + host_hash
@@ -244,10 +257,18 @@ def main() -> int:
         else:
             print("Native DLL/message-pump checks run on the Windows CI job, not on this host.")
         print("RELEASE_BINARY_HASHES=" + json.dumps({rel: hashlib.sha256((stage / rel).read_bytes()).hexdigest() for rel in [*PROGRAMS, HOST]}, sort_keys=True), flush=True)
+        if args.native_server:
+            server_dir = stage / "app/server"
+            shutil.copytree(args.native_server, server_dir)
+            if os.name == "nt":
+                result = subprocess.run([str(server_dir / "openomsi.exe"), "--version"], check=True, capture_output=True, text=True, timeout=20)
+                if build_native_server.PIN["version"] not in result.stdout + result.stderr:
+                    raise ValueError("Packaged dedicated server version mismatch")
         assemble(stage, host_hash)
         package_env = native.copy()
         package_env["BRIDGE_BUILT_PACKAGE"] = str(stage)
         package_env["BRIDGE_PREVIOUS_HOST"] = str(previous_host)
+        package_env["BRIDGE_PREVIOUS_METADATA_HOST"] = str(previous_metadata_host)
         # go test compiles the tested package under command-line-arguments and
         # creates a separate generated main; target the tested package's symbol.
         test_digest_flag = "-X=command-line-arguments.bundledPluginHostSHA256=" + host_hash

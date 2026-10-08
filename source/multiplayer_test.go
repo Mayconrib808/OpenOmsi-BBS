@@ -67,7 +67,6 @@ func TestCompanySelectsWorkingRoomWhenAnotherIsOfflineWrongMapOrWrongClock(t *te
 		{"full", func(s map[string]any) { s["players"] = 16 }},
 		{"wrong protocol", func(s map[string]any) { s["protocol"] = 5 }},
 		{"invalid game description", func(s map[string]any) { s["version"] = "not-openomsi" }},
-		{"bus not offered", func(s map[string]any) { s["vehicles"] = "Vehicles/B/b.bus" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, p, trip, dir := companyFixture(t)
@@ -317,5 +316,35 @@ func TestBBSReadyFlagWaitsForMultiplayerConfirmation(t *testing.T) {
 				return
 			}
 		}
+	}
+}
+
+func TestPlayerPrivateBusNeedsNoHostFleetRegistration(t *testing.T) {
+	for _, offered := range []any{"", "Vehicles/B/b.bus", nil, []string{}} {
+		t.Run(fmt.Sprint(offered), func(t *testing.T) {
+			c, p, trip, dir := companyFixture(t)
+			trip.BusFile = "Vehicles/Private/Torino.bus"
+			path := filepath.Join(c.Root, filepath.FromSlash(trip.BusFile))
+			if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(path, []byte("private player bus"), 0600); err != nil {
+				t.Fatal(err)
+			}
+			// Obsolete fleet metadata and host-installed models are not permissions.
+			p.Sessions[0].Fleet = []string{"Vehicles/A/a.bus"}
+			status := testCompanyStatus()
+			status["vehicles"] = offered
+			status["free_player_vehicles"] = true
+			p.Sessions[0].ServerURL = companyStatusServer(t, status).URL
+			saveTestCompany(t, dir, p)
+			plan, problems, err := prepareMultiplayer(context.Background(), c, dir, trip, companyHTTPClient())
+			if err != nil || len(problems) != 0 || plan == nil || plan.Trip.BusFile != trip.BusFile {
+				t.Fatal("private bus blocked or substituted in player trip", plan, problems, err)
+			}
+			if err := recheckMultiplayer(context.Background(), plan, companyHTTPClient()); err != nil {
+				t.Fatal("startup recheck reintroduced fleet authorization", err)
+			}
+		})
 	}
 }

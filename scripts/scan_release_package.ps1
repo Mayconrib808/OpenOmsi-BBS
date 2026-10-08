@@ -1,4 +1,4 @@
-# Scan the exact candidate ZIP and its six executables before publication.
+# Scan the exact candidate ZIP and all its executable files before publication.
 # This disposable runner only strengthens protection: no allow rules, scan
 # exclusions, disabled antivirus or remediation of detections are requested.
 [CmdletBinding()]
@@ -19,7 +19,9 @@ $report = [ordered]@{
     error = $null
 }
 $executables = @('Setup.exe', 'HostAgent.exe', 'CompanyHost.exe',
-    'app/OpenOMSI_BCS_Bridge.exe', 'app/compat/Omsi.exe', 'app/compat/omsi-plugin-host32.exe')
+    'app/OpenOMSI_BCS_Bridge.exe', 'app/compat/Omsi.exe', 'app/compat/omsi-plugin-host32.exe', 'app/server/openomsi.exe',
+    'app/server/steam_api64.dll', 'app/server/vcruntime140.dll',
+    'app/server/vcruntime140_1.dll', 'app/server/msvcp140.dll')
 
 try {
     $source = (Resolve-Path -LiteralPath $PackagePath).Path
@@ -110,12 +112,12 @@ try {
             }
             $hashes[$Matches[2]] = $Matches[1]
         }
-        $actualExecutables = @($archive.Entries | Where-Object { $_.FullName.EndsWith('.exe', [StringComparison]::OrdinalIgnoreCase) } |
+        $actualExecutables = @($archive.Entries | Where-Object { $_.FullName -match '\.(exe|dll)$' } |
             ForEach-Object { $_.FullName })
-        if ($actualExecutables.Count -ne 6 -or @(Compare-Object $executables $actualExecutables).Count) {
-            throw 'Package must contain exactly the six expected executables.'
+        if ($actualExecutables.Count -ne $executables.Count -or @(Compare-Object $executables $actualExecutables).Count) {
+            throw 'Package must contain exactly the expected executable files.'
         }
-        # Only fixed, allowlisted paths are extracted; compare all six hashes
+        # Only fixed, allowlisted paths are extracted; compare all executable hashes
         # against the complete package manifest verified again by the publisher.
         foreach ($relativePath in $executables) {
             $entry = $archive.GetEntry($relativePath)

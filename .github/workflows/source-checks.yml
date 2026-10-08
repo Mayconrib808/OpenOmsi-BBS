@@ -9,7 +9,30 @@ permissions:
   contents: read
 
 jobs:
+  native-server:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - name: Verify and patch pinned openOMSI source
+        run: python scripts/build_native_server.py --prepare-only
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: build/native-source
+          shared-key: bbs-free-server-v1
+      - name: Native free-bus, server and protocol regressions; build dedicated server
+        run: python scripts/build_native_server.py --build-only
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: BBS-free-bus-native-server
+          path: build/native-server/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
+
   check:
+    needs: native-server
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -28,12 +51,18 @@ jobs:
         if: runner.os == 'Linux'
         shell: bash
         run: python scripts/build.py --check-only
+      - name: Download this run's tested native server
+        if: runner.os == 'Windows'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: BBS-free-bus-native-server
+          path: build/native-server
       - name: Complete package and native DLL tests on Windows
         id: windows_build
         if: runner.os == 'Windows'
         shell: bash
-        run: python scripts/build.py
-      - name: Microsoft Defender scan of candidate ZIP and all six executables
+        run: python scripts/build.py --native-server build/native-server
+      - name: Microsoft Defender scan of candidate ZIP and all executable files
         if: runner.os == 'Windows'
         shell: pwsh
         run: ./scripts/scan_release_package.ps1 -PackagePath 'dist/OpenOmsi.+.BBS.${{ steps.windows_build.outputs.version }}.zip'
@@ -65,8 +94,8 @@ jobs:
           retention-days: 30
 
   publish-development:
-    needs: check
-    if: github.event_name == 'push' && github.repository == 'Mayconrib808/OpenOmsi-BBS' && github.ref == 'refs/heads/codex/2.0.3-dev.2'
+    needs: [native-server, check]
+    if: github.event_name == 'push' && github.repository == 'Mayconrib808/OpenOmsi-BBS' && github.ref == 'refs/heads/codex/2.0.3-dev.3'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -77,7 +106,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
-      - name: Publish the checked 2.0.3 dev2 prerelease
+      - name: Publish the checked 2.0.3 dev3 prerelease
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/publish_dev_release.py --run-id '${{ github.run_id }}' --commit '${{ github.sha }}' --artifact-dir '${{ runner.temp }}/development-release'

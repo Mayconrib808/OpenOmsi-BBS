@@ -48,6 +48,15 @@ func hostRandomCode() string {
 func hostAgentSettingsPath(packageDir string) string {
 	return filepath.Join(companyHostDataDir(packageDir), "HostAgent.local.json")
 }
+
+// The bundled server separates admission from substitute models. Older official
+// servers ignore free_player_vehicles, so update a migrated host to this binary.
+func hostUseBundledServer(c *hostAgentConfig, packageDir string) {
+	path := filepath.Join(packageDir, "app", "server", "openomsi.exe")
+	if st, err := os.Stat(path); err == nil && st.Mode().IsRegular() {
+		c.Server = path
+	}
+}
 func defaultHostAgentConfig() hostAgentConfig {
 	return hostAgentConfig{Schema: 1, Language: "pt", HostKey: hostRandomCode() + hostRandomCode(), RoomID: hostRandomCode(), ControlKey: hostRandomCode(), ControlPort: 27199, Maps: map[string]hostMapOptions{},
 		Company: CompanyProfile{SchemaVersion: 1, CompanyID: "transfort-br", CompanyName: "Transfort - BR", OpenOMSIVersion: multiplayerGameVersion, Protocol: multiplayerProtocol, Clock: &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: -480}}}
@@ -128,9 +137,6 @@ func validateHostAgentConfig(c hostAgentConfig, running bool) error {
 		ports[m.Port], webs[m.WebPort] = true, true
 		if m.Enabled {
 			enabled++
-			if len(s.Fleet) == 0 {
-				return fmt.Errorf("selecione a frota de %s", s.Name)
-			}
 		}
 	}
 	if running && enabled == 0 {

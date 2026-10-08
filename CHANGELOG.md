@@ -1,3 +1,11 @@
+# 2.0.3 dev3 — ônibus dos jogadores livres
+
+- Remove o bloqueio da bridge quando o ônibus escolhido no BCS não está na lista ou na instalação do host, também na conferência imediatamente antes de abrir o jogo.
+- Permite configurar e iniciar mapas com a lista de substitutos vazia. A antiga frota vira uma preferência opcional de modelos substitutos, sem autorizar ou expulsar jogadores.
+- Inclui um servidor derivado do openOMSI 0.2.11 com modo livre. O HostAgent o seleciona automaticamente, inclusive em configurações anteriores. Clientes continuam usando o protocolo 6 original.
+- O servidor não oferece uma lista restrita ao cliente nem expulsa quem usa outro ônibus. Quando falta o modelo remoto no host, tenta um substituto local; não muda o ônibus do dono nem transfere arquivos privados.
+- Preserva servidor automático, opções por mapa, relógio, clima do primeiro pedido, próxima viagem e auxiliar BCS da dev2.
+
 # 2.0.3-dev.2 — identificação do auxiliar e análise do Defender
 
 - Auxiliar com produto, autor, versão, descrição e ícone nas propriedades do Windows; conserva símbolos e identificação normal da compilação Go.

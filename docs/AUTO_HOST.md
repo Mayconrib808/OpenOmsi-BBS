@@ -1,4 +1,4 @@
-# Servidor automático — 2.0.3-dev.2
+# Servidor automático — 2.0.3-dev.3
 
 Abra **Setup → Empresa / servidor**, ou **HostAgent.exe**. O aplicativo configura cada mapa e mantém um agente em segundo plano. Quando alguém inicia uma viagem pelo BCS, a bridge pede esse mapa; o agente abre o servidor dedicado, aguarda o mundo carregar, sincroniza o relógio e publica o endereço validado. A conexão do jogo continua sendo o multiplayer nativo do openOMSI.
 
@@ -8,16 +8,16 @@ Em telas menores, use as barras de rolagem ou a roda do mouse para alcançar os 
 
 ## Configurar os mapas
 
-1. Informe a pasta original do OMSI 2 e o `openomsi.exe` do pacote oficial do servidor dedicado. Para os testes atuais, use o servidor openOMSI 0.2.11.
-2. Se já tiver o JSON da empresa, clique **Importar JSON atual**. A frota e os mapas cadastrados são preservados. Os caminhos anteriores do CompanyHost são importados automaticamente quando disponíveis.
+1. Informe a pasta original do OMSI 2. O aplicativo já seleciona o servidor incluído nesta atualização, em `app/server/openomsi.exe`, inclusive ao importar uma configuração anterior. Esse servidor deriva do openOMSI 0.2.11 e permite ônibus livres.
+2. Se já tiver o JSON da empresa, clique **Importar JSON atual**. Os mapas e as opções cadastradas são preservados. A antiga frota passa a ser apenas uma preferência de modelos substitutos. Os caminhos anteriores do CompanyHost são importados automaticamente quando disponíveis.
 3. Para cadastrar outro mapa, clique **Detectar mapas**, escolha o mapa instalado e clique **Adicionar mapa**. O nome vem do `global.cfg`; o aplicativo cria a sessão e atribui portas separadas.
 4. Escolha o **Mapa configurado**. Ajuste porta UDP/HTTP, máximo de jogadores, tráfego, passageiros, tabela de horários e tempo para fechar vazio. `0` no tempo vazio mantém esse mapa aberto até você parar o agente.
-5. Na lista da frota, use Ctrl/Shift para selecionar vários `.bus`. O campo acima filtra por nome ou pasta. **Sugerir dirigíveis** seleciona os ônibus visíveis no filtro e exclui variantes com `AI` no nome; elas continuam disponíveis para seleção manual. A frota é independente em cada mapa.
+5. **Substitutos opcionais** pode ficar vazio. Qualquer jogador pode dirigir o seu ônibus, mesmo privado ou ausente no host, sem cadastrá-lo aqui. Se quiser, use Ctrl/Shift para indicar modelos locais que o servidor tentará usar como substitutos. Se nenhum funcionar, tenta os MAN originais e depois outros ônibus locais. Isso nunca limita a entrada.
 6. Configure o fuso e o ajuste em minutos da empresa, conferindo a hora usada pelo BCS. O exemplo Transfort usa `Europe/Berlin` e `-480` minutos.
 
-**Hospedar este mapa** controla se o agente pode iniciá-lo. Dois mapas podem ficar abertos ao mesmo tempo, cada um com suas portas e configurações. O aplicativo detecta portas repetidas. Ele cria configurações próprias por mapa e preserva o `server.cfg` original do pacote oficial.
+**Hospedar este mapa** controla se o agente pode iniciá-lo. Dois mapas podem ficar abertos ao mesmo tempo, cada um com suas portas e configurações. O aplicativo detecta portas repetidas. Ele cria configurações próprias por mapa e preserva as opções não controladas do `server.cfg` anterior.
 
-O modo permissivo continua ativo: diferenças de hashes, arquivos extras, `Holidays.txt`, repaints e ônibus de outros jogadores não bloqueiam a entrada. O jogo ainda precisa conseguir carregar o mapa e o ônibus escolhido, e o servidor precisa oferecer esse ônibus. Os hashes presentes em perfis antigos são metadados para auditoria administrativa; não viram uma barreira multiplayer.
+O modo permissivo continua ativo: diferenças de hashes, arquivos extras, `Holidays.txt`, repaints e ônibus de outros jogadores não bloqueiam a entrada. O jogador precisa conseguir carregar seu mapa e seu próprio ônibus. O host não precisa ter o ônibus do jogador nem autorizar novos modelos. Quem não tiver os recursos do ônibus remoto poderá ver um modelo substituto; o interior exato depende dos recursos locais. Não se transfere conteúdo privado. Os hashes presentes em perfis antigos são metadados para auditoria administrativa; não viram uma barreira multiplayer.
 
 ## Conectar o diretório online uma vez
 
@@ -37,7 +37,7 @@ Documentação da plataforma: [primeiros passos com Durable Objects](https://dev
 
 ## Jogadores
 
-Atualize a bridge para 2.0.3 dev2. No Setup, ative o multiplayer, escolha o novo `.players.json` ou link `/profile`, informe seu nome e clique **Salvar e ativar**. Inicie a viagem pelo BCS normalmente.
+Atualize a bridge para 2.0.3 dev3. No Setup, ative o multiplayer, escolha o novo `.players.json` ou link `/profile`, informe seu nome e clique **Salvar e ativar**. Inicie a viagem pelo BCS normalmente.
 
 A bridge consulta o perfil atualizado, solicita o mapa e espera o carregamento. O servidor só é anunciado online depois de confirmar o mundo ativo, o relógio e o endereço HTTPS. Se o anfitrião estiver offline, a bridge informa isso. Não é necessário reenviar o JSON quando o túnel mudar. Perfis anteriores sem `directory_url` continuam funcionando pelo modo manual.
 
@@ -45,19 +45,19 @@ Um mapa vazio fecha após o tempo configurado. A próxima viagem pode abri-lo no
 
 ## Verificação desta versão
 
-O pacote inclui testes de rotação de endereço, identidade da empresa, segredo privado, pedidos duplicados, portas separadas, seleção de frota e desligamento por inatividade. O workflow executa os testes Go e do diretório, compila todos os executáveis e verifica os controles Windows, incluindo capturas do painel em PT/EN/DE.
+O pacote inclui testes de rotação de endereço, identidade da empresa, segredo privado, pedidos duplicados, portas separadas, ônibus privado fora da lista do host, seleção vazia de substitutos e desligamento por inatividade. O workflow executa os testes Go, do diretório e do servidor nativo, compila todos os executáveis e verifica os controles Windows, incluindo capturas do painel em PT/EN/DE.
 
 O teste final com dois jogadores, BCS real e um Worker publicado deve confirmar abertura sob demanda, reinício com novo túnel e reconexão usando o mesmo JSON. Não substitua os arquivos da instalação durante uma viagem.
 
 ## English
 
-Open **Setup → Company / server** or **HostAgent.exe**. Import your existing profile or scan/add installed maps. Configure each map's fleet, UDP/HTTP ports, player limit, traffic, passengers, timetable and idle timeout. Ctrl/Shift selects multiple buses; the filter and suggestion button exclude AI variants from automatic suggestions. Each map keeps its own fleet.
+Open **Setup → Company / server** or **HostAgent.exe**. Import your existing profile or scan/add installed maps. The bundled server is selected automatically. Configure each map's UDP/HTTP ports, player limit, traffic, passengers, timetable and idle timeout. Substitute models are optional: players may drive private buses absent on the host without registration. Missing remote models use local substitutes; no private assets transfer.
 
 Deploy the service in `relay/` once, set its `HOST_KEY` secret to the private key copied from the application, and enter the Worker's HTTPS URL in the application. Start the agent, then export a player profile. Players enroll that profile or the room's `/profile` URL once. The stable directory handles wake requests and refreshed tunnel addresses; actual gameplay uses native openOMSI multiplayer. The host PC must be on and the background agent running. Local files and hashes do not gate multiplayer entry. Real two-player validation remains necessary.
 
 ## Deutsch
 
-Öffne **Setup → Firma / Server** oder **HostAgent.exe**. Importiere das vorhandene Firmenprofil oder suche und registriere installierte Karten. Jede Karte hat eine eigene Flotte, UDP-/HTTP-Ports, Spielergrenze, Verkehr, Fahrgäste, Fahrplan und Leerlaufzeit. Strg/Umschalt ermöglicht Mehrfachauswahl; Filter und Vorschläge lassen KI-Varianten bei automatischen Vorschlägen aus.
+Öffne **Setup → Firma / Server** oder **HostAgent.exe**. Importiere das vorhandene Firmenprofil oder suche und registriere installierte Karten. Der enthaltene Server wird automatisch gewählt. Jede Karte hat eigene UDP-/HTTP-Ports, Spielergrenze, Verkehr, Fahrgäste, Fahrplan und Leerlaufzeit. Ersatzmodelle sind optional; private Spielerbusse müssen beim Host weder installiert noch registriert sein. Fehlende Modelle werden lokal ersetzt, private Inhalte werden nicht übertragen.
 
 Veröffentliche den Dienst aus `relay/` einmal, setze `HOST_KEY` auf den privaten Schlüssel aus der Anwendung und trage die HTTPS-URL des Workers ein. Starte den Agenten und exportiere das Spielerprofil. Spieler richten das Profil oder die `/profile`-URL einmal ein. Das feste Verzeichnis verarbeitet Startanfragen und aktualisierte Tunneladressen; das Spiel verwendet den nativen openOMSI-Multiplayer. Der Host-PC muss eingeschaltet sein und der Agent laufen. Lokale Dateien und Hashes blockieren den Multiplayer-Beitritt nicht. Ein realer Test mit zwei Spielern steht noch aus.
 

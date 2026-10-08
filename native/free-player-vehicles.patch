@@ -1,0 +1,277 @@
+--- a/crates/omsi-app/src/server.rs
++++ b/crates/omsi-app/src/server.rs
+@@ -46,6 +46,10 @@
+     /// Only these buses may be driven on the server (vehicle files, empty: every bus the
+     /// server has installed).
+     pub vehicles: Vec<String>,
++    /// Player buses are unrestricted; missing types use a local substitute.
++    pub free_player_vehicles: bool,
++    /// Optional local substitutes, independent of admission.
++    pub fallback_vehicles: Vec<String>,
+     /// `GET /players` on the web port tells who drives what and where (for a web map).
+     pub share_positions: bool,
+     /// The GreenTeaSpeak server and channel the players talk in (`voice`).
+@@ -106,6 +110,11 @@
+ # Vehicles/MAN_SD200/MAN_SD77.bus; empty: every bus installed on the server). The players'
+ # vehicle menu offers only these, and a player who drives another bus is sent away
+ vehicles =
++
++# BBS extension: admit any player-owned bus, without installing it on the host.
++# Optional fallback_vehicles are local substitutes only, never an admission list.
++free_player_vehicles = 0
++fallback_vehicles =
+ 
+ # tell anyone who asks the web port (GET /players) the players' names, buses, lines and
+ # positions - for a live map of the server on a website; tell your players when it is on
+@@ -168,6 +177,8 @@
+             metar_sync: flag("metar_sync", false),
+             metar_station: kv.get("metar_station").map(|v| v.chars().filter(|c| c.is_ascii_alphabetic()).take(4).collect::<String>().to_ascii_uppercase()).unwrap_or_default(),
+             vehicles: kv.get("vehicles").map(|v| v.split(';').map(|x| x.trim().replace('\\', "/")).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
++            free_player_vehicles: flag("free_player_vehicles", false),
++            fallback_vehicles: kv.get("fallback_vehicles").map(|v| v.split(';').map(|x| x.trim().replace('\\', "/")).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
+             share_positions: flag("share_positions", false),
+             voice: crate::voice::VoiceServer::from_kv(|k| kv.get(k).cloned()),
+         })
+@@ -187,7 +198,8 @@
+         time: cfg.time.clone(),
+         weather: cfg.weather.clone().unwrap_or_default(),
+         password: false,
+-        vehicles: cfg.vehicles.clone(),
++        vehicles: if cfg.free_player_vehicles { Vec::new() } else { cfg.vehicles.clone() },
++        free_player_vehicles: cfg.free_player_vehicles,
+         reached_at: String::new(),
+         players_public: cfg.share_positions,
+         player_list: Vec::new(),
+@@ -204,6 +216,8 @@
+     let _ = SERVER_ADMIN.set((cfg.admin_password.clone(), if cfg.real_time { 1.0 } else { cfg.time_speed }));
+     crate::real_time::set_server_real(cfg.real_time);
+     let _ = SERVER_VEHICLES.set(cfg.vehicles.clone());
++    SERVER_FREE_VEHICLES.store(cfg.free_player_vehicles, std::sync::atomic::Ordering::Relaxed);
++    let _ = SERVER_FALLBACK_VEHICLES.set(cfg.fallback_vehicles.clone());
+     let _ = SERVER_VOICE.set(cfg.voice.clone());
+     args.map = cfg.map.clone();
+     args.time = cfg.time.clone();
+@@ -246,6 +260,18 @@
+ /// The buses a dedicated server allows (`vehicles`; empty: every bus it has).
+ pub(crate) static SERVER_VEHICLES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+ 
++/// Admission and substitution are separate in managed BBS sessions.
++pub(crate) static SERVER_FREE_VEHICLES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
++pub(crate) static SERVER_FALLBACK_VEHICLES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
++
++pub(crate) fn free_player_vehicles() -> bool {
++    SERVER_FREE_VEHICLES.load(std::sync::atomic::Ordering::Relaxed)
++}
++
++pub(crate) fn admits(free: bool, list: &[String], file: &str) -> bool {
++    free || allows(list, file)
++}
++
+ /// Whether a `vehicles` list allows the bus `file` (an empty list: every bus). A player's
+ /// game may name it with a folder before it (`D:/OMSI 2/Vehicles/…/….bus`).
+ pub(crate) fn allows(list: &[String], file: &str) -> bool {
+@@ -258,8 +284,9 @@
+ /// own vehicle menu, which a game before this one did not limit to the list, #1183) is sent
+ /// away and told which buses the server has. It may join again with one of them.
+ pub(crate) fn enforce_vehicles(lan: &mut omsi_net::LanSession) {
++    if free_player_vehicles() { return; }
+     let Some(list) = SERVER_VEHICLES.get().filter(|l| !l.is_empty()) else { return };
+-    let out: Vec<(u32, String)> = lan.peers().filter(|p| p.has_info && !p.pose.bus.is_empty() && !allows(list, &p.pose.bus)).map(|p| (p.pose.id, p.pose.bus.clone())).collect();
++    let out: Vec<(u32, String)> = lan.peers().filter(|p| p.has_info && !p.pose.bus.is_empty() && !admits(free_player_vehicles(), list, &p.pose.bus)).map(|p| (p.pose.id, p.pose.bus.clone())).collect();
+     for (id, bus) in out {
+         log::warn!("server: player {id} drives {bus}, which the vehicles list does not allow: sent away");
+         let names: Vec<&str> = list.iter().map(|v| v.rsplit('/').next().unwrap_or(v)).collect();
+@@ -323,7 +350,29 @@
+ 
+ #[cfg(test)]
+ mod vehicles_tests {
+-    use super::allows;
++    use super::{allows, admits, info_of, ServerCfg};
++
++    #[test]
++    fn free_mode_does_not_authorize_by_host_fleet() {
++        let list = vec!["Vehicles/MAN_SD200/MAN_SD77.bus".to_string()];
++        assert!(admits(true, &list, "Vehicles/Private/Torino.bus"));
++        assert!(!admits(false, &list, "Vehicles/Private/Torino.bus"));
++        assert!(admits(true, &[], "Vehicles/Weekly/New.bus"));
++    }
++
++    #[test]
++    fn cfg_and_status_separate_free_admission_from_substitutes() {
++        let path = std::env::temp_dir().join(format!("bbs-free-cfg-{}.cfg", std::process::id()));
++        std::fs::write(&path, "free_player_vehicles = 1\nvehicles = Vehicles/Old/Only.bus\nfallback_vehicles = Vehicles/MAN_SD200/MAN_SD77.bus\n").unwrap();
++        let cfg = ServerCfg::load(&path).unwrap();
++        let _ = std::fs::remove_file(path);
++        assert!(cfg.free_player_vehicles);
++        assert_eq!(cfg.fallback_vehicles, ["Vehicles/MAN_SD200/MAN_SD77.bus"]);
++        let info = info_of(&cfg);
++        assert!(info.free_player_vehicles);
++        assert!(info.vehicles.is_empty());
++        assert!(info.to_json().contains("\"free_player_vehicles\":true"));
++    }
+ 
+     #[test]
+     fn the_list_allows_its_buses_only() {
+--- a/crates/omsi-net/src/ws.rs
++++ b/crates/omsi-net/src/ws.rs
+@@ -43,6 +43,8 @@
+     /// The buses that may be driven there (vehicle files, `Vehicles/…/….bus`): what the
+     /// host has installed, or a server's own list. Empty: not said (an older game).
+     pub vehicles: Vec<String>,
++    /// BBS extension: admission is independent of installed vehicle models.
++    pub free_player_vehicles: bool,
+     /// Where it answered (`http(s)://…`), set by `query`: a server added by its bare
+     /// address (`1.2.3.4`, `host:27025`) is joined there.
+     pub reached_at: String,
+@@ -144,7 +146,7 @@
+ impl ServerInfo {
+     pub fn to_json(&self) -> String {
+         format!(
+-            "{{\"name\":{},\"motd\":{},\"map\":{},\"players\":{},\"max_players\":{},\"version\":{},\"icon\":{},\"time\":{},\"weather\":{},\"password\":{},\"protocol\":{},\"vehicles\":{},\"world\":{}}}",
++            "{{\"name\":{},\"motd\":{},\"map\":{},\"players\":{},\"max_players\":{},\"version\":{},\"icon\":{},\"time\":{},\"weather\":{},\"password\":{},\"protocol\":{},\"vehicles\":{},\"free_player_vehicles\":{},\"world\":{}}}",
+             json_str(&self.name),
+             json_str(&self.motd),
+             json_str(&self.map),
+@@ -157,6 +159,7 @@
+             self.password,
+             crate::PROTOCOL,
+             json_str(&self.vehicles.join(";")),
++            self.free_player_vehicles,
+             self.world.map(|w| w.to_json()).unwrap_or_else(|| "null".into())
+         )
+     }
+@@ -177,6 +180,7 @@
+             weather: text("weather").unwrap_or_default(),
+             password: json_value(s, "password").map(|v| v.trim() == "true").unwrap_or(false),
+             vehicles: text("vehicles").map(|v| v.split(';').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
++            free_player_vehicles: json_value(s, "free_player_vehicles").is_some_and(|v| v.trim() == "true"),
+             reached_at: String::new(),
+             ..Default::default()
+         })
+--- a/crates/omsi-app/src/lib.rs
++++ b/crates/omsi-app/src/lib.rs
+@@ -97,6 +97,7 @@
+ mod on_foot;
+ mod route_arrows;
+ mod server;
++mod free_vehicles;
+ mod player;
+ mod plugins;
+ mod services;
+--- a/crates/omsi-app/src/lan.rs
++++ b/crates/omsi-app/src/lan.rs
+@@ -849,6 +849,8 @@
+ /// offers only those): `only` when a server's list says, else every bus installed here -
+ /// read in the background (it takes a moment over all content folders).
+ pub fn publish_vehicles(root: PathBuf, only: Vec<String>) {
++    // Empty /status vehicles keeps official clients' own vehicle menus open.
++    if crate::server::free_player_vehicles() { return; }
+     let _ = std::thread::Builder::new().name("vehicle list".into()).spawn(move || {
+         let list: Vec<String> = if only.is_empty() {
+             crate::menu::Menu::new(&root, "").vehicles.into_iter().map(|v| v.1).collect()
+@@ -2492,32 +2494,43 @@
+     Ok(path)
+ }
+ 
+-/// Load the type a remote player drives, or a stand-in: ours, or on a server the first of
+-/// the buses its `vehicles` list allows. A bus the list does not allow is not loaded at all
+-/// (a player joining with another than the server offers).
++/// Missing player buses use a local type only for the remote copy. The player's
++/// announced file and its own simulation remain untouched; no private assets transfer.
+ fn remote_type(
+     args: &Args,
+     pose: &Pose,
+     player: Option<&Player>,
+ ) -> Option<(Arc<omsi_sim::VehicleType>, bool)> {
+     let allowed = crate::server::SERVER_VEHICLES.get().filter(|l| !l.is_empty());
+-    let loaded = if allowed.is_none_or(|l| crate::server::allows(l, &pose.bus)) {
+-        remote_bus_file(args, &pose.bus).and_then(|path| omsi_sim::VehicleType::load(&args.root, &path).map_err(|e| e.to_string()))
+-    } else {
+-        Err("the server does not offer it".to_string())
+-    };
+-    match loaded {
+-        Ok(t) => Some((Arc::new(t), false)),
+-        Err(e) => {
+-            log::warn!("LAN: player {} drives {:?}, which cannot be loaded here ({e}); showing a stand-in", pose.id, pose.bus);
+-            if let Some(p) = player {
+-                return Some((p.vehicle.ty.clone(), true));
+-            }
++    let admitted = crate::server::admits(crate::server::free_player_vehicles(), allowed.map(Vec::as_slice).unwrap_or(&[]), &pose.bus);
++    crate::free_vehicles::select_type(admitted, &pose.bus, |file| {
++        match remote_bus_file(args, file).and_then(|path| omsi_sim::VehicleType::load(&args.root, &path).map_err(|e| e.to_string())) {
++            Ok(t) => Some(Arc::new(t)),
++            Err(e) => {
++                log::warn!("LAN: player {} drives {:?}, which cannot be loaded here ({e}); showing a stand-in", pose.id, pose.bus);
++                None
++            }
++        }
++    }, || {
++        if let Some(p) = player { return Some(p.vehicle.ty.clone()); }
++        if !crate::server::free_player_vehicles() {
+             let first = allowed.and_then(|l| l.first())?;
+-            let path = remote_bus_file(args, first).ok()?;
+-            omsi_sim::VehicleType::load(&args.root, &path).ok().map(|t| (Arc::new(t), true))
+-        }
+-    }
++            return remote_bus_file(args, first).ok().and_then(|p| omsi_sim::VehicleType::load(&args.root, &p).ok()).map(Arc::new);
++        }
++        // Load the headless server's substitute once. Prefer the optional models,
++        // then original OMSI buses; try the remaining local fleet if they fail.
++        static FALLBACK: std::sync::OnceLock<Option<Arc<omsi_sim::VehicleType>>> = std::sync::OnceLock::new();
++        FALLBACK.get_or_init(|| {
++            let preferred = crate::server::SERVER_FALLBACK_VEHICLES.get().map(Vec::as_slice).unwrap_or(&[]);
++            let original = ["Vehicles/MAN_SD200/MAN_SD77.bus", "Vehicles/MAN_SD200/MAN_SD80.bus", "Vehicles/MAN_SD202/MAN_D92.bus"];
++            let load = |f: &str| remote_bus_file(args, f).ok().and_then(|p| omsi_sim::VehicleType::load(&args.root, &p).ok()).map(Arc::new);
++            crate::free_vehicles::first_loaded(preferred.iter().map(String::as_str).chain(original), load)
++                .or_else(|| {
++                    let menu = crate::menu::Menu::new(&args.root, "");
++                    crate::free_vehicles::first_loaded(menu.vehicles.iter().map(|v| v.1.as_str()), load)
++                })
++        }).clone()
++    })
+ }
+ 
+ #[allow(clippy::too_many_arguments)]
+--- /dev/null
++++ b/crates/omsi-app/src/free_vehicles.rs
+@@ -0,0 +1,40 @@
++//! Admission and local substitutes for managed BBS servers (protocol 6 unchanged).
++
++pub(crate) fn first_loaded<'a, T>(files: impl IntoIterator<Item = &'a str>, mut load: impl FnMut(&str) -> Option<T>) -> Option<T> {
++    files.into_iter().find_map(|f| load(f))
++}
++
++pub(crate) fn select_type<T>(admitted: bool, requested: &str, mut load: impl FnMut(&str) -> Option<T>, fallback: impl FnOnce() -> Option<T>) -> Option<(T, bool)> {
++    if admitted {
++        if let Some(t) = load(requested) { return Some((t, false)); }
++    }
++    fallback().map(|t| (t, true))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn private_bus_absent_on_host_gets_substitute_without_changing_its_name() {
++        let bus = "Vehicles/Private/Torino.bus";
++        let mut attempted = String::new();
++        let result = select_type(true, bus, |f| { attempted = f.into(); None }, || Some("MAN"));
++        assert_eq!(result, Some(("MAN", true)));
++        assert_eq!(attempted, bus);
++    }
++    #[test]
++    fn installed_unlisted_bus_keeps_its_real_model() {
++        let result = select_type(true, "Vehicles/Private/Torino.bus", |_| Some("Torino"), || panic!("unexpected substitute"));
++        assert_eq!(result, Some(("Torino", false)));
++    }
++    #[test]
++    fn failed_optional_substitutes_do_not_hide_a_working_original_bus() {
++        let result = first_loaded(["Vehicles/Old/Missing.bus", "Vehicles/Broken/Bad.bus", "Vehicles/MAN/Default.bus"], |f| f.ends_with("Default.bus").then_some("MAN"));
++        assert_eq!(result, Some("MAN"));
++    }
++    #[test]
++    fn legacy_policy_and_no_local_models_do_not_invent_a_real_vehicle() {
++        assert_eq!(select_type(false, "private.bus", |_| panic!("legacy denial must not load"), || Some("MAN")), Some(("MAN", true)));
++        assert_eq!(select_type::<()>(true, "private.bus", |_| None, || None), None);
++    }
++}

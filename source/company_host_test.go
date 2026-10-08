@@ -25,7 +25,7 @@ func TestCompanyHostCreatesMissingConfigAndPreservesExistingSettings(t *testing.
 	if err != nil || !created || cfg.Port != 27015 || cfg.WebPort != 27025 {
 		t.Fatal(cfg, created, err)
 	}
-	for _, line := range []string{"name = Transfort - BR", "map = " + session.MapFile, "date = 2026-10-07", "time = 13:18:20", "real_time = 0", "vehicles = " + strings.Join(fleet, ";"), "admin_password = \n"} {
+	for _, line := range []string{"name = Transfort - BR", "map = " + session.MapFile, "date = 2026-10-07", "time = 13:18:20", "real_time = 0", "vehicles = \n", "free_player_vehicles = 1", "fallback_vehicles = " + strings.Join(fleet, ";"), "admin_password = \n"} {
 		if !strings.Contains(string(cfg.Text), line) {
 			t.Fatal("missing initial setting", line)
 		}
@@ -63,7 +63,7 @@ func hostTestFleet() []string {
 }
 
 func hostTestStatus() companyHostStatus {
-	return companyHostStatus{Name: "Transfort", Map: hostTestSession().MapFile, Version: "0.2.0", Protocol: 6, Time: "21:14", Players: 1, MaxPlayers: 16, Vehicles: json.RawMessage(`"` + strings.Join(hostTestFleet(), ";") + `"`), World: json.RawMessage(`{"cars":30}`)}
+	return companyHostStatus{Name: "Transfort", Map: hostTestSession().MapFile, Version: "0.2.11", Protocol: 6, Time: "21:14", Players: 1, MaxPlayers: 16, FreePlayerVehicles: true, Vehicles: json.RawMessage(`""`), World: json.RawMessage(`{"cars":30}`)}
 }
 
 func TestCompanyHostConfigPreservesOwnerSettingsAndComments(t *testing.T) {
@@ -86,8 +86,8 @@ func TestCompanyHostConfigPreservesOwnerSettingsAndComments(t *testing.T) {
 	if strings.Count(string(rendered), "real_time = 0") != 2 || !bytes.Equal(original, copyBefore) {
 		t.Fatal("duplicate override or original preservation failed")
 	}
-	if !bytes.Contains(rendered, []byte("vehicles = "+strings.Join(hostTestFleet(), ";"))) {
-		t.Fatal("fleet not preserved")
+	if !bytes.Contains(rendered, []byte("fallback_vehicles = "+strings.Join(hostTestFleet(), ";"))) || !bytes.Contains(rendered, []byte("\r\nvehicles = \r\n")) || !bytes.Contains(rendered, []byte("free_player_vehicles = 1")) {
+		t.Fatal("substitute preferences became an authorization list")
 	}
 }
 
@@ -116,8 +116,8 @@ func TestCompanyHostFleetIsRestrictedToSessionPackages(t *testing.T) {
 	if _, err := companyHostFleet(p, hostTestSession()); err == nil {
 		t.Fatal("accepted config fleet separator in a bus filename")
 	}
-	if _, err := companyHostFleet(CompanyProfile{}, hostTestSession()); err == nil {
-		t.Fatal("accepted empty session fleet")
+	if fleet, err := companyHostFleet(CompanyProfile{}, hostTestSession()); err != nil || len(fleet) != 0 {
+		t.Fatal("empty optional substitutes blocked the host", fleet, err)
 	}
 }
 
@@ -133,7 +133,7 @@ func TestCompanyHostStatusRejectsWrongServerAndFleet(t *testing.T) {
 		{"version", func(s *companyHostStatus) { s.Version = "not-openomsi" }},
 		{"map", func(s *companyHostStatus) { s.Map = "maps/Other/global.cfg" }},
 		{"clock", func(s *companyHostStatus) { s.Time = "24:00" }},
-		{"emptyfleet", func(s *companyHostStatus) { s.Vehicles = json.RawMessage(`""`) }},
+		{"legacy server without free mode", func(s *companyHostStatus) { s.FreePlayerVehicles = false }},
 		{"extrabus", func(s *companyHostStatus) { s.Vehicles = json.RawMessage(`"Vehicles/Other/bus.bus"`) }},
 		{"invalidplayers", func(s *companyHostStatus) { s.Players = -1 }},
 	}

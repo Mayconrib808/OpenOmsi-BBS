@@ -20,7 +20,6 @@ type MultiplayerPlan struct {
 	CompanyID, CompanyName, PlayerName string
 	Session                            CompanySession
 	Trip                               MultiplayerTrip
-	Fleet                              map[string]bool
 	Clock                              *CompanyClock
 }
 
@@ -128,54 +127,6 @@ func validateCompanyServerAt(status companyServerStatus, session CompanySession,
 	if gap > float64(session.ClockToleranceSec) {
 		return fmt.Errorf("horário incompatível / incompatible clock: sessão %s, referência %s (limite %d s)", status.Time, expected, session.ClockToleranceSec)
 	}
-	buses, err := companyVehicleList(status.Vehicles)
-	if err != nil {
-		return err
-	}
-	if trip.BusFile != "" {
-		allowed := false
-		for _, bus := range buses {
-			allowed = allowed || companyAssetKey(bus) == companyAssetKey(trip.BusFile)
-		}
-		if !allowed {
-			return fmt.Errorf("BBS bus is not offered by this server: %s", trip.BusFile)
-		}
-	}
-	return nil
-}
-
-func companyRequiredFleet(p CompanyProfile, session CompanySession) map[string]bool {
-	covered := map[string]bool{}
-	if len(session.Fleet) != 0 {
-		for _, bus := range session.Fleet {
-			covered[companyAssetKey(bus)] = true
-		}
-		return covered
-	}
-	for _, id := range session.RequiredPackages {
-		for _, pkg := range p.Packages {
-			if pkg.ID != id {
-				continue
-			}
-			for _, file := range pkg.Files {
-				key := companyAssetKey(file.Path)
-				if strings.HasPrefix(key, "vehicles/") && strings.HasSuffix(key, ".bus") {
-					covered[key] = true
-				}
-			}
-		}
-	}
-	return covered
-}
-
-func validateCompanyFleet(status companyServerStatus, _ map[string]bool) error {
-	buses, err := companyVehicleList(status.Vehicles)
-	if err != nil {
-		return err
-	}
-	if len(buses) == 0 {
-		return fmt.Errorf("server has not published its fleet yet")
-	}
 	return nil
 }
 
@@ -279,16 +230,11 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 			unavailable = append(unavailable, CompanyProblem{session.Name, answers[i].err.Error(), ""})
 			continue
 		}
-		fleet := companyRequiredFleet(p, session)
-		if fleetErr := validateCompanyFleet(answers[i].status, fleet); fleetErr != nil {
-			unavailable = append(unavailable, CompanyProblem{session.Name, fleetErr.Error(), ""})
-			continue
-		}
 		var clock *CompanyClock
 		if session.Date == "company" {
 			clock = p.Clock
 		}
-		return &MultiplayerPlan{CompanyID: p.CompanyID, CompanyName: p.CompanyName, PlayerName: c.PlayerName, Session: session, Trip: trip, Fleet: fleet, Clock: clock}, nil, nil
+		return &MultiplayerPlan{CompanyID: p.CompanyID, CompanyName: p.CompanyName, PlayerName: c.PlayerName, Session: session, Trip: trip, Clock: clock}, nil, nil
 	}
 	return nil, unavailable, nil
 }
@@ -313,7 +259,7 @@ func recheckMultiplayer(ctx context.Context, plan *MultiplayerPlan, client *http
 	if err = validateCompanyServerAt(status, plan.Session, plan.Trip, plan.Clock, time.Now()); err != nil {
 		return err
 	}
-	return validateCompanyFleet(status, plan.Fleet)
+	return nil
 }
 
 func multiplayerArguments(plan *MultiplayerPlan) []string {

@@ -35,15 +35,16 @@ type companyHostOptions struct {
 }
 
 type companyHostStatus struct {
-	Name       string          `json:"name"`
-	Map        string          `json:"map"`
-	Version    string          `json:"version"`
-	Protocol   int             `json:"protocol"`
-	Time       string          `json:"time"`
-	Players    int             `json:"players"`
-	MaxPlayers int             `json:"max_players"`
-	Vehicles   json.RawMessage `json:"vehicles"`
-	World      json.RawMessage `json:"world"`
+	Name               string          `json:"name"`
+	Map                string          `json:"map"`
+	Version            string          `json:"version"`
+	Protocol           int             `json:"protocol"`
+	Time               string          `json:"time"`
+	Players            int             `json:"players"`
+	MaxPlayers         int             `json:"max_players"`
+	Vehicles           json.RawMessage `json:"vehicles"`
+	World              json.RawMessage `json:"world"`
+	FreePlayerVehicles bool            `json:"free_player_vehicles"`
 }
 
 type companyHostConfig struct {
@@ -138,9 +139,9 @@ func renderCompanyHostConfig(cfg companyHostConfig, session CompanySession, flee
 	values := map[string]string{
 		"map": session.MapFile, "date": now.Format("2006-01-02"),
 		"time": now.Format("15:04:05"), "real_time": "0", "time_speed": "1",
-		"vehicles": strings.Join(fleet, ";"), "admin_password": password,
+		"vehicles": "", "free_player_vehicles": "1", "fallback_vehicles": strings.Join(fleet, ";"), "admin_password": password,
 	}
-	keys := []string{"map", "date", "time", "real_time", "time_speed", "vehicles", "admin_password"}
+	keys := []string{"map", "date", "time", "real_time", "time_speed", "vehicles", "free_player_vehicles", "fallback_vehicles", "admin_password"}
 	text := cfg.Text
 	if bytes.HasPrefix(text, []byte{0xef, 0xbb, 0xbf}) {
 		text = text[3:]
@@ -194,9 +195,6 @@ func companyHostFleet(profile CompanyProfile, session CompanySession) ([]string,
 			}
 		}
 	}
-	if len(paths) == 0 {
-		return nil, fmt.Errorf("the session needs at least one hashed .bus file in its required packages")
-	}
 	fleet := make([]string, 0, len(paths))
 	for _, path := range paths {
 		fleet = append(fleet, path)
@@ -245,7 +243,7 @@ func companyHostClock(s string) (float64, error) {
 	return float64(h*3600+m*60) + sec, nil
 }
 
-func validateCompanyHostStatus(status companyHostStatus, session CompanySession, fleet []string) error {
+func validateCompanyHostStatus(status companyHostStatus, session CompanySession, _ []string) error {
 	if !compatibleCompanyServer(status.Version, status.Protocol) {
 		return fmt.Errorf("local server reported %q / protocol %d; its company multiplayer capabilities are not supported", status.Version, status.Protocol)
 	}
@@ -269,20 +267,8 @@ func validateCompanyHostStatus(status companyHostStatus, session CompanySession,
 	} else if err := json.Unmarshal(status.Vehicles, &vehicles); err != nil {
 		return fmt.Errorf("local server did not publish its fleet")
 	}
-	wanted := map[string]bool{}
-	for _, path := range fleet {
-		wanted[companyAssetKey(path)] = true
-	}
-	seen := map[string]bool{}
-	for _, path := range vehicles {
-		key := companyAssetKey(path)
-		if !wanted[key] || seen[key] {
-			return fmt.Errorf("local server fleet differs from the company profile")
-		}
-		seen[key] = true
-	}
-	if len(seen) != len(wanted) {
-		return fmt.Errorf("local server fleet differs from the company profile")
+	if !status.FreePlayerVehicles || len(vehicles) != 0 {
+		return fmt.Errorf("este servidor ainda limita os ônibus dos jogadores; use o servidor incluído em app/server/openomsi.exe nesta versão")
 	}
 	return nil
 }

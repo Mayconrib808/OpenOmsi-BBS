@@ -19,6 +19,9 @@ const previousSourcePluginHostSHA256 = "26614aa1acd0a02c9ee272b8bf7fbea075daa3eb
 // so Setup can replace it with the metadata-bearing dev.2 helper and roll back.
 const previousGUIPluginHostSHA256 = "1c7f1f25bd18edb2b010ec42de2e34db5f3fc8ed2b1d948003635528b8a11a1a"
 
+// Metadata-bearing helper published in 2.0.3-dev.2; retain exact upgrade/rollback ownership.
+const previousMetadataPluginHostSHA256 = "2e6dca9ca9f2732d88e5ad3c3787479549d76de3d60c4b90bc874790ecfbf6fd"
+
 // The build script compiles the source-backed host first, then injects its digest
 // into Setup and the launcher. The historical digest is only an upgrade/removal
 // identifier; the historical binary is never included in a new distribution.
@@ -26,7 +29,7 @@ var bundledPluginHostSHA256 string
 
 func recognisedPluginHostDigest(digest [32]byte) bool {
 	hash := fmt.Sprintf("%x", digest)
-	return hash == historicalPluginHostSHA256 || hash == previousSourcePluginHostSHA256 || hash == previousGUIPluginHostSHA256 || (bundledPluginHostSHA256 != "" && hash == bundledPluginHostSHA256)
+	return hash == historicalPluginHostSHA256 || hash == previousSourcePluginHostSHA256 || hash == previousGUIPluginHostSHA256 || hash == previousMetadataPluginHostSHA256 || (bundledPluginHostSHA256 != "" && hash == bundledPluginHostSHA256)
 }
 
 type pluginHostDeployment struct {

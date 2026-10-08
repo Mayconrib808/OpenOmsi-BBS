@@ -205,3 +205,35 @@ func TestHostAgentImportsExistingFleetAndWritesSeparateConfigs(t *testing.T) {
 		t.Fatal(string(text))
 	}
 }
+
+func TestHostMapCanRunWithoutAnyRegisteredBus(t *testing.T) {
+	c := hostConfigFixture(t)
+	c.Company.Sessions[0].Fleet = nil
+	if err := validateHostAgentConfig(c, true); err != nil {
+		t.Fatal("enabled map required bus authorization", err)
+	}
+	config := string(hostMapConfigText(c.Company.CompanyName, c.Maps[c.Company.Sessions[0].ID]))
+	if !strings.Contains(config, "passengers = 1") || !strings.Contains(config, "timetable = 1") {
+		t.Fatal("map simulation options changed", config)
+	}
+}
+func TestMigratedHostAutomaticallyUsesBundledFreeBusServer(t *testing.T) {
+	c := hostConfigFixture(t)
+	old := c.Server
+	dir := t.TempDir()
+	hostUseBundledServer(&c, dir)
+	if c.Server != old {
+		t.Fatal("missing bundled binary replaced working path")
+	}
+	server := filepath.Join(dir, "app", "server", "openomsi.exe")
+	if err := os.MkdirAll(filepath.Dir(server), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(server, []byte("free bus server fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hostUseBundledServer(&c, dir)
+	if c.Server != server {
+		t.Fatal("old restricted server was retained", c.Server)
+	}
+}

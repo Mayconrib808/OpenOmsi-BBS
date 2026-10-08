@@ -389,7 +389,7 @@ func TestCompanyServerUsesSupportedProtocolInsteadOfReleaseAllowlist(t *testing.
 		}
 	}
 	_, profile, trip, _ := companyFixture(t)
-	status := companyHostStatus{Name: "Official server", Map: trip.MapFile, Version: "0.1.0 (538ad31 2026-10-05 23:39)", Protocol: 6, Time: trip.Start, MaxPlayers: 16, Vehicles: []byte(`"Vehicles/A/a.bus;Vehicles/B/b.bus"`)}
+	status := companyHostStatus{Name: "Protocol-compatible server", Map: trip.MapFile, Version: "0.1.0 (538ad31 2026-10-05 23:39)", Protocol: 6, Time: trip.Start, MaxPlayers: 16, FreePlayerVehicles: true, Vehicles: []byte(`""`)}
 	if err := validateCompanyHostStatus(status, profile.Sessions[0], []string{"Vehicles/A/a.bus", "Vehicles/B/b.bus"}); err != nil {
 		t.Fatal(err)
 	}

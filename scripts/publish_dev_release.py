@@ -15,13 +15,16 @@ import tempfile
 from publish_release import hashes
 import setup_resources
 import plugin_host_resources
+import build_native_server
 
 ROOT = Path(__file__).resolve().parents[1]
 REPO = "Mayconrib808/OpenOmsi-BBS"
-VERSION = "2.0.3-dev.2"
-BRANCH = "codex/2.0.3-dev.2"
+VERSION = "2.0.3-dev.3"
+BRANCH = "codex/2.0.3-dev.3"
 PACKAGE = f"OpenOmsi.+.BBS.{VERSION}.zip"
-BINARIES = {"Setup.exe", "HostAgent.exe", "CompanyHost.exe", "app/OpenOMSI_BCS_Bridge.exe", "app/compat/Omsi.exe", "app/compat/omsi-plugin-host32.exe"}
+BINARIES = {"Setup.exe", "HostAgent.exe", "CompanyHost.exe", "app/OpenOMSI_BCS_Bridge.exe", "app/compat/Omsi.exe", "app/compat/omsi-plugin-host32.exe", "app/server/openomsi.exe"}
+
+DLLS = {"app/server/" + n for n in build_native_server.PE_FILES if n.endswith(".dll")}
 
 def gh(*args):
     return subprocess.check_output(["gh", *args], text=True)
@@ -45,18 +48,18 @@ def verify_package(path):
             if hashlib.sha256(archive.read(name)).hexdigest() != expected:
                 raise ValueError(f"Package entry checksum mismatch: {name}")
         if {name for name in names if name.lower().endswith(".exe")} != BINARIES:
-            raise ValueError("Development package must contain exactly six executables")
+            raise ValueError("Development package must contain exactly seven executables")
         # Require Windows x86 and the GUI subsystem for the facade/helper.
         for name in BINARIES:
             binary = archive.read(name)
             pe = struct.unpack_from("<I", binary, 0x3c)[0]
-            if binary[:2] != b"MZ" or binary[pe:pe+4] != b"PE\0\0" or struct.unpack_from("<H", binary, pe+4)[0] != 0x14c:
-                raise ValueError(f"Invalid x86 Windows image: {name}")
+            if binary[:2] != b"MZ" or binary[pe:pe+4] != b"PE\0\0" or struct.unpack_from("<H", binary, pe+4)[0] != (0x8664 if name == "app/server/openomsi.exe" else 0x14c):
+                raise ValueError(f"Invalid Windows image: {name}")
             if name in {"app/compat/Omsi.exe", "app/compat/omsi-plugin-host32.exe"} and struct.unpack_from("<H", binary, pe+24+68)[0] != 2:
                 raise ValueError(f"Unexpected console subsystem: {name}")
         # The artifact must contain the source checked out at the tested commit.
         for name in names:
-            if name.startswith(("source/", "scripts/", "relay/")):
+            if name.startswith(("source/", "scripts/", "relay/", "native/")):
                 local = ROOT / name
                 if not local.is_file() or archive.read(name) != local.read_bytes():
                     raise ValueError(f"Artifact source differs from this commit: {name}")
@@ -66,7 +69,14 @@ def verify_package(path):
             host = Path(temporary) / "omsi-plugin-host32.exe"
             host.write_bytes(archive.read("app/compat/omsi-plugin-host32.exe"))
             setup_resources.verify_executable(host, plugin_host_resources.resources_from_assets(ROOT / "source/resources", VERSION))
-    print(f"Verified development ZIP, source, six binaries and complete manifest: {digest}", flush=True)
+        if {name for name in names if name.lower().endswith(".dll")} != DLLS:
+            raise ValueError("Unexpected native runtime library set")
+        with tempfile.TemporaryDirectory(prefix="verify-native-server-") as temporary:
+            directory = Path(temporary)
+            for name in [*build_native_server.PE_FILES, "bbs-server.json"]:
+                (directory / name).write_bytes(archive.read("app/server/" + name))
+            build_native_server.verify_package(directory)
+    print(f"Verified development ZIP, source, seven binaries and complete manifest: {digest}", flush=True)
     return digest
 
 def main():
@@ -89,12 +99,12 @@ def main():
     if subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() != args.commit:
         raise ValueError("Checkout does not match the tested push")
     jobs = json.loads(gh("api", f"repos/{REPO}/actions/runs/{args.run_id}/jobs?per_page=100"))["jobs"]
-    for name in ("check (ubuntu-latest)", "check (windows-latest)"):
+    for name in ("native-server", "check (ubuntu-latest)", "check (windows-latest)"):
         matching = [j for j in jobs if j["name"] == name]
         if len(matching) != 1 or matching[0]["conclusion"] != "success":
             raise ValueError(f"Required CI job did not pass: {name}")
         if name == "check (windows-latest)":
-            scans = [s for s in matching[0]["steps"] if s["name"] == "Microsoft Defender scan of candidate ZIP and all six executables"]
+            scans = [s for s in matching[0]["steps"] if s["name"] == "Microsoft Defender scan of candidate ZIP and all executable files"]
             if len(scans) != 1 or scans[0]["conclusion"] != "success":
                 raise ValueError("Required Defender scan did not pass")
     args.artifact_dir.mkdir(parents=True, exist_ok=True)
@@ -108,10 +118,13 @@ def main():
         raise ValueError("Defender report does not approve this exact candidate ZIP")
     expected_scans = {"candidate-zip": digest}
     with zipfile.ZipFile(package) as archive:
-        expected_scans.update({name: hashlib.sha256(archive.read(name)).hexdigest() for name in BINARIES})
+        expected_scans.update({name: hashlib.sha256(archive.read(name)).hexdigest() for name in BINARIES | DLLS})
+    with zipfile.ZipFile(package) as archive:
+        if json.loads(archive.read("app/server/bbs-server.json"))["commit"] != args.commit:
+            raise ValueError("Native server was not built from this tested commit")
     scans = report["scans"]
-    if len(scans) != 7 or any(s["exit_code"] != 0 for s in scans) or {s["item"]: s["sha256"] for s in scans} != expected_scans:
-        raise ValueError("Defender scan results do not match the seven exact package inputs")
+    if len(scans) != 1 + len(BINARIES | DLLS) or any(s["exit_code"] != 0 for s in scans) or {s["item"]: s["sha256"] for s in scans} != expected_scans:
+        raise ValueError("Defender scan results do not match the exact package inputs")
     releases = json.loads(gh("api", f"repos/{REPO}/releases?per_page=100"))
     tag = "v" + VERSION
     if any(r["tag_name"] == tag for r in releases):
@@ -121,7 +134,7 @@ def main():
         f"\nValidação automática: [Linux e Windows]({run['html_url']}), commit `{args.commit}`.\n\nZIP SHA-256: `{digest}`.\n", encoding="utf-8")
     gh("release", "create", tag, str(package), str(package.with_name(package.name + ".sha256")),
        "--repo", REPO, "--target", args.commit, "--prerelease", "--latest=false",
-       "--title", "OpenOmsi + BBS 2.0.3 dev2", "--notes-file", str(notes))
+       "--title", "OpenOmsi + BBS 2.0.3 dev3", "--notes-file", str(notes))
     release = json.loads(gh("api", f"repos/{REPO}/releases/tags/{tag}"))
     assets = {a["name"]:a for a in release["assets"]}
     for path in (package, package.with_name(package.name + ".sha256")):

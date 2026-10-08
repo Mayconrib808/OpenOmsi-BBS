@@ -21,11 +21,11 @@ Perfis antigos com uma data fixa continuam funcionando. É possível migrar um p
 
 ## Iniciar o servidor sincronizado
 
-Encerre o servidor que foi iniciado com `start.cmd`. Abra **CompanyHost.exe** no pacote da ponte. Informe o perfil local, a sessão, a pasta do servidor OpenOMSI 0.2.0 e a pasta original do OMSI 2. O auxiliar inicia seu próprio processo de servidor e permanece aberto junto com ele. Após a primeira sincronização confirmada, salva apenas os caminhos e a sessão em `CompanyHost.local.json`, ao lado do executável. Na próxima abertura, Enter reutiliza esses dados; não compartilhe esse arquivo local.
+Encerre o servidor que foi iniciado com `start.cmd`. Abra **CompanyHost.exe** no pacote da ponte. Informe o perfil local, a sessão, o servidor atualizado de `app/server` e a pasta original do OMSI 2. O auxiliar inicia seu próprio processo de servidor e permanece aberto junto com ele. Após a primeira sincronização confirmada, salva apenas os caminhos e a sessão em `CompanyHost.local.json`, ao lado do executável. Na próxima abertura, Enter reutiliza esses dados; não compartilhe esse arquivo local.
 
 Desde a **2.0.2-dev.2**, se `server.cfg` não existir, o auxiliar cria uma configuração inicial com mapa, frota e relógio da sessão escolhida, portas UDP 27015 e web 27025 e 16 vagas. Não é necessário executar o openOMSI separadamente para gerar esse arquivo. Se já existir, suas opções são preservadas, incluindo portas e limite de jogadores; erros de leitura ou configuração inválida são informados.
 
-Para cada execução, o auxiliar gera uma configuração separada com mapa, data/hora da empresa, velocidade 1 e somente os ônibus cobertos pelos pacotes da sessão. Preserva o `server.cfg` existente, o relógio do Windows e as configurações da empresa no BCS. Uma credencial temporária de administração fica exclusivamente na configuração local do host e não entra no perfil compartilhado.
+Para cada execução, o auxiliar gera uma configuração separada com mapa, data/hora da empresa, velocidade 1 e ônibus dos jogadores livres. A lista antiga da frota só indica substitutos opcionais. Preserva o `server.cfg` existente, o relógio do Windows e as configurações da empresa no BCS. Uma credencial temporária de administração fica exclusivamente na configuração local do host e não entra no perfil compartilhado.
 
 Depois do carregamento, o auxiliar confere o servidor local e envia correções de relógio periodicamente pela API local do OpenOMSI. `real_time=0` é obrigatório nesse processo: a opção original `real_time=1` segue o Windows e ignora os ajustes administrativos. A data inicial é calculada automaticamente e o servidor avança o calendário através da meia-noite.
 
@@ -36,7 +36,7 @@ Use o endereço HTTP local para testar no mesmo computador, ou o endereço HTTPS
 ## O que é sincronizado
 
 - O host mantém o relógio da empresa; jogadores entrando não alteram o mundo para sua própria partida.
-- O horário de partida continua sendo lido da viagem do BCS e usado no ajuste do itinerário. Cada jogador pode usar seu próprio ônibus da frota declarada.
+- O horário de partida continua sendo lido da viagem do BCS e usado no ajuste do itinerário. Cada jogador pode usar seu próprio ônibus, mesmo privado ou ausente no host, sem cadastro em uma frota.
 - A data automática vem da empresa, sem depender do fuso do jogador.
 - Antes de liberar o BCS, a ponte verifica a data e hora reais do mundo que o OpenOMSI confirmou. Se o dia mudar durante o carregamento inicial, a viagem é interrompida com orientação para iniciar novamente, evitando um itinerário preparado para o dia anterior. Viagens já iniciadas continuam acompanhando o calendário compartilhado.
 

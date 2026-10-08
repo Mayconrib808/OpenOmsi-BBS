@@ -331,9 +331,13 @@ func (g *hostGUI) createControls() {
 	g.edit(hostRoot, g.c.Root, 20, 130, 720)
 	g.button("Procurar...", "Browse...", "Durchsuchen...", 750, 130, 155, hostBrowseRoot)
 	g.button("Detectar mapas", "Scan maps", "Karten suchen", 915, 130, 165, hostScan)
-	g.label("Servidor dedicado (openomsi.exe)", "Dedicated server (openomsi.exe)", "Dedizierter Server (openomsi.exe)", 20, 166, 700)
+	g.label("Servidor incluído — ônibus dos jogadores livres", "Included server — unrestricted player buses", "Enthaltener Server — freie Spielerbusse", 20, 166, 700)
 	g.edit(hostServer, g.c.Server, 20, 189, 885)
 	g.button("Procurar...", "Browse...", "Durchsuchen...", 915, 189, 165, hostBrowseServer)
+	if strings.EqualFold(filepath.Clean(g.c.Server), filepath.Join(g.dir, "app", "server", "openomsi.exe")) {
+		hostSend(g.fields[hostServer], 0xcf, 1, 0) // EM_SETREADONLY
+		hostUser.NewProc("EnableWindow").Call(g.fields[hostBrowseServer], 0)
+	}
 	g.label("URL fixa do diretório online (Worker)", "Stable directory URL (Worker)", "Feste Verzeichnis-URL (Worker)", 20, 224, 650)
 	g.edit(hostDirectory, g.c.Company.DirectoryURL, 20, 247, 700)
 	g.label("Chave privada do host", "Private host key", "Privater Host-Schlüssel", 740, 224, 340)
@@ -358,7 +362,7 @@ func (g *hostGUI) createControls() {
 	}
 	g.check("Passageiros", "Passengers", "Fahrgäste", 20, 680, 170, hostPassengers)
 	g.check("Tabela / ônibus AI", "Timetable / AI buses", "Fahrplan / KI-Busse", 195, 680, 215, hostTimetable)
-	g.label("Frota deste mapa — seleção em lote (Ctrl/Shift)", "Map fleet — bulk selection (Ctrl/Shift)", "Kartenflotte — Mehrfachauswahl (Strg/Umschalt)", 425, 385, 655)
+	g.label("Substitutos opcionais — qualquer ônibus pode entrar", "Optional substitutes — any player bus can join", "Optionale Ersatzmodelle — jeder Spielerbus darf hinein", 425, 385, 655)
 	g.edit(hostFilter, "", 425, 409, 655)
 	g.control("LISTBOX", "", 425, 444, 655, 238, 0x00800000|0x00200000|0x00100000|0x10000|0x800|0x1, hostFleet)
 	hostSend(g.fields[hostFleet], 0x194, 2200, 0)
@@ -785,6 +789,9 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 	if c.Company.Clock == nil {
 		c.Company.Clock = &CompanyClock{TimeZone: "Europe/Berlin"}
 	}
+	if !smoke {
+		hostUseBundledServer(&c, dir)
+	}
 	g := &hostGUI{dir: dir, path: path, c: c, fields: map[int]uintptr{}, selected: map[string]bool{}, current: -1, status: make(chan string, 1)}
 	activeHostGUI = g
 	defer func() { activeHostGUI = nil }()
@@ -822,8 +829,12 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 		if err := g.storeMap(); err != nil {
 			return err
 		}
+		g.command(hostClear, 0)
+		if err := g.storeMap(); err != nil || len(g.c.Company.Sessions[0].Fleet) != 0 {
+			return fmt.Errorf("optional empty substitute selection failed: %v", err)
+		}
 		hostSetText(g.fields[hostRoot], `F:\SteamLibrary\steamapps\common\OMSI 2`)
-		hostSetText(g.fields[hostServer], `D:\openOMSI-server\openomsi.exe`)
+		hostSetText(g.fields[hostServer], `D:\OpenOmsi-BBS\app\server\openomsi.exe`)
 		hostSetText(g.fields[hostStatus], "CI preview — configure once; servers start on player demand.")
 		hostUser.NewProc("ShowWindow").Call(g.window, 1)
 		hostUser.NewProc("UpdateWindow").Call(g.window)

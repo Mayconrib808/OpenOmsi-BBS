@@ -40,6 +40,7 @@ func main() {
 		fmt.Fprintln(log, err)
 		return
 	}
+	hostUseBundledServer(&config, dir)
 	ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 	if err := runHostAgent(ctx, config, dir, log); err != nil {
