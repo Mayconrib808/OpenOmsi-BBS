@@ -383,11 +383,17 @@ func checkCompanyPackages(root string, p CompanyProfile, session CompanySession)
 	return checkCompanyPackagesWithOriginals(root, p, session, companyBBSBackupInventory(root))
 }
 
-// Verify only assets that the company explicitly declared. A player's OMSI
-// installation may contain additional repaints, buses, scripts from other mods,
-// editor leftovers or operating-system metadata. Those extras are not used as
-// trust evidence and must not prevent joining a session.
+// Runtime multiplayer follows openOMSI's permissive philosophy: a registered
+// session is identified by server/map/clock/protocol, not by byte-for-byte local
+// mod equality. Players may have different map or vehicle revisions, missing
+// other players' buses, extra repaints/scripts, or BBS-mutated files. Hashes
+// remain useful for administrator inventory/review, but never block a real
+// multiplayer session. A synthetic empty-ID session can still request the strict
+// audit below for maintenance tools and tests.
 func checkCompanyPackagesWithOriginals(root string, p CompanyProfile, session CompanySession, bbsBackups map[string]bool) []CompanyProblem {
+	if strings.TrimSpace(session.ID) != "" {
+		return nil
+	}
 	wanted := map[string]bool{}
 	for _, id := range session.RequiredPackages {
 		wanted[id] = true
@@ -507,6 +513,7 @@ func refreshCompanyHashes(root string, original CompanyProfile) (CompanyProfile,
 	}
 	// Check every package, including any not used by the first session.
 	all := updated.Sessions[0]
+	all.ID = ""
 	all.RequiredPackages = nil
 	for _, pkg := range updated.Packages {
 		all.RequiredPackages = append(all.RequiredPackages, pkg.ID)
