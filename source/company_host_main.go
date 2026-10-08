@@ -14,6 +14,12 @@ import (
 	"time"
 )
 
+func init() {
+	// CompanyHost must follow openOMSI-style runtime compatibility. Package
+	// hashes remain available to Setup for explicit administrator audits only.
+	companyRuntimePackageChecksDisabled = true
+}
+
 func companyHostInput(reader *bufio.Reader, prompt string) (string, error) {
 	fmt.Print(prompt + ": ")
 	line, err := reader.ReadString('\n')
