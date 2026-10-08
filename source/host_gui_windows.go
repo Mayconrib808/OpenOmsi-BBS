@@ -67,20 +67,34 @@ type hostBrowseInfo struct {
 	Callback, Param    uintptr
 	Image              int32
 }
+type hostScrollInfo struct {
+	Size, Mask      uint32
+	Min, Max        int32
+	Page            uint32
+	Position, Track int32
+}
+type hostControlPosition struct {
+	window uintptr
+	x, y   int
+}
 type hostGUI struct {
-	dir, path      string
-	c              hostAgentConfig
-	window, font   uintptr
-	fields         map[int]uintptr
-	maps           []hostInstalledMap
-	buses, visible []string
-	selected       map[string]bool
-	current        int
-	loading        bool
-	statusBusy     bool
-	wasRunning     bool
-	status         chan string
-	labels         []struct {
+	dir, path        string
+	c                hostAgentConfig
+	window, font     uintptr
+	fields           map[int]uintptr
+	maps             []hostInstalledMap
+	buses, visible   []string
+	selected         map[string]bool
+	current          int
+	loading          bool
+	statusBusy       bool
+	wasRunning       bool
+	status           chan string
+	controls         []hostControlPosition
+	scrollX, scrollY int
+	lastFocus        uintptr
+	layoutBusy       bool
+	labels           []struct {
 		h          uintptr
 		pt, en, de string
 	}
@@ -153,10 +167,107 @@ func (g *hostGUI) control(class, text string, x, y, w, h int, style uintptr, id 
 	instance, _, _ := hostKernel.NewProc("GetModuleHandleW").Call(0)
 	hwnd, _, _ := hostUser.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(hostPtr(class))), uintptr(unsafe.Pointer(hostPtr(text))), 0x50000000|style, uintptr(x), uintptr(y), uintptr(w), uintptr(h), g.window, uintptr(id), instance, 0)
 	hostSend(hwnd, 0x0030, g.font, 1)
+	g.controls = append(g.controls, hostControlPosition{hwnd, x, y})
 	if id != 0 {
 		g.fields[id] = hwnd
 	}
 	return hwnd
+}
+
+// Keep the full form reachable when Windows constrains the window to a small
+// work area or the user resizes it. Coordinates stay in the same logical units
+// as the native controls, including when Windows applies DPI virtualization.
+func (g *hostGUI) layoutViewport() {
+	if g.layoutBusy || g.window == 0 {
+		return
+	}
+	g.layoutBusy = true
+	defer func() { g.layoutBusy = false }()
+	for pass := 0; pass < 2; pass++ {
+		var client hostRect
+		hostUser.NewProc("GetClientRect").Call(g.window, uintptr(unsafe.Pointer(&client)))
+		for _, axis := range []struct {
+			bar, extent, page int
+			position          *int
+		}{{0, 1100, int(client.Right), &g.scrollX}, {1, 845, int(client.Bottom), &g.scrollY}} {
+			if axis.page <= 0 {
+				continue
+			}
+			info := hostScrollInfo{Mask: 1 | 2 | 4, Max: int32(axis.extent - 1), Page: uint32(axis.page), Position: int32(*axis.position)}
+			info.Size = uint32(unsafe.Sizeof(info))
+			position, _, _ := hostUser.NewProc("SetScrollInfo").Call(g.window, uintptr(axis.bar), uintptr(unsafe.Pointer(&info)), 1)
+			*axis.position = int(int32(position))
+		}
+	}
+	for _, control := range g.controls {
+		hostUser.NewProc("SetWindowPos").Call(control.window, 0, uintptr(control.x-g.scrollX), uintptr(control.y-g.scrollY), 0, 0, 1|4|16)
+	}
+	hostUser.NewProc("InvalidateRect").Call(g.window, 0, 1)
+}
+
+func (g *hostGUI) scrollViewport(bar int, request int) {
+	info := hostScrollInfo{Mask: 1 | 2 | 4 | 16}
+	info.Size = uint32(unsafe.Sizeof(info))
+	hostUser.NewProc("GetScrollInfo").Call(g.window, uintptr(bar), uintptr(unsafe.Pointer(&info)))
+	position := &g.scrollY
+	if bar == 0 {
+		position = &g.scrollX
+	}
+	switch request {
+	case 0:
+		*position -= 40
+	case 1:
+		*position += 40
+	case 2:
+		*position -= int(info.Page)
+	case 3:
+		*position += int(info.Page)
+	case 4, 5:
+		*position = int(info.Track)
+	case 6:
+		*position = 0
+	case 7:
+		*position = int(info.Max)
+	default:
+		return
+	}
+	g.layoutViewport()
+}
+
+func (g *hostGUI) controlRect(window uintptr) hostRect {
+	var rect hostRect
+	hostUser.NewProc("GetWindowRect").Call(window, uintptr(unsafe.Pointer(&rect)))
+	hostUser.NewProc("MapWindowPoints").Call(0, g.window, uintptr(unsafe.Pointer(&rect)), 2)
+	return rect
+}
+
+func (g *hostGUI) revealControl(window uintptr) {
+	known := false
+	for _, control := range g.controls {
+		if control.window == window {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return
+	}
+	var client hostRect
+	hostUser.NewProc("GetClientRect").Call(g.window, uintptr(unsafe.Pointer(&client)))
+	rect := g.controlRect(window)
+	adjust := func(position *int, start, end, page int32) {
+		if start < 0 || end-start > page {
+			*position += int(start)
+		} else if end > page {
+			*position += int(end - page)
+		}
+	}
+	x, y := g.scrollX, g.scrollY
+	adjust(&g.scrollX, rect.Left, rect.Right, client.Right)
+	adjust(&g.scrollY, rect.Top, rect.Bottom, client.Bottom)
+	if x != g.scrollX || y != g.scrollY {
+		g.layoutViewport()
+	}
 }
 func (g *hostGUI) label(pt, en, de string, x, y, w int) {
 	h := g.control("STATIC", g.t(pt, en, de), x, y, w, 23, 0, 0)
@@ -583,6 +694,27 @@ func hostWindowProc(window uintptr, message uint32, w, l uintptr) uintptr {
 	g := activeHostGUI
 	if g != nil && window == g.window {
 		switch message {
+		case 0x5: // WM_SIZE
+			g.layoutViewport()
+			return 0
+		case 0x114, 0x115: // WM_HSCROLL / WM_VSCROLL
+			if l == 0 {
+				bar := 0
+				if message == 0x115 {
+					bar = 1
+				}
+				g.scrollViewport(bar, int(w&0xffff))
+				return 0
+			}
+		case 0x20a, 0x20e: // WM_MOUSEWHEEL / WM_MOUSEHWHEEL
+			delta := int(int16(w>>16)) * 60 / 120
+			if message == 0x20e {
+				g.scrollX += delta
+			} else {
+				g.scrollY -= delta
+			}
+			g.layoutViewport()
+			return 0
 		case 0x111:
 			g.command(int(w&0xffff), int((w>>16)&0xffff))
 			return 0
@@ -668,11 +800,12 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 		return fmt.Errorf("cannot register host window: %v", e)
 	}
 	defer hostUser.NewProc("UnregisterClassW").Call(uintptr(unsafe.Pointer(class.Name)), instance)
-	g.window, _, e = hostUser.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(class.Name)), uintptr(unsafe.Pointer(hostPtr("OpenOmsi + BBS — Host Agent "+bridgeVersion))), 0x00CF0000, 20, 20, 1120, 885, 0, 0, instance, 0)
+	g.window, _, e = hostUser.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(class.Name)), uintptr(unsafe.Pointer(hostPtr("OpenOmsi + BBS — Host Agent "+bridgeVersion))), 0x00CF0000|0x00100000|0x00200000, 20, 20, 1120, 885, 0, 0, instance, 0)
 	if g.window == 0 {
 		return fmt.Errorf("cannot create host window: %v", e)
 	}
 	g.createControls()
+	g.layoutViewport()
 	if g.fields[hostRoot] == 0 || g.fields[hostFleet] == 0 || g.fields[hostMap] == 0 || g.fields[hostStart] == 0 {
 		hostUser.NewProc("DestroyWindow").Call(g.window)
 		return fmt.Errorf("host controls missing")
@@ -707,6 +840,34 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 				}
 			}
 		}
+		// Exercise the real Win32 scrolling and keyboard-focus reveal on a work
+		// area smaller than the form; important buttons must remain reachable.
+		hostUser.NewProc("SetWindowPos").Call(g.window, 0, 0, 0, 1040, 740, 2|4|16)
+		g.layoutViewport()
+		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostKey, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
+			g.revealControl(g.fields[id])
+			rect := g.controlRect(g.fields[id])
+			var client hostRect
+			hostUser.NewProc("GetClientRect").Call(g.window, uintptr(unsafe.Pointer(&client)))
+			if rect.Left < 0 || rect.Top < 0 || rect.Right > client.Right || rect.Bottom > client.Bottom {
+				return fmt.Errorf("host control %d is unreachable in a small window", id)
+			}
+		}
+		hostSend(g.window, 0x114, 7, 0)
+		hostSend(g.window, 0x115, 7, 0)
+		if g.scrollX <= 0 || g.scrollY <= 0 {
+			return fmt.Errorf("host form did not scroll in a small window")
+		}
+		for _, lang := range []string{"pt", "en", "de"} {
+			g.c.Language = lang
+			g.applyLanguage()
+			if output := os.Getenv("BRIDGE_SETUP_PREVIEWS"); output != "" {
+				hostUser.NewProc("UpdateWindow").Call(g.window)
+				if err := captureHostPreview(g.window, filepath.Join(output, "host-agent-"+lang+"-scrolled.png")); err != nil {
+					return err
+				}
+			}
+		}
 		hostUser.NewProc("DestroyWindow").Call(g.window)
 		return nil
 	}
@@ -732,6 +893,11 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 		if handled == 0 {
 			hostUser.NewProc("TranslateMessage").Call(uintptr(unsafe.Pointer(&message)))
 			hostUser.NewProc("DispatchMessageW").Call(uintptr(unsafe.Pointer(&message)))
+		}
+		focus, _, _ := hostUser.NewProc("GetFocus").Call()
+		if focus != g.lastFocus {
+			g.lastFocus = focus
+			g.revealControl(focus)
 		}
 	}
 	return nil

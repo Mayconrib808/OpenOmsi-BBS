@@ -4,6 +4,8 @@ Abra **Setup → Empresa / servidor**, ou **HostAgent.exe**. O aplicativo config
 
 O PC do anfitrião precisa estar ligado, conectado e com o agente ativo. A opção **Iniciar agente ao entrar no Windows** evita abrir o agente manualmente depois de entrar na sua conta. Fechar a janela de configuração deixa o agente ativo. **Parar agente** encerra os servidores que ele abriu.
 
+Em telas menores, use as barras de rolagem ou a roda do mouse para alcançar os controles. A tecla Tab também traz o campo selecionado para a área visível.
+
 ## Configurar os mapas
 
 1. Informe a pasta original do OMSI 2 e o `openomsi.exe` do pacote oficial do servidor dedicado. Para os testes atuais, use o servidor openOMSI 0.2.11.
