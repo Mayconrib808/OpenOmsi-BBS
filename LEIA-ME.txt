@@ -1,10 +1,24 @@
-OpenOmsi - BBS 2.0.3 — por Mayconrib808
+OpenOmsi - BBS 2.0.4 — por Mayconrib808
 
-NESTA 2.0.3
-Esta é a versão estável da linha 2.0.3.
+NESTA 2.0.4
+Hotfix da 2.0.3 para corrigir a identificação de viagens quando BCS e OMSI
+usam nomes diferentes para rota/destino. Também corrige rotas do BCS com
+pontos intermediários separados por " - ".
+
+TIMETABLE / IDENTIFICAÇÃO DE VIAGEM
+- HafenCity: aceita com segurança perfis [station_typ2] quando o BCS adiciona
+  qualificadores como "(Terminus 109)" ao destino.
+- Ruhrau V2: linha + Umlauf + horário exato podem identificar uma única viagem
+  mesmo quando o nome textual do TTP não é igual à rota mostrada pelo BCS.
+- Exemplo corrigido: Linie 184 / 4. Mo. - Fr. (DB/Solo) / 22:59 seleciona
+  "184 - Bergische Kaserne" para a rota BCS
+  "Heidhausen Bf. - Altendorf - Friedrich-Ebert-Platz".
+- O fallback só é usado quando não há endpoints físicos que contradigam o BCS.
+  Se duas viagens tiverem o mesmo horário exato, a bridge continua bloqueando
+  como ambíguo em vez de escolher no chute.
 
 ANTIVÍRUS / DEFENDER
-O auxiliar omsi-plugin-host32.exe agora inclui nome do produto, autor, versão,
+O auxiliar omsi-plugin-host32.exe inclui nome do produto, autor, versão,
 descrição e ícone do projeto nas propriedades do Windows, mantendo os símbolos
 e a identificação normal da compilação Go. O Setup reconhece auxiliares das
 versões anteriores e restaura o arquivo anterior caso a ativação falhe.
@@ -32,7 +46,7 @@ RECURSOS MANTIDOS
 COMEÇAR
 1. Tenha OMSI 2, BCS/BBS e OpenOMSI para Windows instalados, além do mapa
    e do seu próprio ônibus.
-2. Feche os jogos e extraia TODO o ZIP 2.0.3 em uma pasta fixa.
+2. Feche os jogos e extraia TODO o ZIP 2.0.4 em uma pasta fixa.
 3. Abra Setup.exe e escolha a pasta do OMSI original e o openomsi.exe.
 4. Para multiplayer, marque "Ativar multiplayer da empresa", selecione o
    perfil JSON ou cole o link HTTPS fornecido pelo administrador e digite
@@ -55,7 +69,7 @@ Para usar Próxima viagem, escolha a nova viagem no BCS e aguarde a bridge
 preparar a nova sessão.
 
 ATUALIZAR
-Feche os jogos e o HostAgent antigo, extraia o pacote 2.0.3 inteiro, abra o
+Feche os jogos e o HostAgent antigo, extraia o pacote 2.0.4 inteiro, abra o
 novo Setup.exe, confira os dados recuperados e clique em "Salvar e ativar".
 Não troque somente um EXE isolado, pois o pacote inclui componentes que devem
 ser atualizados em conjunto.
@@ -93,7 +107,7 @@ inicialização no Registro do Windows. Leia NOTICE_FOR_PEDEPE.md e
 docs/RUNTIME_EFFECTS.md.
 
 NOTAS DA VERSÃO
-docs/releases/v2.0.3.md
+docs/releases/v2.0.4.md
 
 TUTORIAL
 Abra TUTORIAL.html para o guia offline em português, inglês e alemão.
