@@ -68,7 +68,6 @@ func TestCompanySelectsWorkingRoomWhenAnotherIsOfflineWrongMapOrWrongClock(t *te
 		{"wrong protocol", func(s map[string]any) { s["protocol"] = 5 }},
 		{"invalid game description", func(s map[string]any) { s["version"] = "not-openomsi" }},
 		{"bus not offered", func(s map[string]any) { s["vehicles"] = "Vehicles/B/b.bus" }},
-		{"undeclared remote bus", func(s map[string]any) { s["vehicles"] = "Vehicles/A/a.bus;Vehicles/B/b.bus;Vehicles/C/c.bus" }},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			c, p, trip, dir := companyFixture(t)
@@ -107,7 +106,34 @@ func TestCompanySelectsWorkingRoomWhenAnotherIsOfflineWrongMapOrWrongClock(t *te
 	})
 }
 
-func TestCompanyMissingBusReturnsOwnerDownloadLinkEvenIfServerOffline(t *testing.T) {
+func TestCompanyAcceptsExtraRemoteBuses(t *testing.T) {
+	c, p, trip, dir := companyFixture(t)
+	status := testCompanyStatus()
+	status["vehicles"] = "Vehicles/A/a.bus;Vehicles/B/b.bus;Vehicles/C/c.bus"
+	server := companyStatusServer(t, status)
+	p.Sessions[0].ServerURL = server.URL
+	saveTestCompany(t, dir, p)
+	plan, problems, err := prepareMultiplayer(context.Background(), c, dir, trip, companyHTTPClient())
+	if err != nil || len(problems) != 0 || plan == nil || plan.Session.ID != "morning" {
+		t.Fatal("another player's/remote extra bus blocked joining", plan, problems, err)
+	}
+}
+
+func TestCompanyMissingOtherPlayersBusDoesNotBlock(t *testing.T) {
+	c, p, trip, dir := companyFixture(t)
+	server := companyStatusServer(t, testCompanyStatus())
+	p.Sessions[0].ServerURL = server.URL
+	if err := os.Remove(filepath.Join(c.Root, "Vehicles/B/b.bus")); err != nil {
+		t.Fatal(err)
+	}
+	saveTestCompany(t, dir, p)
+	plan, problems, err := prepareMultiplayer(context.Background(), c, dir, trip, companyHTTPClient())
+	if err != nil || len(problems) != 0 || plan == nil {
+		t.Fatal("missing another player's bus blocked joining", plan, problems, err)
+	}
+}
+
+func TestOfflineCompanyServerReportsServerInsteadOfLocalModMismatch(t *testing.T) {
 	c, p, trip, dir := companyFixture(t)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
 	server.Close()
@@ -115,8 +141,11 @@ func TestCompanyMissingBusReturnsOwnerDownloadLinkEvenIfServerOffline(t *testing
 	os.Remove(filepath.Join(c.Root, "Vehicles/B/b.bus"))
 	saveTestCompany(t, dir, p)
 	plan, problems, err := prepareMultiplayer(context.Background(), c, dir, trip, companyHTTPClient())
-	if err != nil || plan != nil || len(problems) == 0 || problems[0].DownloadURL != "https://example.invalid/bus-b" {
+	if err != nil || plan != nil || len(problems) == 0 || problems[0].DownloadURL != "" {
 		t.Fatal(plan, problems, err)
+	}
+	if strings.Contains(strings.ToLower(problems[0].Detail), "vehicles/b/b.bus") {
+		t.Fatal("offline session incorrectly blamed an unrelated local bus", problems)
 	}
 }
 
@@ -139,18 +168,18 @@ func TestCompanyIdentityDateAndOptionalModeCannotSilentlySwitchRooms(t *testing.
 	}
 }
 
-func TestCompanyDoesNotSubstituteAnotherMapWithTheSameDisplayName(t *testing.T) {
+func TestCompanyCanTrySameDisplayNameWithDifferentLocalMapRevision(t *testing.T) {
 	c, p, trip, dir := companyFixture(t)
 	p.Sessions[0].ServerURL = companyStatusServer(t, testCompanyStatus()).URL
 	saveTestCompany(t, dir, p)
-	trip.MapFile = "maps/Other/global.cfg" // same display name; different actual map
+	trip.MapFile = "maps/Other/global.cfg" // same display name, another local revision/path
 	plan, problems, err := prepareMultiplayer(context.Background(), c, dir, trip, companyHTTPClient())
-	if err != nil || plan != nil || len(problems) == 0 {
-		t.Fatal(plan, problems, err)
+	if err != nil || plan == nil || len(problems) != 0 {
+		t.Fatal("bridge blocked a map revision before openOMSI could try it", plan, problems, err)
 	}
 }
 
-func TestMultiplayerRecheckCatchesNewlyOfferedUndeclaredBus(t *testing.T) {
+func TestMultiplayerRecheckAllowsNewRemoteBus(t *testing.T) {
 	c, p, trip, dir := companyFixture(t)
 	var changed atomic.Bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -168,8 +197,8 @@ func TestMultiplayerRecheckCatchesNewlyOfferedUndeclaredBus(t *testing.T) {
 		t.Fatal(plan, problems, err)
 	}
 	changed.Store(true)
-	if err := recheckMultiplayer(context.Background(), plan, companyHTTPClient()); err == nil {
-		t.Fatal("new unchecked fleet accepted")
+	if err := recheckMultiplayer(context.Background(), plan, companyHTTPClient()); err != nil {
+		t.Fatal("another player's newly announced bus interrupted the session", err)
 	}
 }
 
