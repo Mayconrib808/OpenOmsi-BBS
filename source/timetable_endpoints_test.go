@@ -251,3 +251,67 @@ func TestHafenCityType2SameMinuteStillAmbiguous(t *testing.T) {
 		t.Fatalf("two trips inside the same BCS display minute must stay blocked: %+v", res)
 	}
 }
+
+func TestRuhrauMultiSegmentBCSRouteUsesFinalEndpoint(t *testing.T) {
+	root, pkg, mapRel := basicMap(t)
+	tt := filepath.Join(root, "maps", "Test Map", "TTData")
+	line := "Linie 184"
+	writeTestFile(t, filepath.Join(tt, line+".ttl"), "[newtour]\n4. Mo. - Fr. (DB/Solo)\nDepot\n1023\n[addtrip]\n184 - Bergische Kaserne\n0\n1379.000\n")
+	profile := strings.ReplaceAll(endpointProfile("Altendorf", "Heidhausen Bf.", "Altendorf", "Friedrich-Ebert-Platz"), "\n10\n", "\n184\n")
+	writeTestFile(t, filepath.Join(tt, "184 - Bergische Kaserne.ttp"), profile)
+
+	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-08", TripInfo{
+		Line:       line,
+		Tour:       "4. Mo. - Fr. (DB/Solo)",
+		TripStart:  "22:59",
+		RouteText:  "Heidhausen Bf. - Altendorf - Friedrich-Ebert-Platz",
+		StartPoint: "Heidhausen Bf.",
+	})
+	if !res.Ready || res.Applied || res.TripIndex != 1 || res.TripName != "184 - Bergische Kaserne" {
+		t.Fatalf("multi-segment BCS route must use its first and final stops: %+v", res)
+	}
+	if !strings.Contains(res.Reason, "last stop matches") {
+		t.Fatalf("physical endpoint evidence should select the trip: %+v", res)
+	}
+}
+
+func TestRuhrauType2UniqueExactDepartureOverridesDifferentRouteLabel(t *testing.T) {
+	root, pkg, mapRel := basicMap(t)
+	tt := filepath.Join(root, "maps", "Test Map", "TTData")
+	line := "Linie 184"
+	writeTestFile(t, filepath.Join(tt, line+".ttl"), "[newtour]\n4. Mo. - Fr. (DB/Solo)\nDepot\n1023\n[addtrip]\n184 - Earlier\n0\n1320.000\n[addtrip]\n184 - Bergische Kaserne\n0\n1379.000\n")
+	writeTestFile(t, filepath.Join(tt, "184 - Earlier.ttp"), "[trip]\n\nOther destination\n184\n[station_typ2]\n1\n[station_typ2]\n2\n")
+	writeTestFile(t, filepath.Join(tt, "184 - Bergische Kaserne.ttp"), "[trip]\n\nAltendorf\n184\n[station_typ2]\n3\n[station_typ2]\n4\n")
+
+	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-08", TripInfo{
+		Line:      line,
+		Tour:      "4. Mo. - Fr. (DB/Solo)",
+		TripStart: "22:59",
+		RouteText: "Heidhausen Bf. - Altendorf - Friedrich-Ebert-Platz",
+	})
+	if !res.Ready || res.Applied || res.TripIndex != 2 || res.TripName != "184 - Bergische Kaserne" || res.BCSDeparture != 1379 || res.OffsetMinutes != 0 {
+		t.Fatalf("unique exact departure in the selected line/tour must win when type-2 labels differ: %+v", res)
+	}
+	if !strings.Contains(res.Reason, "unique exact BCS departure") {
+		t.Fatalf("diagnostic must explain the safe exact-time fallback: %+v", res)
+	}
+}
+
+func TestRuhrauType2DuplicateExactDepartureRemainsAmbiguous(t *testing.T) {
+	root, pkg, mapRel := basicMap(t)
+	tt := filepath.Join(root, "maps", "Test Map", "TTData")
+	line := "Linie 184"
+	writeTestFile(t, filepath.Join(tt, line+".ttl"), "[newtour]\n4. Mo. - Fr. (DB/Solo)\nDepot\n1023\n[addtrip]\n184 - A\n0\n1379.000\n[addtrip]\n184 - B\n0\n1379.000\n")
+	for _, name := range []string{"184 - A", "184 - B"} {
+		writeTestFile(t, filepath.Join(tt, name+".ttp"), "[trip]\n\nAltendorf\n184\n[station_typ2]\n3\n[station_typ2]\n4\n")
+	}
+	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-08", TripInfo{
+		Line:      line,
+		Tour:      "4. Mo. - Fr. (DB/Solo)",
+		TripStart: "22:59",
+		RouteText: "Heidhausen Bf. - Altendorf - Friedrich-Ebert-Platz",
+	})
+	if res.Ready || res.Applied || !strings.Contains(res.Reason, "ambiguous") {
+		t.Fatalf("duplicate exact departures must remain blocked: %+v", res)
+	}
+}
