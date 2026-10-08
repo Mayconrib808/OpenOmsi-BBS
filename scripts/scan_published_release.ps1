@@ -9,7 +9,8 @@ $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
 $reportDirectory = Join-Path $env:RUNNER_TEMP 'openomsi-defender-report'
-$scanDirectory = Join-Path $env:RUNNER_TEMP 'openomsi-defender-input'
+# Keep downloads outside the CI workspace, which hosted images can exclude.
+$scanDirectory = Join-Path $env:SystemDrive 'OpenOmsiDefenderInput'
 New-Item -ItemType Directory -Force $reportDirectory, $scanDirectory | Out-Null
 $report = [ordered]@{
     release = 'v2.0.3-dev.1'
@@ -44,13 +45,24 @@ try {
         & $scannerPath -WdEnable 2>&1 | Out-String | Write-Host
         Start-Service WinDefend
     }
+    # Hosted runners can ship with real-time/cloud protection switched off.
+    # Strengthen protection in this disposable runner before downloading the
+    # public release, so a download-triggered cloud detection can be observed.
+    $report.defender_preferences_before = Get-MpPreference | Select-Object MAPSReporting,
+        SubmitSamplesConsent, DisableBlockAtFirstSeen, DisableRealtimeMonitoring, DisableIOAVProtection
+    Set-MpPreference -MAPSReporting Advanced -SubmitSamplesConsent SendSafeSamples `
+        -DisableBlockAtFirstSeen $false -DisableRealtimeMonitoring $false -DisableIOAVProtection $false
+    $report.defender_preferences_after = Get-MpPreference | Select-Object MAPSReporting,
+        SubmitSamplesConsent, DisableBlockAtFirstSeen, DisableRealtimeMonitoring, DisableIOAVProtection
+    $report.defender_preferences_after | Format-List | Out-String | Write-Host
     Update-MpSignature -UpdateSource MMPC
     $computerStatus = Get-MpComputerStatus
     $report.defender = $computerStatus | Select-Object AMServiceEnabled, AntivirusEnabled,
         AMRunningMode, RealTimeProtectionEnabled, AMProductVersion, AMEngineVersion,
         AntivirusSignatureVersion, AntivirusSignatureLastUpdated
     $report.defender | Format-List | Out-String | Write-Host
-    if (-not $computerStatus.AMServiceEnabled -or -not $computerStatus.AntivirusEnabled) {
+    if (-not $computerStatus.AMServiceEnabled -or -not $computerStatus.AntivirusEnabled `
+        -or -not $computerStatus.RealTimeProtectionEnabled) {
         throw 'Defender is not available in active antivirus mode; no clean result can be claimed.'
     }
     $cloudOutput = & $scannerPath -ValidateMapsConnection 2>&1 | Out-String
@@ -60,6 +72,9 @@ try {
 
     $zipPath = Join-Path $scanDirectory 'OpenOmsi.+.BBS.2.0.3-dev.1.zip'
     Invoke-WebRequest -Uri 'https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.3-dev.1/OpenOmsi.%2B.BBS.2.0.3-dev.1.zip' -OutFile $zipPath
+    # Preserve the Internet-zone marker normally applied by a browser download.
+    Set-Content -LiteralPath $zipPath -Stream Zone.Identifier -Encoding ascii `
+        -Value "[ZoneTransfer]`r`nZoneId=3`r`n"
     $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
     $report.actual_zip_sha256 = $zipHash
     if ($zipHash -ne $report.expected_zip_sha256) { throw 'Published ZIP hash differs from the verified native release.' }
