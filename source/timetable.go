@@ -288,6 +288,7 @@ func chronoConfigOrder(root string) []string {
 			if e.IsDir() {
 				visit(filepath.Join(dir, e.Name()))
 			}
+		}
 		for _, e := range entries {
 			if !e.IsDir() && strings.EqualFold(e.Name(), "Chrono.cfg") {
 				out = append(out, filepath.Join(dir, e.Name()))
@@ -387,6 +388,7 @@ func resolveTripProfile(tripName string, ttlPath string, sourceDirs []string) st
 			if !e.IsDir() && strings.EqualFold(e.Name(), want) {
 				return filepath.Join(dir, e.Name())
 			}
+		}
 	}
 	return ""
 }
@@ -697,6 +699,7 @@ func locationEq(a, b, line string) bool {
 			if comparable(p) != comparable(line) || line == "" {
 				kept = append(kept, p)
 			}
+		}
 		return comparable(strings.Join(kept, " "))
 	}
 	x, y := key(a), key(b)
