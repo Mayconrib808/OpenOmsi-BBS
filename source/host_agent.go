@@ -58,7 +58,7 @@ func (a *hostAgent) playerProfile() CompanyProfile {
 	}
 	return p
 }
-func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir string) {
+func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir string, weather ...string) {
 	a.mu.Lock()
 	m := a.maps[id]
 	if m == nil || !a.config.Maps[id].Enabled || requested <= m.lastDemand {
@@ -80,6 +80,10 @@ func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir 
 	m.state = companyDirectoryState{SessionID: id, State: "starting"}
 	m.idleSince = time.Time{}
 	a.dirty = true
+	initialWeather := ""
+	if len(weather) > 0 && validBridgeWeather(weather[0]) {
+		initialWeather = weather[0]
+	}
 	a.mu.Unlock()
 	a.wg.Add(1)
 	go func() {
@@ -92,7 +96,11 @@ func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir 
 			err = writeCompanyHostFileAtomic(profilePath, data)
 		}
 		if err == nil {
-			err = writeCompanyHostFileAtomic(cfgPath, hostMapConfigText(a.config.Company.CompanyName, a.config.Maps[id]))
+			text := hostMapConfigText(a.config.Company.CompanyName, a.config.Maps[id])
+			if initialWeather != "" {
+				text = append(text, []byte("weather = "+initialWeather+"\n")...)
+			}
+			err = writeCompanyHostFileAtomic(cfgPath, text)
 		}
 		options := companyHostOptions{Root: a.config.Root, Server: a.config.Server, Profile: profilePath, Session: id, Config: cfgPath, Share: filepath.Join(mapDir, "players.json")}
 		options.onStatus = func(status companyHostStatus, synced bool) {
@@ -235,6 +243,7 @@ func runHostAgent(ctx context.Context, config hostAgentConfig, dir string, outpu
 			Requests []struct {
 				SessionID   string `json:"session_id"`
 				RequestedAt int64  `json:"requested_at"`
+				Weather     string `json:"weather"`
 			} `json:"requests"`
 		}
 		if cycleErr == nil {
@@ -249,7 +258,7 @@ func runHostAgent(ctx context.Context, config hostAgentConfig, dir string, outpu
 		a.mu.Unlock()
 		if cycleErr == nil {
 			for _, r := range requests.Requests {
-				a.demand(ctx, r.SessionID, r.RequestedAt, dir)
+				a.demand(ctx, r.SessionID, r.RequestedAt, dir, r.Weather)
 			}
 		}
 		a.stopIdle(time.Now())

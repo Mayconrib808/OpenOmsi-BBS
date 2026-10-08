@@ -1,3 +1,11 @@
+# 2.0.3-dev.1 — próxima viagem, clima e painel BCS
+
+- Mantém a observação da próxima seleção por até 15 minutos após a conclusão e saída do jogo; confirma a transferência entre chamadas concorrentes e ignora conclusões duplicadas.
+- Transfere o clima recente da situação do BCS. O servidor automático usa o clima do primeiro pedido de um novo mundo, sem alterar uma sessão ocupada. Atualize o agente e o serviço de `relay/` para essa transferência.
+- Confirmação inicial compatível com UTF-16BE, UTF-16LE e UTF-8, capturada antes das janelas e sem perder respostas rápidas.
+- Auxiliar de 32 bits sem console; mantém a comunicação por pipes e as janelas da DLL. O auxiliar da 2.0.1/dev.4 pode ser atualizado pelo Setup.
+- Testes de regressão e teste nativo Windows das janelas da facade. Teste real das três correções continua necessário; veja `docs/releases/v2.0.3-dev.1.md`.
+
 # 2.0.2-dev.4 — servidor automático
 
 - Painel HostAgent com mapas instalados, importação do JSON atual, frota em lote e opções independentes por mapa.

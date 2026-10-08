@@ -34,12 +34,13 @@
 
 | Package | Version | Download |
 | --- | --- | --- |
+| Development package | **2.0.3 dev1 · prerelease** | [Download and test notes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.3-dev.1) |
 | Complete Windows package | **2.0.1 · current release** | [OpenOmsi + BBS 2.0.1.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip) |
 | SHA-256 verification | 2.0.1 | [Checksum](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip.sha256) |
 | Previous release | 1.1.3 | [1.1.3 release](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3) |
 | Release history and notes | Published versions | [Browse Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases) |
 
-The complete ZIP includes **Setup.exe**, **CompanyHost.exe**, the bridge launcher, compatibility facade, automatically installed 32-bit helper, offline tutorial, source, credits and licenses. **No separate helper download, Go or Python installation is needed to play.**
+The complete ZIP includes **Setup.exe**, **CompanyHost.exe**, **HostAgent.exe**, the bridge launcher, compatibility facade, automatically installed 32-bit helper, offline tutorial, source, credits and licenses. **No separate helper download, Go or Python installation is needed to play.**
 
 **Latest update — 7 October 2026:** 2.0.1 adds graphical Setup, persistent settings, player-profile export, service-day matching such as 01:40/25:40 and duplicate-launch handling. [Release notes and tested scope](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.1) · [Visual release history](https://mayconrib808.github.io/OpenOmsi-BBS/releases.html) · [Changelog](CHANGELOG.md).
 

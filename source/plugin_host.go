@@ -12,6 +12,10 @@ import (
 const installedPluginHostName = "OpenOMSI_BCS_PluginHost32.exe"
 const historicalPluginHostSHA256 = "b26af8f2fc55f272ae89f0dcd02c423c26fb758daf24e860960bd2002c82b2d4"
 
+// Source-backed helper shipped in the tested 2.0.1 through 2.0.2-dev.4 packages.
+// The 2.0.3 GUI subsystem keeps the same pipe protocol without opening a console.
+const previousSourcePluginHostSHA256 = "26614aa1acd0a02c9ee272b8bf7fbea075daa3eba488ddfefb2e6c5f388e25f5"
+
 // The build script compiles the source-backed host first, then injects its digest
 // into Setup and the launcher. The historical digest is only an upgrade/removal
 // identifier; the historical binary is never included in a new distribution.
@@ -19,7 +23,7 @@ var bundledPluginHostSHA256 string
 
 func recognisedPluginHostDigest(digest [32]byte) bool {
 	hash := fmt.Sprintf("%x", digest)
-	return hash == historicalPluginHostSHA256 || (bundledPluginHostSHA256 != "" && hash == bundledPluginHostSHA256)
+	return hash == historicalPluginHostSHA256 || hash == previousSourcePluginHostSHA256 || (bundledPluginHostSHA256 != "" && hash == bundledPluginHostSHA256)
 }
 
 type pluginHostDeployment struct {

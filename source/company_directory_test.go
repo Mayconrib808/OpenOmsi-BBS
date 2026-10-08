@@ -40,6 +40,7 @@ func TestDirectoryWakesMapAndUsesOnlyPublishedAddress(t *testing.T) {
 	civil := time.Now().UTC()
 	trip.Date = civil.Format("2006-01-02")
 	trip.Start = civil.Format("15:04")
+	trip.Weather, _ = bridgeWeatherFromOWT([]byte(rainyBCSWeather))
 	wakeCount := 0
 	var online CompanyProfile
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -49,7 +50,7 @@ func TestDirectoryWakesMapAndUsesOnlyPublishedAddress(t *testing.T) {
 		case strings.HasSuffix(r.URL.Path, "/wake"):
 			var d companyDirectoryDemand
 			_ = json.NewDecoder(r.Body).Decode(&d)
-			if d.SessionID != p.Sessions[0].ID {
+			if d.SessionID != p.Sessions[0].ID || d.Weather != trip.Weather {
 				t.Error(d)
 			}
 			wakeCount++

@@ -34,12 +34,13 @@
 
 | Pacote | Versão | Download |
 | --- | --- | --- |
+| Pacote de desenvolvimento | **2.0.3 dev1 · pré-lançamento** | [Download e notas de teste](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.3-dev.1) |
 | Pacote completo para Windows | **2.0.1 · versão atual** | [OpenOmsi + BBS 2.0.1.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip) |
 | Verificação SHA-256 | 2.0.1 | [Checksum](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.1/OpenOmsi.%2B.BBS.2.0.1.zip.sha256) |
 | Versão anterior | 1.1.3 | [Releases da 1.1.3](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v1.1.3) |
 | Histórico e notas das versões | Versões publicadas | [Abrir Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases) |
 
-O ZIP completo contém **Setup.exe**, **CompanyHost.exe**, lançador da ponte, fachada de compatibilidade, auxiliar de 32 bits instalado automaticamente, tutorial offline, código-fonte, créditos e licenças. **Para jogar, você não precisa baixar outro auxiliar nem instalar Go ou Python.**
+O ZIP completo contém **Setup.exe**, **CompanyHost.exe**, **HostAgent.exe**, lançador da ponte, fachada de compatibilidade, auxiliar de 32 bits instalado automaticamente, tutorial offline, código-fonte, créditos e licenças. **Para jogar, você não precisa baixar outro auxiliar nem instalar Go ou Python.**
 
 **Atualização de 7 de outubro de 2026:** a 2.0.1 inclui Setup gráfico, configurações persistentes, exportação do perfil dos jogadores, horários operacionais como 01:40/25:40 e tratamento de chamadas duplicadas. [Novidades e alcance dos testes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.1) · [Histórico visual de versões](https://mayconrib808.github.io/OpenOmsi-BBS/releases.html) · [Changelog](CHANGELOG.md).
 

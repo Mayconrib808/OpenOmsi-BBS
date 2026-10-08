@@ -3,7 +3,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -161,7 +160,7 @@ var (
 	wantedTour      string
 	bcsLogPath      string
 	currentShiftID  string
-	bcsLogStartSize int64
+	startAckCursor  bcsAckCursor
 	omsiMem         uintptr
 	driverSlot      uintptr
 	driverPage      uintptr
@@ -556,44 +555,18 @@ func markBCSStartMenuAck(source string) {
 	tryAdvanceToTimetable()
 }
 
-func containsTextBytes(b []byte, text string) bool {
-	if bytes.Contains(b, []byte(text)) {
-		return true
-	}
-	// BCS log.txt is normally UTF-16LE. Search the ASCII phrase in that
-	// representation too, without depending on the file's BOM or encoding.
-	u16 := make([]byte, 0, len(text)*2)
-	for i := 0; i < len(text); i++ {
-		u16 = append(u16, text[i], 0)
-	}
-	return bytes.Contains(b, u16)
-}
-
 func watchBCSStartMenuAck() {
 	if strings.TrimSpace(bcsLogPath) == "" {
 		bcsLogPath = filepath.Join(omsiRoot, "Busbetrieb-Simulator", "log.txt")
 	}
-	if st, err := os.Stat(bcsLogPath); err == nil {
-		bcsLogStartSize = st.Size()
-	}
-	logf("BCS start-menu watcher armed: path=%q offset=%d", bcsLogPath, bcsLogStartSize)
+	logf("BCS start-menu watcher armed before legacy windows: path=%q baseline=%d", bcsLogPath, len(startAckCursor.baseline))
 	go func() {
-		deadline := time.Now().Add(2 * time.Minute)
-		offset := bcsLogStartSize
+		deadline := time.Now().Add(startupTimeout)
 		for time.Now().Before(deadline) {
 			b, err := os.ReadFile(bcsLogPath)
-			if err == nil {
-				if int64(len(b)) < offset {
-					offset = 0 // log was replaced/truncated
-				}
-				tail := b[offset:]
-				if containsTextBytes(tail, "OMSI Startmenue: Karte laedt") {
-					markBCSStartMenuAck("BCS log: OMSI Startmenue: Karte laedt")
-					return
-				}
-				if containsTextBytes(tail, "OMSI Startmenue: Start nicht ausgeloest") {
-					logf("WARN BCS reported start menu not triggered; keeping Tform_start visible and markers alive")
-				}
+			if err == nil && startAckCursor.acknowledged(b) {
+				markBCSStartMenuAck("BCS log: OMSI Startmenue: Karte laedt (UTF-8/UTF-16LE/UTF-16BE)")
+				return
 			}
 			time.Sleep(100 * time.Millisecond)
 		}
@@ -958,6 +931,12 @@ func main() {
 	if strings.TrimSpace(bcsLogPath) == "" {
 		bcsLogPath = filepath.Join(omsiRoot, "Busbetrieb-Simulator", "log.txt")
 	}
+	baseline, baselineErr := os.ReadFile(bcsLogPath)
+	if baselineErr != nil && !os.IsNotExist(baselineErr) {
+		logf("ERROR cannot capture BCS acknowledgment baseline: %v", baselineErr)
+		return
+	}
+	startAckCursor = newBCSAckCursor(baseline)
 	logf("openOMSI PID=%d root=%q map=%q line=%q tour=%q bcslog=%q", atomic.LoadUint32(&openOmsiPID), omsiRoot, mapRel, wantedLine, wantedTour, bcsLogPath)
 	compatDir := filepath.Dir(exe)
 	readyPath := filepath.Join(compatDir, "facade-ready-v1.1.3.flag")

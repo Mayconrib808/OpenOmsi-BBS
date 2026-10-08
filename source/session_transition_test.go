@@ -2,13 +2,70 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func syntheticTransitionTrip(id, mapName, line, tour string) string {
 	return "INFO Schicht ID: " + id + "\nINFO Karte: " + mapName + "\nINFO Tour: 00:45 - 01:15 (Linie: " + line + ")\nA - B (Umlauf: " + tour + ")\nINFO Startpunkt: A\n"
+}
+
+func TestNextTripSelectedAfterGameExitStillRelaunches(t *testing.T) {
+	baseline := syntheticTransitionTrip("1001", "First", "1", "1")
+	closed := baseline + "Schicht abschließen: 1001\n"
+	g := newNextTripGate("1001", baseline)
+	_, _ = g.observe(closed)
+	reads := 0
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	trip, ok := waitForNextBCSTrip(ctx, &g, func() (string, error) {
+		reads++
+		if reads < 3 {
+			return closed, nil
+		}
+		if reads == 3 {
+			return closed + "Schicht ID: 1002\nKarte: Next\n", nil
+		}
+		return closed + syntheticTransitionTrip("1002", "Next", "522", "2"), nil
+	}, time.Millisecond)
+	if !ok || trip.ShiftID != "1002" || trip.MapName != "Next" || trip.Tour != "2" {
+		t.Fatal(trip, ok)
+	}
+	if _, ok = g.observe(closed + syntheticTransitionTrip("1002", "Next", "522", "2")); ok {
+		t.Fatal("handoff delivered twice")
+	}
+}
+
+func TestNextTripWaitCancelsWithoutReplayingIncompleteTrip(t *testing.T) {
+	baseline := syntheticTransitionTrip("1001", "First", "1", "1")
+	g := newNextTripGate("1001", baseline)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, ok := waitForNextBCSTrip(ctx, &g, func() (string, error) {
+		return baseline + "Schicht abschließen: 1001\nSchicht ID: 1002\nKarte: Partial\n", nil
+	}, time.Millisecond)
+	if ok {
+		t.Fatal("timeout replayed partial trip")
+	}
+}
+
+func TestRepeatedCompletionDoesNotSwallowNextTrip(t *testing.T) {
+	baseline := syntheticTransitionTrip("1001", "First", "1", "1")
+	closed := baseline + "Schicht abschließen: 1001\n"
+	next := syntheticTransitionTrip("1002", "Next", "522", "2")
+	for _, observed := range []bool{false, true} {
+		g := newNextTripGate("1001", baseline)
+		if observed {
+			_, _ = g.observe(closed)
+		}
+		trip, ok := g.observe(closed + next + "Schicht abschließen: 1001\n")
+		if !ok || trip.ShiftID != "1002" {
+			t.Fatal("duplicate closure swallowed fresh trip", trip, ok)
+		}
+	}
 }
 
 func TestNextTripNeedsCompletionAndDistinctCompleteShift(t *testing.T) {

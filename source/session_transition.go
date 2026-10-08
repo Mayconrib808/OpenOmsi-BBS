@@ -1,6 +1,29 @@
 package main
 
-import "regexp"
+import (
+	"context"
+	"regexp"
+	"time"
+)
+
+// A completed game's exit does not end the BCS selection screen. Keep the
+// same gate and lock until a fresh complete selection arrives or the wait ends.
+func waitForNextBCSTrip(ctx context.Context, g *nextTripGate, read func() (string, error), interval time.Duration) (TripInfo, bool) {
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		if text, err := read(); err == nil {
+			if trip, ok := g.observe(text); ok {
+				return trip, true
+			}
+		}
+		select {
+		case <-ctx.Done():
+			return TripInfo{}, false
+		case <-ticker.C:
+		}
+	}
+}
 
 var multilineShiftID = regexp.MustCompile(`(?m)\bSchicht ID:\s*([1-9][0-9]*)[ \t]*\r?$`)
 
@@ -35,9 +58,10 @@ func (g *nextTripGate) observe(text string) (TripInfo, bool) {
 	for _, m := range shiftClosedLine.FindAllStringSubmatchIndex(text, -1) {
 		if text[m[2]:m[3]] == g.completion.ShiftID {
 			completionEnd = m[1]
+			break // BCS can repeat the same closure line after the next selection.
 		}
 	}
-	if completionEnd >= 0 {
+	if completionEnd >= 0 && !g.completed {
 		g.completed = true
 		for _, m := range multilineShiftID.FindAllStringSubmatch(text[:completionEnd], -1) {
 			g.baselineIDs[m[1]] = true
