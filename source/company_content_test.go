@@ -13,11 +13,11 @@ import (
 
 func TestCompanySituationCompanionsAreIgnoredWithoutIgnoringMapContent(t *testing.T) {
 	c, profile, _, _ := companyFixture(t)
-	generated := []string{"laststn.osn.owt", "laststn.osn_0_0.dds", "laststn.osn_-2_12.dds", "Trip A.osn.owt", "timezone.txt.backup.txt"}
+	generated := []string{"laststn.osn.owt", "laststn.osn_0_0.dds", "laststn.osn_-2_12.dds", "Trip A.osn.owt", "timezone.txt.backup.txt", "Holidays.txt"}
 	for _, name := range generated {
 		path := "maps/Sample/" + name
 		writeTestFile(t, filepath.Join(c.Root, filepath.FromSlash(path)), "local situation")
-		// Simulate a dev.1 profile that mistakenly recorded the file.
+		// Simulate an older profile that mistakenly recorded mutable runtime state.
 		digest, _ := companyFileHash(filepath.Join(c.Root, filepath.FromSlash(path)))
 		profile.Packages[0].Files = append(profile.Packages[0].Files, CompanyFile{path, digest})
 	}
@@ -30,7 +30,7 @@ func TestCompanySituationCompanionsAreIgnoredWithoutIgnoringMapContent(t *testin
 		}
 	}
 	if got := checkCompanyPackages(c.Root, profile, profile.Sessions[0]); len(got) != 0 {
-		t.Fatal("deleted personal situations blocked joining", got)
+		t.Fatal("deleted mutable runtime files blocked joining", got)
 	}
 	clean, changed, err := refreshCompanyHashes(c.Root, profile)
 	if err != nil || len(changed) != len(generated) {
@@ -40,16 +40,19 @@ func TestCompanySituationCompanionsAreIgnoredWithoutIgnoringMapContent(t *testin
 		writeTestFile(t, filepath.Join(c.Root, "maps", "Sample", name), "another save")
 	}
 	if got := checkCompanyPackages(c.Root, clean, clean.Sessions[0]); len(got) != 0 {
-		t.Fatal("new personal situations blocked joining", got)
+		t.Fatal("new mutable runtime files blocked joining", got)
 	}
 	files, err := snapshotCompanyFolder(c.Root, "maps/Sample")
 	if err != nil || len(files) != len(clean.Packages[0].Files) {
-		t.Fatal("snapshot registered a personal situation", files, err)
+		t.Fatal("snapshot registered mutable runtime state", files, err)
 	}
 	for _, path := range []string{"maps/Sample/timezone.txt", "maps/Sample/real.dds", "maps/Sample/laststn.osn_anything.dds", "Vehicles/A/Texture/laststn.osn_0_0.dds"} {
 		if companyRuntimeArtifact(path) {
 			t.Fatal("real content classified as a runtime artifact", path)
 		}
+	}
+	if !companyRuntimeArtifact("maps/Sample/Holidays.txt") {
+		t.Fatal("Holidays.txt must be mutable BBS runtime content")
 	}
 	writeTestFile(t, filepath.Join(c.Root, "maps/Sample/timezone.txt"), "[timezone]\n1\n")
 	if got := checkCompanyPackages(c.Root, clean, clean.Sessions[0]); len(got) != 0 {
@@ -71,6 +74,11 @@ func TestCompanyBBSChangesRequireRecordedMatchingOriginals(t *testing.T) {
 		}
 		profile.Packages[i].Files = files
 	}
+	for _, file := range profile.Packages[0].Files {
+		if companyAssetKey(file.Path) == companyAssetKey(calendar) {
+			t.Fatal("new profile snapshot registered mutable Holidays.txt")
+		}
+	}
 	before, _ := json.Marshal(profile)
 	var list strings.Builder
 	for _, path := range []string{calendar, script, variables} {
@@ -84,14 +92,14 @@ func TestCompanyBBSChangesRequireRecordedMatchingOriginals(t *testing.T) {
 		list.WriteString(strings.ReplaceAll(live, "/", `\`) + "\r\n")
 	}
 	if got := checkCompanyPackages(c.Root, profile, profile.Sessions[0]); len(got) != 2 {
-		t.Fatal("a sibling backup alone must not waive validation", got)
+		t.Fatal("a sibling backup alone must not waive vehicle validation", got)
 	}
 	writeTestFile(t, filepath.Join(c.Root, "Busbetrieb-Simulator/BBS_Backups.txt"), "\xef\xbb\xbf"+list.String())
 	if got := checkCompanyPackages(c.Root, profile, profile.Sessions[0]); len(got) != 0 {
-		t.Fatal("registered BBS changes with exact original backups rejected", got)
+		t.Fatal("registered BBS vehicle changes with exact original backups rejected", got)
 	}
 	if got := checkCompanyPackagesWithOriginals(c.Root, profile, profile.Sessions[0], nil); len(got) != 2 {
-		t.Fatal("BBS backup hid live changes during administrator review", got)
+		t.Fatal("BBS backup hid live vehicle changes during administrator review", got)
 	}
 	after, _ := json.Marshal(profile)
 	if !bytes.Equal(before, after) {
@@ -108,8 +116,8 @@ func TestCompanyBBSChangesRequireRecordedMatchingOriginals(t *testing.T) {
 	if err := os.Remove(filepath.Join(c.Root, calendar)); err != nil {
 		t.Fatal(err)
 	}
-	if got := checkCompanyPackages(c.Root, profile, profile.Sessions[0]); len(got) != 2 {
-		t.Fatal("backup hid a missing live file", got)
+	if got := checkCompanyPackages(c.Root, profile, profile.Sessions[0]); len(got) != 1 || !strings.Contains(got[0].Detail, script) {
+		t.Fatal("missing mutable Holidays.txt affected player validation", got)
 	}
 }
 
