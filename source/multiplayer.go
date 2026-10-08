@@ -122,8 +122,6 @@ func validateCompanyServerAt(status companyServerStatus, session CompanySession,
 		return err
 	}
 	gap := math.Abs(serverTime - startTime)
-	// /status has no date; circular comparison only preflights a live clock.
-	// The joined-world date is verified separately before BBS readiness.
 	if clock != nil && gap > 43200 {
 		gap = 86400 - gap
 	}
@@ -158,6 +156,7 @@ func companyRequiredFleet(p CompanyProfile, session CompanySession) map[string]b
 				if strings.HasPrefix(key, "vehicles/") && strings.HasSuffix(key, ".bus") {
 					covered[key] = true
 				}
+			}
 		}
 	}
 	return covered
@@ -178,8 +177,6 @@ func validateCompanyFleet(status companyServerStatus, _ map[string]bool) error {
 	return nil
 }
 
-// Pick among explicitly registered company sessions, in profile order. No BBS
-// credentials, company-membership API, client-driven world-clock mutation or server creation.
 func prepareMultiplayer(ctx context.Context, c Config, runtimeDir string, trip MultiplayerTrip, client *http.Client) (*MultiplayerPlan, []CompanyProblem, error) {
 	return prepareMultiplayerAt(ctx, c, runtimeDir, trip, client, time.Now())
 }
@@ -231,8 +228,6 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 	if len(candidates) == 0 {
 		return nil, []CompanyProblem{{p.CompanyName, "Nenhuma sessão cadastrada para este mapa e esta data. / No registered session for this map and date: " + trip.MapName + " / " + trip.Date, ""}}, nil
 	}
-	// Bounded concurrent status reads keep an unavailable first room from
-	// hiding a working one and avoid a long wait before BBS sees its facade.
 	type answer struct {
 		status companyServerStatus
 		err    error
@@ -331,17 +326,11 @@ func multiplayerEnvironment(base []string, contentDir string) []string {
 			result = append(result, entry)
 		}
 	}
-	// Keep the bridge's timetable overlay isolated. Native LAN mod transfer is
-	// disabled here because company internet sessions use the HTTP/WebSocket
-	// gateway; local content differences themselves are no longer a join gate.
 	return append(result, "OMSI_CONTENT="+contentDir, "OMSI_NO_LAN_MODS=1")
 }
 
 var multiplayerWorldLine = regexp.MustCompile(`LAN: taking the host's world: (\d{4}-\d{2}-\d{2}) (\d{1,2}:\d{2}:\d{2}(?:\.\d+)?) weather `)
 
-// The HTTP status omits date. Confirm the actual joined world's date and clock
-// from this launch's log before publishing the BBS-ready flag. A successful
-// /status response alone does not prove that openOMSI connected.
 func checkMultiplayerLog(text string, plan *MultiplayerPlan) (bool, error) {
 	return checkMultiplayerLogAt(text, plan, time.Now())
 }
@@ -418,8 +407,6 @@ func watchMultiplayerLaunch(logPath string, offset int64, plan *MultiplayerPlan,
 				if err != nil || offset < 0 || int64(len(b)) < offset {
 					continue
 				}
-				// A logger may still be writing the last line; only complete lines
-				// can confirm the world or report an authoritative failure.
 				chunk := b[offset:]
 				last := strings.LastIndexByte(string(chunk), '\n')
 				if last < 0 {
