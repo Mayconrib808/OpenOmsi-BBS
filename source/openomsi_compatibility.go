@@ -34,7 +34,7 @@ func requiredOpenOMSIFlags(dedicated, multiplayer bool) []string {
 	if dedicated {
 		return []string{"--root", "--server"}
 	}
-	flags := []string{"--root", "--map", "--bus", "--date", "--time", "--schedule", "--line", "--tour", "--trip", "--auto-entry", "--no-menu", "--content-zip", "--driver", "--hof", "--paint", "--traffic", "--passengers", "--all", "--autostart"}
+	flags := []string{"--root", "--map", "--bus", "--date", "--time", "--weather", "--schedule", "--line", "--tour", "--trip", "--auto-entry", "--no-menu", "--content-zip", "--driver", "--hof", "--paint", "--traffic", "--passengers", "--all", "--autostart"}
 	if multiplayer {
 		flags = append(flags, "--lan-join", "--lan-name")
 	}

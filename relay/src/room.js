@@ -3,6 +3,17 @@
 const idPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const states = new Set(['offline','starting','online','stopping','error','disabled']);
 const limit = 8 * 1024 * 1024;
+const weatherRanges = {vis:[50,50000],br:[0,1.5],wd:[0,360],ws:[0,50],t:[-40,50],rh:[0,100],p:[900,1100],c:[0,4],cb:[50,5000],pt:[0,2],pi:[0,255],wet:[0,1],snow:[0,1],snowroad:[0,1]};
+export function validWeather(text) {
+  if(typeof text!=='string'||!text.startsWith('custom:')||text.length>512)return false;
+  const seen=new Set();
+  for(const part of text.slice(7).split(';')){
+    const [key,value,...rest]=part.split('=');const range=weatherRanges[key];const n=Number(value);
+    if(rest.length||!Object.hasOwn(weatherRanges,key)||seen.has(key)||!value||!/^[+-]?(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?$/.test(value)||!Number.isFinite(n)||n<range[0]||n>range[1]||(['c','pt','snow','snowroad'].includes(key)&&!Number.isInteger(n)))return false;
+    seen.add(key);
+  }
+  return seen.size===Object.keys(weatherRanges).length;
+}
 const json = (data, status=200) => new Response(JSON.stringify(data), {status,headers:{'Content-Type':'application/json','Cache-Control':'no-store'}});
 const fail = (message,status) => json({error:message},status);
 export class RoomProtocol {
@@ -68,21 +79,34 @@ export class RoomProtocol {
         const b=await this.body(request);
         if(!Array.isArray(b.sessions) || b.sessions.length!==ids.size || new Set(b.sessions.map(s=>s.session_id)).size!==ids.size) return fail('invalid heartbeat',400);
         for(const s of b.sessions){if(!ids.has(s.session_id)||!states.has(s.state)||!Number.isInteger(s.players)||s.players<0||s.players>128||s.error?.length>2000)return fail('invalid session state',400);if(s.state==='online'){let address;try{address=new URL(s.address);}catch{return fail('invalid tunnel',400);}if(address.protocol!=='https:'||!address.hostname.endsWith('.trycloudflare.com')||address.username||address.password||address.search||address.hash||address.port||address.pathname!=='/')return fail('invalid tunnel',400);}}
-        await this.storage.put('heartbeat',{time:this.now(),offline:b.offline===true,sessions:b.sessions.map(s=>({session_id:s.session_id,state:s.state,address:s.address||'',players:s.players,error:s.error||''}))});
+        await this.storage.transaction(async tx=>{
+          const previous=await tx.get('heartbeat');
+          for(const s of b.sessions){const old=previous?.sessions?.find(p=>p.session_id===s.session_id);if(['offline','error'].includes(s.state)&&old&&old.state!==s.state){await tx.delete(`weather_${s.session_id}`);await tx.delete(`demand_${s.session_id}`);}}
+          await tx.put('heartbeat',{time:this.now(),offline:b.offline===true,sessions:b.sessions.map(s=>({session_id:s.session_id,state:s.state,address:s.address||'',players:s.players,error:s.error||''}))});
+        });
         return json({ok:true});
       }
       if(action==='wake' && request.method==='POST') {
         const b=await this.body(request);if(!idPattern.test(b.session_id)||!ids.has(b.session_id))return fail('map is not registered',404);
+        if(b.weather!==undefined&&!validWeather(b.weather))return fail('invalid weather snapshot',400);
         const reply=await this.publicState(b.session_id);
         if(reply.host_online && reply.session.state!=='disabled'){
           // Per-session entries collapse simultaneous clients into one demand.
-          await this.storage.put(`demand_${b.session_id}`,this.now());
+          await this.storage.transaction(async tx=>{
+            const previous=await tx.get(`weather_${b.session_id}`);
+            const offline=['offline','error'].includes(reply.session.state);
+            // The first launch request chooses the empty world's weather.
+            // Further players can wake it but cannot change a running sky.
+            if(offline && (!previous||this.now()-previous.at>=120000))
+              await tx.put(`weather_${b.session_id}`,{at:this.now(),value:b.weather||''});
+            await tx.put(`demand_${b.session_id}`,this.now());
+          });
         }
         return json(reply);
       }
       if(action==='requests' && request.method==='GET') {
         const requests=[];const now=this.now();
-        for(const id of ids){const at=await this.storage.get(`demand_${id}`);if(at && now-at<120000)requests.push({session_id:id,requested_at:at});}
+        for(const id of ids){const at=await this.storage.get(`demand_${id}`);if(at && now-at<120000){const weather=await this.storage.get(`weather_${id}`);requests.push({session_id:id,requested_at:at,...(weather&&now-weather.at<120000&&weather.value?{weather:weather.value}:{})});}}
         return json({requests});
       }
       if(action.startsWith('sessions/') && request.method==='GET') {

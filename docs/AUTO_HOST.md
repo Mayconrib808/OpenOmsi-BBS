@@ -1,4 +1,4 @@
-# Servidor automático — 2.0.2-dev.4
+# Servidor automático — 2.0.3-dev.1
 
 Abra **Setup → Empresa / servidor**, ou **HostAgent.exe**. O aplicativo configura cada mapa e mantém um agente em segundo plano. Quando alguém inicia uma viagem pelo BCS, a bridge pede esse mapa; o agente abre o servidor dedicado, aguarda o mundo carregar, sincroniza o relógio e publica o endereço validado. A conexão do jogo continua sendo o multiplayer nativo do openOMSI.
 
@@ -37,7 +37,7 @@ Documentação da plataforma: [primeiros passos com Durable Objects](https://dev
 
 ## Jogadores
 
-Atualize a bridge para dev.4. No Setup, ative o multiplayer, escolha o novo `.players.json` ou link `/profile`, informe seu nome e clique **Salvar e ativar**. Inicie a viagem pelo BCS normalmente.
+Atualize a bridge para 2.0.3 dev1. No Setup, ative o multiplayer, escolha o novo `.players.json` ou link `/profile`, informe seu nome e clique **Salvar e ativar**. Inicie a viagem pelo BCS normalmente.
 
 A bridge consulta o perfil atualizado, solicita o mapa e espera o carregamento. O servidor só é anunciado online depois de confirmar o mundo ativo, o relógio e o endereço HTTPS. Se o anfitrião estiver offline, a bridge informa isso. Não é necessário reenviar o JSON quando o túnel mudar. Perfis anteriores sem `directory_url` continuam funcionando pelo modo manual.
 
@@ -60,3 +60,9 @@ Deploy the service in `relay/` once, set its `HOST_KEY` secret to the private ke
 Öffne **Setup → Firma / Server** oder **HostAgent.exe**. Importiere das vorhandene Firmenprofil oder suche und registriere installierte Karten. Jede Karte hat eine eigene Flotte, UDP-/HTTP-Ports, Spielergrenze, Verkehr, Fahrgäste, Fahrplan und Leerlaufzeit. Strg/Umschalt ermöglicht Mehrfachauswahl; Filter und Vorschläge lassen KI-Varianten bei automatischen Vorschlägen aus.
 
 Veröffentliche den Dienst aus `relay/` einmal, setze `HOST_KEY` auf den privaten Schlüssel aus der Anwendung und trage die HTTPS-URL des Workers ein. Starte den Agenten und exportiere das Spielerprofil. Spieler richten das Profil oder die `/profile`-URL einmal ein. Das feste Verzeichnis verarbeitet Startanfragen und aktualisierte Tunneladressen; das Spiel verwendet den nativen openOMSI-Multiplayer. Der Host-PC muss eingeschaltet sein und der Agent laufen. Lokale Dateien und Hashes blockieren den Multiplayer-Beitritt nicht. Ein realer Test mit zwei Spielern steht noch aus.
+
+## Clima na 2.0.3 dev1
+
+Atualize o HostAgent e publique novamente o código de `relay/` no Worker já configurado. As chaves, URL e perfil existentes continuam válidos. O pedido de abertura passa a carregar apenas os valores numéricos validados do clima preparado pelo BCS, sem caminhos de arquivos locais.
+
+O primeiro pedido para um mapa fechado define o clima inicial do mundo. Outros jogadores entram no mesmo clima. Um mapa já aberto não reinicia nem troca de clima por causa de outra previsão do BCS. Ao fechar por inatividade, o próximo pedido pode definir um novo clima. Se não houver uma situação e um `.owt` recentes do mapa/data, o clima padrão do servidor permanece e a bridge registra a razão. O Worker antigo aceita pedidos sem transferir esse clima; a atualização do serviço é necessária para habilitá-lo.

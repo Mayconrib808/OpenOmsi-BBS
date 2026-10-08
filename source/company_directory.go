@@ -37,6 +37,7 @@ type companyDirectoryReply struct {
 }
 type companyDirectoryDemand struct {
 	SessionID string `json:"session_id"`
+	Weather   string `json:"weather,omitempty"`
 }
 
 func companyDirectoryHTTP(ctx context.Context, client *http.Client, method, address, key string, body any, result any) error {
@@ -91,11 +92,14 @@ func refreshCompanyDirectoryProfile(ctx context.Context, client *http.Client, pi
 	return p, validateCompanyProfile(p)
 }
 
-func waitCompanyDirectorySession(ctx context.Context, client *http.Client, profile CompanyProfile, id string) (CompanySession, error) {
+func waitCompanyDirectorySession(ctx context.Context, client *http.Client, profile CompanyProfile, id string, weather ...string) (CompanySession, error) {
 	ctx, cancel := context.WithTimeout(ctx, startupTimeout)
 	defer cancel()
 	var reply companyDirectoryReply
-	demand := companyDirectoryDemand{id}
+	demand := companyDirectoryDemand{SessionID: id}
+	if len(weather) > 0 && validBridgeWeather(weather[0]) {
+		demand.Weather = weather[0]
+	}
 	wake := func() error {
 		return companyDirectoryHTTP(ctx, client, http.MethodPost, profile.DirectoryURL+"/wake", "", demand, &reply)
 	}

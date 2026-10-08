@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"fmt"
 	"io"
 	"io/fs"
@@ -101,41 +99,6 @@ func qargs(a []string) string {
 		out[i] = fmt.Sprintf("%q", x)
 	}
 	return strings.Join(out, " ")
-}
-
-func decodeText(b []byte) string {
-	if len(b) >= 2 && b[0] == 0xff && b[1] == 0xfe {
-		u := make([]uint16, 0, (len(b)-2)/2)
-		for i := 2; i+1 < len(b); i += 2 {
-			u = append(u, binary.LittleEndian.Uint16(b[i:i+2]))
-		}
-		return string(runesFromUTF16(u))
-	}
-	if len(b) >= 2 && b[0] == 0xfe && b[1] == 0xff {
-		u := make([]uint16, 0, (len(b)-2)/2)
-		for i := 2; i+1 < len(b); i += 2 {
-			u = append(u, binary.BigEndian.Uint16(b[i:i+2]))
-		}
-		return string(runesFromUTF16(u))
-	}
-	return string(bytes.TrimPrefix(b, []byte{0xef, 0xbb, 0xbf}))
-}
-
-func runesFromUTF16(u []uint16) []rune {
-	out := make([]rune, 0, len(u))
-	for i := 0; i < len(u); i++ {
-		r := rune(u[i])
-		if r >= 0xD800 && r <= 0xDBFF && i+1 < len(u) {
-			r2 := rune(u[i+1])
-			if r2 >= 0xDC00 && r2 <= 0xDFFF {
-				out = append(out, 0x10000+((r-0xD800)<<10)+(r2-0xDC00))
-				i++
-				continue
-			}
-		}
-		out = append(out, r)
-	}
-	return out
 }
 
 var tourRE = regexp.MustCompile(`Tour:\s*([0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)\s*-\s*([0-9]{1,2}:[0-9]{2}(?::[0-9]{2})?)\s*\(Linie:\s*(.*?)\s*\)`)
@@ -681,45 +644,82 @@ func main() {
 		return
 	}
 	bcsLog := candidateBCSLog(cfg)
- initialTrip, initialTripErr := parseBCSLog(bcsLog)
- activeStatePath := launchSessionPath(cfg.Root,packageDir)
- release, lockErr := acquireBridgeLock(cfg.Root)
+	initialTrip, initialTripErr := parseBCSLog(bcsLog)
+	activeStatePath := launchSessionPath(cfg.Root, packageDir)
+	release, lockErr := acquireBridgeLock(cfg.Root)
 	if lockErr != nil {
-  if lockErr == errBridgeBusy && initialTripErr == nil {
-   deadline:=time.Now().Add(2*time.Second)
-   for {
-    state,e:=readLaunchSession(activeStatePath)
-    if e==nil {
-     if sameLaunchTrip(state.Trip,initialTrip) {
-      appendLog(logPath,"Repeated call for the same BCS shift; the existing bridge owns this trip.\r\n")
-      return
-     }
-     if validLaunchShiftID(initialTrip.ShiftID) && initialTrip.ShiftID!=state.Trip.ShiftID {
-      if b,e:=os.ReadFile(bcsLog);e==nil {
-       gate:=newCompletionGate(state.Trip.ShiftID,"")
-       if gate.accepts(decodeText(b)) {
-        appendLog(logPath,"Next BCS trip requested; the active bridge will handle the transition.\r\n")
-        return
-       }
-      }
-     }
-    }
-    if time.Now().After(deadline){break}
-    time.Sleep(50*time.Millisecond)
-   }
-  }
-		appendLog(logPath, "ERROR: "+lockErr.Error()+"\r\n")
-		showLaunchError(cfg.Language, localText(cfg.Language, "Já existe uma viagem da bridge aberta para esta instalação.", "A bridge trip is already running for this installation.", "Für diese Installation läuft bereits eine Fahrt mit der Bridge."))
+		if lockErr == errBridgeBusy && initialTripErr == nil {
+			deadline := time.Now().Add(2 * time.Second)
+			for {
+				state, e := readLaunchSession(activeStatePath)
+				if e == nil {
+					if sameLaunchTrip(state.Trip, initialTrip) {
+						appendLog(logPath, "Repeated call for the same BCS shift; the existing bridge owns this trip.\r\n")
+						return
+					}
+					if validLaunchShiftID(initialTrip.ShiftID) && initialTrip.ShiftID != state.Trip.ShiftID {
+						if b, e := os.ReadFile(bcsLog); e == nil {
+							gate := newCompletionGate(state.Trip.ShiftID, "")
+							if gate.accepts(decodeText(b)) {
+								appendLog(logPath, "Next BCS trip requested; waiting for the active bridge to acknowledge or release its session.\r\n")
+								deadline = time.Now().Add(20 * time.Second)
+								for time.Now().Before(deadline) {
+									// A running replacement acknowledges by publishing its trip. If the
+									// old owner exits first, this call takes the lock instead of losing
+									// BCS's only launch request. Its automatic relaunch then deduplicates.
+									if latest, e := readLaunchSession(activeStatePath); e == nil && sameLaunchTrip(latest.Trip, initialTrip) {
+										return
+									}
+									nextRelease, e := acquireBridgeLock(cfg.Root)
+									if e == nil {
+										release = nextRelease
+										lockErr = nil
+										break
+									}
+									if e != errBridgeBusy {
+										lockErr = e
+										break
+									}
+									time.Sleep(100 * time.Millisecond)
+								}
+								break
+							}
+						}
+					}
+				}
+				if time.Now().After(deadline) {
+					break
+				}
+				time.Sleep(50 * time.Millisecond)
+			}
+		}
+		if lockErr != nil {
+			appendLog(logPath, "ERROR: "+lockErr.Error()+"\r\n")
+			showLaunchError(cfg.Language, localText(cfg.Language, "Já existe uma viagem da bridge aberta para esta instalação.", "A bridge trip is already running for this installation.", "Für diese Installation läuft bereits eine Fahrt mit der Bridge."))
+			return
+		}
+	}
+	released := false
+	releaseLock := func() {
+		if !released {
+			release()
+			released = true
+		}
+	}
+	defer releaseLock()
+	if initialTripErr == nil {
+		if e := writeLaunchSession(activeStatePath, initialTrip); e != nil {
+			appendLog(logPath, "WARN: launch metadata: "+e.Error()+"\r\n")
+		}
+	}
+	defer clearLaunchSession(activeStatePath)
+	compatible, compatErr := checkOpenOMSICompatibility(cfg.OpenOMSI, false, cfg.Multiplayer)
+	if compatErr != nil {
+		appendLog(logPath, "ERROR: OpenOMSI compatibility: "+compatErr.Error()+"\r\n")
+		showLaunchError(cfg.Language, compatErr.Error())
 		return
 	}
-	released:=false
- releaseLock:=func(){if !released {release();released=true}}
- defer releaseLock()
- if initialTripErr==nil {if e:=writeLaunchSession(activeStatePath,initialTrip);e!=nil{appendLog(logPath,"WARN: launch metadata: "+e.Error()+"\r\n")}}
- defer clearLaunchSession(activeStatePath)
- compatible,compatErr:=checkOpenOMSICompatibility(cfg.OpenOMSI,false,cfg.Multiplayer)
- if compatErr!=nil {appendLog(logPath,"ERROR: OpenOMSI compatibility: "+compatErr.Error()+"\r\n");showLaunchError(cfg.Language,compatErr.Error());return}
- appendLog(logPath,"OpenOMSI capabilities accepted: "+compatible.Version+"\r\n")
+	appendLog(logPath, "OpenOMSI capabilities accepted: "+compatible.Version+"\r\n")
 	deployment, hostErr := preparePluginHost(cfg, packageDir)
 	if hostErr != nil {
 		appendLog(logPath, "ERROR: "+hostErr.Error()+"\r\n")
@@ -743,11 +743,13 @@ func main() {
 		return
 	}
 
-	if e:=writeLaunchSession(activeStatePath,trip);e!=nil{appendLog(logPath,"WARN: launch metadata: "+e.Error()+"\r\n")}
- if len(os.Args)==3 && os.Args[1]=="--bcs-next-shift" && trip.ShiftID!=os.Args[2] {
-  appendLog(logPath,"Next BCS selection changed before relaunch; refusing an unrelated shift.\r\n")
-  return
- }
+	if e := writeLaunchSession(activeStatePath, trip); e != nil {
+		appendLog(logPath, "WARN: launch metadata: "+e.Error()+"\r\n")
+	}
+	if len(os.Args) == 3 && os.Args[1] == "--bcs-next-shift" && trip.ShiftID != os.Args[2] {
+		appendLog(logPath, "Next BCS selection changed before relaunch; refusing an unrelated shift.\r\n")
+		return
+	}
 	mapRel := resolveMap(cfg.Root, trip.MapName)
 	backups := candidateBackups(cfg, bcsLog)
 	targetDir := ""
@@ -772,6 +774,12 @@ func main() {
 		hof = strings.TrimSuffix(filepath.Base(trip.SelectedHof), filepath.Ext(trip.SelectedHof))
 	}
 	runDate, dateSource := chooseDate(cfg, trip)
+	runWeather, weatherSource, weatherErr := readBCSWeather(cfg.Root, mapRel, runDate, time.Now())
+	if weatherErr != nil {
+		appendLog(logPath, "BCS weather unavailable; retaining the openOMSI/server weather: "+weatherErr.Error()+"\r\n")
+	} else {
+		appendLog(logPath, "BCS weather snapshot: "+weatherSource+"\r\nWeather: "+runWeather+"\r\n")
+	}
 	runPaint, paintSource := choosePaint(cfg, mapRel, busRel)
 
 	diag := &strings.Builder{}
@@ -821,7 +829,7 @@ func main() {
 	var multiplayer *MultiplayerPlan
 	if cfg.Multiplayer {
 		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
-		mpTrip := MultiplayerTrip{trip.MapName, mapRel, busRel, runDate, trip.TripStart}
+		mpTrip := MultiplayerTrip{trip.MapName, mapRel, busRel, runDate, trip.TripStart, runWeather}
 		var problems []CompanyProblem
 		multiplayer, problems, err = prepareMultiplayer(ctx, cfg, dir, mpTrip, companyHTTPClient())
 		cancel()
@@ -843,6 +851,8 @@ func main() {
 		}
 		// Preflight resolves the company calendar before timetable generation and --date.
 		runDate = multiplayer.Trip.Date
+		runWeather = multiplayer.Trip.Weather
+		appendLog(logPath, "Multiplayer weather is authoritative on the server; a wake request can only select the initial weather of a new automatic world.\r\n")
 		if multiplayer.Clock != nil {
 			dateSource = "company clock: " + multiplayer.Clock.TimeZone + fmt.Sprintf(" %+d minutes", multiplayer.Clock.ShiftMinutes)
 			appendLog(logPath, "Company date: "+runDate+" ("+dateSource+")\r\n")
@@ -903,6 +913,9 @@ func main() {
 	appendLog(tripPath, "\r\nFicha BCS: "+driver.NativePath+"\r\nFicha convertida (--driver): "+driver.OpenPath+"\r\nNo terminal: F9, aguarde 2 segundos e finalize no BCS com o jogo aberto.\r\n")
 
 	args := []string{"--root", cfg.Root, "--no-menu"}
+	if runWeather != "" {
+		args = append(args, "--weather", runWeather)
+	}
 	if timetable.Applied && timetable.OverrideZIP != "" {
 		// Mount before --map so TTData is overridden while the map is loaded.
 		args = append(args, "--content-zip", timetable.OverrideZIP)
@@ -985,7 +998,7 @@ func main() {
 	_ = os.Remove(readyPath)
 	_ = os.Remove(openOMSIReadyPath)
 	_ = os.Remove(pidPath)
-	evaluationPath:=filepath.Join(compatDir,"facade-evaluation-complete.flag")
+	evaluationPath := filepath.Join(compatDir, "facade-evaluation-complete.flag")
 	_ = os.Remove(evaluationPath)
 	if cfg.BCSCompat {
 		compatPath := filepath.Join(compatDir, "Omsi.exe")
@@ -997,9 +1010,14 @@ func main() {
 				appendLog(logPath, "ERROR: nao foi possivel iniciar facade BCS: "+e.Error()+"\r\n")
 				return
 			} else {
-    closeFacadeJob,ownErr:=ownCompanyHostProcess(compatCmd)
-    if ownErr!=nil { _ = compatCmd.Process.Kill();_ = compatCmd.Wait();appendLog(logPath,"ERROR owning BCS facade: "+ownErr.Error()+"\r\n");return }
-    defer closeFacadeJob()
+				closeFacadeJob, ownErr := ownCompanyHostProcess(compatCmd)
+				if ownErr != nil {
+					_ = compatCmd.Process.Kill()
+					_ = compatCmd.Wait()
+					appendLog(logPath, "ERROR owning BCS facade: "+ownErr.Error()+"\r\n")
+					return
+				}
+				defer closeFacadeJob()
 				compatDone = make(chan error, 1)
 				go func() { compatDone <- compatCmd.Wait() }()
 				appendLog(logPath, fmt.Sprintf("BCS compat facade v1.1.3 bootstrap started. PID=%d\r\n", compatCmd.Process.Pid))
@@ -1026,7 +1044,10 @@ func main() {
 		present, waited := waitForBCSStartupMarker(cfg.Root, time.Duration(cfg.BCSMarkerWaitMS)*time.Millisecond)
 		appendLog(logPath, fmt.Sprintf("BCS startup marker before openOMSI: present=%v waited=%s (bridge never creates/deletes it)\r\n", present, waited.Round(time.Millisecond)))
 		if !present {
-			if compatCmd != nil && compatCmd.Process != nil { _ = compatCmd.Process.Kill(); <-compatDone }
+			if compatCmd != nil && compatCmd.Process != nil {
+				_ = compatCmd.Process.Kill()
+				<-compatDone
+			}
 			showLaunchError(cfg.Language, localText(cfg.Language, "O BCS não preparou o início desta viagem. Volte ao BCS e inicie a viagem novamente. Se persistir, use o Setup, opção 5.", "BCS did not prepare this trip's startup. Return to BCS and start the trip again. If it persists, use Setup option 5.", "BBS hat den Start dieser Fahrt nicht vorbereitet. Kehre zu BBS zurück und starte die Fahrt erneut. Wenn das Problem weiter besteht, wähle Setup-Option 5."))
 			return
 		}
@@ -1057,19 +1078,28 @@ func main() {
 		}
 		return
 	}
-	closeGameJob,ownErr:=ownCompanyHostProcess(cmd)
- if ownErr!=nil {
-  _ = cmd.Process.Kill();_ = cmd.Wait()
-  if compatCmd!=nil && compatCmd.Process!=nil { _ = compatCmd.Process.Kill();<-compatDone }
-  appendLog(logPath,"ERROR owning OpenOMSI child processes: "+ownErr.Error()+"\r\n")
-  showLaunchError(cfg.Language,ownErr.Error())
-  return
- }
- defer closeGameJob()
+	closeGameJob, ownErr := ownCompanyHostProcess(cmd)
+	if ownErr != nil {
+		_ = cmd.Process.Kill()
+		_ = cmd.Wait()
+		if compatCmd != nil && compatCmd.Process != nil {
+			_ = compatCmd.Process.Kill()
+			<-compatDone
+		}
+		appendLog(logPath, "ERROR owning OpenOMSI child processes: "+ownErr.Error()+"\r\n")
+		showLaunchError(cfg.Language, ownErr.Error())
+		return
+	}
+	defer closeGameJob()
 	appendLog(logPath, fmt.Sprintf("openOMSI started. PID=%d\r\n", cmd.Process.Pid))
 	launchDone := make(chan struct{})
-	watchersStopped:=false
-	stopWatchers:=func(){if !watchersStopped {close(launchDone);watchersStopped=true}}
+	watchersStopped := false
+	stopWatchers := func() {
+		if !watchersStopped {
+			close(launchDone)
+			watchersStopped = true
+		}
+	}
 	defer stopWatchers()
 	var networkReady <-chan struct{}
 	var multiplayerErrors <-chan error
@@ -1089,36 +1119,40 @@ func main() {
 	childDone := make(chan error, 1)
 	go func() { childDone <- cmd.Wait() }()
 	compatExited := false
- nextGate:=newNextTripGate(trip.ShiftID,decodeText(bcsBeforeLaunch))
- nextTicker:=time.NewTicker(500*time.Millisecond)
- defer nextTicker.Stop()
- var nextTrip *TripInfo
- var transitionTimeout <-chan time.Time
- evaluationFrozen:=false
+	nextGate := newNextTripGate(trip.ShiftID, decodeText(bcsBeforeLaunch))
+	nextTicker := time.NewTicker(500 * time.Millisecond)
+	defer nextTicker.Stop()
+	var nextTrip *TripInfo
+	var transitionTimeout <-chan time.Time
+	evaluationFrozen := false
 	waiting := true
 	for waiting {
 		select {
-  case <-nextTicker.C:
-   if current,e:=os.ReadFile(bcsLog);e==nil {
-    text:=decodeText(current)
-    if !evaluationFrozen && closureGate.accepts(text) {
-     if e:=os.WriteFile(evaluationPath,[]byte(trip.ShiftID),0600);e!=nil{appendLog(logPath,"WARN: evaluation freeze marker: "+e.Error()+"\r\n")}else{evaluationFrozen=true}
-    }
-    if nextTrip==nil {
-     if selected,ok:=nextGate.observe(text);ok {
-      nextTrip=&selected
-      stopWatchers()
-      postOpenOMSIClose(uint32(cmd.Process.Pid))
-      transitionTimeout=time.After(10*time.Second)
-      appendLog(logPath,fmt.Sprintf("Next BCS shift %s selected after completion of %s; closing the owned game before relaunch.\r\n",selected.ShiftID,trip.ShiftID))
-     }
-    }
-   }
-  case <-transitionTimeout:
-   transitionTimeout=nil
-   appendLog(logPath,"The owned game did not close during the next-trip transition; ending this process only.\r\n")
-   closeGameJob()
-   _ = cmd.Process.Kill()
+		case <-nextTicker.C:
+			if current, e := os.ReadFile(bcsLog); e == nil {
+				text := decodeText(current)
+				if !evaluationFrozen && closureGate.accepts(text) {
+					if e := os.WriteFile(evaluationPath, []byte(trip.ShiftID), 0600); e != nil {
+						appendLog(logPath, "WARN: evaluation freeze marker: "+e.Error()+"\r\n")
+					} else {
+						evaluationFrozen = true
+					}
+				}
+				if nextTrip == nil {
+					if selected, ok := nextGate.observe(text); ok {
+						nextTrip = &selected
+						stopWatchers()
+						postOpenOMSIClose(uint32(cmd.Process.Pid))
+						transitionTimeout = time.After(10 * time.Second)
+						appendLog(logPath, fmt.Sprintf("Next BCS shift %s selected after completion of %s; closing the owned game before relaunch.\r\n", selected.ShiftID, trip.ShiftID))
+					}
+				}
+			}
+		case <-transitionTimeout:
+			transitionTimeout = nil
+			appendLog(logPath, "The owned game did not close during the next-trip transition; ending this process only.\r\n")
+			closeGameJob()
+			_ = cmd.Process.Kill()
 		case networkErr := <-multiplayerErrors:
 			multiplayerErrors = nil
 			appendLog(logPath, "Multiplayer startup guard: "+networkErr.Error()+"\r\n")
@@ -1167,12 +1201,41 @@ func main() {
 	}
 	closeGameJob()
 	stopWatchers()
-	if nextTrip!=nil {
+	if nextTrip == nil && baselineReadErr == nil {
+		readCurrent := func() (string, error) { b, e := os.ReadFile(bcsLog); return decodeText(b), e }
+		if text, e := readCurrent(); e == nil {
+			if selected, ok := nextGate.observe(text); ok {
+				nextTrip = &selected
+			}
+			if nextTrip == nil && closureGate.accepts(text) {
+				appendLog(logPath, "BCS completed this shift; retaining next-trip monitor for up to 15 minutes after game exit.\r\n")
+				ctx, cancel := context.WithTimeout(context.Background(), startupTimeout)
+				selected, ok := waitForNextBCSTrip(ctx, &nextGate, readCurrent, 500*time.Millisecond)
+				cancel()
+				if ok {
+					nextTrip = &selected
+				} else {
+					appendLog(logPath, "BCS next-trip selection wait ended; launch lock released.\r\n")
+				}
+			}
+		}
+	}
+	if nextTrip != nil {
 		clearLaunchSession(activeStatePath)
 		releaseLock()
-		self,e:=os.Executable()
-		if e==nil { child:=exec.Command(self,"--bcs-next-shift",nextTrip.ShiftID);child.Dir=packageDir;e=child.Start();if e==nil{_ = child.Process.Release()} }
-		if e!=nil {appendLog(logPath,"ERROR: next-trip relaunch: "+e.Error()+"\r\n");showLaunchError(cfg.Language,e.Error())}
+		self, e := os.Executable()
+		if e == nil {
+			child := exec.Command(self, "--bcs-next-shift", nextTrip.ShiftID)
+			child.Dir = packageDir
+			e = child.Start()
+			if e == nil {
+				_ = child.Process.Release()
+			}
+		}
+		if e != nil {
+			appendLog(logPath, "ERROR: next-trip relaunch: "+e.Error()+"\r\n")
+			showLaunchError(cfg.Language, e.Error())
+		}
 	}
 	if er != nil {
 		appendLog(logPath, "openOMSI exited with error/status: "+er.Error()+"\r\n")

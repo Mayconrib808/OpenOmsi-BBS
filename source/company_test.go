@@ -43,7 +43,7 @@ func companyFixture(t *testing.T) (Config, CompanyProfile, MultiplayerTrip, stri
 	p.Sessions = []CompanySession{{ID: "morning", Name: "Morning", MapName: "Sample", MapFile: "maps/Sample/global.cfg", Date: "2026-10-06", ServerURL: "http://127.0.0.1:27025", RequiredPackages: []string{"map", "bus-a", "bus-b"}, ClockToleranceSec: 180}}
 	c := defaultConfig()
 	c.Root, c.Multiplayer, c.CompanyID, c.CompanyProfile, c.PlayerName = root, true, p.CompanyID, "company.json", "Maycon"
-	trip := MultiplayerTrip{"Sample", "maps/Sample/global.cfg", "Vehicles/A/a.bus", "2026-10-06", "09:20"}
+	trip := MultiplayerTrip{"Sample", "maps/Sample/global.cfg", "Vehicles/A/a.bus", "2026-10-06", "09:20", ""}
 	return c, p, trip, dir
 }
 
@@ -402,7 +402,7 @@ func TestCompanyServerUsesSupportedProtocolInsteadOfReleaseAllowlist(t *testing.
 func TestCompanyOwnerRefreshUpdatesOnlyDeclaredHashesAndPreservesMetadata(t *testing.T) {
 	c, original, _, _ := companyFixture(t)
 	assets := map[string]string{
-		"maps/Sample/Holidays.txt": "2026-10-06\n",
+		"maps/Sample/Holidays.txt":              "2026-10-06\n",
 		"Vehicles/A/script/cockpit_varlist.txt": "existing_var\n",
 	}
 	for path, content := range assets {

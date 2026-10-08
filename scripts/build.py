@@ -22,32 +22,32 @@ REFERENCE_GO = "go1.23.2"
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (SOURCE / "version.go").read_text()).group(1)
 PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
-    "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
+    "main.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
     "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
 TEST_FILES = (
-    "driver_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go "
+    "driver_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go "
     "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go profile_store_test.go"
 ).split()
 PROGRAMS = {
     "HostAgent.exe": (
-        "host_agent_main.go host_agent.go host_config.go host_gui_windows.go host_gui_preview_windows.go company_directory.go company_host.go company_host_share.go company_host_process_windows.go company.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
+        "host_agent_main.go host_agent.go host_config.go host_gui_windows.go host_gui_preview_windows.go company_directory.go weather.go log_text.go company_host.go company_host_share.go company_host_process_windows.go company.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "CompanyHost.exe": (
-        "company_host_main.go company_host.go company_host_share.go company_host_process_windows.go company.go company_directory.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
+        "company_host_main.go company_host.go company_host_share.go company_host_process_windows.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "Setup.exe": (
          "setup_main.go setup_files.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
-        "config.go plugin_host.go registry.go paths.go version.go company.go company_directory.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
+        "config.go plugin_host.go registry.go paths.go version.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
-         "main.go timetable.go diagnostics.go launch_checks.go driver.go session.go launch_session.go session_transition.go openomsi_compatibility.go openomsi_probe_windows.go company_host_process_windows.go "
+         "main.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go driver.go session.go launch_session.go session_transition.go openomsi_compatibility.go openomsi_probe_windows.go company_host_process_windows.go "
         "config.go plugin_host.go paths.go version.go process_windows.go company.go company_directory.go company_content.go company_clock.go multiplayer.go profile_store.go"
     ).split(),
     "app/compat/Omsi.exe": (
-        "compat.go facade_memory.go driver.go version.go"
+        "compat.go log_text.go startup_ack.go facade_memory.go driver.go version.go"
     ).split(),
 }
 HOST = "app/compat/omsi-plugin-host32.exe"
@@ -105,7 +105,7 @@ def assemble(stage: Path, host_hash: str) -> None:
         "The historical host with unresolved provenance is not bundled.\n"
         "Integration uses executable capabilities and multiplayer protocol 6. Official 0.2.0 and 0.2.11 metadata are checked on Windows CI.\n"
         "Automated checks do not certify a real vendor-plugin session or trip evaluation.\n"
-        "Company multiplayer, new next-trip transition and 0.2.11 full-game validation with two players are pending.\n"
+        "Live next-trip, BCS weather, vendor panel and two-player full-game validation are pending.\n"
         "See docs/VALIDATION.md and docs/TEST_ON_WINDOWS.md.\n",
         encoding="utf-8",
     )
@@ -179,7 +179,7 @@ def main() -> int:
         host.parent.mkdir(parents=True, exist_ok=True)
         # Explicit files give the main program a stable import path outside
         # GOPATH/modules; -trimpath then removes checkout-machine paths.
-        run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w -buildid=", "-o", str(host), *HOST_SOURCES], windows)
+        run(go, ["build", "-trimpath", "-buildvcs=false", "-ldflags=-s -w -H=windowsgui -buildid=", "-o", str(host), *HOST_SOURCES], windows)
         host_hash = hashlib.sha256(host.read_bytes()).hexdigest()
         print(f"Source-backed host SHA-256: {host_hash}", flush=True)
         digest_flag = "-X=main.bundledPluginHostSHA256=" + host_hash
@@ -219,6 +219,7 @@ def main() -> int:
             subprocess.run([str(stage / "HostAgent.exe"), "--gui-smoke"], check=True, timeout=30, env=preview_env)
             subprocess.run([sys.executable, str(ROOT / "scripts/test_openomsi_compat.py"), "--report", str(ROOT / "build/openomsi-compatibility.json")], check=True, timeout=600)
             subprocess.run([sys.executable, str(ROOT / "scripts/test_pluginhost_windows.py"), str(host)], check=True, timeout=180)
+            subprocess.run([sys.executable, str(ROOT / "scripts/test_facade_windows.py"), str(stage / "app/compat/Omsi.exe")], check=True, timeout=60)
             # Exercise the 32-bit Job Object layout used by CompanyHost.exe,
             # as well as the runner-native layout in the normal test suite.
             run(go, ["test", "-v", "company_host_process_windows.go", "company_host_process_windows_test.go"], windows)

@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-type MultiplayerTrip struct{ MapName, MapFile, BusFile, Date, Start string }
+type MultiplayerTrip struct{ MapName, MapFile, BusFile, Date, Start, Weather string }
 
 type MultiplayerPlan struct {
 	CompanyID, CompanyName, PlayerName string
@@ -197,12 +197,16 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 	if p.CompanyID != c.CompanyID {
 		return nil, nil, fmt.Errorf("the company profile identity changed; configure the company again in Setup option 8")
 	}
+	weatherDate := trip.Date
 	if p.Clock != nil && automaticBridgeDate(c.Date) {
 		civil, e := companyNow(*p.Clock, now)
 		if e != nil {
 			return nil, nil, e
 		}
 		trip.Date = civil.Format("2006-01-02")
+	}
+	if trip.Date != weatherDate {
+		trip.Weather, _, _ = readBCSWeather(c.Root, trip.MapFile, trip.Date, now)
 	}
 	if _, err = time.Parse("2006-01-02", trip.Date); err != nil {
 		return nil, nil, fmt.Errorf("BBS trip date is not known; configure date=YYYY-MM-DD")
@@ -233,7 +237,7 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 	if p.DirectoryURL != "" {
 		// One demand starts one map. Do not wake every matching legacy session.
 		fmt.Println(localText(c.Language, "Aguardando o servidor automático da empresa carregar o mapa...", "Waiting for the company server to load the map...", "Warte auf die automatische Firmen-Kartensitzung..."))
-		session, e := waitCompanyDirectorySession(ctx, client, p, candidates[0].ID)
+		session, e := waitCompanyDirectorySession(ctx, client, p, candidates[0].ID, trip.Weather)
 		if e != nil {
 			return nil, nil, e
 		}

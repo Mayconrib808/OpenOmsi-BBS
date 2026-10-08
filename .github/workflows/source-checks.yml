@@ -51,3 +51,21 @@ jobs:
           path: build/setup-previews/*.png
           if-no-files-found: ignore
           retention-days: 30
+
+  publish-development:
+    needs: check
+    if: github.event_name == 'push' && github.repository == 'Mayconrib808/OpenOmsi-BBS' && github.ref == 'refs/heads/codex/2.0.3-dev.1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Publish the checked 2.0.3 dev1 prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/publish_dev_release.py --run-id '${{ github.run_id }}' --commit '${{ github.sha }}' --artifact-dir '${{ runner.temp }}/development-release'

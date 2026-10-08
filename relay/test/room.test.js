@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { RoomProtocol } from '../src/room.js';
+import { RoomProtocol, validWeather } from '../src/room.js';
 class Storage {
   data=new Map();
   async get(key){if(Array.isArray(key))return new Map(key.filter(k=>this.data.has(k)).map(k=>[k,structuredClone(this.data.get(k))]));return structuredClone(this.data.get(key));}
@@ -19,6 +19,29 @@ test('host credentials stay private and player writes cannot replace profiles',a
  const p=await(await call('/profile')).json();assert.ok(!JSON.stringify(p).includes(key));
  assert.equal((await call('/requests')).status,401);
  assert.equal((await call('/publish','POST',{...profile(),company_id:'other'},true)).status,409);
+});
+const rain='custom:vis=3500;br=0.9;wd=170;ws=4.5;t=12;rh=90;p=1002;c=4;cb=800;pt=1;pi=96;wet=0.78;snow=0;snowroad=0';
+test('first player sets a new world weather; later players cannot replace it',async()=>{
+ const{call,setNow}=fixture();await call('/publish','POST',profile(),true);
+ const heartbeat=state=>call('/heartbeat','POST',{sessions:[{session_id:'map-a',state,players:state==='online'?2:0,...(state==='online'?{address:'https://host.trycloudflare.com'}:{})},{session_id:'map-b',state:'offline',players:0}]},true);
+ await heartbeat('offline');await call('/wake','POST',{session_id:'map-a',weather:rain});
+ setNow(100001);await call('/wake','POST',{session_id:'map-a',weather:rain.replace('pt=1','pt=0')});
+ let requests=(await(await call('/requests','GET',null,true)).json()).requests;assert.equal(requests[0].weather,rain);
+ await heartbeat('online');setNow(100002);await call('/wake','POST',{session_id:'map-a',weather:rain.replace('pt=1','pt=0')});
+ requests=(await(await call('/requests','GET',null,true)).json()).requests;assert.equal(requests[0].weather,rain);
+ // An idle shutdown creates a new world, even inside the old demand's TTL.
+ await heartbeat('offline');setNow(100003);const sunny=rain.replace('pt=1','pt=0');await call('/wake','POST',{session_id:'map-a',weather:sunny});
+ requests=(await(await call('/requests','GET',null,true)).json()).requests;assert.equal(requests[0].weather,sunny);
+});
+test('weather protocol accepts bounded values only and remains compatible with old players',async()=>{
+ const{call}=fixture();await call('/publish','POST',profile(),true);
+ await call('/heartbeat','POST',{sessions:[{session_id:'map-a',state:'offline',players:0},{session_id:'map-b',state:'offline',players:0}]},true);
+ assert.ok(validWeather(rain));
+ for(const bad of ['Weather/rain.owt','custom:pt=1',rain+';pt=2',rain.replace('pt=1','pt=3'),rain.replace('pi=96','pi=NaN'),rain.replace('pi=96','pi=96\nadmin_password = exposed')]){
+  assert.ok(!validWeather(bad));assert.equal((await call('/wake','POST',{session_id:'map-a',weather:bad})).status,400);
+ }
+ assert.equal((await call('/wake','POST',{session_id:'map-a'})).status,200);
+ const requests=(await(await call('/requests','GET',null,true)).json()).requests;assert.equal(requests[0].weather,undefined);
 });
 test('wake is deduplicated per registered map, expires, and never starts an unknown map',async()=>{
  const{call,setNow}=fixture();await call('/publish','POST',profile(),true);

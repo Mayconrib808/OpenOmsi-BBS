@@ -142,6 +142,50 @@ func TestHostBusyMapDoesNotStopDuringPlayerTrip(t *testing.T) {
 		t.Fatal("stopped occupied map")
 	}
 }
+
+func TestHostFirstPlayerWeatherDoesNotChangeAnOccupiedWorld(t *testing.T) {
+	c := hostConfigFixture(t)
+	id := c.Company.Sessions[0].ID
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	dir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", dir)
+	rain, err := bridgeWeatherFromOWT([]byte(rainyBCSWeather))
+	if err != nil {
+		t.Fatal(err)
+	}
+	sunny := strings.Replace(rain, "pt=1", "pt=0", 1)
+	started := make(chan string, 1)
+	a := &hostAgent{config: c, maps: map[string]*hostAgentMap{id: {state: companyDirectoryState{SessionID: id, State: "offline"}}}, output: io.Discard}
+	a.runServer = func(ctx context.Context, o companyHostOptions, _ io.Writer) error {
+		b, e := os.ReadFile(o.Config)
+		if e != nil {
+			return e
+		}
+		started <- string(b)
+		o.onPublicReady("https://weather.trycloudflare.com")
+		o.onStatus(companyHostStatus{Players: 2}, true)
+		<-ctx.Done()
+		return nil
+	}
+	a.demand(ctx, id, 1, dir, rain)
+	select {
+	case text := <-started:
+		if !strings.Contains(text, "weather = "+rain) {
+			t.Fatal(text)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("host did not consume BCS weather")
+	}
+	a.demand(ctx, id, 2, dir, sunny)
+	path := filepath.Join(companyHostDataDir(dir), "HostedMaps", c.Company.CompanyID, id, "server.cfg")
+	b, e := os.ReadFile(path)
+	if e != nil || !strings.Contains(string(b), "weather = "+rain) {
+		t.Fatal("later player changed shared weather", e)
+	}
+	cancel()
+	a.wg.Wait()
+}
 func TestHostAgentImportsExistingFleetAndWritesSeparateConfigs(t *testing.T) {
 	c := hostConfigFixture(t)
 	p := c.Company
