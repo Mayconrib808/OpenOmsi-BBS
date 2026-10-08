@@ -25,8 +25,8 @@ import (
 
 const companyProfileLimit = 8 << 20
 const companyFileLimit = 30000
-const multiplayerProtocol = 6           // Verified in official openOMSI 0.2.0 and 0.2.11.
-const multiplayerGameVersion = "0.2.11" // New profiles' descriptive release label.
+const multiplayerProtocol = 6
+const multiplayerGameVersion = "0.2.11"
 
 type CompanyProfile struct {
 	SchemaVersion   int              `json:"schema_version"`
@@ -79,8 +79,6 @@ func companyAssetKey(s string) string {
 	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(s), `\`, "/"))
 }
 
-// Restrict manifests to game assets. A profile cannot inspect account files,
-// executables or arbitrary files elsewhere on the computer.
 func validCompanyAsset(s string) bool {
 	s = strings.ReplaceAll(s, `\`, "/")
 	if s == "" || strings.TrimSpace(s) != s || strings.ContainsAny(s, ":\x00\r\n") || strings.HasPrefix(s, "/") {
@@ -102,7 +100,7 @@ func validCompanyAsset(s string) bool {
 	}
 	switch strings.ToLower(filepath.Ext(s)) {
 	case ".exe", ".dll", ".jar", ".bat", ".cmd", ".ps1", ".lnk", ".zip", ".rar", ".7z", ".log", ".odr", ".osn", ".tmp", ".bak", ".backup", ".hof":
-		return false // Per-duty HOF and saved situation files differ by player.
+		return false
 	}
 	return true
 }
@@ -222,10 +220,6 @@ func validateCompanyProfile(p CompanyProfile) error {
 	return nil
 }
 
-// The dedicated server's gateway comes up before the map. During loading it
-// publishes the configured startup time with world:null; that is not a live
-// clock sample. A player-hosted fixed-date session can legitimately have no
-// world counts, so only the dedicated company-clock flow requires this gate.
 func companyActiveWorld(raw json.RawMessage) bool {
 	var counts map[string]json.RawMessage
 	return json.Unmarshal(raw, &counts) == nil && counts != nil
@@ -307,8 +301,6 @@ func loadCompanyProfile(ctx context.Context, source, baseDir string, client *htt
 	return p, validateCompanyProfile(p)
 }
 
-// Resolve Windows-style paths case-insensitively on every test platform, and
-// refuse a symlink/junction that resolves outside the original OMSI root.
 func companyAssetPath(root, relative string) (string, error) {
 	if !validCompanyAsset(relative) {
 		return "", fmt.Errorf("unsafe asset path")
@@ -358,10 +350,6 @@ func companyAssetPath(root, relative string) (string, error) {
 	if !st.Mode().IsRegular() {
 		return "", fmt.Errorf("asset is not a regular file")
 	}
-	// Keep the path under the user's chosen root. Windows may expand a DOS
-	// short name or junction in EvalSymlinks; using that spelling with the
-	// original root in filepath.Rel would hide folder-inventory entries.
-	// Containment and file type were checked against the resolved target above.
 	return path, nil
 }
 
@@ -379,21 +367,21 @@ func companyFileHash(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
+// CompanyHost sets this only in its own executable. The normal bridge bypasses
+// this audit at its multiplayer call site. Setup/tests keep it enabled so hashes
+// remain useful for explicit administrator inventory maintenance.
+var companyRuntimePackageChecksDisabled bool
+
 func checkCompanyPackages(root string, p CompanyProfile, session CompanySession) []CompanyProblem {
+	if companyRuntimePackageChecksDisabled {
+		return nil
+	}
 	return checkCompanyPackagesWithOriginals(root, p, session, companyBBSBackupInventory(root))
 }
 
-// Runtime multiplayer follows openOMSI's permissive philosophy: a registered
-// session is identified by server/map/clock/protocol, not by byte-for-byte local
-// mod equality. Players may have different map or vehicle revisions, missing
-// other players' buses, extra repaints/scripts, or BBS-mutated files. Hashes
-// remain useful for administrator inventory/review, but never block a real
-// multiplayer session. A synthetic empty-ID session can still request the strict
-// audit below for maintenance tools and tests.
+// Strict hash comparison is an administrator/audit primitive. It is deliberately
+// not a multiplayer compatibility gate anymore.
 func checkCompanyPackagesWithOriginals(root string, p CompanyProfile, session CompanySession, bbsBackups map[string]bool) []CompanyProblem {
-	if strings.TrimSpace(session.ID) != "" {
-		return nil
-	}
 	wanted := map[string]bool{}
 	for _, id := range session.RequiredPackages {
 		wanted[id] = true
@@ -454,9 +442,6 @@ func checkCompanyPackagesWithOriginals(root string, p CompanyProfile, session Co
 	return problems
 }
 
-// Rehash only the files already declared by an administrator. Joining players
-// never call this: a changed file still refuses the trip until the owner updates
-// the reference. Keep package metadata, sessions and the clock unchanged.
 func refreshCompanyHashes(root string, original CompanyProfile) (CompanyProfile, []string, error) {
 	if err := validateCompanyProfile(original); err != nil {
 		return original, nil, err
@@ -511,7 +496,6 @@ func refreshCompanyHashes(root string, original CompanyProfile) (CompanyProfile,
 			file.SHA256 = digest
 		}
 	}
-	// Check every package, including any not used by the first session.
 	all := updated.Sessions[0]
 	all.ID = ""
 	all.RequiredPackages = nil
@@ -574,9 +558,6 @@ func snapshotCompanyFolder(root, folder string) ([]CompanyFile, error) {
 	return files, err
 }
 
-// Explicit administrator action for additions such as timezone.txt. Unlike
-// hash-only refresh, this rebuilds the declared folders' inventory and shows a
-// reviewable diff. Client checks and server startup never invoke it.
 func refreshCompanyInventory(root string, original CompanyProfile) (CompanyProfile, []string, error) {
 	if err := validateCompanyProfile(original); err != nil {
 		return original, nil, err
@@ -669,10 +650,6 @@ func writeCompanyReport(runtimeDir, lang, company string, problems []CompanyProb
 	return path, nil
 }
 
-// The gateway's version can be a workspace version plus a build description.
-// Its declared network protocol is the compatibility boundary. Map, world,
-// clock, fleet and capacity are checked by the caller; the actual game also
-// negotiates its protocol on joining and refuses a mismatching client.
 func compatibleCompanyServer(version string, protocol int) bool {
 	return protocol == multiplayerProtocol && validOpenOMSIVersion(strings.TrimSpace(version))
 }
