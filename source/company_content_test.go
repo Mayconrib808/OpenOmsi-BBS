@@ -91,14 +91,14 @@ func TestCompanyBBSChangesRequireRecordedMatchingOriginals(t *testing.T) {
 		writeTestFile(t, live, "BBS session-specific content\n")
 		list.WriteString(strings.ReplaceAll(live, "/", `\`) + "\r\n")
 	}
-	if got := checkCompanyPackages(c.Root, profile, profile.Sessions[0]); len(got) != 2 {
+	if got := checkCompanyPackages(c.Root, profile, profile.Sessions[0]); len(got) != 1 || !strings.Contains(got[0].Detail, script) || !strings.Contains(got[0].Detail, variables) {
 		t.Fatal("a sibling backup alone must not waive vehicle validation", got)
 	}
 	writeTestFile(t, filepath.Join(c.Root, "Busbetrieb-Simulator/BBS_Backups.txt"), "\xef\xbb\xbf"+list.String())
 	if got := checkCompanyPackages(c.Root, profile, profile.Sessions[0]); len(got) != 0 {
 		t.Fatal("registered BBS vehicle changes with exact original backups rejected", got)
 	}
-	if got := checkCompanyPackagesWithOriginals(c.Root, profile, profile.Sessions[0], nil); len(got) != 2 {
+	if got := checkCompanyPackagesWithOriginals(c.Root, profile, profile.Sessions[0], nil); len(got) != 1 || !strings.Contains(got[0].Detail, script) || !strings.Contains(got[0].Detail, variables) {
 		t.Fatal("BBS backup hid live vehicle changes during administrator review", got)
 	}
 	after, _ := json.Marshal(profile)
