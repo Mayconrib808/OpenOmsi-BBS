@@ -158,24 +158,22 @@ func companyRequiredFleet(p CompanyProfile, session CompanySession) map[string]b
 				if strings.HasPrefix(key, "vehicles/") && strings.HasSuffix(key, ".bus") {
 					covered[key] = true
 				}
-			}
 		}
 	}
 	return covered
 }
 
-func validateCompanyFleet(status companyServerStatus, covered map[string]bool) error {
+// openOMSI itself decides whether each remote vehicle can be represented. The
+// bridge only needs a syntactically valid, non-empty fleet from /status; extra
+// buses that are absent from another player's installation are not a reason to
+// refuse the whole session.
+func validateCompanyFleet(status companyServerStatus, _ map[string]bool) error {
 	buses, err := companyVehicleList(status.Vehicles)
 	if err != nil {
 		return err
 	}
 	if len(buses) == 0 {
 		return fmt.Errorf("server has not published its fleet yet")
-	}
-	for _, bus := range buses {
-		if !covered[companyAssetKey(bus)] {
-			return fmt.Errorf("server offers an undeclared bus: %s; administrator must include its package or restrict server.cfg vehicles", bus)
-		}
 	}
 	return nil
 }
@@ -215,10 +213,9 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 	}
 	var candidates []CompanySession
 	for _, session := range p.Sessions {
-		matches := strings.EqualFold(strings.TrimSpace(session.MapName), strings.TrimSpace(trip.MapName))
-		if trip.MapFile != "" {
-			matches = companyAssetKey(session.MapFile) == companyAssetKey(trip.MapFile)
-		}
+		nameMatches := strings.EqualFold(strings.TrimSpace(session.MapName), strings.TrimSpace(trip.MapName))
+		fileMatches := trip.MapFile != "" && companyAssetKey(session.MapFile) == companyAssetKey(trip.MapFile)
+		matches := nameMatches || fileMatches
 		date := session.Date
 		if date == "company" {
 			civil, e := companyNow(*p.Clock, now)
@@ -284,20 +281,6 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 			unavailable = append(unavailable, CompanyProblem{session.Name, fleetErr.Error(), ""})
 			continue
 		}
-		covered := false
-		for _, pkg := range p.Packages {
-			for _, id := range session.RequiredPackages {
-				if pkg.ID == id {
-					for _, f := range pkg.Files {
-						covered = covered || companyAssetKey(f.Path) == companyAssetKey(trip.BusFile)
-					}
-				}
-			}
-		}
-		if !covered {
-			unavailable = append(unavailable, CompanyProblem{session.Name, "O ônibus escolhido no BBS não está coberto pelos pacotes da sessão. / The BBS bus must be included in the session's hashed packages: " + trip.BusFile, ""})
-			continue
-		}
 		var clock *CompanyClock
 		if session.Date == "company" {
 			clock = p.Clock
@@ -348,8 +331,9 @@ func multiplayerEnvironment(base []string, contentDir string) []string {
 			result = append(result, entry)
 		}
 	}
-	// Exact checked original-installation assets + the bridge's timetable ZIP.
-	// No automatic peer-to-peer mod transfer or unexamined content overlays.
+	// Keep the bridge's timetable overlay isolated. Native LAN mod transfer is
+	// disabled here because company internet sessions use the HTTP/WebSocket
+	// gateway; local content differences themselves are no longer a join gate.
 	return append(result, "OMSI_CONTENT="+contentDir, "OMSI_NO_LAN_MODS=1")
 }
 
@@ -449,7 +433,6 @@ func watchMultiplayerLaunch(logPath string, offset int64, plan *MultiplayerPlan,
 				if ok {
 					close(ready)
 					return
-				}
 			}
 		}
 	}()
