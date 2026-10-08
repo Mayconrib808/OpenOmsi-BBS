@@ -1,3 +1,12 @@
+# 2.0.4 — timetable matching hotfix
+
+- Corrige viagens em TTPs com `[station_typ2]` quando o BCS acrescenta qualificadores ao destino, como `Rathausmarkt (Terminus 109)` no HafenCity.
+- Rotas do BCS com vários trechos separados por ` - ` passam a usar o primeiro e o último ponto como endpoints físicos, em vez de tratar todo o restante da rota como um único destino.
+- Quando a linha e o Umlauf já selecionaram o timetable correto, uma única viagem carregada no horário exato do BCS pode ser usada mesmo que o nome textual da rota/TTP seja diferente, desde que o TTP confirme a mesma linha e não existam endpoints físicos contraditórios.
+- Rótulos de linha como `Linie 184` são compatíveis com TTPs que registram apenas `184`, usando comparação por token exato e não substring livre.
+- O caso real do Ruhrau V2 (`Linie 184`, `4. Mo. - Fr. (DB/Solo)`, `22:59`, `184 - Bergische Kaserne`) ganhou regressão automatizada, junto de testes que mantêm horários duplicados ambíguos e endpoints físicos incompatíveis bloqueados.
+- O horário do TTP mantém seus segundos originais quando o BCS fornece apenas `HH:MM`, evitando deslocamentos artificiais de poucos segundos.
+
 # 2.0.3 dev3 — ônibus dos jogadores livres
 
 - Remove o bloqueio da bridge quando o ônibus escolhido no BCS não está na lista ou na instalação do host, também na conferência imediatamente antes de abrir o jogo.
