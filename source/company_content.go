@@ -29,7 +29,7 @@ func companyRuntimeArtifact(path string) bool {
 		return false
 	}
 	return strings.HasSuffix(name, ".osn.owt") || companySituationTile.MatchString(name) ||
-		name == "timezone.txt.backup.txt" || name == "holidays.txt.backup.txt"
+		name == "holidays.txt" || name == "timezone.txt.backup.txt" || name == "holidays.txt.backup.txt"
 }
 
 // Some OMSI map archives have circulated with Windows' hidden-extension mistake
@@ -50,9 +50,11 @@ func companyCalendarAsset(path string) bool {
 	return len(parts) == 3 && parts[0] == "maps" && filepath.Base(parts[2]) == "holidays.txt"
 }
 
-// BBS records originals it temporarily modifies in BBS_Backups.txt. Only its
-// calendar and vehicle program inputs may use a verified original as their
-// package identity; models, textures, timezone and timetable files stay exact.
+// BBS records originals it temporarily modifies in BBS_Backups.txt. Vehicle
+// program inputs may use a verified original as their package identity. The
+// map Holidays.txt is mutable runtime state and is excluded earlier instead of
+// relying on backup discovery. Models, textures, timezone and timetable files
+// stay exact.
 func companyBBSManagedAsset(path string) bool {
 	if companyCalendarAsset(path) {
 		return true
