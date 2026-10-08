@@ -2,7 +2,7 @@
 
 The 2.0.3 development changes are described in [the release notes](releases/v2.0.3-dev.1.md). Regression coverage includes selection after simulator exit, repeated completion, fresh rain/snow snapshots, UTF-16BE acknowledgments and preserving an occupied server's weather. Windows CI runs the actual 32-bit facade with synthetic BCS logs in all three encodings, both acknowledgment orders, and checks the native timetable window transition. The GUI-subsystem plugin helper retains the native synthetic-DLL/message-pump tests.
 
-A real BCS next-trip sequence, rainy multiplayer world and intermittent vendor panel still need live validation on this build. The previously supplied UTF-16BE BCS log explains one acknowledgment failure; it does not establish the sole cause of every missing panel. The diagnostic weather sidecar supplied previously describes clear weather and cannot by itself prove the user's reported rainy session.
+A real BCS next-trip sequence, rainy multiplayer world and intermittent vendor panel still need live validation on this build. The supplied UTF-16BE log contains two acknowledgments that the old LE byte pattern also matches at a shifted offset. Its encoding therefore does not prove the reported panel failure. The early-cursor change covers a possible fast-acknowledgment race; the actual root cause of the isolated case is unconfirmed. The diagnostic weather sidecar supplied previously describes clear weather and cannot by itself prove the user's reported rainy session.
 
 # Historical validation — 2.0.1
 

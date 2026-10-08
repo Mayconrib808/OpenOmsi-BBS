@@ -1,8 +1,11 @@
-* text=auto
+# Keep source and package bytes identical on Linux and Windows checkouts.
+* text=auto eol=lf
 *.go text eol=lf
 *.py text eol=lf
 *.md text eol=lf
 *.rs text eol=lf
 *.yml text eol=lf
 *.cmd text eol=crlf
+# Driver fixtures are byte-exact inputs for translation/rollback tests.
+*.odr -text
 source/testdata/bbs-after.odr binary

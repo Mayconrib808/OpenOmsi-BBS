@@ -76,6 +76,9 @@ def main():
     run = json.loads(gh("api", f"repos/{REPO}/actions/runs/{args.run_id}"))
     if run["head_sha"] != args.commit or run["head_branch"] != BRANCH or run["event"] != "push" or run["head_repository"]["full_name"] != REPO:
         raise ValueError("Workflow identity mismatch")
+    current = json.loads(gh("api", f"repos/{REPO}/git/ref/heads/{BRANCH}"))
+    if current["object"]["sha"] != args.commit:
+        raise ValueError("A newer development push superseded this publication")
     if subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip() != args.commit:
         raise ValueError("Checkout does not match the tested push")
     jobs = json.loads(gh("api", f"repos/{REPO}/actions/runs/{args.run_id}/jobs?per_page=100"))["jobs"]
