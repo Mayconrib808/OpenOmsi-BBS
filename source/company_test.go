@@ -190,7 +190,7 @@ func TestCompanySavedMapSituationIsNotAStaticFleetRequirement(t *testing.T) {
 func TestCompanyExtraFilesDoNotBlockMultiplayer(t *testing.T) {
 	c, p, _, _ := companyFixture(t)
 	for path, content := range map[string]string{
-		"Vehicles/A/Texture/extra.cti":        "extra repaint",
+		"Vehicles/A/Texture/extra.cti":         "extra repaint",
 		"Vehicles/A/script/IBIS_constfile.txt": "local script companion",
 		"Vehicles/A/Vip 5 AI.bus":              "extra AI bus variant",
 	} {
@@ -425,11 +425,11 @@ func TestCompanyOwnerRefreshUpdatesOnlyDeclaredHashesAndPreservesMetadata(t *tes
 			t.Fatal(err)
 		}
 	}
-	if problems := checkCompanyPackages(c.Root, original, original.Sessions[0]); len(problems) != 2 {
-		t.Fatal("joining must still refuse unapproved changed scripts and calendar", problems)
+	if problems := checkCompanyPackages(c.Root, original, original.Sessions[0]); len(problems) != 1 || !strings.Contains(problems[0].Detail, "main.osc") || !strings.Contains(problems[0].Detail, "cockpit_varlist.txt") {
+		t.Fatal("joining must still refuse unapproved changed vehicle scripts", problems)
 	}
 	updated, changed, err := refreshCompanyHashes(c.Root, original)
-	if err != nil || len(changed) != 3 {
+	if err != nil || len(changed) != 2 {
 		t.Fatal(changed, err)
 	}
 	if problems := checkCompanyPackages(c.Root, updated, updated.Sessions[0]); len(problems) != 0 {
