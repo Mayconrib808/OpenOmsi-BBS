@@ -1,0 +1,29 @@
+name: Defender diagnostics for published dev1
+
+on:
+  push:
+    branches: [codex/defender-diagnostics-v203]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scan-published-release:
+    runs-on: windows-2022
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Scan the exact published ZIP without executing bridge binaries
+        shell: pwsh
+        run: ./scripts/scan_published_release.ps1
+      - name: Preserve Defender diagnostic report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Defender-dev1-diagnostics
+          path: ${{ runner.temp }}/openomsi-defender-report/*
+          if-no-files-found: error
+          retention-days: 30
