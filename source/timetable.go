@@ -288,7 +288,6 @@ func chronoConfigOrder(root string) []string {
 			if e.IsDir() {
 				visit(filepath.Join(dir, e.Name()))
 			}
-		}
 		for _, e := range entries {
 			if !e.IsDir() && strings.EqualFold(e.Name(), "Chrono.cfg") {
 				out = append(out, filepath.Join(dir, e.Name()))
@@ -388,7 +387,6 @@ func resolveTripProfile(tripName string, ttlPath string, sourceDirs []string) st
 			if !e.IsDir() && strings.EqualFold(e.Name(), want) {
 				return filepath.Join(dir, e.Name())
 			}
-		}
 	}
 	return ""
 }
@@ -457,9 +455,9 @@ func comparable(s string) string {
 }
 
 func routeEnds(route string) (string, string) {
-	parts := strings.SplitN(route, " - ", 2)
-	if len(parts) == 2 {
-		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	parts := strings.Split(route, " - ")
+	if len(parts) >= 2 {
+		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[len(parts)-1])
 	}
 	return "", ""
 }
@@ -470,6 +468,31 @@ func fuzzyEq(a, b string) bool {
 		return false
 	}
 	return a == b || strings.Contains(a, b) || strings.Contains(b, a)
+}
+
+func timetableLineEq(a, b string) bool {
+	x, y := comparable(a), comparable(b)
+	if x == "" || y == "" {
+		return false
+	}
+	if x == y {
+		return true
+	}
+	tokens := func(s string) []string {
+		r := strings.NewReplacer(".", " ", "-", " ", "_", " ", ":", " ", "/", " ")
+		return strings.Fields(r.Replace(strings.ToLower(s)))
+	}
+	for _, token := range tokens(a) {
+		if comparable(token) == y {
+			return true
+		}
+	}
+	for _, token := range tokens(b) {
+		if comparable(token) == x {
+			return true
+		}
+	}
+	return false
 }
 
 func stripBCSTerminusQualifier(s string) (string, bool) {
@@ -507,9 +530,11 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 	}
 	routeStart, routeEnd := routeEnds(info.RouteText)
 	type scored struct {
-		trip   ttlTrip
-		score  int
-		reason []string
+		trip        ttlTrip
+		score       int
+		reason      []string
+		lineMatch   bool
+		opaqueRoute bool
 	}
 	var all []scored
 	for _, tr := range t.Trips {
@@ -525,6 +550,8 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 		// Missing TTPs are skipped by openOMSI before --trip indexes its duty.
 		tr.Index = len(all) + 1
 		s.trip = tr
+		s.lineMatch = timetableLineEq(meta.Line, info.Line)
+		s.opaqueRoute = meta.Type2 || (meta.FirstStop == "" && meta.LastStop == "")
 		endName := meta.Destination
 		endEvidence := "destination matches BCS route"
 		if meta.LastStop != "" {
@@ -545,7 +572,7 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 			s.score += 5
 			s.reason = append(s.reason, "first stop matches BCS start")
 		}
-		if comparable(meta.Line) == comparable(info.Line) {
+		if s.lineMatch {
 			s.score += 2
 			s.reason = append(s.reason, "TTP line matches")
 		}
@@ -571,6 +598,26 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 	}
 	sort.SliceStable(all, func(i, j int) bool { return all[i].score > all[j].score })
 	if all[0].score <= 0 {
+		// Some maps expose a BCS route label that is not the TTP destination at
+		// all. If the selected TTL and tour are already exact, the TTP confirms
+		// the same line, the profile has no named physical endpoints to contradict
+		// BCS, and only one loaded trip departs at the exact BCS time, that trip is
+		// unambiguous. Keep physical-endpoint conflicts blocked.
+		at, err := parseClockMinutes(info.TripStart)
+		if err == nil {
+			var exact []scored
+			for _, s := range all {
+				if s.lineMatch && s.opaqueRoute && sameBCSDeparture(s.trip.Departure, at) {
+					exact = append(exact, s)
+				}
+			}
+			if len(exact) == 1 {
+				return exact[0].trip, "unique exact BCS departure in selected line/tour; TTP route label differs", nil
+			}
+			if len(exact) > 1 {
+				return ttlTrip{}, "", fmt.Errorf("trip match is ambiguous (%d exact departures in selected line/tour)", len(exact))
+			}
+		}
 		return ttlTrip{}, "", fmt.Errorf("no trip matches the BCS route")
 	}
 	if len(all) > 1 && all[0].score == all[1].score {
