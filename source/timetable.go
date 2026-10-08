@@ -596,28 +596,36 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 	if len(all) == 0 {
 		return ttlTrip{}, "", fmt.Errorf("tour has no valid loaded trip profiles")
 	}
-	sort.SliceStable(all, func(i, j int) bool { return all[i].score > all[j].score })
-	if all[0].score <= 0 {
-		// Some maps expose a BCS route label that is not the TTP destination at
-		// all. If the selected TTL and tour are already exact, the TTP confirms
-		// the same line, the profile has no named physical endpoints to contradict
-		// BCS, and only one loaded trip departs at the exact BCS time, that trip is
-		// unambiguous. Keep physical-endpoint conflicts blocked.
-		at, err := parseClockMinutes(info.TripStart)
-		if err == nil {
-			var exact []scored
-			for _, s := range all {
-				if s.lineMatch && s.opaqueRoute && sameBCSDeparture(s.trip.Departure, at) {
-					exact = append(exact, s)
-				}
-			}
-			if len(exact) == 1 {
-				return exact[0].trip, "unique exact BCS departure in selected line/tour; TTP route label differs", nil
-			}
-			if len(exact) > 1 {
-				return ttlTrip{}, "", fmt.Errorf("trip match is ambiguous (%d exact departures in selected line/tour)", len(exact))
+
+	// In BCS the selected line and Umlauf already scope the TTL/tour. When that
+	// scope contains exactly one loaded trip at the exact BCS departure, time is
+	// stronger evidence than a map-specific route label. Only use this priority
+	// if the TTP confirms the line and either its route evidence agrees or it has
+	// no named physical endpoints capable of contradicting BCS.
+	if at, err := parseClockMinutes(info.TripStart); err == nil {
+		var exact []scored
+		for _, s := range all {
+			if s.lineMatch && sameBCSDeparture(s.trip.Departure, at) {
+				exact = append(exact, s)
 			}
 		}
+		if len(exact) == 1 {
+			s := exact[0]
+			if s.score > 0 {
+				why := strings.Join(s.reason, "; ")
+				if why != "" {
+					why += "; "
+				}
+				return s.trip, why + "unique exact BCS departure in selected line/tour", nil
+			}
+			if s.opaqueRoute {
+				return s.trip, "unique exact BCS departure in selected line/tour; TTP route label differs", nil
+			}
+		}
+	}
+
+	sort.SliceStable(all, func(i, j int) bool { return all[i].score > all[j].score })
+	if all[0].score <= 0 {
 		return ttlTrip{}, "", fmt.Errorf("no trip matches the BCS route")
 	}
 	if len(all) > 1 && all[0].score == all[1].score {
@@ -686,7 +694,6 @@ func locationEq(a, b, line string) bool {
 			if comparable(p) != comparable(line) || line == "" {
 				kept = append(kept, p)
 			}
-		}
 		return comparable(strings.Join(kept, " "))
 	}
 	x, y := key(a), key(b)
