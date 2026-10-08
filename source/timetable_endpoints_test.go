@@ -30,8 +30,8 @@ func TestCarraoRepeatedDutyAfterMidnight(t *testing.T) {
 	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-07", info)
 	defer removeTimetableOverlay(res)
 	if !res.Ready || res.Applied || res.TripIndex != 62 || res.TripName != "2201rota2" || res.OriginalDeparture != 1460 || res.BCSDeparture != 1460 || res.BCSCivilDeparture != 20 || res.OffsetMinutes != 0 || res.OverrideZIP != "" {
-  t.Fatalf("00:20 must select the unique 24:20 trip with no logical offset: %+v", res)
- }
+		t.Fatalf("00:20 must select the unique 24:20 trip with no logical offset: %+v", res)
+	}
 	original, err := os.ReadFile(path)
 	if err != nil || string(original) != ttl.String() {
 		t.Fatal("installed TTL must stay byte-identical")
@@ -154,39 +154,100 @@ func TestType2TripRetainsDisplayDestinationFallback(t *testing.T) {
 }
 
 func TestSzczecin522OperationalDepartureWithoutOffset(t *testing.T) {
- root,pkg,mapRel := basicMap(t)
- tt := filepath.Join(root,"maps","Test Map","TTData")
- var ttl strings.Builder
- ttl.WriteString("[newtour]\n1 (ni-sr)\nDepot\n1023\n")
- for _,v := range []float64{140,340,540,740,940,1540,1740,1940,2140,2340,2540} {
-  fmt.Fprintf(&ttl,"[addtrip]\n522_Kor-Koll\n0\n%.3f\n",v)
- }
- path := filepath.Join(tt,"522.ttl")
- writeTestFile(t,path,ttl.String())
- writeTestFile(t,filepath.Join(tt,"522_Kor-Koll.ttp"),"[trip]\n\nKollataja\n522\n[station_typ2]\n123\n[station_typ2]\n456\n")
- info := TripInfo{Line:"522",Tour:"1 (ni-sr)",TripStart:"01:40",TripEnd:"01:48",RouteText:"Kormoranow - Kollataja",ShiftID:"4930868"}
- res := prepareTimetableSync(root,pkg,mapRel,"2026-10-07",info)
- defer removeTimetableOverlay(res)
- if !res.Ready || res.Applied || res.TripIndex!=6 || res.TripName!="522_Kor-Koll" || res.BCSDeparture!=1540 || res.BCSCivilDeparture!=100 || res.OffsetMinutes!=0 || res.OverrideZIP!="" {
-  t.Fatalf("522 must select #6 25:40 with offset zero: %+v",res)
- }
- original,err:=os.ReadFile(path)
- if err!=nil || string(original)!=ttl.String(){t.Fatal("installed timetable changed")}
- if !strings.Contains(timetableSyncDiagnostic(res),"25:40"){t.Fatal("operational time missing from diagnostic")}
+	root, pkg, mapRel := basicMap(t)
+	tt := filepath.Join(root, "maps", "Test Map", "TTData")
+	var ttl strings.Builder
+	ttl.WriteString("[newtour]\n1 (ni-sr)\nDepot\n1023\n")
+	for _, v := range []float64{140, 340, 540, 740, 940, 1540, 1740, 1940, 2140, 2340, 2540} {
+		fmt.Fprintf(&ttl, "[addtrip]\n522_Kor-Koll\n0\n%.3f\n", v)
+	}
+	path := filepath.Join(tt, "522.ttl")
+	writeTestFile(t, path, ttl.String())
+	writeTestFile(t, filepath.Join(tt, "522_Kor-Koll.ttp"), "[trip]\n\nKollataja\n522\n[station_typ2]\n123\n[station_typ2]\n456\n")
+	info := TripInfo{Line: "522", Tour: "1 (ni-sr)", TripStart: "01:40", TripEnd: "01:48", RouteText: "Kormoranow - Kollataja", ShiftID: "4930868"}
+	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-07", info)
+	defer removeTimetableOverlay(res)
+	if !res.Ready || res.Applied || res.TripIndex != 6 || res.TripName != "522_Kor-Koll" || res.BCSDeparture != 1540 || res.BCSCivilDeparture != 100 || res.OffsetMinutes != 0 || res.OverrideZIP != "" {
+		t.Fatalf("522 must select #6 25:40 with offset zero: %+v", res)
+	}
+	original, err := os.ReadFile(path)
+	if err != nil || string(original) != ttl.String() {
+		t.Fatal("installed timetable changed")
+	}
+	if !strings.Contains(timetableSyncDiagnostic(res), "25:40") {
+		t.Fatal("operational time missing from diagnostic")
+	}
 }
+
 func TestExtended49HourRuntimePreservesLogicalOffsetAndInventory(t *testing.T) {
- root,pkg,mapRel:=basicMap(t)
- tt:=filepath.Join(root,"maps","Test Map","TTData")
- path:=filepath.Join(tt,"10.ttl")
- original:="[newtour]\nA\nDepot\n1023\n[addtrip]\nOUT\n0\n600.000\n[addtrip]\nOUT\n0\n2980.000\n"
- writeTestFile(t,path,original)
- writeTestFile(t,filepath.Join(tt,"OUT.ttp"),endpointProfile("Beta","Alpha","Middle","Beta"))
- res:=prepareTimetableSync(root,pkg,mapRel,"2026-10-07",TripInfo{Line:"10",Tour:"A",TripStart:"01:40",RouteText:"Alpha - Beta"})
- defer removeTimetableOverlay(res)
- if !res.Ready || !res.Applied || res.TripIndex!=2 || res.BCSDeparture!=2980 || res.OffsetMinutes!=0 || res.RuntimeDayAdjustmentMinutes!=-1440 {t.Fatalf("49-hour alignment: %+v",res)}
- _,body:=readOnlyZipEntry(t,res.OverrideZIP)
- tours:=parseTTL(body)
- if len(tours)!=1 || len(tours[0].Trips)!=2 || tours[0].Trips[0].Departure!=600 || tours[0].Trips[1].Departure!=1540 {t.Fatal("unexpected runtime overlay",body)}
- b,err:=os.ReadFile(path)
- if err!=nil || string(b)!=original {t.Fatal("installed TTL changed")}
+	root, pkg, mapRel := basicMap(t)
+	tt := filepath.Join(root, "maps", "Test Map", "TTData")
+	path := filepath.Join(tt, "10.ttl")
+	original := "[newtour]\nA\nDepot\n1023\n[addtrip]\nOUT\n0\n600.000\n[addtrip]\nOUT\n0\n2980.000\n"
+	writeTestFile(t, path, original)
+	writeTestFile(t, filepath.Join(tt, "OUT.ttp"), endpointProfile("Beta", "Alpha", "Middle", "Beta"))
+	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-07", TripInfo{Line: "10", Tour: "A", TripStart: "01:40", RouteText: "Alpha - Beta"})
+	defer removeTimetableOverlay(res)
+	if !res.Ready || !res.Applied || res.TripIndex != 2 || res.BCSDeparture != 2980 || res.OffsetMinutes != 0 || res.RuntimeDayAdjustmentMinutes != -1440 {
+		t.Fatalf("49-hour alignment: %+v", res)
+	}
+	_, body := readOnlyZipEntry(t, res.OverrideZIP)
+	tours := parseTTL(body)
+	if len(tours) != 1 || len(tours[0].Trips) != 2 || tours[0].Trips[0].Departure != 600 || tours[0].Trips[1].Departure != 1540 {
+		t.Fatal("unexpected runtime overlay", body)
+	}
+	b, err := os.ReadFile(path)
+	if err != nil || string(b) != original {
+		t.Fatal("installed TTL changed")
+	}
+}
+
+func writeHafenCityType2Fixture(t *testing.T, tt, line, ttl string) {
+	t.Helper()
+	writeTestFile(t, filepath.Join(tt, line+".ttl"), ttl)
+	writeTestFile(t, filepath.Join(tt, "109_UAL_RAM.ttp"), "[trip]\n\nRathausmarkt\n109\n[station_typ2]\n4266642\n[station_typ2]\n5735767\n")
+}
+
+func TestHafenCityType2DecoratedTerminusUsesUniqueBCSMinute(t *testing.T) {
+	root, pkg, mapRel := basicMap(t)
+	tt := filepath.Join(root, "maps", "Test Map", "TTData")
+	line := "Addon Tag und Nacht Li. 109"
+	writeHafenCityType2Fixture(t, tt, line, "[newtour]\n55120\nDepot\n1023\n[addtrip]\n109_UAL_RAM\n2\n1300.000\n[addtrip]\n109_UAL_RAM\n2\n1334.343\n[addtrip]\n109_UAL_RAM\n2\n1400.000\n")
+
+	info := TripInfo{
+		Line:       line,
+		Tour:       "55120",
+		TripStart:  "22:14",
+		RouteText:  "U Alsterdorf (Ankunft) - Rathausmarkt (Terminus 109)",
+		StartPoint: "U Alsterdorf (Ankunft)",
+	}
+	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-08", info)
+	defer removeTimetableOverlay(res)
+
+	if !res.Ready || res.Applied || res.TripIndex != 2 || res.TripName != "109_UAL_RAM" {
+		t.Fatalf("HafenCity type-2 trip should be selected safely: %+v", res)
+	}
+	if res.OriginalDeparture != 1334.343 || res.BCSDeparture != 1334.343 || res.OffsetMinutes != 0 || res.OverrideZIP != "" {
+		t.Fatalf("minute-only BCS time must preserve the timetable seconds: %+v", res)
+	}
+	if !strings.Contains(res.Reason, "type-2 display destination") || !strings.Contains(res.Reason, "unique BCS display minute") {
+		t.Fatalf("expected explicit fallback evidence in diagnostic: %+v", res)
+	}
+}
+
+func TestHafenCityType2SameMinuteStillAmbiguous(t *testing.T) {
+	root, pkg, mapRel := basicMap(t)
+	tt := filepath.Join(root, "maps", "Test Map", "TTData")
+	line := "Addon Tag und Nacht Li. 109"
+	writeHafenCityType2Fixture(t, tt, line, "[newtour]\n55120\nDepot\n1023\n[addtrip]\n109_UAL_RAM\n2\n1334.100\n[addtrip]\n109_UAL_RAM\n2\n1334.700\n")
+
+	res := prepareTimetableSync(root, pkg, mapRel, "2026-10-08", TripInfo{
+		Line:      line,
+		Tour:      "55120",
+		TripStart: "22:14",
+		RouteText: "U Alsterdorf (Ankunft) - Rathausmarkt (Terminus 109)",
+	})
+	if res.Ready || res.Applied || res.TripIndex != 0 || !strings.Contains(res.Reason, "ambiguous") {
+		t.Fatalf("two trips inside the same BCS display minute must stay blocked: %+v", res)
+	}
 }
