@@ -162,10 +162,6 @@ func companyRequiredFleet(p CompanyProfile, session CompanySession) map[string]b
 	return covered
 }
 
-// openOMSI itself decides whether each remote vehicle can be represented. The
-// bridge only needs a syntactically valid, non-empty fleet from /status; extra
-// buses that are absent from another player's installation are not a reason to
-// refuse the whole session.
 func validateCompanyFleet(status companyServerStatus, _ map[string]bool) error {
 	buses, err := companyVehicleList(status.Vehicles)
 	if err != nil {
@@ -420,6 +416,7 @@ func watchMultiplayerLaunch(logPath string, offset int64, plan *MultiplayerPlan,
 				if ok {
 					close(ready)
 					return
+				}
 			}
 		}
 	}()
