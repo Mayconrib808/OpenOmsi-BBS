@@ -622,6 +622,9 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 				return s.trip, "unique exact BCS departure in selected line/tour; TTP route label differs", nil
 			}
 		}
+		if len(exact) > 1 {
+			return ttlTrip{}, "", fmt.Errorf("trip match is ambiguous (%d exact departures in selected line/tour)", len(exact))
+		}
 	}
 
 	sort.SliceStable(all, func(i, j int) bool { return all[i].score > all[j].score })
