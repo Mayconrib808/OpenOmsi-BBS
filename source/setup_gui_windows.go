@@ -6,7 +6,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -465,22 +464,8 @@ func (g *setupGUI) command(id int) {
 		if err := openDocument(filepath.Join(g.dir, "TUTORIAL.html")); err != nil {
 			guiMessageBox(g.window, err.Error(), 0x10)
 		}
-	case guiIDHost:
-		if err := openDocument(filepath.Join(g.dir, "CompanyHost.exe")); err != nil {
-			guiMessageBox(g.window, err.Error(), 0x10)
-		}
-	case guiIDCompany:
-		executable, err := os.Executable()
-		if err == nil {
-			cmd := exec.Command(executable, "--cli", "--company-admin")
-			cmd.Dir = g.dir
-			cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000010}
-			err = cmd.Start()
-			if err == nil {
-				go cmd.Wait()
-			}
-		}
-		if err != nil {
+	case guiIDHost, guiIDCompany:
+		if err := openDocument(filepath.Join(g.dir, "HostAgent.exe")); err != nil {
 			guiMessageBox(g.window, err.Error(), 0x10)
 		}
 	}

@@ -30,6 +30,8 @@ type companyHostOptions struct {
 	Profile, Session, Server, Root, Config string
 	Share                                  string
 	onReady                                func()
+	onPublicReady                          func(string)
+	onStatus                               func(companyHostStatus, bool)
 }
 
 type companyHostStatus struct {
@@ -170,6 +172,9 @@ func renderCompanyHostConfig(cfg companyHostConfig, session CompanySession, flee
 }
 
 func companyHostFleet(profile CompanyProfile, session CompanySession) ([]string, error) {
+	if len(session.Fleet) != 0 {
+		return append([]string(nil), session.Fleet...), nil
+	}
 	packages := map[string]bool{}
 	for _, id := range session.RequiredPackages {
 		packages[id] = true
@@ -577,10 +582,13 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 			if err := postCompanyHostClock(ctx, client, base, password, target); err != nil {
 				return err
 			}
+			if options.onStatus != nil {
+				options.onStatus(status, ready && synced)
+			}
 			monitor.pending = true
 			// Sharing is independent of clock supervision: a slow tunnel or an
 			// unwritable export cannot stop the already running local game.
-			if ready && tunnelAddress != "" && tunnelAddress != exportedAddress && !sampled.Before(nextShareAttempt) {
+			if ready && synced && tunnelAddress != "" && tunnelAddress != exportedAddress && !sampled.Before(nextShareAttempt) {
 				nextShareAttempt = sampled.Add(30 * time.Second)
 				shareErr := verifyCompanyHostTunnel(ctx, publicClient, tunnelAddress, status, session, fleet)
 				if shareErr == nil {
@@ -593,8 +601,13 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 					}
 				} else {
 					exportedAddress = tunnelAddress
+					if options.onPublicReady != nil {
+						options.onPublicReady(tunnelAddress)
+					}
 					fmt.Fprintf(output, "PERFIL PARA OS JOGADORES: %s\n", sharePath)
-					fmt.Fprintln(output, "Envie este arquivo aos jogadores ou atualize o perfil no link HTTPS da empresa. O endereço do túnel muda quando o servidor reinicia; este arquivo é atualizado automaticamente, mas o envio ou a hospedagem precisam usar a cópia nova.")
+					if profile.DirectoryURL == "" {
+						fmt.Fprintln(output, "O endereço do túnel mudou. Use o agente com um diretório online para atualizar os jogadores automaticamente.")
+					}
 				}
 			}
 		}
