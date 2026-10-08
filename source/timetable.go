@@ -399,6 +399,7 @@ type tripMeta struct {
 	Line        string
 	FirstStop   string
 	LastStop    string
+	Type2       bool
 }
 
 func readTripMeta(path string) tripMeta {
@@ -409,7 +410,6 @@ func readTripMeta(path string) tripMeta {
 	}
 	lines := strings.Split(strings.ReplaceAll(decodeText(b), "\r\n", "\n"), "\n")
 	var stations []string
-	hasType2 := false
 	for i := 0; i < len(lines); i++ {
 		key := strings.ToLower(strings.TrimSpace(lines[i]))
 		if key == "[trip]" {
@@ -424,7 +424,7 @@ func readTripMeta(path string) tripMeta {
 			}
 		}
 		if key == "[station_typ2]" {
-			hasType2 = true
+			m.Type2 = true
 		}
 		if key == "[station]" {
 			// Preserve the actual first/last records, including unnamed ones.
@@ -441,7 +441,7 @@ func readTripMeta(path string) tripMeta {
 	}
 	// openOMSI uses type-2 object IDs instead of legacy records when present.
 	// Those IDs need map objects to supply names; do not invent endpoint names.
-	if !hasType2 && len(stations) > 0 {
+	if !m.Type2 && len(stations) > 0 {
 		m.FirstStop = stations[0]
 		if len(stations) > 1 {
 			m.LastStop = stations[len(stations)-1]
@@ -470,6 +470,32 @@ func fuzzyEq(a, b string) bool {
 		return false
 	}
 	return a == b || strings.Contains(a, b) || strings.Contains(b, a)
+}
+
+func stripBCSTerminusQualifier(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	if !strings.HasSuffix(s, ")") {
+		return s, false
+	}
+	i := strings.LastIndex(s, " (")
+	if i <= 0 {
+		return s, false
+	}
+	qualifier := comparable(s[i+2 : len(s)-1])
+	for _, marker := range []string{"terminus", "endstation", "arrival", "ankunft"} {
+		if strings.Contains(qualifier, marker) {
+			return strings.TrimSpace(s[:i]), true
+		}
+	}
+	return s, false
+}
+
+func type2DisplayDestinationEq(display, routeEnd, line string) bool {
+	if locationEq(display, routeEnd, line) {
+		return true
+	}
+	base, ok := stripBCSTerminusQualifier(routeEnd)
+	return ok && locationEq(display, base, line)
 }
 
 func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string) (ttlTrip, string, error) {
@@ -506,6 +532,10 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 			endEvidence = "last stop matches BCS route"
 		}
 		destinationMatch := locationEq(endName, routeEnd, info.Line)
+		if !destinationMatch && meta.Type2 && meta.LastStop == "" && type2DisplayDestinationEq(meta.Destination, routeEnd, info.Line) {
+			destinationMatch = true
+			endEvidence = "type-2 display destination matches BCS route"
+		}
 		startMatch := locationEq(meta.FirstStop, routeStart, info.Line) || locationEq(meta.FirstStop, info.StartPoint, info.Line)
 		if destinationMatch {
 			s.score += 8
@@ -544,9 +574,9 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 		return ttlTrip{}, "", fmt.Errorf("no trip matches the BCS route")
 	}
 	if len(all) > 1 && all[0].score == all[1].score {
-		// BCS displays civil hours: 00:20 can be the map's 24:20 service.
-		// Require one exact civil departure, including overnight entries;
-		// never choose the nearest departure across an unknown offset.
+		// BCS exposes only the displayed minute in the log. Prefer an exact
+		// timetable minute when unique, while retaining ambiguity if two loaded
+		// trips fall inside that same minute.
 		at, err := parseClockMinutes(info.TripStart)
 		if err == nil {
 			var exact []scored
@@ -557,6 +587,17 @@ func chooseTTLTrip(t ttlTour, info TripInfo, ttlPath string, sourceDirs []string
 			}
 			if len(exact) == 1 {
 				return exact[0].trip, strings.Join(exact[0].reason, "; ") + "; exact BCS departure", nil
+			}
+			if len(exact) == 0 {
+				var minute []scored
+				for _, s := range all {
+					if s.score == all[0].score && sameBCSDisplayedMinute(s.trip.Departure, at) {
+						minute = append(minute, s)
+					}
+				}
+				if len(minute) == 1 {
+					return minute[0].trip, strings.Join(minute[0].reason, "; ") + "; unique BCS display minute", nil
+				}
 			}
 		}
 		return ttlTrip{}, "", fmt.Errorf("trip match is ambiguous (%d trips, best score %d)", len(t.Trips), all[0].score)
@@ -577,6 +618,14 @@ func operationalBCSDeparture(bcs, departure float64) float64 {
 
 func sameBCSDeparture(departure, bcs float64) bool {
  return math.Abs(departure-operationalBCSDeparture(bcs, departure)) < 0.001
+}
+
+func sameBCSDisplayedMinute(departure, bcs float64) bool {
+	aligned := operationalBCSDeparture(bcs, departure)
+	if !validDeparture(departure) || !validDeparture(aligned) {
+		return false
+	}
+	return math.Floor(departure+1e-9) == math.Floor(aligned+1e-9)
 }
 
 // Match full place names, ignoring only a separate line decoration used by BCS.
@@ -734,6 +783,12 @@ func prepareTimetableSync(root, packageDir, mapRel, runDate string, info TripInf
 	res.OriginalDeparture = matched.Departure
 	res.BCSCivilDeparture = bcsMin
  res.BCSDeparture = operationalBCSDeparture(bcsMin, matched.Departure)
+ // BCS logs only the displayed minute. If the selected OMSI trip is inside
+ // that same minute, preserve its original seconds instead of shifting the
+ // whole duty by an artificial sub-minute offset.
+ if sameBCSDisplayedMinute(matched.Departure, bcsMin) {
+  res.BCSDeparture = matched.Departure
+ }
  res.OffsetMinutes = res.BCSDeparture - matched.Departure
  // Upstream duty_time adjusts by one day only. Fold only a selected 49h+
  // runtime record into that supported window, while retaining logical offset
