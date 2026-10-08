@@ -35,6 +35,7 @@ type CompanyProfile struct {
 	OpenOMSIVersion string           `json:"openomsi_version"`
 	Protocol        int              `json:"protocol"`
 	Clock           *CompanyClock    `json:"clock,omitempty"`
+	DirectoryURL    string           `json:"directory_url,omitempty"`
 	Packages        []CompanyPackage `json:"packages"`
 	Sessions        []CompanySession `json:"sessions"`
 }
@@ -62,6 +63,7 @@ type CompanySession struct {
 	ServerURL         string   `json:"server_url"`
 	RequiredPackages  []string `json:"required_packages"`
 	ClockToleranceSec int      `json:"clock_tolerance_seconds"`
+	Fleet             []string `json:"fleet,omitempty"`
 }
 
 type CompanyProblem struct {
@@ -134,6 +136,11 @@ func validateCompanyProfile(p CompanyProfile) error {
 			return err
 		}
 	}
+	if p.DirectoryURL != "" {
+		if err := validateCompanyDirectoryURL(p.DirectoryURL); err != nil {
+			return err
+		}
+	}
 	if len(p.Packages) == 0 || len(p.Packages) > 100 || len(p.Sessions) == 0 || len(p.Sessions) > 16 {
 		return fmt.Errorf("a profile needs 1-100 packages and 1-16 sessions")
 	}
@@ -181,6 +188,14 @@ func validateCompanyProfile(p CompanyProfile) error {
 	}
 	seen := map[string]bool{}
 	for _, session := range p.Sessions {
+		fleetSeen := map[string]bool{}
+		for _, bus := range session.Fleet {
+			key := companyAssetKey(bus)
+			if !validCompanyAsset(bus) || !strings.HasPrefix(key, "vehicles/") || !strings.HasSuffix(key, ".bus") || strings.Contains(bus, ";") || fleetSeen[key] || len(session.Fleet) > 1024 {
+				return fmt.Errorf("invalid fleet in %s", session.ID)
+			}
+			fleetSeen[key] = true
+		}
 		if !companyIDPattern.MatchString(session.ID) || seen[session.ID] || !companyText(session.Name, 120) || !companyText(session.MapName, 120) {
 			return fmt.Errorf("invalid or duplicate session: %s", session.ID)
 		}

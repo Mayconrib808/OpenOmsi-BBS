@@ -146,6 +146,12 @@ func validateCompanyServerAt(status companyServerStatus, session CompanySession,
 
 func companyRequiredFleet(p CompanyProfile, session CompanySession) map[string]bool {
 	covered := map[string]bool{}
+	if len(session.Fleet) != 0 {
+		for _, bus := range session.Fleet {
+			covered[companyAssetKey(bus)] = true
+		}
+		return covered
+	}
 	for _, id := range session.RequiredPackages {
 		for _, pkg := range p.Packages {
 			if pkg.ID != id {
@@ -223,6 +229,16 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 	}
 	if len(candidates) == 0 {
 		return nil, []CompanyProblem{{p.CompanyName, "Nenhuma sessão cadastrada para este mapa e esta data. / No registered session for this map and date: " + trip.MapName + " / " + trip.Date, ""}}, nil
+	}
+	if p.DirectoryURL != "" {
+		// One demand starts one map. Do not wake every matching legacy session.
+		fmt.Println(localText(c.Language, "Aguardando o servidor automático da empresa carregar o mapa...", "Waiting for the company server to load the map...", "Warte auf die automatische Firmen-Kartensitzung..."))
+		session, e := waitCompanyDirectorySession(ctx, client, p, candidates[0].ID)
+		if e != nil {
+			return nil, nil, e
+		}
+		candidates = []CompanySession{session}
+		now = time.Now()
 	}
 	type answer struct {
 		status companyServerStatus
@@ -376,7 +392,7 @@ type multiplayerWatch struct {
 func watchMultiplayerLaunch(logPath string, offset int64, plan *MultiplayerPlan, done <-chan struct{}) multiplayerWatch {
 	ready, failures := make(chan struct{}), make(chan error, 1)
 	go func() {
-		deadline := time.NewTimer(2 * time.Minute)
+		deadline := time.NewTimer(startupTimeout)
 		defer deadline.Stop()
 		tick := time.NewTicker(200 * time.Millisecond)
 		defer tick.Stop()
@@ -385,7 +401,7 @@ func watchMultiplayerLaunch(logPath string, offset int64, plan *MultiplayerPlan,
 			case <-done:
 				return
 			case <-deadline.C:
-				failures <- fmt.Errorf("openOMSI did not confirm a compatible multiplayer world within two minutes")
+				failures <- fmt.Errorf("openOMSI did not confirm a compatible multiplayer world within %s", startupTimeout)
 				return
 			case <-tick.C:
 				b, err := os.ReadFile(logPath)

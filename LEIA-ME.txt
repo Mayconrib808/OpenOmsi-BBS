@@ -1,4 +1,14 @@
-OpenOmsi - BBS 2.0.1 — por Mayconrib808
+OpenOmsi - BBS 2.0.2-dev.4 — por Mayconrib808
+
+NOVO: SERVIDOR AUTOMÁTICO
+Setup > Empresa / servidor abre HostAgent.exe. Configure os mapas e a frota
+em lote, ou importe seu JSON atual. O agente abre o mapa solicitado pelos
+jogadores e mantém o relógio da empresa sincronizado.
+O PC do host deve estar ligado com o agente ativo. A URL fixa do diretório
+online precisa ser configurada uma vez: veja docs/AUTO_HOST.md e relay/.
+Após isso, o mesmo perfil dos jogadores recebe os novos endereços de túnel,
+sem reenviar JSON a cada reinício. Atualize os jogadores para esta dev.4.
+O multiplayer permissivo continua ativo; arquivos extras/hashes não bloqueiam.
 
 COMEÇAR
 1. Tenha OMSI 2, BCS/BBS e OpenOMSI para Windows instalados, além do mapa
@@ -11,7 +21,8 @@ COMEÇAR
 5. Clique em "Salvar e ativar" e aceite a permissão do Windows.
 6. No BCS, deixe "Iniciar o OMSI mais depressa" desmarcado. No OpenOMSI,
    desative a sincronização com o relógio real.
-7. Espere o servidor da empresa ficar pronto e inicie a viagem pelo BCS.
+7. Com diretório e agente configurados, inicie a viagem pelo BCS e espere
+   o mapa abrir. Perfis antigos sem diretório usam o servidor manual.
 
 NO PONTO FINAL
 F9 -> aguarde pelo menos 2 segundos -> finalize no BCS com o OpenOMSI aberto.

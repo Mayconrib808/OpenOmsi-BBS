@@ -1,4 +1,13 @@
-# 2.0.2-dev.2 — inicialização e conteúdo da empresa
+# 2.0.2-dev.4 — servidor automático
+
+- Painel HostAgent com mapas instalados, importação do JSON atual, frota em lote e opções independentes por mapa.
+- Servidores dedicados iniciados por pedido dos jogadores, reaproveitando pedidos simultâneos e fechando mapas vazios após o tempo configurado.
+- Perfil online em URL fixa, com publicação automática dos novos endereços de túnel após verificação do servidor.
+- Inicialização opcional ao entrar no Windows e interface PT/EN/DE. Inclui o serviço de diretório e o guia `docs/AUTO_HOST.md`.
+- Multiplayer permissivo preservado: arquivos locais e hashes não bloqueiam a entrada. Perfis antigos sem diretório continuam no modo manual.
+- A configuração inicial do serviço HTTPS e o teste real com dois jogadores ainda são necessários.
+
+# 2.0.2-dev.2 — histórico: inicialização e conteúdo da empresa
 
 - CompanyHost cria `server.cfg` quando ausente, já com mapa, relógio e frota do perfil. Configurações existentes, incluindo portas e limite de jogadores, são preservadas.
 - A conferência ignora `*.osn.owt` e `*.osn_<x>_<y>.dds` na raiz do mapa, inclusive registros de perfis antigos. O `timezone.txt` real continua sendo verificado; cópias chamadas `timezone.txt.backup.txt` e `Holidays.txt.backup.txt` ficam fora do inventário.
@@ -25,6 +34,14 @@
 - Tutorial simples e limitações documentadas. Testes reais de 0.2.11, Próxima viagem e dois jogadores continuam necessários; a API atual não permite reproduzir a multa específica por sinal vermelho.
 
 # Changelog
+
+## 2.0.2-dev.4
+
+- Native Host Agent panel with map discovery, JSON import, bulk fleets and independent per-map server settings.
+- Demand-driven dedicated servers with duplicate-request reuse and configurable idle shutdown.
+- Stable online profile discovery and automatic publication of verified replacement tunnel addresses.
+- Optional Windows-login startup, authenticated local agent controls, and PT/EN/DE interface checks.
+- Preserves permissive multiplayer and legacy manual profiles; includes the directory service and `docs/AUTO_HOST.md`.
 
 ## 2.0.0-dev.5
 

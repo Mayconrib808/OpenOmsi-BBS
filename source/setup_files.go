@@ -126,6 +126,8 @@ func collectLogs(dir string, c Config) (string, error) {
 	archive := zip.NewWriter(tmp)
 	files := []string{"bridge.ini", "bridge-v1.1.3.log", "bridge-v1.1.3-trip.txt", "setup-v1.1.3.log", "multiplayer-requirements.html", "compat/compat-facade-v1.1.3.log", "compat/driver-state-v1.1.3.txt", "compat/bcs-driver-before-v1.1.3.odr", "compat/bcs-driver-openomsi-v1.1.3.odr", "compat/bcs-driver-current-v1.1.3.odr", "compat/bcs-log-path-v1.1.3.txt"}
 	sources := map[string]string{}
+	// Only the agent log is collected. HostAgent.local.json has private keys.
+	sources["HostAgent.log"] = filepath.Join(managedDataDir(dir), "HostAgent.log")
 	for _, rel := range files {
 		sources[filepath.Base(rel)] = filepath.Join(runtimeDir, filepath.FromSlash(rel))
 	}

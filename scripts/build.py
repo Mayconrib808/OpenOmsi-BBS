@@ -24,24 +24,27 @@ PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
     "main.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
-    "paths.go version.go company.go company_content.go company_clock.go company_host.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
+    "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
 TEST_FILES = (
     "driver_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go "
-    "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go profile_store_test.go"
+    "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go profile_store_test.go"
 ).split()
 PROGRAMS = {
+    "HostAgent.exe": (
+        "host_agent_main.go host_agent.go host_config.go host_gui_windows.go host_gui_preview_windows.go company_directory.go company_host.go company_host_share.go company_host_process_windows.go company.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
+    ).split(),
     "CompanyHost.exe": (
-        "company_host_main.go company_host.go company_host_share.go company_host_process_windows.go company.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
+        "company_host_main.go company_host.go company_host_share.go company_host_process_windows.go company.go company_directory.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "Setup.exe": (
          "setup_main.go setup_files.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
-        "config.go plugin_host.go registry.go paths.go version.go company.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
+        "config.go plugin_host.go registry.go paths.go version.go company.go company_directory.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
          "main.go timetable.go diagnostics.go launch_checks.go driver.go session.go launch_session.go session_transition.go openomsi_compatibility.go openomsi_probe_windows.go company_host_process_windows.go "
-        "config.go plugin_host.go paths.go version.go process_windows.go company.go company_content.go company_clock.go multiplayer.go profile_store.go"
+        "config.go plugin_host.go paths.go version.go process_windows.go company.go company_directory.go company_content.go company_clock.go multiplayer.go profile_store.go"
     ).split(),
     "app/compat/Omsi.exe": (
         "compat.go facade_memory.go driver.go version.go"
@@ -87,7 +90,7 @@ def pin_release_build_id(path: Path, relative_path: str) -> None:
 
 def assemble(stage: Path, host_hash: str) -> None:
     ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "*.exe", "*.dll", "*.obj", "*.lib", "*.exp")
-    for name in ("source", "docs", "scripts", "examples"):
+    for name in ("source", "docs", "scripts", "examples", "relay"):
         shutil.copytree(ROOT / name, stage / name, ignore=ignore)
     for p in ROOT.glob("*.md"):
         shutil.copy2(p, stage / p.name)
@@ -97,7 +100,7 @@ def assemble(stage: Path, host_hash: str) -> None:
     (stage / "docs/BUILD-INFO.txt").write_text(
         f"OpenOMSI BCS Bridge v{VERSION} - by Mayconrib808\n"
         f"Toolchain: {REFERENCE_GO}; GOOS=windows; GOARCH=386; GO386=sse2; CGO_ENABLED=0\n"
-        "All five executables are built from the source included in this package.\n"
+        "All six executables are built from the source included in this package.\n"
         f"Plugin host SHA-256: {host_hash}\n"
         "The historical host with unresolved provenance is not bundled.\n"
         "Integration uses executable capabilities and multiplayer protocol 6. Official 0.2.0 and 0.2.11 metadata are checked on Windows CI.\n"
@@ -213,6 +216,7 @@ def main() -> int:
             preview_env = os.environ.copy()
             preview_env["BRIDGE_SETUP_PREVIEWS"] = str(ROOT / "build/setup-previews")
             subprocess.run([str(stage / "Setup.exe"), "--gui-smoke"], check=True, timeout=30, env=preview_env)
+            subprocess.run([str(stage / "HostAgent.exe"), "--gui-smoke"], check=True, timeout=30, env=preview_env)
             subprocess.run([sys.executable, str(ROOT / "scripts/test_openomsi_compat.py"), "--report", str(ROOT / "build/openomsi-compatibility.json")], check=True, timeout=600)
             subprocess.run([sys.executable, str(ROOT / "scripts/test_pluginhost_windows.py"), str(host)], check=True, timeout=180)
             # Exercise the 32-bit Job Object layout used by CompanyHost.exe,
@@ -232,7 +236,7 @@ def main() -> int:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(stage, args.output)
             archive_package(args.output)
-    print("Bridge/host tests, vet, all five Windows builds, facade layout and full-package integrity passed.")
+    print("Bridge/host tests, vet, all six Windows builds, facade layout and full-package integrity passed.")
     print("Live BCS panel, UAC and game-trip evaluation require the separately installed products.")
     return 0
 

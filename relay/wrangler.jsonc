@@ -1,0 +1,7 @@
+{
+  "name": "openomsi-bbs-directory",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-08",
+  "durable_objects": {"bindings": [{"name": "ROOMS", "class_name": "CompanyRoom"}]},
+  "migrations": [{"tag": "v1", "new_sqlite_classes": ["CompanyRoom"]}]
+}
