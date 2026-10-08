@@ -253,18 +253,10 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 		}(i, session)
 	}
 	wg.Wait()
-	var unavailable, requirements []CompanyProblem
-	bbsBackups := companyBBSBackupInventory(c.Root, candidateBackups(c, candidateBCSLog(c)))
+	var unavailable []CompanyProblem
 	for i, session := range candidates {
-		problems := checkCompanyPackagesWithOriginals(c.Root, p, session, bbsBackups)
-		if len(problems) != 0 && len(requirements) == 0 {
-			requirements = problems
-		}
 		if answers[i].err != nil {
 			unavailable = append(unavailable, CompanyProblem{session.Name, answers[i].err.Error(), ""})
-			continue
-		}
-		if len(problems) != 0 {
 			continue
 		}
 		fleet := companyRequiredFleet(p, session)
@@ -277,9 +269,6 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 			clock = p.Clock
 		}
 		return &MultiplayerPlan{CompanyID: p.CompanyID, CompanyName: p.CompanyName, PlayerName: c.PlayerName, Session: session, Trip: trip, Fleet: fleet, Clock: clock}, nil, nil
-	}
-	if len(requirements) != 0 {
-		return nil, append(requirements, unavailable...), nil
 	}
 	return nil, unavailable, nil
 }
