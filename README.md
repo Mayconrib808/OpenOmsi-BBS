@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.3"><img alt="Version 2.0.3" src="https://img.shields.io/badge/version-2.0.3-f47f30?style=for-the-badge"></a>
+  <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.4"><img alt="Version 2.0.4" src="https://img.shields.io/badge/version-2.0.4-f47f30?style=for-the-badge"></a>
   <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/actions/workflows/source-checks.yml"><img alt="Linux and Windows build checks" src="https://img.shields.io/github/actions/workflow/status/Mayconrib808/OpenOmsi-BBS/source-checks.yml?branch=main&style=for-the-badge&label=build"></a>
   <a href="https://github.com/Mayconrib808/OpenOmsi-BBS/releases"><img alt="Windows package" src="https://img.shields.io/badge/platform-Windows-388bfd?style=for-the-badge"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/github/license/Mayconrib808/OpenOmsi-BBS?style=for-the-badge&color=78a81d"></a>
@@ -30,18 +30,18 @@
 
 ## Releases
 
-**[Download OpenOmsi + BBS 2.0.3.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.3/OpenOmsi.%2B.BBS.2.0.3.zip)**
+**[Download OpenOmsi + BBS 2.0.4.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.4/OpenOmsi.%2B.BBS.2.0.4.zip)**
 
 | Package | Version | Download |
 | --- | --- | --- |
-| Complete Windows package | **2.0.3 · current release** | [OpenOmsi + BBS 2.0.3.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.3/OpenOmsi.%2B.BBS.2.0.3.zip) |
-| SHA-256 verification | 2.0.3 | [Checksum](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.3/OpenOmsi.%2B.BBS.2.0.3.zip.sha256) |
-| Previous release | 2.0.1 | [2.0.1 release](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.1) |
+| Complete Windows package | **2.0.4 · current release** | [OpenOmsi + BBS 2.0.4.zip](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.4/OpenOmsi.%2B.BBS.2.0.4.zip) |
+| SHA-256 verification | 2.0.4 | [Checksum](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.4/OpenOmsi.%2B.BBS.2.0.4.zip.sha256) |
+| Previous release | 2.0.3 | [2.0.3 release](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.3) |
 | Release history and notes | Published versions | [Browse Releases](https://github.com/Mayconrib808/OpenOmsi-BBS/releases) |
 
 The complete ZIP includes **Setup.exe**, **CompanyHost.exe**, **HostAgent.exe**, the bridge launcher, compatibility facade, automatically installed 32-bit helper, the bridge's dedicated server, offline tutorial, source, credits and licenses. **No separate helper download, Go or Python installation is needed to play.**
 
-**Latest update — 8 October 2026:** 2.0.3 improves the 32-bit helper's Windows identity after a reported Microsoft Defender alert and requires Defender scanning during release validation. It also allows private or host-unknown player buses without blocking company multiplayer; the host's replacement-bus list is optional. [Release notes and tested scope](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.3) · [Antivirus notes](docs/ANTIVIRUS.md) · [Changelog](CHANGELOG.md).
+**Latest update — 8 October 2026:** 2.0.4 fixes safe timetable selection on maps where BCS and OMSI use different route labels, including `[station_typ2]` profiles and multi-point BCS routes. It also preserves OMSI's original departure seconds when BCS only reports `HH:MM`, avoiding artificial timetable offsets. [2.0.4 release notes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v2.0.4) · [Antivirus notes](docs/ANTIVIRUS.md) · [Changelog](CHANGELOG.md).
 
 Choose the named Windows ZIP under **Assets**. GitHub's automatic “Source code” archives contain source files and need a build first.
 
