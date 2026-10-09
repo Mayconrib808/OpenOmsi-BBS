@@ -1,0 +1,35 @@
+OpenOmsi + BBS 3.0.0-dev.1 — prévia para desenvolvimento
+
+Antes do teste: o diretório central precisa receber a atualização 3.0.
+O pacote não é uma versão pública já validada em dois PCs.
+
+1. Extraia a pasta e abra Configurar.exe. Informe o openomsi.exe real,
+   a pasta do OMSI 2, seu nome e o convite fixo da empresa.
+   O criador usa "Criar uma empresa" uma única vez e escolhe o horário,
+   por exemplo -3 ou -8 horas em relação ao relógio de referência.
+2. Nas configurações do BCS atualizado, em OpenOMSI Path, selecione
+   esta pasta do pacote, que contém o openomsi.exe da 3.0.
+3. Comece sua viagem normalmente no BCS.
+
+Primeiro jogador no mapa: abre automaticamente o servidor no próprio PC.
+Demais jogadores da mesma empresa e mapa: entram nesse servidor.
+Outro mapa: outra sessão. Não há cadastro de cada mapa ou lista obrigatória
+com hash de todos os arquivos. O convite continua o mesmo após reiniciar.
+Os mapas/ônibus necessários à sua própria viagem precisam estar instalados;
+esta facilidade não consegue simular um mapa que o jogo não possa carregar.
+
+O PC que hospeda precisa ficar ligado e conectado. Se seu jogo fechar,
+a 3.0 mantém o servidor enquanto houver outros jogadores; quando ficar
+vazio por um minuto, fecha automaticamente. Se o PC desligar, os outros
+perdem a conexão. A próxima entrada cria uma nova sessão; não transfere
+o estado do mundo em andamento para outro PC.
+
+Atualizar o horário: no PC do criador, Configurar.exe, preencha o novo
+nome/horário e marque "Atualizar ..." com todos os mapas vazios.
+A chave company-admin.json fica nesse PC. Compartilhe somente o convite.
+
+Esta prévia preserva o plugin nativo da PeDePe e os argumentos de sua
+viagem; não usa HostAgent, IFEO ou o plugin host antigo. Ela encaminha
+o bbs.lua gerado pelo BCS para a pasta de conteúdo do openOMSI instalado.
+O arquivo multiplayer.log ajuda a identificar problemas de entrada.
+Validação real com BCS e dois jogadores ainda pendente.

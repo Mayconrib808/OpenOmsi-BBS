@@ -1,3 +1,4 @@
+import { multiplayer3 } from './multiplayer3.js';
 // Shared protocol logic, used by the Worker and the local regression harness.
 // Public room addresses are unguessable invitations, never host credentials.
 const idPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
@@ -46,6 +47,8 @@ export class RoomProtocol {
   async fetch(request) {
     try {
       const url=new URL(request.url);
+      const v3=url.pathname.match(/^\/rooms\/([a-f0-9]{32})\/(v3\/.*)$/);
+      if(v3&&!url.search)return await multiplayer3(this,request,v3[2]);
       const match=url.pathname.match(/^\/rooms\/([a-f0-9]{32})\/(profile|publish|heartbeat|requests|wake|sessions\/[a-z0-9_-]{1,64})$/);
       if(!match || url.search) return fail('not found',404);
       const action=match[2];
