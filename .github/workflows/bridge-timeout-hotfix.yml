@@ -1,0 +1,63 @@
+name: Bridge timeout hotfix
+
+on:
+  push:
+    branches: ['codex/2.0.5-dev.3-timeout']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Bridge regression checks on Linux
+        if: runner.os == 'Linux'
+        run: python scripts/build.py --check-only
+      - name: Reuse dev.2 native server already tested on Windows
+        if: runner.os == 'Windows'
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: BBS-free-bus-native-server
+          run-id: 37875220412
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: build/native-server
+      - name: Build bridge and verify unchanged native provenance
+        id: build
+        if: runner.os == 'Windows'
+        shell: bash
+        run: python scripts/build.py --native-server build/native-server
+      - name: Scan the exact candidate package
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./scripts/scan_release_package.ps1 -PackagePath 'dist/OpenOmsi.+.BBS.${{ steps.build.outputs.version }}.zip'
+      - name: Upload complete package
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: OpenOMSI-BCS-Bridge-v${{ steps.build.outputs.version }}
+          path: |
+            dist/*.zip
+            dist/*.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload scan evidence
+        if: runner.os == 'Windows' && always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Defender-package-report
+          path: ${{ runner.temp }}/openomsi-defender-report/*
+          if-no-files-found: ignore
+          retention-days: 30

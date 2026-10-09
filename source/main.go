@@ -828,11 +828,9 @@ func main() {
 
 	var multiplayer *MultiplayerPlan
 	if cfg.Multiplayer {
-		ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
 		mpTrip := MultiplayerTrip{trip.MapName, mapRel, busRel, runDate, trip.TripStart, runWeather}
 		var problems []CompanyProblem
-		multiplayer, problems, err = prepareMultiplayer(ctx, cfg, dir, mpTrip, companyHTTPClient())
-		cancel()
+		multiplayer, problems, err = prepareMultiplayerLaunch(context.Background(), cfg, dir, mpTrip, companyHTTPClient())
 		if err != nil || len(problems) != 0 || multiplayer == nil {
 			if err != nil {
 				problems = append(problems, CompanyProblem{"Multiplayer", err.Error(), ""})

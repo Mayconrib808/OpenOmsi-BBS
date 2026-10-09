@@ -130,6 +130,15 @@ func validateCompanyServerAt(status companyServerStatus, session CompanySession,
 	return nil
 }
 
+// The launch can wake a cold dedicated server. Its complete startup budget must
+// belong to this entry point, rather than a short HTTP-preflight timeout in main.
+// Parent cancellation is still respected.
+func prepareMultiplayerLaunch(parent context.Context, c Config, runtimeDir string, trip MultiplayerTrip, client *http.Client) (*MultiplayerPlan, []CompanyProblem, error) {
+	ctx, cancel := context.WithTimeout(parent, startupTimeout)
+	defer cancel()
+	return prepareMultiplayer(ctx, c, runtimeDir, trip, client)
+}
+
 func prepareMultiplayer(ctx context.Context, c Config, runtimeDir string, trip MultiplayerTrip, client *http.Client) (*MultiplayerPlan, []CompanyProblem, error) {
 	return prepareMultiplayerAt(ctx, c, runtimeDir, trip, client, time.Now())
 }

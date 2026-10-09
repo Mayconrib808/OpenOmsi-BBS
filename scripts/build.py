@@ -31,7 +31,7 @@ TEST_COMMON = (
 TEST_FILES = (
     "driver_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go "
-    "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go profile_store_test.go"
+    "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go company_directory_test.go multiplayer_startup_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go profile_store_test.go"
 ).split()
 PROGRAMS = {
     "HostAgent.exe": (

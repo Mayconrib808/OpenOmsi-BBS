@@ -1,5 +1,12 @@
 # 2.0.5-dev.2 — servidor 0.2.20 com ônibus livres
 
+## 2.0.5-dev.3 — espera do servidor automático
+
+- A entrada da viagem usa o limite completo de inicialização do servidor. Um contexto externo de 12 segundos interrompia a espera antes dos 15 minutos definidos pela bridge.
+- Cancelamento do chamador continua respeitado; servidores já online entram imediatamente.
+- O servidor incluído e seus hashes são os mesmos da 2.0.5-dev.2. Não há recompilação Rust nesta correção.
+
+
 - Atualiza o servidor incluído para openOMSI 0.2.20-bbs-free2, mantendo ônibus privados livres e substitutos opcionais.
 - Inclui a correção oficial da população perto dos jogadores, já presente na base 0.2.20.
 - Incorpora a correção upstream #1964: destinos/viagens previstos nos pontos são atualizados a cada minuto do jogo.
