@@ -1,11 +1,18 @@
-# 2.0.5-dev.2 — servidor 0.2.20 com ônibus livres
+# 2.0.5-dev.4 — servidor oficial selecionável
 
-## 2.0.5-dev.3 — espera do servidor automático
+- HostAgent e CompanyHost passam a adaptar servidores oficiais compatíveis com o protocolo 6, incluindo a 0.2.23, sem alterar ou recompilar o executável oficial.
+- Atualizar o servidor passa a ser: parar o agente, selecionar o EXE da nova pasta extraída e salvar/iniciar. Mapas, diretório, chave e JSON são preservados.
+- Ônibus privados ou ausentes no host continuam livres. A adaptação usa o substituto nativo e mantém os nomes reais dos modelos enviados aos colegas.
+- Conexões UDP/WebSocket e túneis passam a pertencer a cada mapa; abrir ou fechar outro mapa não encerra suas conexões.
+- Mantém a correção da espera completa do servidor automático da dev.3. O servidor incluído é reaproveitado, sem nova compilação Rust.
+- Teste automatizado de execução com o binário oficial 0.2.23 e conteúdo sintético; viagem completa no BCS permanece pendente.
+
+# 2.0.5-dev.3 — espera do servidor automático
 
 - A entrada da viagem usa o limite completo de inicialização do servidor. Um contexto externo de 12 segundos interrompia a espera antes dos 15 minutos definidos pela bridge.
 - Cancelamento do chamador continua respeitado; servidores já online entram imediatamente.
 - O servidor incluído e seus hashes são os mesmos da 2.0.5-dev.2. Não há recompilação Rust nesta correção.
-
+# 2.0.5-dev.2 — servidor 0.2.20 com ônibus livres
 
 - Atualiza o servidor incluído para openOMSI 0.2.20-bbs-free2, mantendo ônibus privados livres e substitutos opcionais.
 - Inclui a correção oficial da população perto dos jogadores, já presente na base 0.2.20.

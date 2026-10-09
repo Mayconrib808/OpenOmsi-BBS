@@ -1,16 +1,18 @@
-OpenOmsi - BBS 2.0.5-dev.2 — por Mayconrib808
+OpenOmsi - BBS 2.0.5-dev.4 — por Mayconrib808
 
-NESTA 2.0.5-dev.2 (TESTE)
-O HostAgent permite editar o caminho do servidor ou usar Procurar.
-Ao salvar, o servidor escolhido é mantido ao reabrir e em segundo plano.
-Os mapas e a configuração do Cloudflare são reaproveitados.
-O servidor incluído passa a ser 0.2.20-bbs-free2, com ônibus dos jogadores
-livres. Inclui as correções de população perto dos jogadores, da atualização
-dos destinos previstos nos pontos e da tabela seguindo o relógio do servidor.
-Selecione app/server/openomsi.exe deste novo ZIP: o executável oficial sem
-essas adaptações continua incompatível com o modo livre da integração.
-Servidores externos precisam ser compatíveis com o protocolo da bridge
-e com o modo de ônibus livres. A verificação continua ativa.
+NESTA 2.0.5-dev.4 (TESTE)
+O HostAgent adapta servidores oficiais com protocolo multiplayer 6,
+incluindo a 0.2.23, mantendo os ônibus privados livres. Não modifica o EXE
+oficial nem exige recompilar a bridge para cada atualização compatível.
+Para atualizar: Parar agente, extrair o ZIP oficial do servidor Windows,
+Procurar > selecionar o openomsi.exe dessa pasta, Salvar e iniciar agente.
+Deixe os outros arquivos do ZIP do servidor junto dele na pasta extraída.
+Se só mudou a pasta de lugar, selecione o EXE no novo endereço e salve.
+Mapas, portas, relógio, Cloudflare, chave e JSON dos jogadores são mantidos.
+Os túneis e conexões são separados por mapa. O agente baixa a ferramenta
+oficial de túnel na primeira utilização e confere o SHA-256 publicado.
+A correção da espera do servidor automático da dev.3 continua presente.
+O servidor incluído continua 0.2.20-bbs-free2, sem recompilação Rust.
 
 CORREÇÕES DA 2.0.4 MANTIDAS
 Hotfix da 2.0.3 para corrigir a identificação de viagens quando BCS e OMSI
@@ -59,7 +61,7 @@ RECURSOS MANTIDOS
 COMEÇAR
 1. Tenha OMSI 2, BCS/BBS e OpenOMSI para Windows instalados, além do mapa
    e do seu próprio ônibus.
-2. Feche os jogos e extraia TODO o ZIP 2.0.5-dev.2 em uma pasta fixa.
+2. Feche os jogos e extraia TODO o ZIP 2.0.5-dev.4 em uma pasta fixa.
 3. Abra Setup.exe e escolha a pasta do OMSI original e o openomsi.exe.
 4. Para multiplayer, marque "Ativar multiplayer da empresa", selecione o
    perfil JSON ou cole o link HTTPS fornecido pelo administrador e digite
@@ -82,7 +84,7 @@ Para usar Próxima viagem, escolha a nova viagem no BCS e aguarde a bridge
 preparar a nova sessão.
 
 ATUALIZAR
-Feche os jogos e o HostAgent antigo, extraia o pacote 2.0.5-dev.2 inteiro, abra o
+Feche os jogos e o HostAgent antigo, extraia o pacote 2.0.5-dev.4 inteiro, abra o
 novo Setup.exe, confira os dados recuperados e clique em "Salvar e ativar".
 Não troque somente um EXE isolado, pois o pacote inclui componentes que devem
 ser atualizados em conjunto.
@@ -92,6 +94,9 @@ A referência de jogo observada é OpenOMSI 0.2.0 + BCS/BBS 5.0.0.1. A bridge
 também verifica os recursos necessários das versões compatíveis e usa o
 protocolo multiplayer esperado. O servidor incluído é derivado do openOMSI
 0.2.20 e não é uma versão oficial do projeto openOMSI.
+O teste automatizado do servidor oficial 0.2.23 usa um mapa sintético e dois
+ônibus privados ausentes. Uma mudança futura de protocolo ou de interfaces
+pode exigir uma atualização da integração; não há bloqueio por número de versão.
 
 Uma viagem real em Carrão City, linha N407, já confirmou ingresso no servidor,
 chat, passageiros compartilhados e conclusão com avaliação no BCS. O teste
@@ -120,7 +125,7 @@ inicialização no Registro do Windows. Leia NOTICE_FOR_PEDEPE.md e
 docs/RUNTIME_EFFECTS.md.
 
 NOTAS DA VERSÃO
-docs/releases/v2.0.5-dev.2.md
+docs/releases/v2.0.5-dev.4.md
 
 TUTORIAL
 Abra TUTORIAL.html para o guia offline em português, inglês e alemão.

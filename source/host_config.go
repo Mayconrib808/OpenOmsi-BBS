@@ -50,8 +50,8 @@ func hostAgentSettingsPath(packageDir string) string {
 	return filepath.Join(companyHostDataDir(packageDir), "HostAgent.local.json")
 }
 
-// The bundled server separates admission from substitute models. Older official
-// servers ignore free_player_vehicles, so update a migrated host to this binary.
+// The host adapts official servers independently of their version numbers.
+// The bundled server remains the default for existing automatic selections.
 // An explicit selection in the GUI must survive both restarts and package upgrades.
 func hostUseBundledServer(c *hostAgentConfig, packageDir string) {
 	if c.UseCustomServer {

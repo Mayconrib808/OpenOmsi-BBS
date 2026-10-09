@@ -26,19 +26,19 @@ PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
     "main.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
-    "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
+    "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go company_gateway.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
 TEST_FILES = (
     "driver_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go "
-    "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go multiplayer_startup_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go profile_store_test.go"
+    "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go multiplayer_startup_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go company_gateway_test.go company_gateway_native_test.go profile_store_test.go"
 ).split()
 PROGRAMS = {
     "HostAgent.exe": (
-        "host_agent_main.go host_agent.go host_config.go host_gui_windows.go host_gui_preview_windows.go company_directory.go weather.go log_text.go company_host.go company_host_share.go company_host_process_windows.go company.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
+        "host_agent_main.go host_agent.go host_config.go host_gui_windows.go host_gui_preview_windows.go company_directory.go weather.go log_text.go company_host.go company_gateway.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go company_host_share.go company_host_process_windows.go company.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "CompanyHost.exe": (
-        "company_host_main.go company_host.go company_host_share.go company_host_process_windows.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
+        "company_host_main.go company_host.go company_gateway.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go company_host_share.go company_host_process_windows.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "Setup.exe": (
          "setup_main.go setup_files.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
@@ -105,6 +105,8 @@ def assemble(stage: Path, host_hash: str) -> None:
         "The six bridge executables are built from the Go source included in this package.\n"
         "app/server is a modified dedicated openOMSI server built from the pinned upstream source and native/free-player-vehicles.patch.\n"
         "Its native/bbs-server.json counterpart in app/server records compiler, tested commit and file hashes.\n"
+        "HostAgent/CompanyHost also adapt official protocol-6 servers, including 0.2.23, without modifying those binaries.\n"
+        "The adapter owns per-map UDP/WebSocket transports and tunnels; private player buses use the native stand-in.\n"
         "The plugin host includes Windows version/product/icon resources and retains normal Go symbols/build identity.\n"
         f"Plugin host SHA-256: {host_hash}\n"
         "The historical host with unresolved provenance is not bundled.\n"

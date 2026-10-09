@@ -158,8 +158,8 @@ func TestCompanyHostUpdatedServerPreservesPrivatePlayerBusAdmission(t *testing.T
 	status.Version = "0.2.20"
 	status.FreePlayerVehicles = false
 	err := validateCompanyHostStatus(status, hostTestSession(), nil)
-	if err == nil || !strings.Contains(err.Error(), "0.2.20") || !strings.Contains(err.Error(), "não confirma suporte") {
-		t.Fatal("official server without the extension did not explain the incompatibility", err)
+	if err == nil || !strings.Contains(err.Error(), "0.2.20") || !strings.Contains(err.Error(), "adaptação") {
+		t.Fatal("unadapted raw server status did not explain the required host adaptation", err)
 	}
 }
 

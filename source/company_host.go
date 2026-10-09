@@ -50,6 +50,7 @@ type companyHostStatus struct {
 type companyHostConfig struct {
 	Text          []byte
 	WebPort, Port int
+	Tunnel        bool
 }
 
 func parseCompanyHostConfig(text []byte) (companyHostConfig, error) {
@@ -69,7 +70,7 @@ func parseCompanyHostConfig(text []byte) (companyHostConfig, error) {
 		}
 		key, value, found := strings.Cut(line, "=")
 		if found {
-			values[strings.TrimSpace(key)] = strings.TrimSpace(value)
+			values[strings.ToLower(strings.TrimSpace(key))] = strings.TrimSpace(value)
 		}
 	}
 	port := func(key string, fallback int) (int, error) {
@@ -88,6 +89,14 @@ func parseCompanyHostConfig(text []byte) (companyHostConfig, error) {
 		return cfg, err
 	}
 	cfg.Port, err = port("port", 27015)
+	cfg.Tunnel = true
+	if value, exists := values["tunnel"]; exists {
+		switch strings.ToLower(value) {
+		case "1", "true", "yes", "on":
+		default:
+			cfg.Tunnel = false
+		}
+	}
 	return cfg, err
 }
 
@@ -268,10 +277,10 @@ func validateCompanyHostStatus(status companyHostStatus, session CompanySession,
 		return fmt.Errorf("local server did not publish its fleet")
 	}
 	if !status.FreePlayerVehicles {
-		return fmt.Errorf("o servidor selecionado (%s) não confirma suporte a ônibus livres; selecione app/server/openomsi.exe do pacote atualizado", status.Version)
+		return fmt.Errorf("a adaptação do host não confirmou suporte a ônibus livres para o servidor %s", status.Version)
 	}
 	if len(vehicles) != 0 {
-		return fmt.Errorf("o servidor selecionado publica uma lista restrita de ônibus; selecione app/server/openomsi.exe do pacote atualizado")
+		return fmt.Errorf("a adaptação do host ainda publica uma lista restrita de ônibus")
 	}
 	return nil
 }
@@ -428,21 +437,27 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	if created {
 		fmt.Fprintf(output, "Configuração inicial criada automaticamente: %s\n", options.Config)
 	}
-	if err := ensureCompanyHostPortsFree(cfg); err != nil {
-		return err
-	}
 	secret := make([]byte, 32)
 	if _, err := rand.Read(secret); err != nil {
 		return err
 	}
 	password := hex.EncodeToString(secret)
+	models, catalog, mask, err := companyGatewayFleet(options.Root, fleet, password[:24])
+	if err != nil {
+		return err
+	}
+	gateway, err := newCompanyGateway(ctx, cfg, session, models, catalog, mask)
+	if err != nil {
+		return err
+	}
+	defer gateway.Close()
 	f, err := os.CreateTemp(filepath.Dir(options.Config), "company-host-*.cfg")
 	if err != nil {
 		return fmt.Errorf("cannot create the private host configuration: %w", err)
 	}
 	privateConfig := f.Name()
 	defer os.Remove(privateConfig)
-	_, writeErr := f.Write(renderCompanyHostConfig(cfg, session, fleet, civil, password))
+	_, writeErr := f.Write(companyGatewayConfig(renderCompanyHostConfig(cfg, session, fleet, civil, password), gateway.backendPort, gateway.backendWebPort, models))
 	closeErr := f.Close()
 	if writeErr != nil {
 		return writeErr
@@ -462,6 +477,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	output = tunnelOutput
 	child.Stdout, child.Stderr = output, output
 	prepareCompanyHostProcess(child)
+	gateway.releaseBackend()
 	if err := child.Start(); err != nil {
 		return fmt.Errorf("cannot start the dedicated server: %w", err)
 	}
@@ -489,7 +505,14 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 		case <-time.After(5 * time.Second):
 		}
 	}()
-	base := "http://127.0.0.1:" + strconv.Itoa(cfg.WebPort)
+	base := gateway.backendWeb
+	publicBase := "http://127.0.0.1:" + strconv.Itoa(gateway.webPort)
+	var tunnelFailures <-chan error
+	if cfg.Tunnel {
+		var stopTunnel func()
+		tunnelFailures, stopTunnel = startCompanyManagedTunnel(ctx, filepath.Dir(options.Server), gateway.webPort, output)
+		defer stopTunnel()
+	}
 	client := companyHostClient()
 	defer client.CloseIdleConnections()
 	publicClient := companyHostClient()
@@ -509,6 +532,8 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 		select {
 		case <-ctx.Done():
 			return nil
+		case err := <-tunnelFailures:
+			return err
 		case err := <-finished:
 			childExited = true
 			if err == nil {
@@ -525,8 +550,8 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 				}
 			default:
 			}
-			if !ready && sampled.After(deadline) {
-				return fmt.Errorf("the dedicated server did not synchronize within %s", startupTimeout)
+			if (!ready || (cfg.Tunnel && exportedAddress == "")) && sampled.After(deadline) {
+				return fmt.Errorf("o servidor não concluiu o carregamento, a sincronização e a publicação do túnel dentro de %s", startupTimeout)
 			}
 			status, err := readCompanyHostStatus(ctx, client, base)
 			if err != nil {
@@ -539,7 +564,8 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 				continue
 			}
 			badStatus = 0
-			if err := validateCompanyHostStatus(status, session, fleet); err != nil {
+			status, err = gateway.adaptStatus(status)
+			if err != nil {
 				return err
 			}
 			if !companyActiveWorld(status.World) {
@@ -559,10 +585,12 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 			}
 			if synced && monitor.pending && !ready {
 				ready = true
+				gateway.ready.Store(true)
 				if options.onReady != nil {
 					options.onReady()
 				}
-				fmt.Fprintf(output, "SINCRONIZADO: %s. Servidor local: %s\n", target.Format("2006-01-02 15:04:05"), base)
+				fmt.Fprintf(output, "SINCRONIZADO: %s. Servidor local: %s\n", target.Format("2006-01-02 15:04:05"), publicBase)
+				fmt.Fprintln(output, "Ônibus livres ativos. O servidor oficial pode ser atualizado pelo caminho escolhido no HostAgent.")
 				fmt.Fprintln(output, "O sincronizador continua ativo nesta janela. No mesmo PC, o perfil local continua usando o endereço local.")
 				if tunnelAddress == "" {
 					fmt.Fprintln(output, "Ainda aguardando o endereço HTTPS do túnel para gerar o perfil dos outros jogadores. Se o túnel estiver desativado, este servidor fica disponível pelo endereço configurado.")

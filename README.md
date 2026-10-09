@@ -53,7 +53,7 @@ Choose the named Windows ZIP under **Assets**. GitHub's automatic “Source code
 | **Saved settings** | Game paths, player name and an imported profile copy survive package updates. |
 | **Start from BBS** | Launch OpenOMSI with the bus and trip prepared by the bridge. |
 | **Company multiplayer** | Find an already hosted session for the company's map and clock. Private or host-unknown player buses do not block entry. |
-| **Automatic company server** | HostAgent can start the included server on demand; replacement buses are optional. |
+| **Automatic company server** | HostAgent starts included or official protocol-6 servers on demand; private buses remain free. |
 | **Server clock** | Company sessions follow the company's configured timezone and clock shift. |
 | **Player profile export** | The host can publish a player profile with the current reachable address. |
 | **Local diagnostics** | **Coletar logs** creates a diagnostic ZIP for investigation. |
@@ -69,6 +69,8 @@ Choose the named Windows ZIP under **Assets**. GitHub's automatic “Source code
 7. Start your trip normally from BBS. If multiplayer is enabled, wait until the company server is ready.
 
 **Players do not need to edit JSON or host a server on their own PC.** The administrator supplies the profile and hosts the session. The bridge keeps an imported profile copy for subsequent trips. Installing colleagues' buses is optional; it improves local representation when those models are available.
+
+**Updating the dedicated server:** stop the agent, extract the new official **server** ZIP, browse to its `openomsi.exe` in HostAgent, then save and start the agent. This works with compatible protocol-6 releases without rebuilding the bridge or editing player JSON. Official 0.2.23 is covered by an automated runtime test with synthetic map content and two absent private buses. A full BCS trip remains a separate validation.
 
 To disable only company multiplayer, close the games, uncheck **Ativar multiplayer da empresa** and click **Salvar e ativar** again. The bridge stays enabled. **Desativar ponte** disables the whole integration.
 

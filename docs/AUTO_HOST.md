@@ -1,4 +1,4 @@
-# Servidor automático — 2.0.5-dev.2
+# Servidor automático — 2.0.5-dev.4
 
 Abra **Setup → Empresa / servidor**, ou **HostAgent.exe**. O aplicativo configura cada mapa e mantém um agente em segundo plano. Quando alguém inicia uma viagem pelo BCS, a bridge pede esse mapa; o agente abre o servidor dedicado, aguarda o mundo carregar, sincroniza o relógio e publica o endereço validado. A conexão do jogo continua sendo o multiplayer nativo do openOMSI.
 
@@ -8,14 +8,27 @@ Em telas menores, use as barras de rolagem ou a roda do mouse para alcançar os 
 
 ## Configurar os mapas
 
-1. Informe a pasta original do OMSI 2. Por padrão, o aplicativo seleciona o servidor incluído nesta atualização, em `app/server/openomsi.exe`, inclusive ao importar uma configuração anterior. Esse servidor deriva do openOMSI 0.2.20 e permite ônibus livres. Se você já salvou outro executável na dev.1, use **Procurar** para escolher o `app/server/openomsi.exe` deste novo ZIP.
+1. Informe a pasta original do OMSI 2. O aplicativo oferece o servidor incluído no pacote e também aceita um servidor oficial com protocolo 6, como a 0.2.23. Em **Servidor dedicado → Procurar**, escolha o `openomsi.exe` dentro da pasta do servidor que você extraiu. Uma escolha externa salva é mantida ao reabrir o aplicativo e nas atualizações do pacote.
 2. Se já tiver o JSON da empresa, clique **Importar JSON atual**. Os mapas e as opções cadastradas são preservados. A antiga frota passa a ser apenas uma preferência de modelos substitutos. Os caminhos anteriores do CompanyHost são importados automaticamente quando disponíveis.
 3. Para cadastrar outro mapa, clique **Detectar mapas**, escolha o mapa instalado e clique **Adicionar mapa**. O nome vem do `global.cfg`; o aplicativo cria a sessão e atribui portas separadas.
 4. Escolha o **Mapa configurado**. Ajuste porta UDP/HTTP, máximo de jogadores, tráfego, passageiros, tabela de horários e tempo para fechar vazio. `0` no tempo vazio mantém esse mapa aberto até você parar o agente.
-5. **Substitutos opcionais** pode ficar vazio. Qualquer jogador pode dirigir o seu ônibus, mesmo privado ou ausente no host, sem cadastrá-lo aqui. Se quiser, use Ctrl/Shift para indicar modelos locais que o servidor tentará usar como substitutos. Se nenhum funcionar, tenta os MAN originais e depois outros ônibus locais. Isso nunca limita a entrada.
+5. **Substitutos opcionais** pode ficar vazio. Qualquer jogador pode dirigir o seu ônibus, mesmo privado ou ausente no host, sem cadastrá-lo aqui. Se quiser, use Ctrl/Shift para dar preferência a modelos locais como substitutos. Sem preferência, usa os MAN originais ou outro ônibus instalado. O host precisa de pelo menos um ônibus local para representar os veículos ausentes; não precisa dos ônibus privados dos jogadores. A lista nunca limita a entrada.
 6. Configure o fuso e o ajuste em minutos da empresa, conferindo a hora usada pelo BCS. O exemplo Transfort usa `Europe/Berlin` e `-480` minutos.
 
 **Hospedar este mapa** controla se o agente pode iniciá-lo. Dois mapas podem ficar abertos ao mesmo tempo, cada um com suas portas e configurações. O aplicativo detecta portas repetidas. Ele cria configurações próprias por mapa e preserva as opções não controladas do `server.cfg` anterior.
+
+## Atualizar ou trocar a pasta do servidor
+
+1. Clique **Parar agente**.
+2. Baixe o ZIP oficial de **servidor para Windows** da versão desejada e extraia em uma pasta de sua escolha. Deixe nessa pasta os arquivos que vieram no ZIP.
+3. No HostAgent, ao lado de **Servidor dedicado**, clique **Procurar** e selecione o `openomsi.exe` dessa nova pasta.
+4. Clique **Salvar e iniciar agente**.
+
+Se você apenas mudou a pasta de lugar, faça os passos 1, 3 e 4 usando o novo endereço. Os mapas, portas, relógio, chave do host, Worker e JSON dos jogadores permanecem cadastrados. Não precisa reinstalar mapas, exportar outro JSON ou pedir uma compilação da bridge a cada atualização compatível do servidor.
+
+Desde a dev.4, o HostAgent adapta a entrada dos ônibus para os servidores oficiais e conserva o nome real enviado aos colegas. O executável oficial continua responsável pelo mapa, passageiros, clima, física e relógio. Cada mapa recebe seu próprio túnel e conexões; iniciar outro mapa não encerra o túnel do anterior. Na primeira utilização, o agente pode baixar a ferramenta oficial de túnel, conferindo seu SHA-256.
+
+O requisito é o protocolo multiplayer 6 e as opções de servidor utilizadas pela integração. Não há uma lista fechada de números de versão. A 0.2.23 oficial foi testada carregando um mapa sintético e aceitando dois ônibus privados ausentes; uma mudança futura de protocolo ou remoção de interfaces pode exigir uma atualização da integração. Viagem completa no BCS e representação entre dois jogos reais continuam dependendo de teste no jogo.
 
 O modo permissivo continua ativo: diferenças de hashes, arquivos extras, `Holidays.txt`, repaints e ônibus de outros jogadores não bloqueiam a entrada. O jogador precisa conseguir carregar seu mapa e seu próprio ônibus. O host não precisa ter o ônibus do jogador nem autorizar novos modelos. Quem não tiver os recursos do ônibus remoto poderá ver um modelo substituto; o interior exato depende dos recursos locais. Não se transfere conteúdo privado. Os hashes presentes em perfis antigos são metadados para auditoria administrativa; não viram uma barreira multiplayer.
 
