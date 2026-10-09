@@ -2,7 +2,7 @@ name: Source checks
 
 on:
   push:
-    branches-ignore: ['codex/2.0.5-dev.3-timeout', 'codex/official-server-adapter']
+    branches-ignore: ['codex/2.0.5-dev.3-timeout', 'codex/official-server-adapter', 'codex/2.0.5-dev.4-download']
   pull_request:
   workflow_dispatch:
 

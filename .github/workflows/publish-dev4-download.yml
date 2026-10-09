@@ -1,0 +1,59 @@
+name: Publish checked development download
+
+on:
+  push:
+    branches: ['codex/2.0.5-dev.4-download']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: '93a0c6ce5ca4dad359b60516768f7284f0dfab98'
+          persist-credentials: false
+      - name: Verify the successful candidate build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          run = json.loads(subprocess.check_output(['gh','api','repos/Mayconrib808/OpenOmsi-BBS/actions/runs/37969999557'],text=True))
+          assert run['head_sha'] == '93a0c6ce5ca4dad359b60516768f7284f0dfab98'
+          assert run['conclusion'] == 'success'
+          print('Official Windows runtime, complete package checks and Defender scan passed.')
+          PY
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: OpenOMSI-BCS-Bridge-v2.0.5-dev.4
+          run-id: 37969999557
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: build/download
+      - name: Verify exact tested ZIP
+        run: |
+          python3 - <<'PY'
+          import hashlib, pathlib
+          path = pathlib.Path('build/download/OpenOmsi.+.BBS.2.0.5-dev.4.zip')
+          expected = '6c704e92037813aa16e8c3b14aa100a55bd1e2668d1491e65adcfda77a7190dc'
+          assert hashlib.sha256(path.read_bytes()).hexdigest() == expected
+          assert pathlib.Path(str(path)+'.sha256').read_text().split()[0] == expected
+          print('Publishing the exact previously tested ZIP; no rebuild.')
+          PY
+      - name: Publish development release and direct download
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          gh release create v2.0.5-dev.4
+          'build/download/OpenOmsi.+.BBS.2.0.5-dev.4.zip'
+          'build/download/OpenOmsi.+.BBS.2.0.5-dev.4.zip.sha256'
+          --repo Mayconrib808/OpenOmsi-BBS
+          --target 93a0c6ce5ca4dad359b60516768f7284f0dfab98
+          --prerelease
+          --title 'OpenOmsi + BBS 2.0.5 dev4 — servidor oficial selecionável'
+          --notes-file docs/releases/v2.0.5-dev.4.md
