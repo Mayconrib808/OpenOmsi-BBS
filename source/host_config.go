@@ -27,6 +27,7 @@ type hostAgentConfig struct {
 	Schema           int                       `json:"schema"`
 	Root             string                    `json:"root"`
 	Server           string                    `json:"server"`
+	UseCustomServer  bool                      `json:"use_custom_server,omitempty"`
 	Language         string                    `json:"language"`
 	HostKey          string                    `json:"host_key"`
 	RoomID           string                    `json:"room_id"`
@@ -51,11 +52,24 @@ func hostAgentSettingsPath(packageDir string) string {
 
 // The bundled server separates admission from substitute models. Older official
 // servers ignore free_player_vehicles, so update a migrated host to this binary.
+// An explicit selection in the GUI must survive both restarts and package upgrades.
 func hostUseBundledServer(c *hostAgentConfig, packageDir string) {
+	if c.UseCustomServer {
+		return
+	}
 	path := filepath.Join(packageDir, "app", "server", "openomsi.exe")
 	if st, err := os.Stat(path); err == nil && st.Mode().IsRegular() {
 		c.Server = path
 	}
+}
+
+// Selecting the included binary restores automatic selection on package upgrades.
+// Other paths are deliberate choices, including a missing executable: validation
+// should report that path instead of silently switching to another server.
+func hostSelectServer(c *hostAgentConfig, packageDir, selected string) {
+	c.Server = strings.Trim(strings.TrimSpace(selected), `"`)
+	bundled := filepath.Join(packageDir, "app", "server", "openomsi.exe")
+	c.UseCustomServer = !strings.EqualFold(filepath.Clean(c.Server), filepath.Clean(bundled))
 }
 func defaultHostAgentConfig() hostAgentConfig {
 	return hostAgentConfig{Schema: 1, Language: "pt", HostKey: hostRandomCode() + hostRandomCode(), RoomID: hostRandomCode(), ControlKey: hostRandomCode(), ControlPort: 27199, Maps: map[string]hostMapOptions{},

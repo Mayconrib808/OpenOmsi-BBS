@@ -73,6 +73,8 @@ def build(source, output):
     tests = [
         ["test", "--locked", "--release", "-p", "omsi-app", "free_vehicles::"],
         ["test", "--locked", "--release", "-p", "omsi-app", "server::"],
+        ["test", "--locked", "--release", "-p", "omsi-app", "offscreen::tests::a_servers_timetable_runs_on_the_servers_clock"],
+        ["test", "--locked", "--release", "-p", "omsi-sim", "people::tests::the_trips_due_at_the_stops_follow_the_clock"],
         ["test", "--locked", "--release", "-p", "omsi-net"],
         ["build", "--locked", "--release", "-p", "omsi-app"],
     ]

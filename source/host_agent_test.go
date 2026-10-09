@@ -237,3 +237,66 @@ func TestMigratedHostAutomaticallyUsesBundledFreeBusServer(t *testing.T) {
 		t.Fatal("old restricted server was retained", c.Server)
 	}
 }
+
+func TestSelectedServerSurvivesSavingAndPackageUpgrade(t *testing.T) {
+	c := hostConfigFixture(t)
+	selected := c.Server
+	key, room, directory := c.HostKey, c.RoomID, c.Company.DirectoryURL
+	mapID := c.Company.Sessions[0].ID
+	mapOptions := c.Maps[mapID]
+	dir := t.TempDir()
+	bundled := filepath.Join(dir, "app", "server", "openomsi.exe")
+	if err := os.MkdirAll(filepath.Dir(bundled), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(bundled, []byte("bundled fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hostSelectServer(&c, dir, `"`+selected+`"`)
+	settings := filepath.Join(t.TempDir(), "HostAgent.local.json")
+	if err := saveHostAgentConfig(settings, c); err != nil {
+		t.Fatal(err)
+	}
+	reopened, err := loadHostAgentConfig(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hostUseBundledServer(&reopened, dir)
+	if reopened.Server != selected || !reopened.UseCustomServer {
+		t.Fatal("saved server selection was replaced by the new package", reopened.Server)
+	}
+	if reopened.HostKey != key || reopened.RoomID != room || reopened.Company.DirectoryURL != directory || reopened.Maps[mapID] != mapOptions {
+		t.Fatal("server selection changed company credentials or map settings")
+	}
+	// Missing custom binaries must produce a clear error, not start another server.
+	if err := os.Remove(selected); err != nil {
+		t.Fatal(err)
+	}
+	hostUseBundledServer(&reopened, dir)
+	if reopened.Server != selected || validateHostAgentConfig(reopened, false) == nil {
+		t.Fatal("missing selected executable silently fell back to the bundled server")
+	}
+}
+
+func TestSelectingIncludedServerRestoresAutomaticPackageUpdates(t *testing.T) {
+	c := hostConfigFixture(t)
+	c.UseCustomServer = true
+	dir := t.TempDir()
+	bundled := filepath.Join(dir, "app", "server", "openomsi.exe")
+	hostSelectServer(&c, dir, bundled)
+	if c.UseCustomServer || c.Server != bundled {
+		t.Fatal("selecting the included server did not restore automatic updates")
+	}
+	newDir := t.TempDir()
+	newBundled := filepath.Join(newDir, "app", "server", "openomsi.exe")
+	if err := os.MkdirAll(filepath.Dir(newBundled), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(newBundled, []byte("updated bundled fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	hostUseBundledServer(&c, newDir)
+	if c.Server != newBundled {
+		t.Fatal("included server did not follow the new package")
+	}
+}

@@ -331,13 +331,9 @@ func (g *hostGUI) createControls() {
 	g.edit(hostRoot, g.c.Root, 20, 130, 720)
 	g.button("Procurar...", "Browse...", "Durchsuchen...", 750, 130, 155, hostBrowseRoot)
 	g.button("Detectar mapas", "Scan maps", "Karten suchen", 915, 130, 165, hostScan)
-	g.label("Servidor incluído — ônibus dos jogadores livres", "Included server — unrestricted player buses", "Enthaltener Server — freie Spielerbusse", 20, 166, 700)
+	g.label("Servidor dedicado — ônibus dos jogadores livres", "Dedicated server — unrestricted player buses", "Dedizierter Server — freie Spielerbusse", 20, 166, 700)
 	g.edit(hostServer, g.c.Server, 20, 189, 885)
 	g.button("Procurar...", "Browse...", "Durchsuchen...", 915, 189, 165, hostBrowseServer)
-	if strings.EqualFold(filepath.Clean(g.c.Server), filepath.Join(g.dir, "app", "server", "openomsi.exe")) {
-		hostSend(g.fields[hostServer], 0xcf, 1, 0) // EM_SETREADONLY
-		hostUser.NewProc("EnableWindow").Call(g.fields[hostBrowseServer], 0)
-	}
 	g.label("URL fixa do diretório online (Worker)", "Stable directory URL (Worker)", "Feste Verzeichnis-URL (Worker)", 20, 224, 650)
 	g.edit(hostDirectory, g.c.Company.DirectoryURL, 20, 247, 700)
 	g.label("Chave privada do host", "Private host key", "Privater Host-Schlüssel", 740, 224, 340)
@@ -387,7 +383,7 @@ func setupHostLanguageIndex(lang string) int {
 }
 func (g *hostGUI) readGeneral() error {
 	g.c.Root = strings.Trim(hostText(g.fields[hostRoot]), `"`)
-	g.c.Server = strings.Trim(hostText(g.fields[hostServer]), `"`)
+	hostSelectServer(&g.c, g.dir, hostText(g.fields[hostServer]))
 	g.c.Company.CompanyName = strings.TrimSpace(hostText(g.fields[hostName]))
 	g.c.Company.CompanyID = strings.TrimSpace(hostText(g.fields[hostID]))
 	g.c.HostKey = strings.TrimSpace(hostText(g.fields[hostKey]))
@@ -853,9 +849,17 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 		}
 		// Exercise the real Win32 scrolling and keyboard-focus reveal on a work
 		// area smaller than the form; important buttons must remain reachable.
+		if enabled, _, _ := hostUser.NewProc("IsWindowEnabled").Call(g.fields[hostBrowseServer]); enabled == 0 {
+			return fmt.Errorf("server selection button is disabled")
+		}
+		styleIndex := int32(-16) // GWL_STYLE
+		style, _, _ := hostUser.NewProc("GetWindowLongW").Call(g.fields[hostServer], uintptr(styleIndex))
+		if style&0x800 != 0 { // ES_READONLY
+			return fmt.Errorf("server path is read-only")
+		}
 		hostUser.NewProc("SetWindowPos").Call(g.window, 0, 0, 0, 1040, 740, 2|4|16)
 		g.layoutViewport()
-		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostKey, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
+		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostBrowseServer, hostKey, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
 			g.revealControl(g.fields[id])
 			rect := g.controlRect(g.fields[id])
 			var client hostRect

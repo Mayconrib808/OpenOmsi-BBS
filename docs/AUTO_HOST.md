@@ -1,4 +1,4 @@
-# Servidor automático — 2.0.3-dev.3
+# Servidor automático — 2.0.5-dev.2
 
 Abra **Setup → Empresa / servidor**, ou **HostAgent.exe**. O aplicativo configura cada mapa e mantém um agente em segundo plano. Quando alguém inicia uma viagem pelo BCS, a bridge pede esse mapa; o agente abre o servidor dedicado, aguarda o mundo carregar, sincroniza o relógio e publica o endereço validado. A conexão do jogo continua sendo o multiplayer nativo do openOMSI.
 
@@ -8,7 +8,7 @@ Em telas menores, use as barras de rolagem ou a roda do mouse para alcançar os 
 
 ## Configurar os mapas
 
-1. Informe a pasta original do OMSI 2. O aplicativo já seleciona o servidor incluído nesta atualização, em `app/server/openomsi.exe`, inclusive ao importar uma configuração anterior. Esse servidor deriva do openOMSI 0.2.11 e permite ônibus livres.
+1. Informe a pasta original do OMSI 2. Por padrão, o aplicativo seleciona o servidor incluído nesta atualização, em `app/server/openomsi.exe`, inclusive ao importar uma configuração anterior. Esse servidor deriva do openOMSI 0.2.20 e permite ônibus livres. Se você já salvou outro executável na dev.1, use **Procurar** para escolher o `app/server/openomsi.exe` deste novo ZIP.
 2. Se já tiver o JSON da empresa, clique **Importar JSON atual**. Os mapas e as opções cadastradas são preservados. A antiga frota passa a ser apenas uma preferência de modelos substitutos. Os caminhos anteriores do CompanyHost são importados automaticamente quando disponíveis.
 3. Para cadastrar outro mapa, clique **Detectar mapas**, escolha o mapa instalado e clique **Adicionar mapa**. O nome vem do `global.cfg`; o aplicativo cria a sessão e atribui portas separadas.
 4. Escolha o **Mapa configurado**. Ajuste porta UDP/HTTP, máximo de jogadores, tráfego, passageiros, tabela de horários e tempo para fechar vazio. `0` no tempo vazio mantém esse mapa aberto até você parar o agente.
@@ -48,6 +48,10 @@ Um mapa vazio fecha após o tempo configurado. A próxima viagem pode abri-lo no
 O pacote inclui testes de rotação de endereço, identidade da empresa, segredo privado, pedidos duplicados, portas separadas, ônibus privado fora da lista do host, seleção vazia de substitutos e desligamento por inatividade. O workflow executa os testes Go, do diretório e do servidor nativo, compila todos os executáveis e verifica os controles Windows, incluindo capturas do painel em PT/EN/DE.
 
 O teste final com dois jogadores, BCS real e um Worker publicado deve confirmar abertura sob demanda, reinício com novo túnel e reconexão usando o mesmo JSON. Não substitua os arquivos da instalação durante uma viagem.
+
+## Trocar o servidor
+
+Pare o agente, escolha outro `openomsi.exe` em **Servidor dedicado → Procurar** e clique em **Salvar e iniciar agente**. O caminho fica salvo também para o início em segundo plano. Escolher o executável incluído em `app/server/openomsi.exe` restaura a seleção automática nas próximas atualizações do pacote. Os mapas e o Cloudflare são preservados. Servidores externos precisam ser compatíveis com o protocolo da bridge e com o suporte a ônibus livres; selecionar um executável não aplica essas adaptações nele.
 
 ## English
 

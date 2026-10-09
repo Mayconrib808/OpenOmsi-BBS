@@ -148,6 +148,21 @@ func TestCompanyHostStatusRejectsWrongServerAndFleet(t *testing.T) {
 	}
 }
 
+func TestCompanyHostUpdatedServerPreservesPrivatePlayerBusAdmission(t *testing.T) {
+	status := hostTestStatus()
+	status.Version = "0.2.20-bbs-free2"
+	status.Vehicles = json.RawMessage(`[]`)
+	if err := validateCompanyHostStatus(status, hostTestSession(), []string{"Vehicles/Private/Player.bus"}); err != nil {
+		t.Fatal("updated free-bus server rejected a private player bus", err)
+	}
+	status.Version = "0.2.20"
+	status.FreePlayerVehicles = false
+	err := validateCompanyHostStatus(status, hostTestSession(), nil)
+	if err == nil || !strings.Contains(err.Error(), "0.2.20") || !strings.Contains(err.Error(), "não confirma suporte") {
+		t.Fatal("official server without the extension did not explain the incompatibility", err)
+	}
+}
+
 func TestCompanyHostAdminIsLocalAuthenticatedAndVerified(t *testing.T) {
 	posts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

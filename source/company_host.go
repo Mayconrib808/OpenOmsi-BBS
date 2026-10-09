@@ -267,8 +267,11 @@ func validateCompanyHostStatus(status companyHostStatus, session CompanySession,
 	} else if err := json.Unmarshal(status.Vehicles, &vehicles); err != nil {
 		return fmt.Errorf("local server did not publish its fleet")
 	}
-	if !status.FreePlayerVehicles || len(vehicles) != 0 {
-		return fmt.Errorf("este servidor ainda limita os ônibus dos jogadores; use o servidor incluído em app/server/openomsi.exe nesta versão")
+	if !status.FreePlayerVehicles {
+		return fmt.Errorf("o servidor selecionado (%s) não confirma suporte a ônibus livres; selecione app/server/openomsi.exe do pacote atualizado", status.Version)
+	}
+	if len(vehicles) != 0 {
+		return fmt.Errorf("o servidor selecionado publica uma lista restrita de ônibus; selecione app/server/openomsi.exe do pacote atualizado")
 	}
 	return nil
 }

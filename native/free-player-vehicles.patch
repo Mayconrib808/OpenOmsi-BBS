@@ -1,237 +1,61 @@
---- a/crates/omsi-app/src/server.rs
-+++ b/crates/omsi-app/src/server.rs
-@@ -46,6 +46,10 @@
-     /// Only these buses may be driven on the server (vehicle files, empty: every bus the
-     /// server has installed).
-     pub vehicles: Vec<String>,
-+    /// Player buses are unrestricted; missing types use a local substitute.
-+    pub free_player_vehicles: bool,
-+    /// Optional local substitutes, independent of admission.
-+    pub fallback_vehicles: Vec<String>,
-     /// `GET /players` on the web port tells who drives what and where (for a web map).
-     pub share_positions: bool,
-     /// The GreenTeaSpeak server and channel the players talk in (`voice`).
-@@ -106,6 +110,11 @@
- # Vehicles/MAN_SD200/MAN_SD77.bus; empty: every bus installed on the server). The players'
- # vehicle menu offers only these, and a player who drives another bus is sent away
- vehicles =
-+
-+# BBS extension: admit any player-owned bus, without installing it on the host.
-+# Optional fallback_vehicles are local substitutes only, never an admission list.
-+free_player_vehicles = 0
-+fallback_vehicles =
- 
- # tell anyone who asks the web port (GET /players) the players' names, buses, lines and
- # positions - for a live map of the server on a website; tell your players when it is on
-@@ -168,6 +177,8 @@
-             metar_sync: flag("metar_sync", false),
-             metar_station: kv.get("metar_station").map(|v| v.chars().filter(|c| c.is_ascii_alphabetic()).take(4).collect::<String>().to_ascii_uppercase()).unwrap_or_default(),
-             vehicles: kv.get("vehicles").map(|v| v.split(';').map(|x| x.trim().replace('\\', "/")).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
-+            free_player_vehicles: flag("free_player_vehicles", false),
-+            fallback_vehicles: kv.get("fallback_vehicles").map(|v| v.split(';').map(|x| x.trim().replace('\\', "/")).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
-             share_positions: flag("share_positions", false),
-             voice: crate::voice::VoiceServer::from_kv(|k| kv.get(k).cloned()),
-         })
-@@ -187,7 +198,8 @@
-         time: cfg.time.clone(),
-         weather: cfg.weather.clone().unwrap_or_default(),
-         password: false,
--        vehicles: cfg.vehicles.clone(),
-+        vehicles: if cfg.free_player_vehicles { Vec::new() } else { cfg.vehicles.clone() },
-+        free_player_vehicles: cfg.free_player_vehicles,
-         reached_at: String::new(),
-         players_public: cfg.share_positions,
-         player_list: Vec::new(),
-@@ -204,6 +216,8 @@
-     let _ = SERVER_ADMIN.set((cfg.admin_password.clone(), if cfg.real_time { 1.0 } else { cfg.time_speed }));
-     crate::real_time::set_server_real(cfg.real_time);
-     let _ = SERVER_VEHICLES.set(cfg.vehicles.clone());
-+    SERVER_FREE_VEHICLES.store(cfg.free_player_vehicles, std::sync::atomic::Ordering::Relaxed);
-+    let _ = SERVER_FALLBACK_VEHICLES.set(cfg.fallback_vehicles.clone());
-     let _ = SERVER_VOICE.set(cfg.voice.clone());
-     args.map = cfg.map.clone();
-     args.time = cfg.time.clone();
-@@ -246,6 +260,18 @@
- /// The buses a dedicated server allows (`vehicles`; empty: every bus it has).
- pub(crate) static SERVER_VEHICLES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
- 
-+/// Admission and substitution are separate in managed BBS sessions.
-+pub(crate) static SERVER_FREE_VEHICLES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
-+pub(crate) static SERVER_FALLBACK_VEHICLES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
-+
-+pub(crate) fn free_player_vehicles() -> bool {
-+    SERVER_FREE_VEHICLES.load(std::sync::atomic::Ordering::Relaxed)
-+}
-+
-+pub(crate) fn admits(free: bool, list: &[String], file: &str) -> bool {
-+    free || allows(list, file)
-+}
-+
- /// Whether a `vehicles` list allows the bus `file` (an empty list: every bus). A player's
- /// game may name it with a folder before it (`D:/OMSI 2/Vehicles/…/….bus`).
- pub(crate) fn allows(list: &[String], file: &str) -> bool {
-@@ -258,8 +284,9 @@
- /// own vehicle menu, which a game before this one did not limit to the list, #1183) is sent
- /// away and told which buses the server has. It may join again with one of them.
- pub(crate) fn enforce_vehicles(lan: &mut omsi_net::LanSession) {
-+    if free_player_vehicles() { return; }
-     let Some(list) = SERVER_VEHICLES.get().filter(|l| !l.is_empty()) else { return };
--    let out: Vec<(u32, String)> = lan.peers().filter(|p| p.has_info && !p.pose.bus.is_empty() && !allows(list, &p.pose.bus)).map(|p| (p.pose.id, p.pose.bus.clone())).collect();
-+    let out: Vec<(u32, String)> = lan.peers().filter(|p| p.has_info && !p.pose.bus.is_empty() && !admits(free_player_vehicles(), list, &p.pose.bus)).map(|p| (p.pose.id, p.pose.bus.clone())).collect();
-     for (id, bus) in out {
-         log::warn!("server: player {id} drives {bus}, which the vehicles list does not allow: sent away");
-         let names: Vec<&str> = list.iter().map(|v| v.rsplit('/').next().unwrap_or(v)).collect();
-@@ -323,7 +350,29 @@
- 
- #[cfg(test)]
- mod vehicles_tests {
--    use super::allows;
-+    use super::{allows, admits, info_of, ServerCfg};
-+
-+    #[test]
-+    fn free_mode_does_not_authorize_by_host_fleet() {
-+        let list = vec!["Vehicles/MAN_SD200/MAN_SD77.bus".to_string()];
-+        assert!(admits(true, &list, "Vehicles/Private/Torino.bus"));
-+        assert!(!admits(false, &list, "Vehicles/Private/Torino.bus"));
-+        assert!(admits(true, &[], "Vehicles/Weekly/New.bus"));
-+    }
-+
-+    #[test]
-+    fn cfg_and_status_separate_free_admission_from_substitutes() {
-+        let path = std::env::temp_dir().join(format!("bbs-free-cfg-{}.cfg", std::process::id()));
-+        std::fs::write(&path, "free_player_vehicles = 1\nvehicles = Vehicles/Old/Only.bus\nfallback_vehicles = Vehicles/MAN_SD200/MAN_SD77.bus\n").unwrap();
-+        let cfg = ServerCfg::load(&path).unwrap();
-+        let _ = std::fs::remove_file(path);
-+        assert!(cfg.free_player_vehicles);
-+        assert_eq!(cfg.fallback_vehicles, ["Vehicles/MAN_SD200/MAN_SD77.bus"]);
-+        let info = info_of(&cfg);
-+        assert!(info.free_player_vehicles);
-+        assert!(info.vehicles.is_empty());
-+        assert!(info.to_json().contains("\"free_player_vehicles\":true"));
-+    }
- 
-     #[test]
-     fn the_list_allows_its_buses_only() {
---- a/crates/omsi-net/src/ws.rs
-+++ b/crates/omsi-net/src/ws.rs
-@@ -43,6 +43,8 @@
-     /// The buses that may be driven there (vehicle files, `Vehicles/…/….bus`): what the
-     /// host has installed, or a server's own list. Empty: not said (an older game).
-     pub vehicles: Vec<String>,
-+    /// BBS extension: admission is independent of installed vehicle models.
-+    pub free_player_vehicles: bool,
-     /// Where it answered (`http(s)://…`), set by `query`: a server added by its bare
-     /// address (`1.2.3.4`, `host:27025`) is joined there.
-     pub reached_at: String,
-@@ -144,7 +146,7 @@
- impl ServerInfo {
-     pub fn to_json(&self) -> String {
-         format!(
--            "{{\"name\":{},\"motd\":{},\"map\":{},\"players\":{},\"max_players\":{},\"version\":{},\"icon\":{},\"time\":{},\"weather\":{},\"password\":{},\"protocol\":{},\"vehicles\":{},\"world\":{}}}",
-+            "{{\"name\":{},\"motd\":{},\"map\":{},\"players\":{},\"max_players\":{},\"version\":{},\"icon\":{},\"time\":{},\"weather\":{},\"password\":{},\"protocol\":{},\"vehicles\":{},\"free_player_vehicles\":{},\"world\":{}}}",
-             json_str(&self.name),
-             json_str(&self.motd),
-             json_str(&self.map),
-@@ -157,6 +159,7 @@
-             self.password,
-             crate::PROTOCOL,
-             json_str(&self.vehicles.join(";")),
-+            self.free_player_vehicles,
-             self.world.map(|w| w.to_json()).unwrap_or_else(|| "null".into())
-         )
-     }
-@@ -177,6 +180,7 @@
-             weather: text("weather").unwrap_or_default(),
-             password: json_value(s, "password").map(|v| v.trim() == "true").unwrap_or(false),
-             vehicles: text("vehicles").map(|v| v.split(';').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
-+            free_player_vehicles: json_value(s, "free_player_vehicles").is_some_and(|v| v.trim() == "true"),
-             reached_at: String::new(),
-             ..Default::default()
-         })
---- a/crates/omsi-app/src/lib.rs
-+++ b/crates/omsi-app/src/lib.rs
-@@ -97,6 +97,7 @@
- mod on_foot;
- mod route_arrows;
- mod server;
-+mod free_vehicles;
- mod player;
- mod plugins;
- mod services;
---- a/crates/omsi-app/src/lan.rs
-+++ b/crates/omsi-app/src/lan.rs
-@@ -849,6 +849,8 @@
- /// offers only those): `only` when a server's list says, else every bus installed here -
- /// read in the background (it takes a moment over all content folders).
- pub fn publish_vehicles(root: PathBuf, only: Vec<String>) {
-+    // Empty /status vehicles keeps official clients' own vehicle menus open.
-+    if crate::server::free_player_vehicles() { return; }
-     let _ = std::thread::Builder::new().name("vehicle list".into()).spawn(move || {
-         let list: Vec<String> = if only.is_empty() {
-             crate::menu::Menu::new(&root, "").vehicles.into_iter().map(|v| v.1).collect()
-@@ -2492,32 +2494,43 @@
-     Ok(path)
- }
- 
--/// Load the type a remote player drives, or a stand-in: ours, or on a server the first of
--/// the buses its `vehicles` list allows. A bus the list does not allow is not loaded at all
--/// (a player joining with another than the server offers).
-+/// Missing player buses use a local type only for the remote copy. The player's
-+/// announced file and its own simulation remain untouched; no private assets transfer.
- fn remote_type(
-     args: &Args,
-     pose: &Pose,
-     player: Option<&Player>,
- ) -> Option<(Arc<omsi_sim::VehicleType>, bool)> {
-     let allowed = crate::server::SERVER_VEHICLES.get().filter(|l| !l.is_empty());
--    let loaded = if allowed.is_none_or(|l| crate::server::allows(l, &pose.bus)) {
--        remote_bus_file(args, &pose.bus).and_then(|path| omsi_sim::VehicleType::load(&args.root, &path).map_err(|e| e.to_string()))
--    } else {
--        Err("the server does not offer it".to_string())
--    };
--    match loaded {
--        Ok(t) => Some((Arc::new(t), false)),
--        Err(e) => {
--            log::warn!("LAN: player {} drives {:?}, which cannot be loaded here ({e}); showing a stand-in", pose.id, pose.bus);
--            if let Some(p) = player {
--                return Some((p.vehicle.ty.clone(), true));
+diff --git a/crates/omsi-app/src/app_events/frame/people.rs b/crates/omsi-app/src/app_events/frame/people.rs
+index 7573e3a..3a13634 100644
+--- a/crates/omsi-app/src/app_events/frame/people.rs
++++ b/crates/omsi-app/src/app_events/frame/people.rs
+@@ -29,13 +29,7 @@ impl App {
+                 .map(|p| p.vehicle.position)
+                 .or(self.camera.as_ref().map(|c| c.position))
+                 .unwrap_or(DVec3::ZERO);
+-            // (the trips due at the stops soon: once a game minute, #1415)
+-            if let (Some(s), Some(t)) = (self.session.schedule.as_ref(), self.session.traffic.as_ref()) {
+-                if (t.day_time - h.due_at).abs() >= 60.0 {
+-                    h.due_dests = Some(s.due_destinations(t.day_time));
+-                    h.due_at = t.day_time;
+-                }
 -            }
-+    let admitted = crate::server::admits(crate::server::free_player_vehicles(), allowed.map(Vec::as_slice).unwrap_or(&[]), &pose.bus);
-+    crate::free_vehicles::select_type(admitted, &pose.bus, |file| {
-+        match remote_bus_file(args, file).and_then(|path| omsi_sim::VehicleType::load(&args.root, &path).map_err(|e| e.to_string())) {
-+            Ok(t) => Some(Arc::new(t)),
-+            Err(e) => {
-+                log::warn!("LAN: player {} drives {:?}, which cannot be loaded here ({e}); showing a stand-in", pose.id, pose.bus);
-+                None
-+            }
-+        }
-+    }, || {
-+        if let Some(p) = player { return Some(p.vehicle.ty.clone()); }
-+        if !crate::server::free_player_vehicles() {
-             let first = allowed.and_then(|l| l.first())?;
--            let path = remote_bus_file(args, first).ok()?;
--            omsi_sim::VehicleType::load(&args.root, &path).ok().map(|t| (Arc::new(t), true))
--        }
--    }
-+            return remote_bus_file(args, first).ok().and_then(|p| omsi_sim::VehicleType::load(&args.root, &p).ok()).map(Arc::new);
-+        }
-+        // Load the headless server's substitute once. Prefer the optional models,
-+        // then original OMSI buses; try the remaining local fleet if they fail.
-+        static FALLBACK: std::sync::OnceLock<Option<Arc<omsi_sim::VehicleType>>> = std::sync::OnceLock::new();
-+        FALLBACK.get_or_init(|| {
-+            let preferred = crate::server::SERVER_FALLBACK_VEHICLES.get().map(Vec::as_slice).unwrap_or(&[]);
-+            let original = ["Vehicles/MAN_SD200/MAN_SD77.bus", "Vehicles/MAN_SD200/MAN_SD80.bus", "Vehicles/MAN_SD202/MAN_D92.bus"];
-+            let load = |f: &str| remote_bus_file(args, f).ok().and_then(|p| omsi_sim::VehicleType::load(&args.root, &p).ok()).map(Arc::new);
-+            crate::free_vehicles::first_loaded(preferred.iter().map(String::as_str).chain(original), load)
-+                .or_else(|| {
-+                    let menu = crate::menu::Menu::new(&args.root, "");
-+                    crate::free_vehicles::first_loaded(menu.vehicles.iter().map(|v| v.1.as_str()), load)
-+                })
-+        }).clone()
-+    })
++            steps::humans_due_trips(h, self.session.schedule.as_ref(), self.session.traffic.as_ref());
+             if h.stop_targets.is_none() {
+                 h.stop_targets = self.session.schedule.as_ref().map(|s| s.stop_targets());
+                 h.stop_names = self.session.schedule.as_ref().map(|s| s.stop_names());
+diff --git a/crates/omsi-app/src/app_events/frame/steps.rs b/crates/omsi-app/src/app_events/frame/steps.rs
+index 144bee6..a877df6 100644
+--- a/crates/omsi-app/src/app_events/frame/steps.rs
++++ b/crates/omsi-app/src/app_events/frame/steps.rs
+@@ -134,6 +134,18 @@ pub(crate) fn humans_by_hour(
+     h.delay = duty.map(|d| d.delay(time)).unwrap_or(0.0);
  }
  
- #[allow(clippy::too_many_arguments)]
++/// The trips due at the stops soon, the ones the people turning up there wait for: made
++/// anew once a game minute, on the traffic's clock (#1415).
++pub(crate) fn humans_due_trips(
++    h: &mut humans::Humans,
++    schedule: Option<&schedule::Schedule>,
++    traffic: Option<&traffic::Traffic>,
++) {
++    if let (Some(s), Some(t)) = (schedule, traffic) {
++        h.keep_due_dests(t.day_time, |at| s.due_destinations(at));
++    }
++}
++
+ /// What the bus's scripts are told of the surroundings: the light around it, the sun's
+ /// height and the weather (`wetness`: the roads').
+ pub(crate) fn tell_surroundings(
+diff --git a/crates/omsi-app/src/app_impl/clock.rs b/crates/omsi-app/src/app_impl/clock.rs
+index ce72a1c..2601d26 100644
+--- a/crates/omsi-app/src/app_impl/clock.rs
++++ b/crates/omsi-app/src/app_impl/clock.rs
+@@ -80,7 +80,7 @@ impl App {
+     /// for the new time (`Schedule::restart`).
+     pub(crate) fn timetable_after_clock_jump(&mut self) {
+         let jump = std::mem::take(&mut self.session.clock_jump);
+-        if jump.abs() < 120.0 {
++        if jump.abs() < crate::schedule::RESTART_JUMP {
+             return;
+         }
+         if let (Some(s), Some(w), Some(t), Some(r), Some(scene)) = (self.session.schedule.as_mut(), self.world.as_ref(), self.session.traffic.as_mut(), self.renderer.as_ref(), self.scene.as_mut()) {
+diff --git a/crates/omsi-app/src/free_vehicles.rs b/crates/omsi-app/src/free_vehicles.rs
+new file mode 100644
+index 0000000..d90a39f
 --- /dev/null
 +++ b/crates/omsi-app/src/free_vehicles.rs
 @@ -0,0 +1,40 @@
@@ -274,4 +98,493 @@
 +        assert_eq!(select_type(false, "private.bus", |_| panic!("legacy denial must not load"), || Some("MAN")), Some(("MAN", true)));
 +        assert_eq!(select_type::<()>(true, "private.bus", |_| None, || None), None);
 +    }
++}
+diff --git a/crates/omsi-app/src/lan.rs b/crates/omsi-app/src/lan.rs
+index 239ff57..0d9e312 100644
+--- a/crates/omsi-app/src/lan.rs
++++ b/crates/omsi-app/src/lan.rs
+@@ -850,6 +850,8 @@ pub fn open_public_gateway(session: &LanSession, info: omsi_net::ws::ServerInfo,
+ /// offers only those): `only` when a server's list says, else every bus installed here -
+ /// read in the background (it takes a moment over all content folders).
+ pub fn publish_vehicles(root: PathBuf, only: Vec<String>) {
++    // Empty /status vehicles keeps official clients' own vehicle menus open.
++    if crate::server::free_player_vehicles() { return; }
+     let _ = std::thread::Builder::new().name("vehicle list".into()).spawn(move || {
+         let list: Vec<String> = if only.is_empty() {
+             crate::menu::Menu::new(&root, "").vehicles.into_iter().map(|v| v.1).collect()
+@@ -2508,32 +2510,43 @@ fn remote_bus_file(args: &Args, bus: &str) -> Result<PathBuf, String> {
+     Ok(path)
+ }
+ 
+-/// Load the type a remote player drives, or a stand-in: ours, or on a server the first of
+-/// the buses its `vehicles` list allows. A bus the list does not allow is not loaded at all
+-/// (a player joining with another than the server offers).
++/// Missing player buses use a local type only for the remote copy. The player's
++/// announced file and its own simulation remain untouched; no private assets transfer.
+ fn remote_type(
+     args: &Args,
+     pose: &Pose,
+     player: Option<&Player>,
+ ) -> Option<(Arc<omsi_sim::VehicleType>, bool)> {
+     let allowed = crate::server::SERVER_VEHICLES.get().filter(|l| !l.is_empty());
+-    let loaded = if allowed.is_none_or(|l| crate::server::allows(l, &pose.bus)) {
+-        remote_bus_file(args, &pose.bus).and_then(|path| omsi_sim::VehicleType::load(&args.root, &path).map_err(|e| e.to_string()))
+-    } else {
+-        Err("the server does not offer it".to_string())
+-    };
+-    match loaded {
+-        Ok(t) => Some((Arc::new(t), false)),
+-        Err(e) => {
+-            log::warn!("LAN: player {} drives {:?}, which cannot be loaded here ({e}); showing a stand-in", pose.id, pose.bus);
+-            if let Some(p) = player {
+-                return Some((p.vehicle.ty.clone(), true));
++    let admitted = crate::server::admits(crate::server::free_player_vehicles(), allowed.map(Vec::as_slice).unwrap_or(&[]), &pose.bus);
++    crate::free_vehicles::select_type(admitted, &pose.bus, |file| {
++        match remote_bus_file(args, file).and_then(|path| omsi_sim::VehicleType::load(&args.root, &path).map_err(|e| e.to_string())) {
++            Ok(t) => Some(Arc::new(t)),
++            Err(e) => {
++                log::warn!("LAN: player {} drives {:?}, which cannot be loaded here ({e}); showing a stand-in", pose.id, pose.bus);
++                None
+             }
+-            let first = allowed.and_then(|l| l.first())?;
+-            let path = remote_bus_file(args, first).ok()?;
+-            omsi_sim::VehicleType::load(&args.root, &path).ok().map(|t| (Arc::new(t), true))
+         }
+-    }
++    }, || {
++        if let Some(p) = player { return Some(p.vehicle.ty.clone()); }
++        if !crate::server::free_player_vehicles() {
++            let first = allowed.and_then(|l| l.first())?;
++            return remote_bus_file(args, first).ok().and_then(|p| omsi_sim::VehicleType::load(&args.root, &p).ok()).map(Arc::new);
++        }
++        // Load the headless server's substitute once. Prefer the optional models,
++        // then original OMSI buses; try the remaining local fleet if they fail.
++        static FALLBACK: std::sync::OnceLock<Option<Arc<omsi_sim::VehicleType>>> = std::sync::OnceLock::new();
++        FALLBACK.get_or_init(|| {
++            let preferred = crate::server::SERVER_FALLBACK_VEHICLES.get().map(Vec::as_slice).unwrap_or(&[]);
++            let original = ["Vehicles/MAN_SD200/MAN_SD77.bus", "Vehicles/MAN_SD200/MAN_SD80.bus", "Vehicles/MAN_SD202/MAN_D92.bus"];
++            let load = |f: &str| remote_bus_file(args, f).ok().and_then(|p| omsi_sim::VehicleType::load(&args.root, &p).ok()).map(Arc::new);
++            crate::free_vehicles::first_loaded(preferred.iter().map(String::as_str).chain(original), load)
++                .or_else(|| {
++                    let menu = crate::menu::Menu::new(&args.root, "");
++                    crate::free_vehicles::first_loaded(menu.vehicles.iter().map(|v| v.1.as_str()), load)
++                })
++        }).clone()
++    })
+ }
+ 
+ #[allow(clippy::too_many_arguments)]
+diff --git a/crates/omsi-app/src/lib.rs b/crates/omsi-app/src/lib.rs
+index 572f77e..e5f6adf 100644
+--- a/crates/omsi-app/src/lib.rs
++++ b/crates/omsi-app/src/lib.rs
+@@ -106,6 +106,7 @@ mod ground_gap;
+ mod on_foot;
+ mod route_arrows;
+ mod server;
++mod free_vehicles;
+ mod player;
+ mod plugin_ui;
+ mod plugins;
+diff --git a/crates/omsi-app/src/offscreen.rs b/crates/omsi-app/src/offscreen.rs
+index 12c0bdf..0e71366 100644
+--- a/crates/omsi-app/src/offscreen.rs
++++ b/crates/omsi-app/src/offscreen.rs
+@@ -224,6 +224,18 @@ impl RealTime {
+     }
+ }
+ 
++/// A dedicated server's traffic kept on the server's clock, `speed` times as fast as the real
++/// time and moved by `jump` s in this step (an admin's `time` or `clock`, the real-time sync).
++/// The timetable's buses, the street traffic's density by the hour and the trips due at the
++/// stops run on the traffic's clock (`day_time`), which goes on at its own `time_scale`: the
++/// window sets that every frame and moves the clock with its own (`frame_weather`,
++/// `shift_clock`), a server did neither. Its timetable ran on the real time from the start,
++/// whatever the clock the players were told.
++fn traffic_on_server_clock(t: &mut omsi_sim::ai_traffic::TrafficSim, speed: f64, jump: f64) {
++    t.time_scale = speed;
++    t.day_time += jump;
++}
++
+ /// The tyres as they are drawn: the lowest point of each wheel mesh and how far it is over
+ /// the road under it (negative: in the asphalt).
+ fn tyre_lows(v: &omsi_sim::VehicleInstance, world: &World) -> Vec<(DVec3, f64)> {
+@@ -282,7 +294,7 @@ fn vehicle_camera(player: &Player, camera: &mut Camera) {
+ 
+ #[cfg(test)]
+ mod tests {
+-    use super::RealTime;
++    use super::{traffic_on_server_clock, RealTime};
+     use std::time::{Duration, Instant};
+ 
+     /// The waits `RealTime` asks for after steps of 1/30 s that take `work` each, and the
+@@ -317,4 +329,60 @@ mod tests {
+         let steady = |w: &Duration| (w.as_secs_f64() - 0.0283).abs() < 0.001;
+         assert!(waits[51..].iter().all(steady), "{:?}", &waits[50..60]);
+     }
++
++    #[test]
++    fn a_servers_timetable_runs_on_the_servers_clock() {
++        use omsi_sim::ai_traffic::{setup::RandomTypes, TrafficSim};
++        // (no lanes: only the traffic's clock is looked at)
++        let random = RandomTypes {
++            types: Vec::new(),
++            groups: Vec::new(),
++            group_curves: false,
++            group_uvg: Vec::new(),
++            uvg_defaults: Vec::new(),
++        };
++        let mut t = TrafficSim::assemble(
++            std::path::Path::new("."),
++            Default::default(),
++            random,
++            Vec::new(),
++            Default::default(),
++            (Vec::new(), Vec::new()),
++            Vec::new(),
++            (1.0, 0),
++            0,
++        );
++        // a server started at 05:20 (its clock as `server_step` keeps it: the start, the
++        // seconds run at its speed, the admins' shift); x30 from its 10th second, an admin's
++        // `clock 08:19` in its 20th, `time -3600` in its 25th
++        let start = 5.0 * 3600.0 + 20.0 * 60.0;
++        t.day_time = start;
++        let (dt, mut run, mut shift) = (1.0f32 / 30.0, 0.0f64, 0.0f64);
++        for i in 0..900 {
++            let speed = if i < 300 { 1.0 } else { 30.0 };
++            run += dt as f64 * speed;
++            let was = shift;
++            if i == 600 {
++                shift += 8.0 * 3600.0 + 19.0 * 60.0 - (start + run + shift);
++            }
++            if i == 750 {
++                shift -= 3600.0;
++            }
++            traffic_on_server_clock(&mut t, speed, shift - was);
++            t.tick(dt, None);
++            let clock = start + run + shift;
++            assert!(
++                (t.day_time - clock).abs() < 1e-6,
++                "step {i}: the traffic's clock {:.1} s, the server's {clock:.1} s",
++                t.day_time
++            );
++        }
++        // 08:19, an hour back, and 299 steps of a game second each: 07:23:59 (the traffic's own
++        // clock ran 30 s of the real time: 05:20:30)
++        assert!(
++            (t.day_time - (7.0 * 3600.0 + 23.0 * 60.0 + 59.0)).abs() < 0.01,
++            "{}",
++            t.day_time
++        );
++    }
+ }
+diff --git a/crates/omsi-app/src/offscreen/step.rs b/crates/omsi-app/src/offscreen/step.rs
+index e26dda3..68d4805 100644
+--- a/crates/omsi-app/src/offscreen/step.rs
++++ b/crates/omsi-app/src/offscreen/step.rs
+@@ -54,6 +54,7 @@ impl Offscreen<'_> {
+             ref mut lan_off,
+             ref remotes_off,
+             ref mut traffic,
++            ref mut schedule,
+             ref world,
+             ref renderer,
+             ref mut scene,
+@@ -62,7 +63,9 @@ impl Offscreen<'_> {
+             ref mut real_time,
+             ..
+         } = *self;
+-        *srv_clock += dt as f64 * lan_off.as_ref().map(|l| l.clock_speed).unwrap_or(1.0);
++        let speed = lan_off.as_ref().map(|l| l.clock_speed).unwrap_or(1.0);
++        *srv_clock += dt as f64 * speed;
++        let shift_was = srv_admin.shift;
+         // a server on the real time (server.cfg): its clock reads this machine's
+         if i.is_multiple_of(30) && crate::real_time::server_real() {
+             if let Some(n) = crate::real_time::now() {
+@@ -173,6 +176,19 @@ impl Offscreen<'_> {
+                 }
+             }
+         }
++        // the timetable's buses go with the server's clock as with the window's: at its speed,
++        // and moved with it - by two minutes or more, put out again for the new time
++        // (`App::timetable_after_clock_jump`)
++        if let Some(t) = traffic.as_mut() {
++            let jump = srv_admin.shift - shift_was;
++            super::traffic_on_server_clock(t, speed, jump);
++            if jump.abs() >= crate::schedule::RESTART_JUMP {
++                if let Some(s) = schedule.as_mut() {
++                    let day_time = t.day_time;
++                    s.restart(world, t, &mut sim_view.traffic, renderer, scene, day_time);
++                }
++            }
++        }
+         if quit::requested().is_some() {
+             log::info!("server: stopping");
+             return false;
+@@ -664,6 +680,7 @@ impl Offscreen<'_> {
+             ref mut traffic,
+             ref camera,
+             ref duty,
++            ref schedule,
+             ref renderer,
+             ref mut scene,
+             ref mut sim_view,
+@@ -677,6 +694,9 @@ impl Offscreen<'_> {
+             // value and the new formula returns 0 for the whole session when the map has
+             // a low hourly density at the start time)
+             steps::humans_by_hour(h, world, run_clock.time, settings.pax_density, duty.as_ref());
++            // and the trips due at the stops (made at the start only, they left every stop
++            // without a trip in the first quarter of an hour empty for good)
++            steps::humans_due_trips(h, schedule.as_ref(), traffic.as_ref());
+             // populate stops near every LAN player every 2 seconds, as app_events.rs
+             // does every 2 s near the local player.  At startup `center` is ZERO (no
+             // player bus on a headless server), so stops on the actual map – which can
+diff --git a/crates/omsi-app/src/schedule.rs b/crates/omsi-app/src/schedule.rs
+index d23b73f..57a4191 100644
+--- a/crates/omsi-app/src/schedule.rs
++++ b/crates/omsi-app/src/schedule.rs
+@@ -34,6 +34,10 @@ pub(crate) use omsi_sim::timetable_run::{
+     shown_destination, turn_roller_blind, BlindPick,
+ };
+ 
++/// A clock set on by this much or more (s), or back, puts the timetable's buses out again for
++/// the new time (`Schedule::restart`); through a smaller step they drive on.
++pub(crate) const RESTART_JUMP: f64 = 120.0;
++
+ /// The timetable (`ScheduleSim`, which everything of the timetable reads through `Deref`)
+ /// with the vehicle sets it reads and uploads ahead for the GPU.
+ pub struct Schedule {
+diff --git a/crates/omsi-app/src/server.rs b/crates/omsi-app/src/server.rs
+index d00ae33..6ca6b72 100644
+--- a/crates/omsi-app/src/server.rs
++++ b/crates/omsi-app/src/server.rs
+@@ -46,6 +46,10 @@ pub(crate) struct ServerCfg {
+     /// Only these buses may be driven on the server (vehicle files, empty: every bus the
+     /// server has installed).
+     pub vehicles: Vec<String>,
++    /// Player buses are unrestricted; missing types use a local substitute.
++    pub free_player_vehicles: bool,
++    /// Optional local substitutes, independent of admission.
++    pub fallback_vehicles: Vec<String>,
+     /// `GET /players` on the web port tells who drives what and where (for a web map).
+     pub share_positions: bool,
+     /// The GreenTeaSpeak server and channel the players talk in (`voice`).
+@@ -107,6 +111,11 @@ metar_station =
+ # vehicle menu offers only these, and a player who drives another bus is sent away
+ vehicles =
+ 
++# BBS extension: admit any player-owned bus, without installing it on the host.
++# Optional fallback_vehicles are local substitutes only, never an admission list.
++free_player_vehicles = 0
++fallback_vehicles =
++
+ # tell anyone who asks the web port (GET /players) the players' names, buses, lines and
+ # positions - for a live map of the server on a website; tell your players when it is on
+ share_positions = 0
+@@ -168,6 +177,8 @@ impl ServerCfg {
+             metar_sync: flag("metar_sync", false),
+             metar_station: kv.get("metar_station").map(|v| v.chars().filter(|c| c.is_ascii_alphabetic()).take(4).collect::<String>().to_ascii_uppercase()).unwrap_or_default(),
+             vehicles: kv.get("vehicles").map(|v| v.split(';').map(|x| x.trim().replace('\\', "/")).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
++            free_player_vehicles: flag("free_player_vehicles", false),
++            fallback_vehicles: kv.get("fallback_vehicles").map(|v| v.split(';').map(|x| x.trim().replace('\\', "/")).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
+             share_positions: flag("share_positions", false),
+             voice: crate::voice::VoiceServer::from_kv(|k| kv.get(k).cloned()),
+         })
+@@ -187,7 +198,8 @@ pub(crate) fn info_of(cfg: &ServerCfg) -> omsi_net::ws::ServerInfo {
+         time: cfg.time.clone(),
+         weather: cfg.weather.clone().unwrap_or_default(),
+         password: false,
+-        vehicles: cfg.vehicles.clone(),
++        vehicles: if cfg.free_player_vehicles { Vec::new() } else { cfg.vehicles.clone() },
++        free_player_vehicles: cfg.free_player_vehicles,
+         reached_at: String::new(),
+         players_public: cfg.share_positions,
+         player_list: Vec::new(),
+@@ -204,6 +216,8 @@ pub(crate) fn prepare(args: &mut Args, path: &Path) -> Result<ServerCfg> {
+     let _ = SERVER_ADMIN.set((cfg.admin_password.clone(), if cfg.real_time { 1.0 } else { cfg.time_speed }));
+     crate::real_time::set_server_real(cfg.real_time);
+     let _ = SERVER_VEHICLES.set(cfg.vehicles.clone());
++    SERVER_FREE_VEHICLES.store(cfg.free_player_vehicles, std::sync::atomic::Ordering::Relaxed);
++    let _ = SERVER_FALLBACK_VEHICLES.set(cfg.fallback_vehicles.clone());
+     let _ = SERVER_VOICE.set(cfg.voice.clone());
+     args.map = cfg.map.clone();
+     args.time = cfg.time.clone();
+@@ -246,6 +260,18 @@ pub(crate) static SERVER_METAR: std::sync::OnceLock<Option<String>> = std::sync:
+ /// The buses a dedicated server allows (`vehicles`; empty: every bus it has).
+ pub(crate) static SERVER_VEHICLES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+ 
++/// Admission and substitution are separate in managed BBS sessions.
++pub(crate) static SERVER_FREE_VEHICLES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
++pub(crate) static SERVER_FALLBACK_VEHICLES: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
++
++pub(crate) fn free_player_vehicles() -> bool {
++    SERVER_FREE_VEHICLES.load(std::sync::atomic::Ordering::Relaxed)
++}
++
++pub(crate) fn admits(free: bool, list: &[String], file: &str) -> bool {
++    free || allows(list, file)
++}
++
+ /// Whether a `vehicles` list allows the bus `file` (an empty list: every bus). A player's
+ /// game may name it with a folder before it (`D:/OMSI 2/Vehicles/…/….bus`).
+ pub(crate) fn allows(list: &[String], file: &str) -> bool {
+@@ -258,8 +284,9 @@ pub(crate) fn allows(list: &[String], file: &str) -> bool {
+ /// own vehicle menu, which a game before this one did not limit to the list, #1183) is sent
+ /// away and told which buses the server has. It may join again with one of them.
+ pub(crate) fn enforce_vehicles(lan: &mut omsi_net::LanSession) {
++    if free_player_vehicles() { return; }
+     let Some(list) = SERVER_VEHICLES.get().filter(|l| !l.is_empty()) else { return };
+-    let out: Vec<(u32, String)> = lan.peers().filter(|p| p.has_info && !p.pose.bus.is_empty() && !allows(list, &p.pose.bus)).map(|p| (p.pose.id, p.pose.bus.clone())).collect();
++    let out: Vec<(u32, String)> = lan.peers().filter(|p| p.has_info && !p.pose.bus.is_empty() && !admits(free_player_vehicles(), list, &p.pose.bus)).map(|p| (p.pose.id, p.pose.bus.clone())).collect();
+     for (id, bus) in out {
+         log::warn!("server: player {id} drives {bus}, which the vehicles list does not allow: sent away");
+         let names: Vec<&str> = list.iter().map(|v| v.rsplit('/').next().unwrap_or(v)).collect();
+@@ -323,7 +350,29 @@ pub(crate) fn player_info<'a>(q: &omsi_net::Pose, pose_of: impl Fn(u32) -> Optio
+ 
+ #[cfg(test)]
+ mod vehicles_tests {
+-    use super::allows;
++    use super::{allows, admits, info_of, ServerCfg};
++
++    #[test]
++    fn free_mode_does_not_authorize_by_host_fleet() {
++        let list = vec!["Vehicles/MAN_SD200/MAN_SD77.bus".to_string()];
++        assert!(admits(true, &list, "Vehicles/Private/Torino.bus"));
++        assert!(!admits(false, &list, "Vehicles/Private/Torino.bus"));
++        assert!(admits(true, &[], "Vehicles/Weekly/New.bus"));
++    }
++
++    #[test]
++    fn cfg_and_status_separate_free_admission_from_substitutes() {
++        let path = std::env::temp_dir().join(format!("bbs-free-cfg-{}.cfg", std::process::id()));
++        std::fs::write(&path, "free_player_vehicles = 1\nvehicles = Vehicles/Old/Only.bus\nfallback_vehicles = Vehicles/MAN_SD200/MAN_SD77.bus\n").unwrap();
++        let cfg = ServerCfg::load(&path).unwrap();
++        let _ = std::fs::remove_file(path);
++        assert!(cfg.free_player_vehicles);
++        assert_eq!(cfg.fallback_vehicles, ["Vehicles/MAN_SD200/MAN_SD77.bus"]);
++        let info = info_of(&cfg);
++        assert!(info.free_player_vehicles);
++        assert!(info.vehicles.is_empty());
++        assert!(info.to_json().contains("\"free_player_vehicles\":true"));
++    }
+ 
+     #[test]
+     fn the_list_allows_its_buses_only() {
+diff --git a/crates/omsi-net/src/ws.rs b/crates/omsi-net/src/ws.rs
+index 97127be..610d951 100644
+--- a/crates/omsi-net/src/ws.rs
++++ b/crates/omsi-net/src/ws.rs
+@@ -43,6 +43,8 @@ pub struct ServerInfo {
+     /// The buses that may be driven there (vehicle files, `Vehicles/…/….bus`): what the
+     /// host has installed, or a server's own list. Empty: not said (an older game).
+     pub vehicles: Vec<String>,
++    /// BBS extension: admission is independent of installed vehicle models.
++    pub free_player_vehicles: bool,
+     /// Where it answered (`http(s)://…`), set by `query`: a server added by its bare
+     /// address (`1.2.3.4`, `host:27025`) is joined there.
+     pub reached_at: String,
+@@ -144,7 +146,7 @@ pub fn players_json(players: &[PlayerInfo]) -> String {
+ impl ServerInfo {
+     pub fn to_json(&self) -> String {
+         format!(
+-            "{{\"name\":{},\"motd\":{},\"map\":{},\"players\":{},\"max_players\":{},\"version\":{},\"icon\":{},\"time\":{},\"weather\":{},\"password\":{},\"protocol\":{},\"vehicles\":{},\"world\":{}}}",
++            "{{\"name\":{},\"motd\":{},\"map\":{},\"players\":{},\"max_players\":{},\"version\":{},\"icon\":{},\"time\":{},\"weather\":{},\"password\":{},\"protocol\":{},\"vehicles\":{},\"free_player_vehicles\":{},\"world\":{}}}",
+             json_str(&self.name),
+             json_str(&self.motd),
+             json_str(&self.map),
+@@ -157,6 +159,7 @@ impl ServerInfo {
+             self.password,
+             crate::PROTOCOL,
+             json_str(&self.vehicles.join(";")),
++            self.free_player_vehicles,
+             self.world.map(|w| w.to_json()).unwrap_or_else(|| "null".into())
+         )
+     }
+@@ -177,6 +180,7 @@ impl ServerInfo {
+             weather: text("weather").unwrap_or_default(),
+             password: json_value(s, "password").map(|v| v.trim() == "true").unwrap_or(false),
+             vehicles: text("vehicles").map(|v| v.split(';').map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).collect()).unwrap_or_default(),
++            free_player_vehicles: json_value(s, "free_player_vehicles").is_some_and(|v| v.trim() == "true"),
+             reached_at: String::new(),
+             ..Default::default()
+         })
+diff --git a/crates/omsi-sim/src/people/populate.rs b/crates/omsi-sim/src/people/populate.rs
+index 4eb3ded..46ad556 100644
+--- a/crates/omsi-sim/src/people/populate.rs
++++ b/crates/omsi-sim/src/people/populate.rs
+@@ -246,6 +246,21 @@ impl PeopleSim {
+         }
+     }
+ 
++    /// The trips due at the stops soon (`due_dests`) made anew by `due` for game time
++    /// `day_time` once a game minute has gone by since they last were (#1415). Made once
++    /// only, at the game's start, they leave every stop without a trip in its first quarter
++    /// of an hour without people for the rest of the session.
++    pub fn keep_due_dests(
++        &mut self,
++        day_time: f64,
++        due: impl FnOnce(f64) -> HashMap<i64, HashSet<String>>,
++    ) {
++        if (day_time - self.due_at).abs() >= 60.0 {
++            self.due_dests = Some(due(day_time));
++            self.due_at = day_time;
++        }
++    }
++
+     /// A destination drawn from stop `id`'s (sub_61baa8): by weight; none when the weights
+     /// leave the draw over. Also the stop's line record it matched.
+     pub fn draw_dest(&mut self, id: i64) -> (Option<String>, Option<usize>) {
+diff --git a/crates/omsi-sim/src/people/tests.rs b/crates/omsi-sim/src/people/tests.rs
+index 56b70c2..767059a 100644
+--- a/crates/omsi-sim/src/people/tests.rs
++++ b/crates/omsi-sim/src/people/tests.rs
+@@ -936,3 +936,48 @@ fn walking_can_find_a_biarticulated_bus_at_its_last_section() {
+     assert!(people.bus_ids_near(DVec3::new(100.0, -34.0, 0.0), 25.0).is_empty());
+     assert_eq!(people.bus_ids_near(DVec3::ZERO, 25.0), [BusId::Ai(42)]);
+ }
++
++/// The trips due at the stops are made anew once a game minute (#1415): a stop no trip was
++/// due at when the game started gets its people once one is. A dedicated server made them
++/// at its start only, and a stop without a trip in its first quarter of an hour stayed
++/// empty for the rest of the session.
++#[test]
++fn the_trips_due_at_the_stops_follow_the_clock() {
++    // stop 1 has a trip due from 08:00 on, stop 2 from 08:30 on
++    let due = |t: f64| -> HashMap<i64, HashSet<String>> {
++        let mut m = HashMap::new();
++        m.insert(1, ["Hbf".to_string()].into_iter().collect());
++        if t >= 8.5 * 3600.0 {
++            m.insert(2, ["Oberhof".to_string()].into_iter().collect());
++        }
++        m
++    };
++    let none_due = |h: &PeopleSim, stop: i64| {
++        h.due_dests
++            .as_ref()
++            .is_some_and(|d| d.get(&stop).is_none_or(|s| s.is_empty()))
++    };
++    let mut h = PeopleSim::new(Path::new("/nonexistent"), 200);
++    let mut made = 0;
++    h.keep_due_dests(8.0 * 3600.0, |t| {
++        made += 1;
++        due(t)
++    });
++    assert_eq!(made, 1);
++    assert!(!none_due(&h, 1));
++    assert!(none_due(&h, 2));
++    // not again within the game minute
++    h.keep_due_dests(8.0 * 3600.0 + 59.0, |t| {
++        made += 1;
++        due(t)
++    });
++    assert_eq!(made, 1);
++    // half an hour later the trip at stop 2 is due
++    h.keep_due_dests(8.5 * 3600.0, |t| {
++        made += 1;
++        due(t)
++    });
++    assert_eq!(made, 2);
++    assert!(!none_due(&h, 2));
++    assert_eq!(h.due_at, 8.5 * 3600.0);
 +}

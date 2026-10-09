@@ -1,3 +1,20 @@
+# 2.0.5-dev.2 — servidor 0.2.20 com ônibus livres
+
+- Atualiza o servidor incluído para openOMSI 0.2.20-bbs-free2, mantendo ônibus privados livres e substitutos opcionais.
+- Inclui a correção oficial da população perto dos jogadores, já presente na base 0.2.20.
+- Incorpora a correção upstream #1964: destinos/viagens previstos nos pontos são atualizados a cada minuto do jogo.
+- Incorpora a correção upstream #1970: tráfego e tabela acompanham o relógio do servidor e seus ajustes de horário.
+- Mantém o protocolo 6, a seleção persistente do servidor, mapas, diretório online e perfil JSON.
+- Explica quando um executável externo não anuncia o suporte a ônibus livres exigido pela integração.
+
+# 2.0.5-dev.1 — seleção do servidor dedicado
+
+- Libera o campo de caminho e o botão Procurar do servidor no HostAgent.
+- Mantém o servidor escolhido ao reabrir o agente, iniciar em segundo plano e atualizar a pasta do pacote.
+- Escolher novamente o servidor incluído restaura sua atualização automática junto do pacote.
+- Preserva os mapas, credenciais, relógio, diretório online e a verificação de protocolo/ônibus livres.
+- O servidor nativo incluído continua sendo 0.2.11-bbs-free1. Esta versão de teste não atualiza a base para 0.2.20 nem corrige a simulação de passageiros.
+
 # 2.0.4 — timetable matching hotfix
 
 - Corrige viagens em TTPs com `[station_typ2]` quando o BCS acrescenta qualificadores ao destino, como `Rathausmarkt (Terminus 109)` no HafenCity.

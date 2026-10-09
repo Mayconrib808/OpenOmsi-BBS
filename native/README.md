@@ -1,6 +1,6 @@
 # Servidor com ônibus livres
 
-Derivado do openOMSI 0.2.11, licença MIT. O aplicativo cliente continua usando o protocolo 6 original. Esta modificação não é uma versão oficial do openOMSI.
+Derivado do openOMSI 0.2.20, licença MIT. O aplicativo cliente continua usando o protocolo 6 original. Esta modificação não é uma versão oficial do openOMSI.
 
 `free_player_vehicles = 1` permite dirigir ônibus fora da instalação ou da antiga lista do host. O servidor anuncia `free_player_vehicles: true` e uma lista de permissões vazia em `/status`, preservando o menu de ônibus locais dos clientes oficiais. No modo livre, não expulsa jogadores por modelo.
 

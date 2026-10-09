@@ -1,13 +1,25 @@
 {
-  "url": "https://codeload.github.com/openOMSI-Project/openOMSI/zip/refs/tags/v0.2.11",
-  "sha256": "d465580c1b58b93d6205efad012d199e2d7dac24f82c651285c6335f78be37bb",
-  "archive_root": "openOMSI-0.2.11",
-  "version": "0.2.11-bbs-free1",
+  "url": "https://codeload.github.com/openOMSI-org/openOMSI/zip/refs/tags/v0.2.20",
+  "sha256": "9776a04ea06c0e4197cb9bc7d036dfb357c395c35c8f7930b0eb97c94e1c000c",
+  "archive_root": "openOMSI-0.2.20",
+  "version": "0.2.20-bbs-free2",
   "patched_files": {
+    "crates/omsi-app/src/app_events/frame/people.rs": "7e790d32fb8ebfc3445e717ff06b1aeee12abdd614175844aa4b18e0033e86eb",
+    "crates/omsi-app/src/app_events/frame/steps.rs": "270ee70426bdafb3252c6ec6e1cf3886915bebe67e4a57209597515f487e255d",
+    "crates/omsi-app/src/app_impl/clock.rs": "4ddda4d95dfc80c4fa94c92052cd286cd64c9e73e817b7ea57236c169eaa3348",
+    "crates/omsi-app/src/free_vehicles.rs": "c101a819914d6d0ea665a874dc47948b2b9c5689f5bc611be8ae8936fb279aeb",
+    "crates/omsi-app/src/lan.rs": "281ed4b0102ff2edc76d378bfd04d0fb89c5a59ac78ebddfa04ae6ee95c2ad85",
+    "crates/omsi-app/src/lib.rs": "49fe05f8618aa724eb47df80001b5a07961892e29f05a9b817d552572272299a",
+    "crates/omsi-app/src/offscreen.rs": "42da8bb3f2ab5d61b58404b8914e6d04c9b14a1ecb644d453c41e2af8bc68ac0",
+    "crates/omsi-app/src/offscreen/step.rs": "0325eed016b8c888832a47fa66a1442fa5f75d678f33cc9412a0c38ae73b5d56",
+    "crates/omsi-app/src/schedule.rs": "2db01cd04d792da4480e218e4813f6f30de4689e4c8ae3e87b475d5fec50c2ad",
     "crates/omsi-app/src/server.rs": "2706a207ec9169b728aa2c94d43a19eb4e59a841bae23827e489d6d1f367c2be",
     "crates/omsi-net/src/ws.rs": "2bf47ad7fea256606df285fe4815da4e25267c4fd4d8f43075f1aee83051d8fd",
-    "crates/omsi-app/src/lib.rs": "8f6d90dfaa8e31c838babbc4b408588d103f1da96a0910e0cb1dd9a90af79568",
-    "crates/omsi-app/src/lan.rs": "93cb82350b98cdac0cbdfc66d4b2f9c0d34588a92179d80450c3e2cc8fc7a4d0",
-    "crates/omsi-app/src/free_vehicles.rs": "c101a819914d6d0ea665a874dc47948b2b9c5689f5bc611be8ae8936fb279aeb"
+    "crates/omsi-sim/src/people/populate.rs": "a733902d1bb07c7bfefa155e53485d38fa4f19f21fa41c9fed266a7134cdfaa5",
+    "crates/omsi-sim/src/people/tests.rs": "aa6b7372e134d12620c66d3b32486bfa56867aeb02e3f6d5902a11d69262da5c"
+  },
+  "upstream_fixes": {
+    "passengers_pr_1964": "dc0a9824dbd8ae02b1e2ac7de7b45d34d2fc3ddb",
+    "clock_pr_1970": "532f9fae5a3d977d1b9e983fc0cec1ec65b5c373"
   }
 }
