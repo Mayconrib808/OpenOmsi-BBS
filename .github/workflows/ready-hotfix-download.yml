@@ -1,0 +1,48 @@
+name: Ready-to-extract hotfix download
+
+on:
+  push:
+    branches: ['codex/2.0.5-dev.3-download']
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download already built and scanned dev.3
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: OpenOMSI-BCS-Bridge-v2.0.5-dev.3
+          run-id: 37880555203
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: transfer
+      - name: Verify and unpack the tested release without rebuilding
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import zipfile
+          package = Path("transfer/OpenOmsi.+.BBS.2.0.5-dev.3.zip")
+          assert hashlib.sha256(package.read_bytes()).hexdigest() == "60de3de3a99d629929cc0566b88ef1e43ac21eb84f4bba303ca1db0b36a71622"
+          with zipfile.ZipFile(package) as archive:
+              for item in archive.infolist():
+                  path = Path(item.filename)
+                  assert not path.is_absolute() and ".." not in path.parts and "\\" not in item.filename and ":" not in item.filename
+              archive.extractall("transfer/ready")
+          assert Path("transfer/ready/Setup.exe").is_file()
+          assert Path("transfer/ready/HostAgent.exe").is_file()
+          assert Path("transfer/ready/app/server/openomsi.exe").is_file()
+          print("Ready download contains the exact files of the tested dev.3 ZIP.")
+          PY
+      - name: Upload ready-to-extract package
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: OpenOmsi-BBS-2.0.5-dev.3
+          path: transfer/ready/
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30
