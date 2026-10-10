@@ -28,10 +28,10 @@ type pedepeSituationMetadata struct {
 	Map, Bus, Date, Clock string
 }
 
-// Relative driver paths are saved under openOMSI's content directory (including
-// the private multiplayer directory), whereas PeDePe reads the OMSI root file.
-// An absolute path makes Career::load/save use the file PeDePe actually watches.
-func peDePeDriverArgs(args []string, configuredRoot string) ([]string, error) {
+// BBS OpenOmsi.java resolves its driver under the selected executable directory,
+// independently of --root (the OMSI asset directory). Verified in the supplied
+// BBS JAR: system.D.b() = system.m.ah() + "Drivers\\bbs.odr".
+func peDePeDriverArgs(args []string, adapterDir string) ([]string, error) {
 	in := parsePeDePeNativeInvocation(args)
 	if in.Probe || in.Server || !in.HasSchedule || in.Line == "" || in.Tour == "" || in.Trip == "" {
 		return append([]string(nil), args...), nil
@@ -40,12 +40,9 @@ func peDePeDriverArgs(args []string, configuredRoot string) ([]string, error) {
 	if !ok || filepath.IsAbs(driver) {
 		return append([]string(nil), args...), nil
 	}
-	root := in.Root
-	if root == "" {
-		root = configuredRoot
-	}
+	root := adapterDir
 	if !filepath.IsAbs(root) || strings.TrimSpace(driver) == "" {
-		return nil, fmt.Errorf("BBS driver requires a nonempty path and an absolute OMSI root")
+		return nil, fmt.Errorf("BBS driver requires a nonempty path and an absolute adapter directory")
 	}
 	path := filepath.Clean(filepath.Join(root, filepath.FromSlash(strings.ReplaceAll(driver, "\\", "/"))))
 	out := append([]string(nil), args...)

@@ -70,7 +70,12 @@ func main() {
 		os.Exit(6)
 	}
 	launchArgs := peDePeForwardArgs(freshArgs, plan)
-	launchArgs, err = peDePeDriverArgs(launchArgs, cfg.Root)
+	adapterExecutable, err := os.Executable()
+	if err != nil {
+		peDePeAdapterFail(logPath, cfg.Language, "BBS adapter path: "+err.Error())
+		os.Exit(7)
+	}
+	launchArgs, err = peDePeDriverArgs(launchArgs, filepath.Dir(adapterExecutable))
 	if err != nil {
 		peDePeAdapterFail(logPath, cfg.Language, "BBS driver path: "+err.Error())
 		os.Exit(7)
@@ -94,7 +99,7 @@ func main() {
 			peDePeAdapterLog(logPath, fmt.Sprintf("driver translation: simulator=%s BBS=%s baseline stops=%d", driver.OpenPath, driver.NativePath, driver.Last.Stops[0]))
 		}
 	}
-	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-driver-format-3 outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-bbs-reader-path-4 outgoing argv="+fmt.Sprintf("%q", launchArgs))
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {

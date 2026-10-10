@@ -11,18 +11,19 @@ import (
 	"time"
 )
 
-func TestPeDePeDriverUsesWatchedRootInsteadOfContentDirectory(t *testing.T) {
+func TestPeDePeDriverUsesBBSExecutableDirectoryInsteadOfOMSIAssetRoot(t *testing.T) {
 	root := t.TempDir()
+	adapterDir := t.TempDir()
 	base := []string{"--root", root, "--schedule", "--line", "137", "--tour", "Sa 2", "--trip", "06:09", "--lan-join", "https://example.invalid"}
 	for _, driver := range [][]string{{"--driver", "Drivers/bbs.odr"}, {"--driver=Drivers\\bbs.odr"}} {
 		args := append(append([]string(nil), base...), driver...)
 		before := append([]string(nil), args...)
-		got, err := peDePeDriverArgs(args, "")
+		got, err := peDePeDriverArgs(args, adapterDir)
 		if err != nil {
 			t.Fatal(err)
 		}
 		path, _ := pedepeArgValue(got, "--driver")
-		if path != filepath.Join(root, "Drivers", "bbs.odr") {
+		if path != filepath.Join(adapterDir, "Drivers", "bbs.odr") {
 			t.Fatalf("wrong watched file: %q", path)
 		}
 		if !reflect.DeepEqual(args, before) {
@@ -53,6 +54,45 @@ func TestPeDePeDriverUsesWatchedRootInsteadOfContentDirectory(t *testing.T) {
 	}
 	if path, _ := pedepeArgValue(got, "--driver"); path != filepath.Join(root, "Drivers", "bbs.odr") {
 		t.Fatal("configured root ignored")
+	}
+}
+
+func TestPeDePePublishesSavedStopsToBBSWatchedFile(t *testing.T) {
+	assetRoot, adapterDir := t.TempDir(), t.TempDir()
+	watched := filepath.Join(adapterDir, "Drivers", "bbs.odr")
+	if err := os.MkdirAll(filepath.Dir(watched), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(watched, fixture(t, "bbs-before.odr"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	args := []string{"--root", assetRoot, "--driver", "Drivers/bbs.odr", "--schedule", "--line", "2002", "--tour", "04", "--trip", "08:25"}
+	forwarded, err := peDePeDriverArgs(args, adapterDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path, _ := pedepeArgValue(forwarded, "--driver")
+	s, err := prepareDriver(path, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	saved := s.Last
+	saved.Stops[0] += 6
+	writeSaved(t, s, saved)
+	_, _ = s.poll()
+	if changed, err := s.poll(); !changed || err != nil {
+		t.Fatalf("F9 publication failed: %v %v", changed, err)
+	}
+	b, err := os.ReadFile(watched)
+	if err != nil {
+		t.Fatal(err)
+	}
+	record, err := parseDriver(b, false)
+	if err != nil || record.Stops[0] != saved.Stops[0] {
+		t.Fatalf("BBS watched file did not receive the six saved stops: %v %v", record.Stops, err)
+	}
+	if _, err := os.Stat(filepath.Join(assetRoot, "Drivers", "bbs.odr")); !os.IsNotExist(err) {
+		t.Fatal("driver was published to the OMSI asset directory")
 	}
 }
 
