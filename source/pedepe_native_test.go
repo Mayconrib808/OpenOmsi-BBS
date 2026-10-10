@@ -11,6 +11,41 @@ import (
 	"time"
 )
 
+func TestPeDePePluginHostWorksWithoutOfficialHelperBesideGame(t *testing.T) {
+	t.Setenv("OMSI_PLUGIN_HOST32", "")
+	packageDir := t.TempDir()
+	root := filepath.Join(t.TempDir(), "OMSI 2 ônibus")
+	if err := os.MkdirAll(root, 0755); err != nil {
+		t.Fatal(err)
+	}
+	source := filepath.Join(appDir(packageDir), "compat", "omsi-plugin-host32.exe")
+	if err := os.MkdirAll(filepath.Dir(source), 0755); err != nil {
+		t.Fatal(err)
+	}
+	fakePE(t, source, 0x14c)
+	c := defaultConfig()
+	c.Root = root
+	env, host, err := peDePePluginEnvironment(c, packageDir, []string{"KEEP=1", "omsi_plugin_host32=missing.exe"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if host != filepath.Join(root, installedPluginHostName) || !fileExists(host) {
+		t.Fatalf("helper not deployed beside BBS marker: %s", host)
+	}
+	if !reflect.DeepEqual(env, []string{"KEEP=1", "OMSI_PLUGIN_HOST32=" + host}) {
+		t.Fatalf("wrong child environment: %q", env)
+	}
+	if fileExists(filepath.Join(root, "bbs.start")) {
+		t.Fatal("adapter created BBS-owned startup marker")
+	}
+	if err := os.Remove(source); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := peDePePluginEnvironment(c, packageDir, env); err == nil {
+		t.Fatal("missing packaged helper must stop launch instead of producing zero telemetry")
+	}
+}
+
 func TestPeDePeDriverUsesBBSExecutableDirectoryInsteadOfOMSIAssetRoot(t *testing.T) {
 	root := t.TempDir()
 	adapterDir := t.TempDir()

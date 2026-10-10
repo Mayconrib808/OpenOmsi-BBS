@@ -119,7 +119,7 @@ func main() {
 			peDePeAdapterLog(logPath, fmt.Sprintf("driver translation: simulator=%s BBS=%s baseline stops=%d", driver.OpenPath, driver.NativePath, driver.Last.Stops[0]))
 		}
 	}
-	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-negative-spawn-6 outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	peDePeAdapterLog(logPath, "adapter revision=native-plugin-host-7 outgoing argv="+fmt.Sprintf("%q", launchArgs))
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {
@@ -142,6 +142,17 @@ func main() {
 		cmd.Dir = filepath.Dir(real)
 	}
 	cmd.Env = os.Environ()
+	if !in.Probe && !in.Server {
+		hostConfig := cfg
+		hostConfig.Root = cmd.Dir
+		var host string
+		cmd.Env, host, err = peDePePluginEnvironment(hostConfig, packageDir, cmd.Env)
+		if err != nil {
+			peDePeAdapterFail(logPath, cfg.Language, "BCS 32-bit plugin host: "+err.Error())
+			os.Exit(9)
+		}
+		peDePeAdapterLog(logPath, "BCS 32-bit plugin host: "+host)
+	}
 	var contentDir string
 	if plan != nil {
 		contentDir, err = os.MkdirTemp("", "openomsi-bbs-pedepe-")

@@ -28,6 +28,16 @@ type pedepeSituationMetadata struct {
 	Map, Bus, Date, Clock string
 }
 
+// Native launches need the same retained 32-bit host as the legacy bridge.
+// Its executable must live in the OMSI root where BBS creates bbs.start.
+func peDePePluginEnvironment(c Config, packageDir string, env []string) ([]string, string, error) {
+	deployment, err := preparePluginHost(c, packageDir)
+	if err != nil {
+		return nil, "", err
+	}
+	return pluginEnvironment(env, deployment.Path), deployment.Path, nil
+}
+
 // Read the fresh BCS weather snapshot before waiting for multiplayer startup:
 // the native vendor command currently says natural rather than supplying the
 // temperature saved beside laststn.osn. Keep explicit future weather arguments.
