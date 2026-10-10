@@ -64,7 +64,13 @@ func main() {
 			"Der Firmen-Multiplayer ist nicht bereit. Die Fahrt wird nicht als Einzelspieler gestartet, damit BBS keinen falschen Datensatz speichert.\n")+err.Error())
 		os.Exit(3)
 	}
-	launchArgs := peDePeForwardArgs(args, plan)
+	freshArgs, err := peDePeFreshTripArgs(args, cfg.Root)
+	if err != nil {
+		peDePeAdapterFail(logPath, cfg.Language, "BBS fresh-trip conversion: "+err.Error())
+		os.Exit(6)
+	}
+	launchArgs := peDePeForwardArgs(freshArgs, plan)
+	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-1 outgoing argv="+fmt.Sprintf("%q", launchArgs))
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {

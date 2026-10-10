@@ -3,8 +3,10 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -355,4 +357,205 @@ func peDePeForwardArgs(original []string, plan *MultiplayerPlan) []string {
 		out = append(out, multiplayerArguments(plan)...)
 	}
 	return out
+}
+
+// Saved PeDePe launch templates are new BBS trips, not player quicksave resumes.
+// openOMSI 0.2.27 deliberately skips startup and initial IBIS typing whenever
+// Args::is_resuming sees --situation, even if --autostart is present. Expand the
+// template into explicit fresh-trip arguments without editing the source file.
+func peDePeFreshTripArgs(original []string, configuredRoot string) ([]string, error) {
+	in := parsePeDePeNativeInvocation(original)
+	if in.Situation == "" || in.Probe || in.Server || !in.HasSchedule || in.Line == "" || in.Tour == "" || in.Trip == "" {
+		return append([]string(nil), original...), nil
+	}
+	root := in.Root
+	if root == "" {
+		root = configuredRoot
+	}
+	meta, err := readPeDePeSituation(root, in.Situation)
+	if err != nil {
+		return nil, err
+	}
+	path, err := peDePeSituationPath(root, in.Situation)
+	if err != nil {
+		return nil, err
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	lines := strings.Split(strings.ReplaceAll(decodeText(data), "\r\n", "\n"), "\n")
+	type savedBus struct {
+		file, hof, paint string
+		pos, rotation    [3]float64
+		tx, ty           int
+		valid            bool
+	}
+	var buses []savedBus
+	current, mine, index := -1, -1, -1
+	for i := 0; i < len(lines); i++ {
+		switch strings.ToLower(strings.TrimSpace(lines[i])) {
+		case "[vehicle]":
+			file, j, ok := pedepeSituationNext(lines, i+1)
+			if !ok {
+				return nil, fmt.Errorf("invalid saved BBS vehicle")
+			}
+			b := savedBus{file: file}
+			var nums [13]float64 // position 3, quaternion/motion 7, tile 2, odometer 1
+			pos := j + 1
+			for n := range nums {
+				v, k, found := pedepeSituationNext(lines, pos)
+				if !found {
+					return nil, fmt.Errorf("incomplete saved BBS vehicle position")
+				}
+				x, e := strconv.ParseFloat(strings.ReplaceAll(v, ",", "."), 64)
+				if e != nil || math.IsNaN(x) || math.IsInf(x, 0) {
+					return nil, fmt.Errorf("invalid saved BBS vehicle position: %q", v)
+				}
+				nums[n], pos = x, k+1
+			}
+			b.pos = [3]float64{nums[0], nums[1], nums[2]}
+			b.rotation = [3]float64{nums[4], nums[6], 0} // quaternion y,w
+			if math.Trunc(nums[10]) != nums[10] || math.Trunc(nums[11]) != nums[11] || math.Abs(nums[10]) > 1000000 || math.Abs(nums[11]) > 1000000 {
+				return nil, fmt.Errorf("invalid saved BBS tile")
+			}
+			b.tx, b.ty = int(nums[10]), int(nums[11])
+			// HOF can be an empty physical line; do not skip into the next section.
+			if pos < len(lines) {
+				b.hof = strings.TrimSpace(lines[pos])
+			}
+			b.valid = true
+			buses = append(buses, b)
+			current = len(buses) - 1
+			i = pos
+		case "[ismyvehicle]":
+			mine = current
+		case "[myvehicle]":
+			if v, _, ok := pedepeSituationNext(lines, i+1); ok {
+				if n, e := strconv.Atoi(v); e == nil {
+					index = n
+				}
+			}
+		case "[vars]":
+			if current < 0 {
+				continue
+			}
+			v, j, ok := pedepeSituationNext(lines, i+1)
+			if !ok {
+				continue
+			}
+			n, e := strconv.Atoi(v)
+			if e != nil || n < 0 || n > 100000 {
+				return nil, fmt.Errorf("invalid saved variable count")
+			}
+			pos := j + 1
+			for k := 0; k < n; k++ {
+				name, a, ok := pedepeSituationNext(lines, pos)
+				if !ok {
+					return nil, fmt.Errorf("incomplete saved variables")
+				}
+				value, z, ok := pedepeSituationNext(lines, a+1)
+				if !ok {
+					return nil, fmt.Errorf("incomplete saved variables")
+				}
+				if strings.EqualFold(name, "Colorscheme") {
+					x, e := strconv.ParseFloat(strings.ReplaceAll(value, ",", "."), 64)
+					if e == nil && !math.IsNaN(x) && !math.IsInf(x, 0) && x >= 0 && x < 100000 {
+						buses[current].paint = strconv.FormatInt(int64(x), 10)
+					}
+				}
+				pos = z + 1
+			}
+			i = pos - 1
+		}
+	}
+	if mine < 0 && index >= 0 && index < len(buses) {
+		mine = index
+	}
+	if mine < 0 && len(buses) == 1 {
+		mine = 0
+	}
+	if mine < 0 || mine >= len(buses) || !buses[mine].valid || meta.Date == "" || meta.Clock == "" {
+		return nil, fmt.Errorf("BBS template lacks a player bus or valid date/time")
+	}
+	b := buses[mine]
+	mapFile := normalizePeDePeAsset(root, meta.Map)
+	if !filepath.IsAbs(mapFile) {
+		mapFile = filepath.Join(root, mapFile)
+	}
+	x, y, err := peDePeSavedPosition(mapFile, b.tx, b.ty, b.pos[0], b.pos[2])
+	if err != nil {
+		return nil, err
+	}
+	yaw := math.Mod(2*math.Atan2(b.rotation[0], b.rotation[1])*180/math.Pi+360, 360)
+	out := make([]string, 0, len(original)+18)
+	for i := 0; i < len(original); i++ {
+		if original[i] == "--situation" {
+			i++
+			continue
+		}
+		if strings.HasPrefix(original[i], "--situation=") {
+			continue
+		}
+		out = append(out, original[i])
+	}
+	add := func(flag, value string) {
+		if !pedepeHasArg(out, flag) && value != "" {
+			out = append(out, flag, value)
+		}
+	}
+	add("--map", normalizePeDePeAsset(root, meta.Map))
+	add("--bus", normalizePeDePeAsset(root, b.file))
+	add("--date", meta.Date)
+	add("--time", meta.Clock) // retain the BBS lead-in, not departure time
+	add("--spawn", fmt.Sprintf("%.9f,%.9f,%.9f,%.9f", x, y, yaw, b.pos[1]))
+	add("--hof", b.hof)
+	add("--paint", b.paint)
+	return out, nil
+}
+
+// Match the v0.2.27 map grid, including world-coordinate maps (Spandau).
+func peDePeSavedPosition(mapPath string, tx, ty int, lx, ly float64) (float64, float64, error) {
+	data, err := os.ReadFile(mapPath)
+	if err != nil {
+		return 0, 0, fmt.Errorf("read BBS map grid: %w", err)
+	}
+	lines := strings.Split(strings.ReplaceAll(decodeText(data), "\r\n", "\n"), "\n")
+	world := false
+	var rows []int
+	for i, l := range lines {
+		switch strings.ToLower(strings.TrimSpace(l)) {
+		case "[worldcoordinates]":
+			world = true
+		case "[map]":
+			_, j, ok := pedepeSituationNext(lines, i+1)
+			if !ok {
+				continue
+			}
+			v, _, ok := pedepeSituationNext(lines, j+1)
+			if ok {
+				if y, e := strconv.Atoi(v); e == nil {
+					rows = append(rows, y)
+				}
+			}
+		}
+	}
+	size, kx, ky := 300.0, 1.0, 1.0
+	if world {
+		size = 371.9
+		if _, old := os.LookupEnv("OMSI_OLD_WORLD_GRID"); !old {
+			width := func(row int) float64 {
+				lat := 2*math.Atan(math.Exp(2*math.Pi*float64(row)/65536)) - math.Pi/2
+				return 40075016.69 * math.Cos(lat) / 65536
+			}
+			if len(rows) > 0 {
+				sort.Ints(rows)
+				r := rows[len(rows)/2]
+				size = (width(r) + width(r+1)) / 2
+			}
+			kx = size / ((width(ty) + width(ty+1)) / 2)
+			ky = size / width(ty+1)
+		}
+	}
+	return float64(tx)*size + lx*kx, float64(ty)*size + ly*ky, nil
 }
