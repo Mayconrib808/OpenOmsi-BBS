@@ -99,12 +99,12 @@ func verifyPackage(dir string) (int, error) {
 	if e = scan.Err(); e != nil {
 		return count, e
 	}
-	for _, required := range []string{"setup.exe", "app/openomsi_bcs_bridge.exe", "app/compat/omsi.exe", "app/compat/omsi-plugin-host32.exe"} {
+	for _, required := range []string{"setup.exe", "pedepeadapter/openomsi.exe", "app/openomsi_bcs_bridge.exe", "app/compat/omsi.exe", "app/compat/omsi-plugin-host32.exe"} {
 		if !seen[required] {
 			return count, fmt.Errorf("manifest lacks required component: %s", required)
 		}
 	}
-	if count < 4 {
+	if count < 5 {
 		return count, fmt.Errorf("empty or incomplete manifest")
 	}
 	return count, nil
@@ -124,7 +124,7 @@ func collectLogs(dir string, c Config) (string, error) {
 	temp := tmp.Name()
 	defer os.Remove(temp)
 	archive := zip.NewWriter(tmp)
-	files := []string{"bridge.ini", "bridge-v1.1.3.log", "bridge-v1.1.3-trip.txt", "setup-v1.1.3.log", "multiplayer-requirements.html", "compat/compat-facade-v1.1.3.log", "compat/driver-state-v1.1.3.txt", "compat/bcs-driver-before-v1.1.3.odr", "compat/bcs-driver-openomsi-v1.1.3.odr", "compat/bcs-driver-current-v1.1.3.odr", "compat/bcs-log-path-v1.1.3.txt"}
+	files := []string{"bridge.ini", "pedepe-native-v2.1.log", "bridge-v1.1.3.log", "bridge-v1.1.3-trip.txt", "setup-v1.1.3.log", "multiplayer-requirements.html", "compat/compat-facade-v1.1.3.log", "compat/driver-state-v1.1.3.txt", "compat/bcs-driver-before-v1.1.3.odr", "compat/bcs-driver-openomsi-v1.1.3.odr", "compat/bcs-driver-current-v1.1.3.odr", "compat/bcs-log-path-v1.1.3.txt"}
 	sources := map[string]string{}
 	// Only the agent log is collected. HostAgent.local.json has private keys.
 	sources["HostAgent.log"] = filepath.Join(managedDataDir(dir), "HostAgent.log")
