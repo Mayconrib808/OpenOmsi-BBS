@@ -1,0 +1,51 @@
+name: Deploy Cloudflare directory
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/cloudflare-directory.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cloudflare-directory-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout validated 3.0 directory
+        uses: actions/checkout@v4
+        with:
+          ref: 3e16e02364b0771bf912536ec6b1da660b5490c3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test directory protocols
+        working-directory: relay
+        run: npm test
+      - name: Check Cloudflare secrets
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "::error::Missing CLOUDFLARE_API_TOKEN"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "::error::Missing CLOUDFLARE_ACCOUNT_ID"; exit 1; }
+      - name: Deploy existing Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: relay
+          command: deploy
+      - name: Verify live version 3 route
+        run: |
+          node --input-type=module <<'JS'
+          const url = 'https://openomsi-bbs-directory.maycongamesmaximo.workers.dev/rooms/00000000000000000000000000000000/v3/capabilities';
+          const response = await fetch(url);
+          const result = await response.json();
+          if (!response.ok || result.version !== 3 || result.lease_ms !== 60000) {
+            throw new Error('Live directory did not return version 3 capabilities');
+          }
+          console.log('Live directory supports version 3.');
+          JS
