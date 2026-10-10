@@ -377,6 +377,30 @@ func TestPeDePeFreshSituationStartsDutyInsteadOfResuming(t *testing.T) {
 	if !reflect.DeepEqual(got, again) {
 		t.Fatal("autostart duplicated")
 	}
+	negative := strings.ReplaceAll(strings.ReplaceAll(saved, "\n2394\n", "\n-2394\n"), "\n11288\n", "\n-11288\n")
+	if err := os.WriteFile(situation, []byte(negative), 0644); err != nil {
+		t.Fatal(err)
+	}
+	negativeArgs, err := peDePeFreshTripArgs(original, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	spawn, _ = pedepeArgValue(negativeArgs, "--spawn")
+	if !strings.HasPrefix(spawn, "-") {
+		t.Fatal("test must exercise a negative map coordinate", spawn)
+	}
+	attached := false
+	for _, arg := range negativeArgs {
+		if arg == "--spawn" {
+			t.Fatal("negative coordinate remains a separate option-like token")
+		}
+		if arg == "--spawn="+spawn {
+			attached = true
+		}
+	}
+	if !attached {
+		t.Fatal("spawn value was not attached to its option")
+	}
 }
 
 func TestPeDePeFreshSituationLeavesManualResumesAndRejectsBrokenTemplates(t *testing.T) {

@@ -34,6 +34,10 @@ func TestWeatherSnapshotBoundToMapDateAndRecentStableFile(t *testing.T) {
 	if err != nil || source != situation+".owt" || !strings.Contains(weather, "pt=1") {
 		t.Fatal(weather, source, err)
 	}
+	_ = os.WriteFile(situation, []byte("[map]\n"+filepath.Join(dir, "global.cfg")+"\n[time]\n2026\n280\n15\n30\n0\n"), 0600)
+	if _, _, err = readBCSWeather(root, "maps/Sample/global.cfg", "2026-10-07", time.Now()); err != nil {
+		t.Fatal("absolute BBS map path rejected", err)
+	}
 	if _, _, err = readBCSWeather(root, "maps/Sample/global.cfg", "2026-10-08", time.Now()); err == nil {
 		t.Fatal("previous day weather reused")
 	}

@@ -3,12 +3,25 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 )
+
+type peDePeGameOutput struct {
+	parent, log io.Writer
+}
+
+func (w peDePeGameOutput) Write(b []byte) (int, error) {
+	// A GUI parent can lack a console handle. Still retain the actual parser
+	// error without making an unavailable output handle stop the child process.
+	_, _ = w.log.Write(b)
+	_, _ = w.parent.Write(b)
+	return len(b), nil
+}
 
 func peDePeAdapterLog(path, text string) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
@@ -106,7 +119,7 @@ func main() {
 			peDePeAdapterLog(logPath, fmt.Sprintf("driver translation: simulator=%s BBS=%s baseline stops=%d", driver.OpenPath, driver.NativePath, driver.Last.Stops[0]))
 		}
 	}
-	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-bbs-weather-5 outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-negative-spawn-6 outgoing argv="+fmt.Sprintf("%q", launchArgs))
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {
@@ -142,6 +155,13 @@ func main() {
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	if gameOutput, e := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644); e == nil {
+		defer gameOutput.Close()
+		cmd.Stdout = peDePeGameOutput{parent: os.Stdout, log: gameOutput}
+		cmd.Stderr = peDePeGameOutput{parent: os.Stderr, log: gameOutput}
+	} else {
+		peDePeAdapterLog(logPath, "cannot capture real openOMSI output: "+e.Error())
+	}
 	peDePeAdapterLog(logPath, "forwarding to real openOMSI: "+real)
 	stopDriver := make(chan struct{})
 	driverStopped := make(chan struct{})

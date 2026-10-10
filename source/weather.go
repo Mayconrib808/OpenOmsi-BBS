@@ -147,7 +147,16 @@ func readBCSWeather(root, mapFile, date string, now time.Time) (string, string, 
 			continue
 		}
 		s := weatherSections(decodeText(b))
-		if len(s["map"]) < 1 || companyAssetKey(s["map"][0]) != companyAssetKey(mapFile) || len(s["time"]) < 2 {
+		savedMap := ""
+		if len(s["map"]) > 0 {
+			savedMap = filepath.FromSlash(strings.ReplaceAll(s["map"][0], "\\", "/"))
+			if filepath.IsAbs(savedMap) {
+				if relative, err := filepath.Rel(root, savedMap); err == nil {
+					savedMap = relative
+				}
+			}
+		}
+		if companyAssetKey(savedMap) != companyAssetKey(mapFile) || len(s["time"]) < 2 {
 			lastErr = fmt.Errorf("situation belongs to a different map")
 			continue
 		}

@@ -586,7 +586,11 @@ func peDePeFreshTripArgs(original []string, configuredRoot string) ([]string, er
 	add("--bus", normalizePeDePeAsset(root, b.file))
 	add("--date", meta.Date)
 	add("--time", meta.Clock) // retain the BBS lead-in, not departure time
-	add("--spawn", fmt.Sprintf("%.9f,%.9f,%.9f,%.9f", x, y, yaw, b.pos[1]))
+	// clap treats a separate value starting with '-' as another option unless
+	// allow_hyphen_values is set. Upstream's spawn String has no such setting.
+	if !pedepeHasArg(out, "--spawn") {
+		out = append(out, "--spawn="+fmt.Sprintf("%.9f,%.9f,%.9f,%.9f", x, y, yaw, b.pos[1]))
+	}
 	add("--hof", b.hof)
 	add("--paint", b.paint)
 	return out, nil
