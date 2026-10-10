@@ -20,8 +20,47 @@ func TestPeDePeNativeInvocationKeepsOfficialTripArguments(t *testing.T) {
 	if in.Map != `maps\Ruhrau V2\global.cfg` || in.Bus != `Vehicles\MAN\MAN.bus` || in.Clock != "05:42:00" || in.Date != "2026-10-10" || !in.HasSchedule {
 		t.Fatalf("unexpected native invocation: %+v", in)
 	}
+	if in.Line != "2731" || in.Tour != "03" {
+		t.Fatalf("schedule metadata lost: %+v", in)
+	}
 	if in.HasLANJoin || in.Server || in.Probe {
 		t.Fatalf("normal BBS trip misclassified: %+v", in)
+	}
+}
+
+func TestPeDePeCurrentSituationLaunchGetsAutostartWithoutRewritingVendorArgs(t *testing.T) {
+	original := []string{
+		"--root", `F:\SteamLibrary\steamapps\common\OMSI 2`,
+		"--no-menu",
+		"--situation", `F:\SteamLibrary\steamapps\common\OMSI 2\maps\Berlin-Spandau\laststn.osn`,
+		"--passengers", "--traffic", "30", "--driver", "Drivers/bbs.odr",
+		"--schedule", "--line", "130 & N30", "--tour", "Mo-Fr 9", "--trip", "04:05",
+		"--keep-time", "--weather", "natural",
+	}
+	in := parsePeDePeNativeInvocation(original)
+	if in.Situation == "" || in.Line != "130 & N30" || in.Tour != "Mo-Fr 9" || in.Trip != "04:05" || !in.HasSchedule {
+		t.Fatalf("real PeDePe situation launch parsed incorrectly: %+v", in)
+	}
+	if !shouldAddPeDePeAutoStart(in) {
+		t.Fatal("scheduled PeDePe BBS trip should restore legacy --autostart/IBIS behaviour")
+	}
+	got := peDePeForwardArgs(original, nil)
+	if !reflect.DeepEqual(got[:len(original)], original) {
+		t.Fatalf("PeDePe vendor arguments changed: got %#v want prefix %#v", got, original)
+	}
+	if !reflect.DeepEqual(got[len(original):], []string{"--autostart"}) {
+		t.Fatalf("wrong compatibility tail: %#v", got[len(original):])
+	}
+}
+
+func TestPeDePeAutoStartIsNeverDuplicatedOrAddedToProbe(t *testing.T) {
+	already := []string{"--schedule", "--line", "10", "--tour", "1", "--autostart"}
+	if got := peDePeForwardArgs(already, nil); !reflect.DeepEqual(got, already) {
+		t.Fatalf("duplicated or rewrote --autostart: %#v", got)
+	}
+	probe := []string{"--version", "--schedule", "--line", "10", "--tour", "1"}
+	if got := peDePeForwardArgs(probe, nil); !reflect.DeepEqual(got, probe) {
+		t.Fatalf("probe must remain transparent: %#v", got)
 	}
 }
 
