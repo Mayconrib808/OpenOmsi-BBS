@@ -37,7 +37,8 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: relay
-          command: deploy
+          wranglerVersion: '4.149.0'
+          command: deploy --config wrangler.jsonc
       - name: Verify live version 3 route
         run: |
           node --input-type=module <<'JS'
