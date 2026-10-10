@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -50,6 +51,68 @@ func TestPeDePeCurrentSituationLaunchGetsAutostartWithoutRewritingVendorArgs(t *
 	}
 	if !reflect.DeepEqual(got[len(original):], []string{"--autostart"}) {
 		t.Fatalf("wrong compatibility tail: %#v", got[len(original):])
+	}
+}
+
+func TestPeDePeSituationLaunchResolvesCompanyMultiplayerTrip(t *testing.T) {
+	root := t.TempDir()
+	mapDir := filepath.Join(root, "maps", "Berlin-Spandau")
+	if err := os.MkdirAll(mapDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	situation := filepath.Join(mapDir, "laststn.osn")
+	text := "[map]\n" + filepath.Join("maps", "Berlin-Spandau", "global.cfg") + "\n" +
+		"[time]\n2026\n283\n03\n59\n30\n" +
+		"[vehicle]\n" + filepath.Join("Vehicles", "MAN", "MAN.bus") + "\n[ismyvehicle]\n"
+	if err := os.WriteFile(situation, []byte(text), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c := defaultConfig()
+	c.Root = root
+	c.Multiplayer = true
+	args := []string{
+		"--root", root, "--no-menu", "--situation", situation,
+		"--schedule", "--line", "130 & N30", "--tour", "Mo-Fr 9", "--trip", "04:05",
+		"--keep-time", "--weather", "natural",
+	}
+	in := parsePeDePeNativeInvocation(args)
+	if !shouldInjectPeDePeMultiplayer(in, c) {
+		t.Fatal("PeDePe saved-situation trip should receive company multiplayer")
+	}
+	trip, err := peDePeMultiplayerTrip(c, in, time.Date(2026, 1, 1, 0, 0, 0, 0, time.Local))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trip.MapName != "Berlin-Spandau" || trip.Date != "2026-10-10" || trip.Start != "04:05" || trip.Weather != "natural" {
+		t.Fatalf("wrong resolved trip: %+v", trip)
+	}
+	if trip.MapFile != filepath.Join("maps", "Berlin-Spandau", "global.cfg") {
+		t.Fatalf("wrong map file: %q", trip.MapFile)
+	}
+	if trip.BusFile != filepath.Join("Vehicles", "MAN", "MAN.bus") {
+		t.Fatalf("wrong player bus: %q", trip.BusFile)
+	}
+}
+
+func TestPeDePeSituationClockIsFallbackWhenTripIsNotAClock(t *testing.T) {
+	root := t.TempDir()
+	mapDir := filepath.Join(root, "maps", "Sample")
+	if err := os.MkdirAll(mapDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	situation := filepath.Join(mapDir, "laststn.osn")
+	if err := os.WriteFile(situation, []byte("[map]\n"+filepath.Join("maps", "Sample", "global.cfg")+"\n[time]\n2026\n283\n12\n34\n56\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c := defaultConfig()
+	c.Root = root
+	in := pedepeNativeInvocation{Root: root, Situation: situation, Trip: "Trip A", Weather: "natural"}
+	trip, err := peDePeMultiplayerTrip(c, in, time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if trip.Start != "12:34:56" || trip.Date != "2026-10-10" || trip.MapName != "Sample" {
+		t.Fatalf("situation fallback not used: %+v", trip)
 	}
 }
 
