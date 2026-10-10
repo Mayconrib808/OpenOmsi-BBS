@@ -9,11 +9,15 @@ import (
 )
 
 // PeDePe's native BBS integration already chooses the map, bus, timetable,
-// driver and trip-evaluation path. The 2.1 adapter deliberately treats that
-// command line as authoritative and only adds the company multiplayer join.
+// driver and trip-evaluation path. The 2.1 adapter treats that command line as
+// authoritative, restoring only bridge behaviour PeDePe does not request
+// (notably openOMSI --autostart for a real scheduled BBS trip) and adding the
+// company multiplayer join when required.
 type pedepeNativeInvocation struct {
 	Root, Map, Bus, Date, Clock, Weather string
-	HasSchedule, HasLANJoin, Server, Probe bool
+	Situation, Line, Tour, Trip          string
+	HasSchedule, HasAutoStart            bool
+	HasLANJoin, Server, Probe            bool
 }
 
 func pedepeArgValue(args []string, name string) (string, bool) {
@@ -53,7 +57,12 @@ func parsePeDePeNativeInvocation(args []string) pedepeNativeInvocation {
 	in.Date, _ = pedepeArgValue(args, "--date")
 	in.Clock, _ = pedepeArgValue(args, "--time")
 	in.Weather, _ = pedepeArgValue(args, "--weather")
+	in.Situation, _ = pedepeArgValue(args, "--situation")
+	in.Line, _ = pedepeArgValue(args, "--line")
+	in.Tour, _ = pedepeArgValue(args, "--tour")
+	in.Trip, _ = pedepeArgValue(args, "--trip")
 	in.HasSchedule = pedepeHasArg(args, "--schedule")
+	in.HasAutoStart = pedepeHasArg(args, "--autostart")
 	in.HasLANJoin = pedepeHasArg(args, "--lan-join")
 	in.Server = pedepeHasArg(args, "--server")
 	in.Probe = pedepeHasArg(args, "--help") || pedepeHasArg(args, "-h") || pedepeHasArg(args, "--version") || pedepeHasArg(args, "-V")
@@ -88,9 +97,20 @@ func pedepeMapName(mapFile string) string {
 	return strings.TrimSuffix(filepath.Base(mapFile), filepath.Ext(mapFile))
 }
 
-// Only treat a launch as a BBS trip when PeDePe supplied enough trip context.
-// Menu/probe/server launches stay byte-for-byte transparent. If a future BBS
-// already provides --lan-join, our company layer steps aside automatically.
+// PeDePe's current native beta launches BBS trips from laststn.osn and passes
+// --schedule/--line/--tour/--trip, but it does not pass --autostart. The legacy
+// bridge did, and openOMSI uses it to put the player bus into service before the
+// run (the path that also performs the automatic IBIS/destination setup).
+func shouldAddPeDePeAutoStart(in pedepeNativeInvocation) bool {
+	if in.Probe || in.Server || in.HasAutoStart || !in.HasSchedule {
+		return false
+	}
+	return strings.TrimSpace(in.Line) != "" && strings.TrimSpace(in.Tour) != ""
+}
+
+// Only treat a launch as a company multiplayer trip when PeDePe supplied enough
+// direct map/time context. Situation-based launches are handled separately once
+// their saved situation metadata has been resolved; never guess a map or clock.
 func shouldInjectPeDePeMultiplayer(in pedepeNativeInvocation, c Config) bool {
 	if !c.Multiplayer || in.Probe || in.Server || in.HasLANJoin {
 		return false
@@ -158,6 +178,9 @@ func peDePeCompanyPlan(ctx context.Context, c Config, packageDir string, args []
 
 func peDePeForwardArgs(original []string, plan *MultiplayerPlan) []string {
 	out := append([]string(nil), original...)
+	if shouldAddPeDePeAutoStart(parsePeDePeNativeInvocation(original)) {
+		out = append(out, "--autostart")
+	}
 	if plan != nil {
 		out = append(out, multiplayerArguments(plan)...)
 	}
