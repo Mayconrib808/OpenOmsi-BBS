@@ -18,7 +18,7 @@ $report = [ordered]@{
     scans = @()
     error = $null
 }
-$executables = @('Setup.exe', 'HostAgent.exe', 'CompanyHost.exe',
+$executables = @('Setup.exe', 'HostAgent.exe', 'CompanyHost.exe', 'PeDePeAdapter/openomsi.exe',
     'app/OpenOMSI_BCS_Bridge.exe', 'app/compat/Omsi.exe', 'app/compat/omsi-plugin-host32.exe', 'app/server/openomsi.exe',
     'app/server/steam_api64.dll', 'app/server/vcruntime140.dll',
     'app/server/vcruntime140_1.dll', 'app/server/msvcp140.dll')
