@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "2.0.5-dev.4"
+const bridgeVersion = "2.1.0"
 const bridgeAuthor = "Mayconrib808"
 
 // Large maps can take several minutes on first load. All startup watchers share one limit.
@@ -43,13 +43,14 @@ func affirmativeAnswer(s string) bool {
 	}
 }
 
-// Display required BCS/BBS setup separately from the known map issue.
-// The bridge does not change the user's BCS/BBS settings or map assets.
+// PeDePe added native openOMSI support on 2026-10-09. The preferred 2.1 flow
+// uses PeDePeAdapter/openomsi.exe as the OpenOMSI path in BBS. The historical
+// IFEO bridge remains in the package only as a compatibility fallback.
 func usageNotices(lang string) string {
 	return bugReportNotice(lang) + localText(lang,
-		"\nOBRIGATÓRIO NO BCS/BBS: Definições > Definições avançadas > OMSI.\nDeixe DESMARCADO \"Iniciar o OMSI mais depressa\" antes de iniciar qualquer viagem com a bridge.\n\nPROBLEMA CONHECIDO: Berlin-Spandau não está carregando corretamente no openOMSI 0.2.0; ruas/trechos podem faltar. Esta versão não corrige o mapa. Para jogar nele, desative a bridge (opção 3) e use o OMSI original. Desmarcar a opção acima não é uma correção para Berlin-Spandau.\n",
-		"\nREQUIRED IN BCS/BBS: Settings > Advanced settings > OMSI.\nLeave \"Start OMSI faster\" UNCHECKED before starting any trip with the bridge.\n\nKNOWN ISSUE: Berlin-Spandau is not loading correctly in openOMSI 0.2.0; roads/sections may be missing. This version does not fix the map. To play it, deactivate the bridge (option 3) and use original OMSI. Unchecking the setting above is not a fix for Berlin-Spandau.\n",
-		"\nERFORDERLICH IN BBS: Einstellungen > Erweiterte Einstellungen > OMSI.\nLasse \"OMSI schneller starten\" DEAKTIVIERT (Häkchen entfernen), bevor du eine Fahrt mit der Bridge startest.\n\nBEKANNTES PROBLEM: Berlin-Spandau wird in openOMSI 0.2.0 nicht korrekt geladen; Straßen oder Kartenabschnitte können fehlen. Diese Version behebt das Kartenproblem nicht. Deaktiviere die Bridge (Option 3) und nutze das originale OMSI für diese Karte. Das Deaktivieren der obigen Einstellung behebt das Problem mit Berlin-Spandau nicht.\n")
+		"\nMODO RECOMENDADO NO BCS/BBS: selecione OpenOMSI (Beta) e use a pasta PeDePeAdapter deste pacote como caminho do OpenOMSI. O BBS passa mapa, ônibus, horário, motorista e finalização diretamente; a 2.1.0 acrescenta somente o multiplayer da empresa quando necessário. Não use F9 para finalizar no modo nativo.\n\nMODO LEGADO: a ativação antiga por Omsi.exe continua disponível apenas como fallback. Nesse modo, mantenha \"Iniciar o OMSI mais depressa\" desmarcado e siga o procedimento legado de finalização.\n",
+		"\nRECOMMENDED BCS/BBS MODE: select OpenOMSI (Beta) and use this package's PeDePeAdapter folder as the OpenOMSI path. BBS supplies the map, bus, time, driver and trip completion directly; 2.1.0 only adds company multiplayer when needed. Do not use F9 to finish a native-mode trip.\n\nLEGACY MODE: the old Omsi.exe interception remains only as a fallback. In that mode keep \"Start OMSI faster\" unchecked and use the legacy completion procedure.\n",
+		"\nEMPFOHLENER BBS-MODUS: Wähle OpenOMSI (Beta) und den Ordner PeDePeAdapter dieses Pakets als OpenOMSI-Pfad. BBS übergibt Karte, Bus, Zeit, Fahrer und Fahrtabschluss direkt; 2.1.0 ergänzt nur bei Bedarf den Firmen-Multiplayer. Im nativen Modus ist F9 zum Beenden nicht erforderlich.\n\nLEGACY-MODUS: Die alte Umleitung über Omsi.exe bleibt nur als Fallback erhalten. Dort \"OMSI schneller starten\" deaktiviert lassen und den alten Abschlussablauf verwenden.\n")
 }
 
 // The public contact is shown in the selected language; no reports are sent automatically.
