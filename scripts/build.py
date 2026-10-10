@@ -142,7 +142,7 @@ def archive_package(directory: Path) -> Path:
             entry.external_attr = (0o100644 << 16)
             archive.writestr(entry, p.read_bytes(), compresslevel=9)
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    target.with_name(target.name + ".zip.sha256").write_text(f"{digest}  {target.name}\n", encoding="utf-8")
+    target.with_name(target.name + ".sha256").write_text(f"{digest}  {target.name}\n", encoding="utf-8")
     print(f"Complete package: {target}\nZIP SHA-256: {digest}")
     return target
 
