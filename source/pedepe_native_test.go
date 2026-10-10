@@ -96,6 +96,62 @@ func TestPeDePePublishesSavedStopsToBBSWatchedFile(t *testing.T) {
 	}
 }
 
+func TestPeDePeRestoresBCSWeatherForClientAndNewMultiplayerSession(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "maps", "Map Carrao City")
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	situation := filepath.Join(dir, "laststn.osn")
+	text := "[map]\nmaps/Map Carrao City/global.cfg\n[time]\n2026\n283\n08\n17\n00\n[vehicle]\nVehicles/Bus/Bus.bus\n[ismyvehicle]\n"
+	if err := os.WriteFile(situation, []byte(text), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(situation+".owt", encodedLog(rainyBCSWeather, "le"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	base := []string{"--root", root, "--situation", situation, "--schedule", "--line", "2002", "--tour", "04", "--trip", "08:25"}
+	for _, flags := range [][]string{{"--weather", "natural"}, {"--weather=natural"}, nil} {
+		args := append(append([]string(nil), base...), flags...)
+		before := append([]string(nil), args...)
+		got, source, err := peDePeWeatherArgs(args, root, time.Now())
+		if err != nil || source != situation+".owt" {
+			t.Fatal(source, err)
+		}
+		weather, _ := pedepeArgValue(got, "--weather")
+		if !validBridgeWeather(weather) || !strings.Contains(weather, ";t=12.000;") || !strings.Contains(weather, ";pt=1;") {
+			t.Fatal("BCS temperature/rain lost", weather)
+		}
+		trip, err := peDePeMultiplayerTrip(Config{Root: root}, parsePeDePeNativeInvocation(got), time.Now())
+		if err != nil || trip.Weather != weather {
+			t.Fatal("new server demand would lose the BCS weather", trip, err)
+		}
+		if !reflect.DeepEqual(args, before) {
+			t.Fatal("input command mutated")
+		}
+	}
+	explicit := append(append([]string(nil), base...), "--weather", "Clear")
+	got, source, err := peDePeWeatherArgs(explicit, root, time.Now())
+	if err != nil || source != "" || !reflect.DeepEqual(got, explicit) {
+		t.Fatal("explicit vendor weather replaced", got, source, err)
+	}
+	natural := append(append([]string(nil), base...), "--weather", "natural")
+	old := time.Now().Add(-time.Hour)
+	if err := os.Chtimes(situation+".owt", old, old); err != nil {
+		t.Fatal(err)
+	}
+	got, source, err = peDePeWeatherArgs(natural, root, time.Now())
+	if err == nil || source != "" || !reflect.DeepEqual(got, natural) {
+		t.Fatal("stale weather used or fallback command changed", got, source, err)
+	}
+	for _, args := range [][]string{{"--help"}, {"--server", "server.cfg"}, {"--schedule", "--line", "2002"}} {
+		got, _, err := peDePeWeatherArgs(args, root, time.Now())
+		if err != nil || !reflect.DeepEqual(got, args) {
+			t.Fatal("probe, dedicated server or incomplete trip altered", got, err)
+		}
+	}
+}
+
 func TestPeDePeNativeInvocationKeepsOfficialTripArguments(t *testing.T) {
 	args := []string{
 		"--root", `C:\OMSI 2`, "--no-menu",

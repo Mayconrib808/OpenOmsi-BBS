@@ -28,6 +28,56 @@ type pedepeSituationMetadata struct {
 	Map, Bus, Date, Clock string
 }
 
+// Read the fresh BCS weather snapshot before waiting for multiplayer startup:
+// the native vendor command currently says natural rather than supplying the
+// temperature saved beside laststn.osn. Keep explicit future weather arguments.
+func peDePeWeatherArgs(args []string, configuredRoot string, now time.Time) ([]string, string, error) {
+	out := append([]string(nil), args...)
+	in := parsePeDePeNativeInvocation(args)
+	if in.Probe || in.Server || !in.HasSchedule || in.Line == "" || in.Tour == "" || in.Trip == "" || (in.Weather != "" && !strings.EqualFold(in.Weather, "natural")) {
+		return out, "", nil
+	}
+	root := in.Root
+	if root == "" {
+		root = configuredRoot
+	}
+	mapFile, date := in.Map, in.Date
+	if in.Situation != "" && (mapFile == "" || date == "") {
+		meta, err := readPeDePeSituation(root, in.Situation)
+		if err != nil {
+			return out, "", err
+		}
+		if mapFile == "" {
+			mapFile = meta.Map
+		}
+		if date == "" {
+			date = meta.Date
+		}
+	}
+	if mapFile == "" || date == "" {
+		return out, "", fmt.Errorf("BCS weather requires the selected map and date")
+	}
+	weather, source, err := readBCSWeather(root, normalizePeDePeAsset(root, mapFile), date, now)
+	if err != nil {
+		return out, "", err
+	}
+	found := false
+	for i := 0; i < len(out); i++ {
+		if out[i] == "--weather" && i+1 < len(out) {
+			out[i+1] = weather
+			found = true
+			i++
+		} else if strings.HasPrefix(out[i], "--weather=") {
+			out[i] = "--weather=" + weather
+			found = true
+		}
+	}
+	if !found {
+		out = append(out, "--weather", weather)
+	}
+	return out, source, nil
+}
+
 // BBS OpenOmsi.java resolves its driver under the selected executable directory,
 // independently of --root (the OMSI asset directory). Verified in the supplied
 // BBS JAR: system.D.b() = system.m.ah() + "Drivers\\bbs.odr".

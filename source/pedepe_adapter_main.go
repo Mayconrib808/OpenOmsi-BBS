@@ -56,7 +56,14 @@ func main() {
 		os.Exit(2)
 	}
 
-	plan, err := peDePeCompanyPlan(context.Background(), cfg, packageDir, args)
+	weatherArgs, weatherSource, weatherErr := peDePeWeatherArgs(args, cfg.Root, time.Now())
+	if weatherErr != nil {
+		peDePeAdapterLog(logPath, "BCS weather unavailable; retaining incoming/server weather: "+weatherErr.Error())
+	} else if weatherSource != "" {
+		weather, _ := pedepeArgValue(weatherArgs, "--weather")
+		peDePeAdapterLog(logPath, "BCS weather snapshot: "+weatherSource+" weather="+weather)
+	}
+	plan, err := peDePeCompanyPlan(context.Background(), cfg, packageDir, weatherArgs)
 	if err != nil {
 		peDePeAdapterFail(logPath, cfg.Language, localText(cfg.Language,
 			"O multiplayer da empresa não ficou pronto. A viagem não será aberta como single-player para evitar um registro incorreto no BBS.\n",
@@ -64,7 +71,7 @@ func main() {
 			"Der Firmen-Multiplayer ist nicht bereit. Die Fahrt wird nicht als Einzelspieler gestartet, damit BBS keinen falschen Datensatz speichert.\n")+err.Error())
 		os.Exit(3)
 	}
-	freshArgs, err := peDePeFreshTripArgs(args, cfg.Root)
+	freshArgs, err := peDePeFreshTripArgs(weatherArgs, cfg.Root)
 	if err != nil {
 		peDePeAdapterFail(logPath, cfg.Language, "BBS fresh-trip conversion: "+err.Error())
 		os.Exit(6)
@@ -99,7 +106,7 @@ func main() {
 			peDePeAdapterLog(logPath, fmt.Sprintf("driver translation: simulator=%s BBS=%s baseline stops=%d", driver.OpenPath, driver.NativePath, driver.Last.Stops[0]))
 		}
 	}
-	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-bbs-reader-path-4 outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-bbs-weather-5 outgoing argv="+fmt.Sprintf("%q", launchArgs))
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {
