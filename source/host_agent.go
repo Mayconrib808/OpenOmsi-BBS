@@ -144,6 +144,7 @@ func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir 
 			m.state.State = "error"
 			m.state.Error = err.Error()
 			m.retryAfter = time.Now().Add(30 * time.Second)
+			fmt.Fprintf(a.output, "HostAgent session %s error: %v\n", id, err)
 		}
 		a.dirty = true
 	}()

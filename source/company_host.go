@@ -6,6 +6,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -16,15 +17,45 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
 const companyHostPollInterval = 5 * time.Second
 const companyHostMaxGap = 12 * time.Hour
 const companyHostClockTolerance = 90 * time.Second
+
+var companyHostExecutableMu sync.Mutex
+
+// BBS closes every process named openomsi.exe, including unrelated map servers.
+// Keep the official executable and its resources together, but launch a verified
+// copy under a dedicated name. The content hash permits updates while an older
+// server is still running, without replacing that running executable.
+func isolatedCompanyHostExecutable(server string) (string, error) {
+	companyHostExecutableMu.Lock()
+	defer companyHostExecutableMu.Unlock()
+	b, err := os.ReadFile(server)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(b)
+	path := filepath.Join(filepath.Dir(server), "OpenOmsi_BBS_Dedicated_"+hex.EncodeToString(hash[:16])+".exe")
+	if existing, err := os.ReadFile(path); err == nil && sha256.Sum256(existing) == hash {
+		return path, nil
+	}
+	if err := writeCompanyHostFileAtomic(path, b); err != nil {
+		// Another supervisor may have prepared the same copy concurrently.
+		if existing, readErr := os.ReadFile(path); readErr == nil && sha256.Sum256(existing) == hash {
+			return path, nil
+		}
+		return "", fmt.Errorf("cannot prepare the isolated dedicated server: %w", err)
+	}
+	return path, nil
+}
 
 type companyHostOptions struct {
 	Profile, Session, Server, Root, Config string
@@ -470,7 +501,15 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 		return err
 	}
 	defer os.RemoveAll(contentDir)
-	child := exec.Command(options.Server, "--root", options.Root, "--server", privateConfig)
+	serverExecutable := options.Server
+	if runtime.GOOS == "windows" {
+		serverExecutable, err = isolatedCompanyHostExecutable(options.Server)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(output, "Dedicated server isolated from BBS game shutdown: %s\n", serverExecutable)
+	}
+	child := exec.Command(serverExecutable, "--root", options.Root, "--server", privateConfig)
 	child.Dir = filepath.Dir(options.Server)
 	child.Env = companyHostEnvironment(os.Environ(), contentDir)
 	tunnelOutput := newCompanyHostTunnelOutput(output)
@@ -539,7 +578,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 			if err == nil {
 				return fmt.Errorf("the dedicated server stopped")
 			}
-			return fmt.Errorf("the dedicated server stopped unexpectedly")
+			return fmt.Errorf("the dedicated server stopped unexpectedly (PID %d): %w", child.Process.Pid, err)
 		case sampled := <-ticker.C:
 			select {
 			case address := <-tunnelOutput.urls:

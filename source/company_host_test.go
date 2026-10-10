@@ -16,6 +16,61 @@ import (
 	"time"
 )
 
+func TestDedicatedServerCopySurvivesBBSImageNameSelectionAndUpdates(t *testing.T) {
+	dir := t.TempDir()
+	original := filepath.Join(dir, "openomsi.exe")
+	first := []byte("official server version one")
+	if err := os.WriteFile(original, first, 0600); err != nil {
+		t.Fatal(err)
+	}
+	copyPath, err := isolatedCompanyHostExecutable(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// BBS uses taskkill /F /IM openomsi.exe and a fallback path suffix match.
+	if strings.EqualFold(filepath.Base(copyPath), "openomsi.exe") || strings.HasSuffix(strings.ToLower(copyPath), "\\openomsi.exe") {
+		t.Fatal("BBS would still select the dedicated server for termination")
+	}
+	if filepath.Dir(copyPath) != dir {
+		t.Fatal("official runtime resources are no longer next to the executable")
+	}
+	for _, path := range []string{original, copyPath} {
+		b, err := os.ReadFile(path)
+		if err != nil || !bytes.Equal(b, first) {
+			t.Fatal("official bytes changed", path, err)
+		}
+	}
+	reused, err := isolatedCompanyHostExecutable(original)
+	if err != nil || reused != copyPath {
+		t.Fatal("unchanged server copy was not reused", err)
+	}
+	// Repair a damaged unused copy, and preserve an older running version when
+	// the administrator selects an updated official server in the same folder.
+	if err := os.WriteFile(copyPath, []byte("damaged"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := isolatedCompanyHostExecutable(original); err != nil {
+		t.Fatal(err)
+	}
+	if b, _ := os.ReadFile(copyPath); !bytes.Equal(b, first) {
+		t.Fatal("damaged copy was reused")
+	}
+	second := []byte("official server version two")
+	if err := os.WriteFile(original, second, 0600); err != nil {
+		t.Fatal(err)
+	}
+	updated, err := isolatedCompanyHostExecutable(original)
+	if err != nil || updated == copyPath {
+		t.Fatal("updated server replaced the old running image", err)
+	}
+	if b, _ := os.ReadFile(copyPath); !bytes.Equal(b, first) {
+		t.Fatal("previous server version changed")
+	}
+	if b, _ := os.ReadFile(updated); !bytes.Equal(b, second) {
+		t.Fatal("updated server copy differs from the official version")
+	}
+}
+
 func TestCompanyHostCreatesMissingConfigAndPreservesExistingSettings(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "server.cfg")
 	session, fleet := hostTestSession(), hostTestFleet()
