@@ -127,6 +127,7 @@ const (
 	hostPassengers   = 321
 	hostTimetable    = 322
 	hostStatus       = 323
+	hostMetar        = 324
 	hostBrowseRoot   = 331
 	hostBrowseServer = 332
 	hostScan         = 333
@@ -349,10 +350,16 @@ func (g *hostGUI) createControls() {
 	g.label("Mapa configurado", "Configured map", "Konfigurierte Karte", 20, 385, 320)
 	g.combo(hostMap, 20, 409, 380)
 	g.check("Hospedar este mapa", "Host this map", "Diese Karte hosten", 20, 444, 350, hostEnabled)
+	g.label("Porta UDP", "UDP port", "UDP-Port", 20, 480, 95)
+	g.edit(hostPort, "", 120, 477, 85)
+	g.label("Porta HTTP", "HTTP port", "HTTP-Port", 215, 480, 90)
+	g.edit(hostWeb, "", 310, 477, 90)
+	g.label("Estação METAR (ICAO; vazio = BBS)", "METAR station (ICAO; empty = BBS)", "METAR-Station (ICAO; leer = BBS)", 20, 520, 285)
+	g.edit(hostMetar, "", 310, 517, 90)
 	for _, v := range []struct {
 		id, y      int
 		pt, en, de string
-	}{{hostPort, 480, "Porta UDP", "UDP port", "UDP-Port"}, {hostWeb, 520, "Porta HTTP", "HTTP port", "HTTP-Port"}, {hostPlayers, 560, "Máximo de jogadores", "Max. players", "Max. Spieler"}, {hostTraffic, 600, "Tráfego", "Traffic", "Verkehr"}, {hostIdle, 640, "Fechar vazio após (min; 0 = nunca)", "Stop when empty (min; 0 = never)", "Leer stoppen (Min.; 0 = nie)"}} {
+	}{{hostPlayers, 560, "Máximo de jogadores", "Max. players", "Max. Spieler"}, {hostTraffic, 600, "Tráfego", "Traffic", "Verkehr"}, {hostIdle, 640, "Fechar vazio após (min; 0 = nunca)", "Stop when empty (min; 0 = never)", "Leer stoppen (Min.; 0 = nie)"}} {
 		g.label(v.pt, v.en, v.de, 20, v.y, 285)
 		g.edit(v.id, "", 310, v.y-3, 90)
 	}
@@ -441,6 +448,7 @@ func (g *hostGUI) storeMap() error {
 	m.Enabled = g.checked(hostEnabled)
 	m.Passengers = g.checked(hostPassengers)
 	m.Timetable = g.checked(hostTimetable)
+	m.MetarStation = strings.ToUpper(strings.TrimSpace(hostText(g.fields[hostMetar])))
 	g.c.Maps[s.ID] = m
 	s.Fleet = nil
 	for path, selected := range g.selected {
@@ -466,6 +474,7 @@ func (g *hostGUI) showMap(index int) {
 	for _, v := range []struct{ id, n int }{{hostPort, m.Port}, {hostWeb, m.WebPort}, {hostPlayers, m.MaxPlayers}, {hostTraffic, m.Traffic}, {hostIdle, m.IdleMinutes}} {
 		hostSetText(g.fields[v.id], strconv.Itoa(v.n))
 	}
+	hostSetText(g.fields[hostMetar], m.MetarStation)
 	g.setCheck(hostEnabled, m.Enabled)
 	g.setCheck(hostPassengers, m.Passengers)
 	g.setCheck(hostTimetable, m.Timetable)
@@ -729,7 +738,11 @@ func hostWindowProc(window uintptr, message uint32, w, l uintptr) uintptr {
 					if err == nil {
 						text = localText(language, "Agente ativo. ", "Agent running. ", "Agent aktiv. ")
 						for _, state := range s.Sessions {
-							text += state.SessionID + ": " + state.State + " (" + strconv.Itoa(state.Players) + ")  "
+							text += state.SessionID + ": " + state.State + " (" + strconv.Itoa(state.Players) + ")"
+							if station := s.MetarStations[state.SessionID]; station != "" {
+								text += " METAR: " + station
+							}
+							text += "  "
 						}
 						if s.DirectoryError != "" {
 							text = s.DirectoryError
@@ -859,7 +872,7 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 		}
 		hostUser.NewProc("SetWindowPos").Call(g.window, 0, 0, 0, 1040, 740, 2|4|16)
 		g.layoutViewport()
-		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostBrowseServer, hostKey, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
+		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostBrowseServer, hostKey, hostMetar, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
 			g.revealControl(g.fields[id])
 			rect := g.controlRect(g.fields[id])
 			var client hostRect

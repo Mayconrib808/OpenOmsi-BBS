@@ -186,6 +186,197 @@ func TestHostFirstPlayerWeatherDoesNotChangeAnOccupiedWorld(t *testing.T) {
 	cancel()
 	a.wg.Wait()
 }
+
+func TestHostAgentMetarOverridesIncomingBCSWeatherAndKeepsCompanyClock(t *testing.T) {
+	c := hostConfigFixture(t)
+	id := c.Company.Sessions[0].ID
+	m := c.Maps[id]
+	m.MetarStation = "SBBH"
+	c.Maps[id] = m
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	dir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", dir)
+	rain, err := bridgeWeatherFromOWT([]byte(rainyBCSWeather))
+	if err != nil {
+		t.Fatal(err)
+	}
+	started := make(chan string, 1)
+	a := &hostAgent{config: c, maps: map[string]*hostAgentMap{id: {state: companyDirectoryState{SessionID: id, State: "offline"}}}, output: io.Discard}
+	a.runServer = func(ctx context.Context, o companyHostOptions, _ io.Writer) error {
+		b, err := os.ReadFile(o.Config)
+		if err != nil {
+			return err
+		}
+		cfg, err := parseCompanyHostConfig(b)
+		if err != nil {
+			return err
+		}
+		civil := time.Date(2026, 10, 10, 11, 40, 0, 0, time.UTC)
+		started <- string(renderCompanyHostConfig(cfg, c.Company.Sessions[0], nil, civil, "test-only-secret"))
+		<-ctx.Done()
+		return nil
+	}
+	a.demand(ctx, id, 1, dir, rain)
+	select {
+	case text := <-started:
+		for _, expected := range []string{"metar_sync = 1", "metar_station = SBBH", "real_time = 0", "time = 11:40:00"} {
+			if !strings.Contains(text, expected) {
+				t.Fatalf("missing %s in %s", expected, text)
+			}
+		}
+		if strings.Contains(text, "weather = "+rain) {
+			t.Fatal("player weather overrode shared live METAR")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("METAR map did not start")
+	}
+	if a.snapshot().MetarStations[id] != "SBBH" {
+		t.Fatal("active weather station absent from diagnostic status")
+	}
+	cancel()
+	a.wg.Wait()
+}
+
+func TestHostMetarStationPersistsAndRejectsInvalidICAO(t *testing.T) {
+	c := hostConfigFixture(t)
+	id := c.Company.Sessions[0].ID
+	m := c.Maps[id]
+	m.MetarStation = " sbbh "
+	c.Maps[id] = m
+	path := filepath.Join(t.TempDir(), "HostAgent.local.json")
+	if err := saveHostAgentConfig(path, c); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := loadHostAgentConfig(path)
+	if err != nil || loaded.Maps[id].MetarStation != "SBBH" {
+		t.Fatalf("weather station lost on restart: %q %v", loaded.Maps[id].MetarStation, err)
+	}
+	for _, invalid := range []string{"SBB", "SBBHH", "SB1H", "SB\nH", "SBBH\nreal_time=1", "SBéH"} {
+		m.MetarStation = invalid
+		c.Maps[id] = m
+		if err := validateHostAgentConfig(c, true); err == nil {
+			t.Fatalf("invalid station accepted: %q", invalid)
+		}
+	}
+	m.MetarStation = ""
+	c.Maps[id] = m
+	if err := validateHostAgentConfig(c, true); err != nil {
+		t.Fatal(err)
+	}
+	text := string(hostMapConfigText(c.Company.CompanyName, c.Maps[id]))
+	if !strings.Contains(text, "metar_sync = 0") {
+		t.Fatal("clearing station did not restore existing weather policy")
+	}
+}
+
+func TestHostAgentMetarStationsAreIndependentByMap(t *testing.T) {
+	c := hostConfigFixture(t)
+	for _, name := range []string{"Other", "Third"} {
+		file := "maps/" + name + "/global.cfg"
+		full := filepath.Join(c.Root, filepath.FromSlash(file))
+		if err := os.MkdirAll(filepath.Dir(full), 0700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte("[name]\n"+name+"\n"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := hostAddMap(&c, hostInstalledMap{name, file}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	want := map[string]string{}
+	for i, station := range []string{" sbbh ", " eddb ", ""} {
+		id := c.Company.Sessions[i].ID
+		m := c.Maps[id]
+		m.MetarStation = station
+		c.Maps[id] = m
+		want[id] = strings.ToUpper(strings.TrimSpace(station))
+	}
+	dir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", dir)
+	path := filepath.Join(dir, "HostAgent.local.json")
+	if err := saveHostAgentConfig(path, c); err != nil {
+		t.Fatal(err)
+	}
+	var err error
+	c, err = loadHostAgentConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for id, station := range want {
+		if c.Maps[id].MetarStation != station {
+			t.Fatalf("station of map %s changed on restart", id)
+		}
+	}
+	rain, err := bridgeWeatherFromOWT([]byte(rainyBCSWeather))
+	if err != nil {
+		t.Fatal(err)
+	}
+	type result struct{ id, text string }
+	started := make(chan result, len(c.Company.Sessions))
+	a := &hostAgent{config: c, maps: map[string]*hostAgentMap{}, output: io.Discard}
+	for _, s := range c.Company.Sessions {
+		a.maps[s.ID] = &hostAgentMap{state: companyDirectoryState{SessionID: s.ID, State: "offline"}}
+	}
+	a.runServer = func(ctx context.Context, o companyHostOptions, _ io.Writer) error {
+		b, err := os.ReadFile(o.Config)
+		if err != nil {
+			return err
+		}
+		cfg, err := parseCompanyHostConfig(b)
+		if err != nil {
+			return err
+		}
+		for _, s := range c.Company.Sessions {
+			if s.ID == o.Session {
+				civil := time.Date(2026, 10, 10, 11, 40, 0, 0, time.UTC)
+				started <- result{o.Session, string(renderCompanyHostConfig(cfg, s, nil, civil, "test-only-secret"))}
+				break
+			}
+		}
+		<-ctx.Done()
+		return nil
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() { cancel(); a.wg.Wait() }()
+	for _, s := range c.Company.Sessions {
+		a.demand(ctx, s.ID, 1, dir, rain)
+	}
+	seen := map[string]bool{}
+	for range c.Company.Sessions {
+		select {
+		case r := <-started:
+			if seen[r.id] {
+				t.Fatalf("duplicate server for map %s", r.id)
+			}
+			seen[r.id] = true
+			station := want[r.id]
+			if station == "" {
+				if !strings.Contains(r.text, "metar_sync = 0\n") || !strings.Contains(r.text, "weather = "+rain+"\n") {
+					t.Fatalf("map without METAR did not retain BBS weather: %s", r.text)
+				}
+			} else if !strings.Contains(r.text, "metar_sync = 1\n") || !strings.Contains(r.text, "metar_station = "+station+"\n") || strings.Contains(r.text, "weather = "+rain) {
+				t.Fatalf("wrong weather policy for map %s: %s", r.id, r.text)
+			}
+			if !strings.Contains(r.text, "real_time = 0\n") || !strings.Contains(r.text, "time = 11:40:00\n") {
+				t.Fatalf("weather changed company clock for map %s", r.id)
+			}
+		case <-time.After(3 * time.Second):
+			t.Fatal("maps with separate weather did not start")
+		}
+	}
+	snapshot := a.snapshot()
+	if len(snapshot.MetarStations) != 2 {
+		t.Fatalf("wrong map station diagnostics: %v", snapshot.MetarStations)
+	}
+	for id, station := range want {
+		if snapshot.MetarStations[id] != station {
+			t.Fatalf("wrong diagnostic weather for map %s", id)
+		}
+	}
+}
+
 func TestHostAgentImportsExistingFleetAndWritesSeparateConfigs(t *testing.T) {
 	c := hostConfigFixture(t)
 	p := c.Company

@@ -17,6 +17,16 @@ Em telas menores, use as barras de rolagem ou a roda do mouse para alcançar os 
 
 **Hospedar este mapa** controla se o agente pode iniciá-lo. Dois mapas podem ficar abertos ao mesmo tempo, cada um com suas portas e configurações. O aplicativo detecta portas repetidas. Ele cria configurações próprias por mapa e preserva as opções não controladas do `server.cfg` anterior.
 
+## Clima real por mapa na 2.1.0
+
+No HostAgent, escolha o **Mapa configurado** e preencha **Estação METAR (ICAO; vazio = BBS)** com as quatro letras do aeroporto desejado. Por exemplo, `SBBH` usa os boletins da Pampulha, em Belo Horizonte. Escolha outra estação para cada mapa; trocar o mapa na lista preserva o campo do anterior. Clique **Salvar e iniciar agente** depois de configurar todos eles. Para mudar uma configuração com o agente ativo, pare-o primeiro: isso encerra as sessões hospedadas.
+
+A escolha fica nas opções privadas de cada mapa em `HostAgent.local.json`. Cada servidor dedicado recebe seu próprio `metar_station` e `metar_sync = 1`. Os jogadores daquele mapa recebem o mesmo clima pelo multiplayer nativo; não precisam configurar a estação nem importar outro perfil. O horário e a data das viagens continuam seguindo o relógio da empresa, com `real_time = 0`.
+
+Use o código **ICAO de quatro letras**, de uma estação que publique METAR. O servidor consulta o relatório no início e a cada dez minutos; os valores correspondem ao último boletim disponível, e não a medições a cada segundo. O host precisa ter acesso à internet. Um mapa pode usar SBBH enquanto outro usa uma estação de outra cidade.
+
+Deixar o campo vazio desativa METAR somente naquele mapa e mantém o comportamento anterior do clima: o primeiro pedido pode fornecer o clima preparado pelo BBS, e, sem dados recentes válidos, permanece o padrão do servidor. Um pedido de jogador não substitui o clima de um mapa com METAR ativo. O status e o log do HostAgent identificam a estação pelo ID de cada sessão. O suporte foi conferido no servidor oficial 0.2.27 e no servidor incluído no pacote.
+
 ## Atualizar ou trocar a pasta do servidor
 
 1. Clique **Parar agente**.

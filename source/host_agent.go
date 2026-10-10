@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -32,6 +33,7 @@ type hostAgent struct {
 }
 type hostAgentSnapshot struct {
 	Running        bool                    `json:"running"`
+	MetarStations  map[string]string       `json:"metar_stations,omitempty"`
 	DirectoryError string                  `json:"directory_error,omitempty"`
 	Sessions       []companyDirectoryState `json:"sessions"`
 }
@@ -39,9 +41,12 @@ type hostAgentSnapshot struct {
 func (a *hostAgent) snapshot() hostAgentSnapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s := hostAgentSnapshot{Running: true, DirectoryError: a.directoryError}
+	s := hostAgentSnapshot{Running: true, DirectoryError: a.directoryError, MetarStations: map[string]string{}}
 	for _, session := range a.config.Company.Sessions {
 		s.Sessions = append(s.Sessions, a.maps[session.ID].state)
+		if station := strings.ToUpper(strings.TrimSpace(a.config.Maps[session.ID].MetarStation)); station != "" {
+			s.MetarStations[session.ID] = station
+		}
 	}
 	return s
 }
@@ -61,7 +66,8 @@ func (a *hostAgent) playerProfile() CompanyProfile {
 func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir string, weather ...string) {
 	a.mu.Lock()
 	m := a.maps[id]
-	if m == nil || !a.config.Maps[id].Enabled || requested <= m.lastDemand {
+	mapOptions := a.config.Maps[id]
+	if m == nil || !mapOptions.Enabled || requested <= m.lastDemand {
 		a.mu.Unlock()
 		return
 	}
@@ -81,7 +87,8 @@ func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir 
 	m.idleSince = time.Time{}
 	a.dirty = true
 	initialWeather := ""
-	if len(weather) > 0 && validBridgeWeather(weather[0]) {
+	station := strings.ToUpper(strings.TrimSpace(mapOptions.MetarStation))
+	if station == "" && len(weather) > 0 && validBridgeWeather(weather[0]) {
 		initialWeather = weather[0]
 	}
 	a.mu.Unlock()
@@ -96,7 +103,10 @@ func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir 
 			err = writeCompanyHostFileAtomic(profilePath, data)
 		}
 		if err == nil {
-			text := hostMapConfigText(a.config.Company.CompanyName, a.config.Maps[id])
+			text := hostMapConfigText(a.config.Company.CompanyName, mapOptions)
+			if station != "" {
+				fmt.Fprintf(a.output, "Shared weather: session %s, METAR %s (native server refresh every 10 minutes)\n", id, station)
+			}
 			if initialWeather != "" {
 				text = append(text, []byte("weather = "+initialWeather+"\n")...)
 			}

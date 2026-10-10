@@ -14,14 +14,15 @@ import (
 )
 
 type hostMapOptions struct {
-	Enabled     bool `json:"enabled"`
-	Port        int  `json:"port"`
-	WebPort     int  `json:"web_port"`
-	MaxPlayers  int  `json:"max_players"`
-	Traffic     int  `json:"traffic"`
-	Passengers  bool `json:"passengers"`
-	Timetable   bool `json:"timetable"`
-	IdleMinutes int  `json:"idle_minutes"`
+	Enabled      bool   `json:"enabled"`
+	Port         int    `json:"port"`
+	WebPort      int    `json:"web_port"`
+	MaxPlayers   int    `json:"max_players"`
+	Traffic      int    `json:"traffic"`
+	Passengers   bool   `json:"passengers"`
+	Timetable    bool   `json:"timetable"`
+	IdleMinutes  int    `json:"idle_minutes"`
+	MetarStation string `json:"metar_station,omitempty"`
 }
 type hostAgentConfig struct {
 	Schema           int                       `json:"schema"`
@@ -105,9 +106,17 @@ func loadHostAgentConfig(path string) (hostAgentConfig, error) {
 	if c.Maps == nil {
 		c.Maps = map[string]hostMapOptions{}
 	}
+	for id, m := range c.Maps {
+		m.MetarStation = strings.ToUpper(strings.TrimSpace(m.MetarStation))
+		c.Maps[id] = m
+	}
 	return c, err
 }
 func saveHostAgentConfig(path string, c hostAgentConfig) error {
+	for id, m := range c.Maps {
+		m.MetarStation = strings.ToUpper(strings.TrimSpace(m.MetarStation))
+		c.Maps[id] = m
+	}
 	if err := validateHostAgentConfig(c, false); err != nil {
 		return err
 	}
@@ -144,6 +153,13 @@ func validateHostAgentConfig(c hostAgentConfig, running bool) error {
 		m, ok := c.Maps[s.ID]
 		if !ok || s.Date != "company" {
 			return fmt.Errorf("mapa sem configuração de hospedagem: %s", s.Name)
+		}
+		station := strings.ToUpper(strings.TrimSpace(m.MetarStation))
+		if station != "" && (len(station) != 4 || strings.IndexFunc(station, func(r rune) bool { return r < 'A' || r > 'Z' }) >= 0) {
+			return fmt.Errorf("%s: %s", s.Name, localText(c.Language,
+				"Clima real: informe quatro letras do aeroporto, por exemplo SBBH, ou deixe vazio para usar o clima do BBS.",
+				"Live weather: enter the airport's four-letter ICAO code, e.g. SBBH, or leave empty for BBS weather.",
+				"Live-Wetter: vier Buchstaben des ICAO-Codes eingeben, z. B. SBBH, oder für BBS-Wetter leer lassen."))
 		}
 		if m.Port < 1024 || m.Port > 65535 || m.WebPort < 1024 || m.WebPort > 65535 || m.MaxPlayers < 1 || m.MaxPlayers > 128 || m.Traffic < 0 || m.Traffic > 1000 || m.IdleMinutes < 0 || m.IdleMinutes > 1440 || m.WebPort == c.ControlPort || ports[m.Port] || webs[m.WebPort] {
 			return fmt.Errorf("portas repetidas ou opções inválidas em %s", s.Name)
@@ -337,5 +353,6 @@ func hostMapConfigText(company string, m hostMapOptions) []byte {
 		}
 		return 0
 	}
-	return []byte(fmt.Sprintf("# OpenOmsi + BBS — managed map configuration\nname = %s\nport = %d\nweb_port = %d\nmax_players = %d\ntraffic = %d\npassengers = %d\ntimetable = %d\ntunnel = 1\nradius = 0\nmetar_sync = 0\nshare_positions = 0\n", company, m.Port, m.WebPort, m.MaxPlayers, m.Traffic, bit(m.Passengers), bit(m.Timetable)))
+	station := strings.ToUpper(strings.TrimSpace(m.MetarStation))
+	return []byte(fmt.Sprintf("# OpenOmsi + BBS — managed map configuration\nname = %s\nport = %d\nweb_port = %d\nmax_players = %d\ntraffic = %d\npassengers = %d\ntimetable = %d\ntunnel = 1\nradius = 0\nmetar_sync = %d\nmetar_station = %s\nshare_positions = 0\n", company, m.Port, m.WebPort, m.MaxPlayers, m.Traffic, bit(m.Passengers), bit(m.Timetable), bit(station != ""), station))
 }
