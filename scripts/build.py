@@ -24,13 +24,13 @@ REFERENCE_GO = "go1.23.2"
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (SOURCE / "version.go").read_text()).group(1)
 PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
-    "main.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
+    "main.go pedepe_native.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
     "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
     "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go company_gateway.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
 TEST_FILES = (
     "driver_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
-    "timetable_test.go timetable_endpoints_test.go regression_test.go "
+    "timetable_test.go timetable_endpoints_test.go regression_test.go pedepe_native_test.go "
     "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go multiplayer_startup_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go company_gateway_test.go company_gateway_native_test.go profile_store_test.go"
 ).split()
 PROGRAMS = {
@@ -43,6 +43,9 @@ PROGRAMS = {
     "Setup.exe": (
          "setup_main.go setup_files.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
         "config.go plugin_host.go registry.go paths.go version.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
+    ).split(),
+    "PeDePeAdapter/openomsi.exe": (
+        "pedepe_adapter_main.go pedepe_adapter_windows.go pedepe_native.go config.go paths.go version.go company.go company_directory.go company_content.go company_clock.go multiplayer.go profile_store.go weather.go log_text.go openomsi_compatibility.go openomsi_probe_windows.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
          "main.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go driver.go session.go launch_session.go session_transition.go openomsi_compatibility.go openomsi_probe_windows.go company_host_process_windows.go "
@@ -102,7 +105,8 @@ def assemble(stage: Path, host_hash: str) -> None:
     (stage / "docs/BUILD-INFO.txt").write_text(
         f"OpenOMSI BCS Bridge v{VERSION} - by Mayconrib808\n"
         f"Toolchain: {REFERENCE_GO}; GOOS=windows; GOARCH=386; GO386=sse2; CGO_ENABLED=0\n"
-        "The six bridge executables are built from the Go source included in this package.\n"
+        "The seven bridge executables are built from the Go source included in this package.\n"
+        "PeDePeAdapter/openomsi.exe is a transparent drop-in for PeDePe's official OpenOMSI (Beta) path and only adds company multiplayer when needed.\n"
         "app/server is a modified dedicated openOMSI server built from the pinned upstream source and native/free-player-vehicles.patch.\n"
         "Its native/bbs-server.json counterpart in app/server records compiler, tested commit and file hashes.\n"
         "HostAgent/CompanyHost also adapt official protocol-6 servers, including 0.2.23, without modifying those binaries.\n"
@@ -112,7 +116,7 @@ def assemble(stage: Path, host_hash: str) -> None:
         "The historical host with unresolved provenance is not bundled.\n"
         "Integration uses executable capabilities and multiplayer protocol 6. Official 0.2.0 and 0.2.11 metadata are checked on Windows CI.\n"
         "Automated checks do not certify a real vendor-plugin session or trip evaluation.\n"
-        "Live next-trip, BCS weather, vendor panel and two-player full-game validation are pending.\n"
+        "Live PeDePe native trip/evaluation, next-trip, vendor panel and two-player full-game validation are pending.\n"
         "See docs/VALIDATION.md and docs/TEST_ON_WINDOWS.md.\n",
         encoding="utf-8",
     )
@@ -138,7 +142,7 @@ def archive_package(directory: Path) -> Path:
             entry.external_attr = (0o100644 << 16)
             archive.writestr(entry, p.read_bytes(), compresslevel=9)
     digest = hashlib.sha256(target.read_bytes()).hexdigest()
-    target.with_name(target.name + ".sha256").write_text(f"{digest}  {target.name}\n", encoding="utf-8")
+    target.with_name(target.name + ".zip.sha256").write_text(f"{digest}  {target.name}\n", encoding="utf-8")
     print(f"Complete package: {target}\nZIP SHA-256: {digest}")
     return target
 
@@ -279,8 +283,8 @@ def main() -> int:
             args.output.parent.mkdir(parents=True, exist_ok=True)
             shutil.copytree(stage, args.output)
             archive_package(args.output)
-    print("Bridge/host tests, vet, all six Windows builds, facade layout and full-package integrity passed.")
-    print("Live BCS panel, UAC and game-trip evaluation require the separately installed products.")
+    print("Bridge/host tests, vet, all seven Windows builds, facade layout and full-package integrity passed.")
+    print("Live BCS panel, UAC, PeDePe native trip evaluation and game-trip evaluation require the separately installed products.")
     return 0
 
 
