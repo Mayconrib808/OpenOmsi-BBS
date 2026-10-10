@@ -102,7 +102,8 @@ func main() {
 	}
 	var driver *driverSync
 	in := parsePeDePeNativeInvocation(launchArgs)
-	if in.HasSchedule && in.Line != "" && in.Tour != "" && in.Trip != "" && !in.Probe && !in.Server {
+	nativeTrip := in.HasSchedule && in.Line != "" && in.Tour != "" && in.Trip != "" && !in.Probe && !in.Server
+	if nativeTrip {
 		if nativePath, ok := pedepeArgValue(launchArgs, "--driver"); ok {
 			driver, err = prepareDriver(nativePath, filepath.Join(appDir(packageDir), "compat"))
 			if err != nil {
@@ -119,7 +120,7 @@ func main() {
 			peDePeAdapterLog(logPath, fmt.Sprintf("driver translation: simulator=%s BBS=%s baseline stops=%d", driver.OpenPath, driver.NativePath, driver.Last.Stops[0]))
 		}
 	}
-	peDePeAdapterLog(logPath, "adapter revision=native-plugin-host-7 outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	peDePeAdapterLog(logPath, "adapter revision=native-lua-telemetry-8 outgoing argv="+fmt.Sprintf("%q", launchArgs))
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {
@@ -154,14 +155,29 @@ func main() {
 		peDePeAdapterLog(logPath, "BCS 32-bit plugin host: "+host)
 	}
 	var contentDir string
-	if plan != nil {
+	if plan != nil || nativeTrip {
 		contentDir, err = os.MkdirTemp("", "openomsi-bbs-pedepe-")
 		if err != nil {
 			peDePeAdapterFail(logPath, cfg.Language, err.Error())
 			os.Exit(4)
 		}
 		defer os.RemoveAll(contentDir)
-		cmd.Env = multiplayerEnvironment(cmd.Env, contentDir)
+		if nativeTrip {
+			source, size, pluginErr := peDePeNativePlugin(filepath.Dir(adapterExecutable), contentDir)
+			if pluginErr != nil {
+				peDePeAdapterFail(logPath, cfg.Language, localText(cfg.Language,
+					"O plugin de telemetria nativa do BBS não foi preparado. Inicie uma nova viagem pelo BBS usando a pasta PeDePeAdapter deste pacote.\n",
+					"BBS native telemetry plugin was not prepared. Start a new trip in BBS using this package's PeDePeAdapter folder.\n",
+					"Das native BBS-Telemetrieplugin fehlt. Starte eine neue Fahrt in BBS mit dem PeDePeAdapter-Ordner dieses Pakets.\n")+pluginErr.Error())
+				os.Exit(10)
+			}
+			peDePeAdapterLog(logPath, fmt.Sprintf("BBS native Lua telemetry: source=%s destination=%s bytes=%d", source, filepath.Join(contentDir, "plugins", "bbs.lua"), size))
+		}
+		if plan != nil {
+			cmd.Env = multiplayerEnvironment(cmd.Env, contentDir)
+		} else {
+			cmd.Env = peDePeNativeContentEnvironment(cmd.Env, contentDir)
+		}
 	}
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

@@ -46,6 +46,65 @@ func TestPeDePePluginHostWorksWithoutOfficialHelperBesideGame(t *testing.T) {
 	}
 }
 
+func TestPeDePeNativeLuaTelemetryFollowsBBSIntoLaunchContent(t *testing.T) {
+	adapterDir := filepath.Join(t.TempDir(), "PeDePeAdapter ônibus")
+	contentDir := t.TempDir()
+	source := filepath.Join(adapterDir, "plugins", "bbs.lua")
+	if err := os.MkdirAll(filepath.Dir(source), 0755); err != nil {
+		t.Fatal(err)
+	}
+	// Each launch carries the BBS-generated values, including current damage.
+	for _, script := range []string{"local SCHAEDEN = { LichtLV_Defekt = 1 }\nomsi.every(0.1, function() omsi.send(4041, 'actual values') end)\n", "local SCHAEDEN = {}\nomsi.every(0.1, function() omsi.send(4041, 'new trip') end)\n"} {
+		if err := os.WriteFile(source, []byte(script), 0644); err != nil {
+			t.Fatal(err)
+		}
+		got, size, err := peDePeNativePlugin(adapterDir, contentDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, err := os.ReadFile(filepath.Join(contentDir, "plugins", "bbs.lua"))
+		if err != nil || string(b) != script || got != source || size != len(script) {
+			t.Fatalf("current BBS script did not reach active content root: %s %d %v", got, size, err)
+		}
+		original, _ := os.ReadFile(source)
+		if string(original) != script {
+			t.Fatal("BBS-owned script changed")
+		}
+	}
+	env := []string{"KEEP=1", "omsi_content=old-folder", "OMSI_CONTENT=another-old-folder", "omsi_content_zip=stale.zip", "OMSI_PLUGIN_HOST32=current-helper"}
+	got := peDePeNativeContentEnvironment(env, contentDir)
+	want := []string{"KEEP=1", "OMSI_PLUGIN_HOST32=current-helper", "OMSI_CONTENT=" + contentDir}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("wrong active plugin root: %q", got)
+	}
+	companyEnv := multiplayerEnvironment(got, contentDir)
+	if !strings.Contains(strings.Join(companyEnv, "\n"), "OMSI_CONTENT="+contentDir) {
+		t.Fatal("company multiplayer lost native telemetry plugin root")
+	}
+}
+
+func TestPeDePeNativeLuaTelemetryRejectsMissingOrInvalidPlugin(t *testing.T) {
+	adapterDir, contentDir := t.TempDir(), t.TempDir()
+	source := filepath.Join(adapterDir, "plugins", "bbs.lua")
+	if _, _, err := peDePeNativePlugin(adapterDir, contentDir); err == nil {
+		t.Fatal("missing plugin accepted")
+	}
+	if err := os.MkdirAll(filepath.Dir(source), 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, invalid := range [][]byte{nil, {0xff, 0xfe, 0x00}, make([]byte, (256<<10)+1)} {
+		if err := os.WriteFile(source, invalid, 0644); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := peDePeNativePlugin(adapterDir, contentDir); err == nil {
+			t.Fatal("invalid plugin accepted")
+		}
+	}
+	if fileExists(filepath.Join(contentDir, "plugins", "bbs.lua")) {
+		t.Fatal("invalid plugin deployed")
+	}
+}
+
 func TestPeDePeDriverUsesBBSExecutableDirectoryInsteadOfOMSIAssetRoot(t *testing.T) {
 	root := t.TempDir()
 	adapterDir := t.TempDir()

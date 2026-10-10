@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // PeDePe's native BBS integration already chooses the map, bus, timetable,
@@ -36,6 +38,45 @@ func peDePePluginEnvironment(c Config, packageDir string, env []string) ([]strin
 		return nil, "", err
 	}
 	return pluginEnvironment(env, deployment.Path), deployment.Path, nil
+}
+
+// BBS writes its current UDP telemetry plugin beside the selected adapter,
+// not beside the real game. Put those exact bytes in this launch's content
+// root so openOMSI loads them before any stale copy in the OMSI installation.
+func peDePeNativePlugin(adapterDir, contentDir string) (string, int, error) {
+	source := filepath.Join(adapterDir, "plugins", "bbs.lua")
+	f, err := os.Open(source)
+	if err != nil {
+		return source, 0, fmt.Errorf("BBS native telemetry plugin: %w", err)
+	}
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil || !st.Mode().IsRegular() || st.Size() == 0 || st.Size() > 256<<10 {
+		return source, 0, fmt.Errorf("BBS native telemetry plugin is empty, invalid or too large: %s", source)
+	}
+	b, err := io.ReadAll(io.LimitReader(f, (256<<10)+1))
+	if err != nil || len(b) == 0 || len(b) > 256<<10 || !utf8.Valid(b) {
+		return source, 0, fmt.Errorf("cannot read complete UTF-8 BBS native telemetry plugin: %s", source)
+	}
+	destination := filepath.Join(contentDir, "plugins", "bbs.lua")
+	if err := os.MkdirAll(filepath.Dir(destination), 0755); err != nil {
+		return source, 0, err
+	}
+	if err := os.WriteFile(destination, b, 0644); err != nil {
+		return source, 0, err
+	}
+	return source, len(b), nil
+}
+
+func peDePeNativeContentEnvironment(env []string, contentDir string) []string {
+	child := make([]string, 0, len(env)+1)
+	for _, entry := range env {
+		name, _, _ := strings.Cut(entry, "=")
+		if !strings.EqualFold(name, "OMSI_CONTENT") && !strings.EqualFold(name, "OMSI_CONTENT_ZIP") {
+			child = append(child, entry)
+		}
+	}
+	return append(child, "OMSI_CONTENT="+contentDir)
 }
 
 // Read the fresh BCS weather snapshot before waiting for multiplayer startup:
