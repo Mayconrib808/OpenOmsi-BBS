@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: source-checks-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   native-server:
     runs-on: windows-latest
