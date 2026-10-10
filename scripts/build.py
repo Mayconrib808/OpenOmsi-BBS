@@ -45,7 +45,7 @@ PROGRAMS = {
         "config.go plugin_host.go registry.go paths.go version.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "PeDePeAdapter/openomsi.exe": (
-        "pedepe_adapter_main.go pedepe_adapter_windows.go pedepe_native.go config.go paths.go version.go company.go company_directory.go company_content.go company_clock.go multiplayer.go profile_store.go weather.go log_text.go openomsi_compatibility.go openomsi_probe_windows.go"
+        "pedepe_adapter_main.go pedepe_adapter_windows.go pedepe_native.go driver.go config.go paths.go version.go company.go company_directory.go company_content.go company_clock.go multiplayer.go profile_store.go weather.go log_text.go openomsi_compatibility.go openomsi_probe_windows.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
          "main.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go driver.go session.go launch_session.go session_transition.go openomsi_compatibility.go openomsi_probe_windows.go company_host_process_windows.go "

@@ -75,7 +75,26 @@ func main() {
 		peDePeAdapterFail(logPath, cfg.Language, "BBS driver path: "+err.Error())
 		os.Exit(7)
 	}
-	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-driver-2 outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	var driver *driverSync
+	in := parsePeDePeNativeInvocation(launchArgs)
+	if in.HasSchedule && in.Line != "" && in.Tour != "" && in.Trip != "" && !in.Probe && !in.Server {
+		if nativePath, ok := pedepeArgValue(launchArgs, "--driver"); ok {
+			driver, err = prepareDriver(nativePath, filepath.Join(appDir(packageDir), "compat"))
+			if err != nil {
+				peDePeAdapterFail(logPath, cfg.Language, "BBS driver format: "+err.Error())
+				os.Exit(8)
+			}
+			for i := range launchArgs {
+				if launchArgs[i] == "--driver" && i+1 < len(launchArgs) {
+					launchArgs[i+1] = driver.OpenPath
+				} else if strings.HasPrefix(launchArgs[i], "--driver=") {
+					launchArgs[i] = "--driver=" + driver.OpenPath
+				}
+			}
+			peDePeAdapterLog(logPath, fmt.Sprintf("driver translation: simulator=%s BBS=%s baseline stops=%d", driver.OpenPath, driver.NativePath, driver.Last.Stops[0]))
+		}
+	}
+	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-driver-format-3 outgoing argv="+fmt.Sprintf("%q", launchArgs))
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {
@@ -112,7 +131,45 @@ func main() {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	peDePeAdapterLog(logPath, "forwarding to real openOMSI: "+real)
-	if err = cmd.Run(); err != nil {
+	stopDriver := make(chan struct{})
+	driverStopped := make(chan struct{})
+	go func() {
+		defer close(driverStopped)
+		if driver == nil {
+			return
+		}
+		ticker := time.NewTicker(200 * time.Millisecond)
+		defer ticker.Stop()
+		lastError := ""
+		poll := func() {
+			changed, e := driver.poll()
+			if e != nil {
+				if e.Error() != lastError {
+					peDePeAdapterLog(logPath, "driver translation WARN: "+e.Error())
+				}
+				lastError = e.Error()
+			} else {
+				lastError = ""
+				if changed {
+					peDePeAdapterLog(logPath, fmt.Sprintf("driver published: stops=%d distance=%d tickets=%d", driver.Last.Stops[0], driver.Last.Hectom, driver.Last.Tickets))
+				}
+			}
+		}
+		for {
+			select {
+			case <-ticker.C:
+				poll()
+			case <-stopDriver:
+				poll()
+				poll() // complete stable save made while the process exits
+				return
+			}
+		}
+	}()
+	err = cmd.Run()
+	close(stopDriver)
+	<-driverStopped
+	if err != nil {
 		if exit, ok := err.(*exec.ExitError); ok {
 			peDePeAdapterLog(logPath, fmt.Sprintf("real openOMSI exit code=%d", exit.ExitCode()))
 			os.Exit(exit.ExitCode())
