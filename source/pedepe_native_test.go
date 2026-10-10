@@ -11,6 +11,51 @@ import (
 	"time"
 )
 
+func TestPeDePeDriverUsesWatchedRootInsteadOfContentDirectory(t *testing.T) {
+	root := t.TempDir()
+	base := []string{"--root", root, "--schedule", "--line", "137", "--tour", "Sa 2", "--trip", "06:09", "--lan-join", "https://example.invalid"}
+	for _, driver := range [][]string{{"--driver", "Drivers/bbs.odr"}, {"--driver=Drivers\\bbs.odr"}} {
+		args := append(append([]string(nil), base...), driver...)
+		before := append([]string(nil), args...)
+		got, err := peDePeDriverArgs(args, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		path, _ := pedepeArgValue(got, "--driver")
+		if path != filepath.Join(root, "Drivers", "bbs.odr") {
+			t.Fatalf("wrong watched file: %q", path)
+		}
+		if !reflect.DeepEqual(args, before) {
+			t.Fatal("input arguments mutated")
+		}
+		if joined, _ := pedepeArgValue(got, "--lan-join"); joined != "https://example.invalid" {
+			t.Fatal("multiplayer changed")
+		}
+	}
+	absolute := filepath.Join(root, "another-driver.odr")
+	args := append(append([]string(nil), base...), "--driver", absolute)
+	got, err := peDePeDriverArgs(args, "")
+	if err != nil || !reflect.DeepEqual(got, args) {
+		t.Fatalf("explicit absolute driver changed: %v %v", got, err)
+	}
+	probe := []string{"--help", "--driver", "Drivers/bbs.odr"}
+	got, err = peDePeDriverArgs(probe, "")
+	if err != nil || !reflect.DeepEqual(got, probe) {
+		t.Fatal("probe changed")
+	}
+	missingRoot := []string{"--schedule", "--line", "137", "--tour", "Sa 2", "--trip", "06:09", "--driver", "Drivers/bbs.odr"}
+	if _, err := peDePeDriverArgs(missingRoot, ""); err == nil {
+		t.Fatal("missing root silently accepted")
+	}
+	got, err = peDePeDriverArgs(missingRoot, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if path, _ := pedepeArgValue(got, "--driver"); path != filepath.Join(root, "Drivers", "bbs.odr") {
+		t.Fatal("configured root ignored")
+	}
+}
+
 func TestPeDePeNativeInvocationKeepsOfficialTripArguments(t *testing.T) {
 	args := []string{
 		"--root", `C:\OMSI 2`, "--no-menu",

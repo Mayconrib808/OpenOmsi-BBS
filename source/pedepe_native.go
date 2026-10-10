@@ -28,6 +28,37 @@ type pedepeSituationMetadata struct {
 	Map, Bus, Date, Clock string
 }
 
+// Relative driver paths are saved under openOMSI's content directory (including
+// the private multiplayer directory), whereas PeDePe reads the OMSI root file.
+// An absolute path makes Career::load/save use the file PeDePe actually watches.
+func peDePeDriverArgs(args []string, configuredRoot string) ([]string, error) {
+	in := parsePeDePeNativeInvocation(args)
+	if in.Probe || in.Server || !in.HasSchedule || in.Line == "" || in.Tour == "" || in.Trip == "" {
+		return append([]string(nil), args...), nil
+	}
+	driver, ok := pedepeArgValue(args, "--driver")
+	if !ok || filepath.IsAbs(driver) {
+		return append([]string(nil), args...), nil
+	}
+	root := in.Root
+	if root == "" {
+		root = configuredRoot
+	}
+	if !filepath.IsAbs(root) || strings.TrimSpace(driver) == "" {
+		return nil, fmt.Errorf("BBS driver requires a nonempty path and an absolute OMSI root")
+	}
+	path := filepath.Clean(filepath.Join(root, filepath.FromSlash(strings.ReplaceAll(driver, "\\", "/"))))
+	out := append([]string(nil), args...)
+	for i := range out {
+		if out[i] == "--driver" && i+1 < len(out) {
+			out[i+1] = path
+		} else if strings.HasPrefix(out[i], "--driver=") {
+			out[i] = "--driver=" + path
+		}
+	}
+	return out, nil
+}
+
 func pedepeArgValue(args []string, name string) (string, bool) {
 	for i := 0; i < len(args); i++ {
 		arg := args[i]

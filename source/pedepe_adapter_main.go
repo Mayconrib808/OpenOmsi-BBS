@@ -70,7 +70,12 @@ func main() {
 		os.Exit(6)
 	}
 	launchArgs := peDePeForwardArgs(freshArgs, plan)
-	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-1 outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	launchArgs, err = peDePeDriverArgs(launchArgs, cfg.Root)
+	if err != nil {
+		peDePeAdapterFail(logPath, cfg.Language, "BBS driver path: "+err.Error())
+		os.Exit(7)
+	}
+	peDePeAdapterLog(logPath, "adapter revision=situation-fresh-trip-driver-2 outgoing argv="+fmt.Sprintf("%q", launchArgs))
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {
