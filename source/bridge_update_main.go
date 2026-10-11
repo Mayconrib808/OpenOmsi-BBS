@@ -114,11 +114,8 @@ func main() {
 		os.Exit(1)
 	}
 	if opts.reopen {
-		p, e := os.StartProcess(filepath.Join(dir, "Setup.exe"), []string{filepath.Join(dir, "Setup.exe")}, &os.ProcAttr{Dir: dir, Env: os.Environ()})
-		if e != nil {
+		if e := startBridgeUpdateProcess(filepath.Join(dir, "Setup.exe"), dir); e != nil {
 			automaticUpdateMessage(e.Error(), true)
-		} else {
-			_ = p.Release()
 		}
 		return
 	}

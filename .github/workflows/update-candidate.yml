@@ -25,7 +25,8 @@ jobs:
         shell: bash
         run: |
           node -e 'fetch("https://openomsi-bbs-updates.maycongamesmaximo.workers.dev/health").then(async r=>{const s=await r.text();console.log("Distribution health:",r.status,s);if(!r.ok||JSON.parse(s).service!=="openomsi-bbs-updates")process.exitCode=1})'
-          python scripts/build_update_components.py --output build/update-components --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev --update-sequence 2026101103
+          GOARCH=386 CGO_ENABLED=0 go test -v source/update_process_windows.go source/update_process_windows_test.go
+          python scripts/build_update_components.py --output build/update-components --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev --update-sequence 2026101104
           python scripts/build_bridge_update.py --package build/update-components --output build/update-candidate/OpenOmsi_BBS_Atualizacao.zip --components build/update-candidate/components
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

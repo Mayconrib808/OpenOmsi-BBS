@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'source'
 
 UPDATER_SOURCES = (
-    'bridge_update_main.go bridge_update_options.go bridge_update_handoff_windows.go bridge_update.go bridge_update_native.go bridge_update_discovery_windows.go bridge_update_windows.go '
+    'bridge_update_main.go update_process_windows.go bridge_update_options.go bridge_update_handoff_windows.go bridge_update.go bridge_update_native.go bridge_update_discovery_windows.go bridge_update_windows.go '
     'bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go '
     'package_integrity.go setup_windows.go config.go plugin_host.go registry.go '
     'paths.go version.go company.go company_directory.go weather.go log_text.go '
@@ -82,7 +82,7 @@ def main():
         instructions = '\ufeffOpenOMSI BCS Bridge — atualização automática da próxima viagem\r\n\r\n1. Feche BCS, OMSI, openOMSI e o Setup.\r\n2. Execute Atualizar-Bridge.exe e permita a atualização no Windows.\r\n3. Quando aparecer "Bridge atualizada", abra o BCS normalmente.\r\n\r\nVocê pode executar o atualizador da pasta Downloads: ele encontra a Bridge pela pasta PeDePeAdapter já salva no BCS.\r\nNão escolha JAR, não mude pastas no BCS e não refaça o perfil da empresa.\r\n\r\nDestinado aos jogadores que já usam o PeDePeAdapter no BCS. Não precisa de ativação adicional pelo Setup.\r\nInclui a atualização 2.1.2 da Bridge e 2.1.2-host.1 do host. Feche também o HostAgent antes de instalar.\r\nO ajustamento de comunicação do BCS é aplicado automaticamente e mantém backup do original.\r\nO atualizador recusa versões do BCS que ainda não foram analisadas.\r\nApós uma atualização oficial do BCS, o Setup pode reaplicar o ajuste se a versão ainda for compatível.\r\n\r\nTestes locais de comunicação, integridade e atualização aprovados.\r\nA troca completa de viagem ainda precisa ser confirmada no BCS/openOMSI em Windows.\r\n'
         with zipfile.ZipFile(args.output,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
             z.write(updater,'Atualizar-Bridge.exe')
-            z.writestr('LEIA-ME.txt',instructions.encode('utf-8'))
+            z.writestr('LEIA-ME.txt',instructions.replace('atualização 2.1.2 da Bridge','atualização '+build.VERSION+' da Bridge').encode('utf-8'))
             z.writestr('SHA256.txt',hashlib.sha256(updater.read_bytes()).hexdigest()+'  Atualizar-Bridge.exe\n')
         print('BUILT',args.output,args.output.stat().st_size,hashlib.sha256(args.output.read_bytes()).hexdigest())
 

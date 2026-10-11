@@ -101,11 +101,7 @@ func launchSetupUpdate(dir, path, hash string) error {
 	if err := verifyDownloadedBridgeRelease(path, hash); err != nil {
 		return err
 	}
-	p, err := os.StartProcess(path, []string{path, "--target-dir", dir, "--wait-setup", strconv.Itoa(os.Getpid()), "--reopen"}, &os.ProcAttr{Dir: filepath.Dir(path), Env: os.Environ()})
-	if err != nil {
-		return err
-	}
-	return p.Release()
+	return startBridgeUpdateProcess(path, filepath.Dir(path), "--target-dir", dir, "--wait-setup", strconv.Itoa(os.Getpid()), "--reopen")
 }
 
 func (g *setupGUI) renderUpdateState() {

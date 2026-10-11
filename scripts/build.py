@@ -41,7 +41,7 @@ PROGRAMS = {
         "company_host_main.go company_host.go company_host_population.go company_gateway.go company_gateway_live.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go company_host_share.go company_host_process_windows.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "Setup.exe": (
-         "setup_main.go setup_updates.go setup_updates_windows.go setup_native_next_trip_windows.go bridge_update_handoff_windows.go bridge_update.go bridge_update_native.go package_integrity.go setup_files.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update_windows.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
+         "setup_main.go setup_updates.go setup_updates_windows.go update_process_windows.go setup_native_next_trip_windows.go bridge_update_handoff_windows.go bridge_update.go bridge_update_native.go package_integrity.go setup_files.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update_windows.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
         "config.go plugin_host.go registry.go paths.go version.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "PeDePeAdapter/openomsi.exe": (
