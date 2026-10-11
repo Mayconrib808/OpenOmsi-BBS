@@ -1,0 +1,39 @@
+name: Build update candidate
+on:
+  push:
+    branches: ['release/2.1.0']
+    paths: ['.github/workflows/update-candidate.yml', 'scripts/build_update_components.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: bridge-update-candidate
+  cancel-in-progress: true
+jobs:
+  candidate:
+    runs-on: windows-latest
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Verify live distribution and build update binaries only
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, urllib.request
+          with urllib.request.urlopen('https://openomsi-bbs-updates.maycongamesmaximo.workers.dev/health',timeout=15) as r:
+              assert json.load(r)=={'service':'openomsi-bbs-updates','schema':1}
+          PY
+          python scripts/build_update_components.py --output build/update-components --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev --update-sequence 2026101102
+          python scripts/build_bridge_update.py --package build/update-components --output build/update-candidate/OpenOmsi_BBS_2.1.2_Atualizacao.zip --components build/update-candidate/components
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Bridge-2.1.2-update-candidate
+          path: build/update-candidate/Atualizar-Bridge.exe
+          if-no-files-found: error
+          retention-days: 14
