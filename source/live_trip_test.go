@@ -20,7 +20,6 @@ import (
 func liveTestBlock(id, line, tour string) string {
 	return "Schicht ID: " + id + "\nKarte: Test\nTour: 04:05:00 - 04:30:00 (Linie: " + line + ")\nA - B (Umlauf: " + tour + ")\n"
 }
-
 func TestLiveTripAcceptsActualBCSContinuationObserverBlock(t *testing.T) {
 	// This event path does not call the launch screen that normally logs the
 	// new shift. The optional logger observer appends the accepted I state.
@@ -35,6 +34,7 @@ func TestLiveTripAcceptsActualBCSContinuationObserverBlock(t *testing.T) {
 		t.Fatal(trip, e)
 	}
 }
+
 func TestLiveTripUsesNewestCompleteBCSSelection(t *testing.T) {
 	if liveDepartureMinute(-300) != 1435 || liveDepartureMinute(86400+300) != 5 {
 		t.Fatal("overnight departure normalization failed")
@@ -129,7 +129,7 @@ func TestLiveTripGatewayUsesPrivateAdminForOwnPlayerOnly(t *testing.T) {
 		if r.URL.Path != "/admin" || r.Header.Get("X-Admin-Password") != "private-secret" || string(b) != "duty 2 130%20&%20N30 Mo-Fr%209 1 0\n" {
 			t.Errorf("incorrect native dispatch: %s %q", r.URL.Path, b)
 		}
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusAccepted)
 	}))
 	defer server.Close()
 	g := &companyGateway{ctx: context.Background(), backendWeb: server.URL, adminPassword: "private-secret", client: server.Client(), buses: map[uint32]*companyGatewayBus{}}
@@ -183,6 +183,45 @@ func TestLiveTripGatewayUsesPrivateAdminForOwnPlayerOnly(t *testing.T) {
 		t.Fatal("foreign player or injected admin command accepted", requests)
 	}
 }
+func TestLiveTripGatewayAcceptsOnlyQueuedNativeAdmin202(t *testing.T) {
+	for _, code := range []int{202, 200, 204, 400, 401, 403, 404, 429, 500} {
+		t.Run(fmt.Sprint(code), func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(code)
+			}))
+			defer server.Close()
+			udp, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer udp.Close()
+			client, err := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer client.Close()
+			g := &companyGateway{ctx: context.Background(), backendWeb: server.URL, adminPassword: "private-secret", client: server.Client(), udp: udp, buses: map[uint32]*companyGatewayBus{}}
+			p := &companyGatewayPeer{g: g, id: 3, remote: client.LocalAddr().(*net.UDPAddr)}
+			g.buses[3] = &companyGatewayBus{owner: p, bus: gatewayTestKnown}
+			packet := []byte("CMD|3|1|plugin bbs_next_trip_0123456789abcdef take 1002_1234abcd 4315 SAB01 15 0")
+			if handled, err := p.liveTripRequest(packet); !handled || err != nil {
+				t.Fatal(handled, err)
+			}
+			_ = client.SetReadDeadline(time.Now().Add(50 * time.Millisecond))
+			buf := make([]byte, 512)
+			n, _, err := client.ReadFromUDP(buf)
+			if code == http.StatusAccepted {
+				// Queued HTTP acceptance must send neither a rejection nor a done.
+				if e, ok := err.(net.Error); !ok || !e.Timeout() {
+					t.Fatalf("HTTP 202 was treated as a native result: %q %v", buf[:n], err)
+				}
+			} else if err != nil || string(buf[:n]) != "CMD|1|3|plugin bbs_next_trip_0123456789abcdef no 1002_1234abcd Native dispatch rejected" {
+				t.Fatalf("HTTP %d was not rejected: %q %v", code, buf[:n], err)
+			}
+		})
+	}
+}
+
 func TestLiveTripMonitorStableSelectionAndConfirmedHandoff(t *testing.T) {
 	root := t.TempDir()
 	logPath := filepath.Join(root, "log.txt")

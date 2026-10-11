@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the actual Lua companion against the documented 0.2.29 API shape.
+"""Exercise the actual Lua companion against the documented 0.2.29/0.2.30 API shape.
 
 Requires lupa; no simulator or commercial map content is used.
 """
@@ -75,18 +75,77 @@ lua.execute('emit("lan_message",3,"ready");step(8);assert(starts==0 and not stat
 lua.execute('emit("lan_message",1,"ready");step(9);assert(sends[#sends]=="take 1002_1234abcd 130%20&%20N30 Mo-Fr%209 1 0", "host readiness event was not received")')
 lua.execute('take("130 & N30","Mo-Fr 9",2);step(1);assert(status.phase=="applying" and status.issued and not status.host_ack);emit("lan_message",1,"done other_request");emit("lan_message",3,"done 1002_1234abcd");step(1);assert(status.phase=="applying" and not status.host_ack);emit("lan_message",1,"done 1002_1234abcd");step(1);assert(status.phase=="applied" and status.sign_ok and status.host_ack)')
 
+# Carrão City regression: host.2 mistakes the native server's HTTP 202 for a
+# rejection, then relays the actual duty-ok. Both arrive for the same request.
+lua = runtime()
+lua.execute('''
+lan_active=true
+rows={{trip=16,station=1,name="Terminal Dom Pedro 4315",departure=45900},
+      {trip=16,station=2,name="ET Vila Carrao 4315",departure=47400}}
+omsi.bus.destinations=function() return {{index=1,name="Terminal Dom Pedro 4315"},{index=34,name="ET Vila Carrao 4315"}} end
+omsi.bus.destination=function() return "ET Vila Carrao 4315",destination_index end
+prepare();command.line="4315";command.tour="SAB01";command.minute=765
+command.origin="Terminal Dom Pedro 4315";command.terminus="ET Vila Carrao 4315"
+step(6);command.phase="apply";step(1);emit("lan_message",1,"ready");step(9)
+assert(sends[#sends]=="take 1002_1234abcd 4315 SAB01 15 0")
+emit("lan_message",1,"no 1002_1234abcd Native dispatch rejected");step(1)
+assert(status.phase=="applying", "HTTP submission failure aborted before the native acknowledgment")
+duty={line="4315",tour="SAB01",trip=16,departure=45900,terminus="ET Vila Carrao 4315"}
+step(1);assert(status.phase=="applying" and not status.host_ack)
+emit("lan_message",1,"done 1002_1234abcd");step(1)
+assert(status.phase=="applying" and status.host_ack and not status.sign_ok)
+destination_index=34;step(1)
+assert(status.phase=="applied" and status.sign_ok and #messages==1)
+local submitted=#sends
+emit("lan_message",1,"no 1002_1234abcd Native dispatch rejected");step(20)
+assert(status.phase=="applied" and status.sign_ok and #sends==submitted and #messages==1)
+''')
+
 lua = runtime()
 lua.execute('lan_active=true;prepare();step(6);command.phase="apply";step(85);assert(status.phase=="error" and status.error=="The native host did not answer the next-trip handshake" and starts==0)')
 
 lua = runtime()
 lua.execute('lan_active=true;prepare();step(6);command.phase="apply";step(1);emit("lan_message",1,"ready");step(9);emit("lan_message",1,"no 1002_1234abcd Native client rejected the duty");step(1);assert(status.phase=="error" and starts==0)')
 
+# The actual duty-ok takes precedence over an HTTP submission error that
+# arrives later, but only while this exact request is applying.
+lua = runtime()
+lua.execute('lan_active=true;prepare();step(6);command.phase="apply";step(1);emit("lan_message",1,"ready");step(9);take("130 & N30","Mo-Fr 9",2);emit("lan_message",1,"done 1002_1234abcd");emit("lan_message",1,"no 1002_1234abcd Native dispatch rejected");step(1);assert(status.phase=="applied" and status.sign_ok and #messages==1)')
+
+# Transport errors are still failures if the native client never confirms.
+# A cancel file and late LAN messages must not repeat or overwrite the error.
+lua = runtime()
+lua.execute('''
+lan_active=true;prepare();step(6);command.phase="apply";step(1)
+emit("lan_message",1,"ready");step(9)
+emit("lan_message",1,"no 1002_1234abcd Native dispatch unavailable");step(1)
+take("130 & N30","Mo-Fr 9",2);step(2)
+assert(status.phase=="applying" and not status.host_ack)
+step(80)
+assert(status.phase=="error" and status.error=="The native client did not confirm the requested duty: Native dispatch unavailable")
+local original=status.error
+command.phase="cancel";step(60);emit("lan_message",1,"done 1002_1234abcd");step(1)
+assert(status.phase=="error" and status.error==original and #messages==1)
+''')
+
+# An acknowledgment alone cannot confirm a different timetable or trigger a
+# second dispatch while the native state catches up.
+lua = runtime()
+lua.execute('''
+lan_active=true;prepare();step(6);command.phase="apply";step(1)
+emit("lan_message",1,"ready");step(9);emit("lan_message",1,"done 1002_1234abcd")
+local submitted=#sends
+step(85)
+assert(status.phase=="error" and status.error=="The loaded timetable does not match the selected BCS trip" and #sends==submitted)
+''')
+
 lua = runtime()
 lua.execute('table.insert(rows,{trip=3,station=1,name="B",departure=16500});table.insert(rows,{trip=3,station=2,name="A",departure=18000});prepare();step(1);assert(status.phase=="error" and starts==0 and saves==0)')
 
 lua = runtime()
 lua.execute('prepare();command.bus="Vehicles/Other/bus.bus";step(1);assert(status.phase=="error" and starts==0)')
+lua.execute('prepare();command.id="1003_5678abcd";command.map="/OMSI/maps/Other/global.cfg";step(1);assert(status.id=="1003_5678abcd" and status.phase=="error" and status.error=="The loaded map/bus differs from the BCS selection" and #messages==2)')
 
 lua = runtime()
 lua.execute('prepare();step(6);command.phase="cancel";step(1);command.phase="apply";step(8);assert(status.phase=="error" and starts==0)')
-print("Lua companion: actual registered LAN events, local and multiplayer handoffs, host/request identity, acknowledgment, timeout, rejection, ambiguity, vehicle and cancellation checks passed")
+print("Lua companion: registered events, Carrão 4315/SAB01 HTTP-202/ack ordering, local and multiplayer handoffs, actual timetable/destination confirmation, timeout, rejection and cancellation checks passed")

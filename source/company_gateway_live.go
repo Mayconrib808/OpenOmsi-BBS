@@ -113,7 +113,7 @@ func (p *companyGatewayPeer) liveTripRequest(packet []byte) (bool, error) {
 	}
 	defer resp.Body.Close()
 	_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusAccepted {
 		return true, reply("no " + words[3] + " Native dispatch rejected")
 	}
 	// HTTP acceptance is not a timetable confirmation. The companion reads

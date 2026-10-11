@@ -9,12 +9,14 @@ local current, phase, problem, resolved = nil, "ready", nil, nil
 local elapsed, resend, prepared_age, sign_ok = 0, 0, 0, false
 local host_ready = false
 local issued, host_ack = false, false
+local dispatch_problem = nil
 local function trim(s) return tostring(s or ""):match("^%s*(.-)%s*$") end
 local function key(s) return trim(s):lower():gsub("\\", "/") end
 local function name(s) return key(s):gsub("[%p%s]", "") end
 local function clock(t) return math.floor((tonumber(t) or -100000) / 60) % 1440 end
 local function esc(s) return tostring(s):gsub("%%", "%%25"):gsub(" ", "%%20") end
 local function fail(s)
+  if phase == "error" then return end
   phase, problem = "error", tostring(s)
   omsi.message(translated("BCS: troca de viagem não confirmada. Veja o diagnóstico no Setup.",
     "BCS: trip change not confirmed. Check the Setup diagnostics.",
@@ -29,7 +31,8 @@ local function state()
     line = d and d.line, tour = d and d.tour, trip = d and d.trip,
     trip_name = d and d.trip_name, departure = d and d.departure,
     selected_trip = resolved and resolved.trip, version = omsi.game.version(),
-    host_ready = host_ready, issued = issued, host_ack = host_ack }
+    host_ready = host_ready, issued = issued, host_ack = host_ack,
+    dispatch_warning = dispatch_problem }
 end
 local function valid_vehicle(c)
   return key((omsi.map.info() or {}).path) == key(c.map) and
@@ -101,12 +104,23 @@ omsi.on("lan_message", function(from, text)
     host_ready = true
     omsi.log("BCS next trip: native host ready")
   end
-  if current and text == "done " .. current.id and not host_ack then
-    host_ack = true
+  if not current or phase ~= "applying" or not issued then return end
+  if text == "done " .. current.id and not host_ack then
+    host_ack, dispatch_problem = true, nil
     omsi.log("BCS next trip: native client confirmed " .. current.id)
   end
-  if current and text:sub(1, #("no " .. current.id .. " ")) == "no " .. current.id .. " " then
-    fail(text)
+  local prefix = "no " .. current.id .. " "
+  if not host_ack and text:sub(1, #prefix) == prefix then
+    local reason = text:sub(#prefix + 1)
+    -- host.2 expects HTTP 200, but the native admin endpoint returns 202.
+    -- A submission error is not the client's duty-no: wait for its actual
+    -- duty-ok and verify duty.get(), in either LAN message order.
+    if reason == "Native dispatch rejected" or reason == "Native dispatch unavailable" then
+      if dispatch_problem ~= reason then
+        omsi.log("BCS next trip: waiting for native confirmation after " .. reason)
+      end
+      dispatch_problem = reason
+    else fail(text) end
   end
 end)
 omsi.every(0.25, function()
@@ -116,8 +130,10 @@ omsi.every(0.25, function()
     if c.phase == "cancel" and current and c.id == current.id then fail("BCS selection changed") end
     if c.phase == "prepare" and (not current or current.id ~= c.id) then
       current, resolved, problem, sign_ok = c, nil, nil, false
+      phase = "preparing"
       elapsed, resend, prepared_age = 0, 0, 0
       issued, host_ack = false, false
+      dispatch_problem = nil
       if not valid_vehicle(c) then fail("The loaded map/bus differs from the BCS selection")
       elseif math.abs(omsi.speed() or 0) > 0.5 then fail("Stop the bus before changing the BCS trip")
       else
@@ -156,9 +172,10 @@ omsi.every(0.25, function()
       end
     elseif elapsed >= 20 then
       if omsi.lan.active() and not host_ready then fail("The native host did not answer the next-trip handshake")
-      elseif not host_ack then fail("The native client did not confirm the requested duty")
+      elseif not host_ack then fail("The native client did not confirm the requested duty" ..
+        (dispatch_problem and ": " .. dispatch_problem or ""))
       else fail("The loaded timetable does not match the selected BCS trip") end
-    elseif resend <= 0 then dispatch(); resend = 2 end
+    elseif resend <= 0 and not host_ack then dispatch(); resend = 2 end
   end
   omsi.files.write("status.json", omsi.json.encode(state()))
 end)
