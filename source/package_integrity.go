@@ -68,6 +68,10 @@ func verifyPackage(dir string) (int, error) {
 			return count, fmt.Errorf("unsafe or duplicate manifest path")
 		}
 		seen[strings.ToLower(rel)] = true
+		// Documentation is optional and never participates in runtime integrity.
+		if packageOptionalDocumentation(rel) {
+			continue
+		}
 		st, e := os.Lstat(path)
 		if e != nil {
 			return count, e
@@ -162,4 +166,20 @@ func packagePatchHashes(dir string) (map[string][]byte, error) {
 		}
 	}
 	return out, nil
+}
+
+// Only human-readable documentation is optional. Executables, scripts, runtime
+// configuration and integrity/control manifests retain their existing checks.
+func packageOptionalDocumentation(rel string) bool {
+ p := strings.ToLower(rel)
+ name := strings.ToLower(filepath.Base(filepath.FromSlash(rel)))
+ if !strings.Contains(p, "/") {
+  return ((name == "leia-me.txt" || strings.HasPrefix(name, "leia-me-")) && strings.HasSuffix(name, ".txt")) ||
+   ((name == "readme.md" || strings.HasPrefix(name, "readme.")) && strings.HasSuffix(name, ".md")) || name == "tutorial.html"
+ }
+ if strings.HasPrefix(p, "docs/") {
+  if strings.Contains(name, "sha256") || strings.HasPrefix(name, "patch-") || name == "package_files.txt" { return false }
+  return strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".txt")
+ }
+ return false
 }

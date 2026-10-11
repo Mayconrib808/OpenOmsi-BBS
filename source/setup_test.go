@@ -858,3 +858,18 @@ func TestDiagnosticCollectionOnlyIncludesExpectedLocalFiles(t *testing.T) {
 		t.Fatal("trip log missing")
 	}
 }
+
+func TestPackageDocumentationCanChangeOrBeMissing(t *testing.T) {
+ dir := t.TempDir()
+ files := map[string][]byte{"Setup.exe":[]byte("setup"),"app/OpenOMSI_BCS_Bridge.exe":[]byte("bridge"),"app/compat/Omsi.exe":[]byte("facade"),"app/compat/omsi-plugin-host32.exe":[]byte("helper"),"LEIA-ME.txt":[]byte("instructions"),"README.pt-BR.md":[]byte("readme"),"docs/GUIA_JOGADOR.md":[]byte("guide"),"docs/BUILD-INFO.txt":[]byte("build info")}
+ manifest(t,dir,files)
+ os.WriteFile(filepath.Join(dir,"LEIA-ME.txt"),[]byte("company instructions"),0644)
+ os.Remove(filepath.Join(dir,"README.pt-BR.md"));os.Remove(filepath.Join(dir,"docs","GUIA_JOGADOR.md"))
+ if n,err:=verifyPackage(dir);err!=nil||n!=4 {t.Fatalf("optional docs blocked package: %d %v",n,err)}
+ for _,critical:=range []string{"run.ps1","app/bridge.lua","app/settings.json","docs/PACKAGE_FILES.txt"} {
+  dir:=t.TempDir();files:=map[string][]byte{"Setup.exe":[]byte("setup"),"app/OpenOMSI_BCS_Bridge.exe":[]byte("bridge"),"app/compat/Omsi.exe":[]byte("facade"),"app/compat/omsi-plugin-host32.exe":[]byte("helper"),critical:[]byte("original")}
+  manifest(t,dir,files);os.WriteFile(filepath.Join(dir,filepath.FromSlash(critical)),[]byte("changed"),0644)
+  if _,err:=verifyPackage(dir);err==nil {t.Fatalf("critical tampering accepted: %s",critical)}
+ }
+ os.Remove(filepath.Join(dir,"docs","SHA256.txt"));if _,err:=verifyPackage(dir);err==nil {t.Fatal("missing integrity manifest accepted")}
+}
