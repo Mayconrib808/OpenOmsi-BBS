@@ -24,7 +24,7 @@ REFERENCE_GO = "go1.23.2"
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (SOURCE / "version.go").read_text()).group(1)
 PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
-    "main.go pedepe_native.go live_trip.go live_trip_vendor.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
+    "main.go pedepe_native.go live_trip.go live_trip_vendor.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update.go bridge_update_native.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
     "driver.go driver_live.go session.go config.go plugin_host.go registry.go package_integrity.go setup_files.go "
     "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go company_host_population.go company_gateway.go company_gateway_live.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()

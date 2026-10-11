@@ -60,7 +60,8 @@ func main() {
 		automaticUpdateMessage("Argumento inválido. Execute o atualizador normalmente.", true)
 		return
 	}
-	dir, c, err := registeredBridgeUpdateTarget(newWindowsRegistry())
+	saved := readConfig(filepath.Join(managedDataDir(exeDir()), "bridge.ini"))
+	dir, c, err := automaticBridgeUpdateTarget(newWindowsRegistry(), saved.Root, steamRootsForBridgeUpdate())
 	if err == nil {
 		var running bool
 		running, err = gamesRunning()

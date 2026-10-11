@@ -12,8 +12,8 @@ import (
 	"strings"
 )
 
-// Installed packages already register this precise path. Reuse it; never ask
-// players to choose between the OMSI, openOMSI and PeDePeAdapter folders.
+// Compatibility fallback for packages using the old Omsi.exe interception.
+// Native packages are identified from the BCS selection before this is called.
 func registeredBridgeUpdateTarget(r registryAPI) (string, Config, error) {
 	var found string
 	var config Config
@@ -51,7 +51,7 @@ func registeredBridgeUpdateTarget(r registryAPI) (string, Config, error) {
 		found, config = dir, c
 	}
 	if found == "" {
-		return "", config, fmt.Errorf("não encontrei uma Bridge instalada e registrada. Envie os logs do Setup ao administrador da empresa")
+		return "", config, fmt.Errorf("não encontrei a pasta da Bridge nas configurações do BCS. Envie os logs do BCS ao administrador da empresa")
 	}
 	return found, config, nil
 }

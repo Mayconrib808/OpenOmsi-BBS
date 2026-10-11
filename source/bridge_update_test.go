@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -80,6 +81,164 @@ func TestAutomaticUpdateRejectsForeignExecutableAndConflictingViews(t *testing.T
 	r.Write(32, ifeoBridge, "Debugger", stringValue(`"`+bridgePath(dir)+`"`))
 	if _, _, err := registeredBridgeUpdateTarget(r); err == nil {
 		t.Fatal("conflicting views accepted")
+	}
+}
+
+func nativeAutomaticUpdateFixture(t *testing.T) (string, Config, string) {
+	t.Helper()
+	dir, c, _ := automaticUpdateFixture(t, false)
+	jar := filepath.Join(c.Root, "Busbetrieb-Simulator", "busbetrieb-simulator.jar")
+	if err := os.MkdirAll(filepath.Dir(jar), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(jar, []byte("discovery fixture"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	lines := make([]string, 51)
+	lines[0], lines[49], lines[50] = c.Root, filepath.Join(dir, "PeDePeAdapter")+string(filepath.Separator), "true"
+	settings := filepath.Join(filepath.Dir(jar), "config.cfg")
+	if err := os.WriteFile(settings, []byte(strings.Join(lines, "\r\n")+"\r\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	return dir, c, settings
+}
+
+func TestAutomaticUpdateNativeBCSNeedsNoLegacyActivation(t *testing.T) {
+	dir, c, _ := nativeAutomaticUpdateFixture(t)
+	r := newMemoryRegistry(false)
+	for _, stale := range []bool{false, true} {
+		if stale {
+			r.Write(64, ifeoBridge, "Debugger", stringValue(`"`+filepath.Join(t.TempDir(), "unrelated.exe")+`"`))
+		}
+		before := cloneValues(r)
+		got, cfg, err := automaticBridgeUpdateTarget(r, "", []string{c.Root})
+		if err != nil || got != dir || cfg.Root != c.Root || cfg.CompanyID != c.CompanyID {
+			t.Fatal(got, cfg, err)
+		}
+		if fmt.Sprint(before) != fmt.Sprint(cloneValues(r)) {
+			t.Fatal("discovery changed registry")
+		}
+	}
+}
+
+func TestAutomaticUpdateNativePrefersExistingUserConfiguration(t *testing.T) {
+	dir, c, _ := nativeAutomaticUpdateFixture(t)
+	_, other, _ := nativeAutomaticUpdateFixture(t)
+	got, _, err := automaticBridgeUpdateTarget(newMemoryRegistry(false), c.Root, []string{other.Root})
+	if err != nil || got != dir {
+		t.Fatal(got, err)
+	}
+	if _, _, err := nativeBridgeUpdateTarget([]string{c.Root, other.Root}); err == nil {
+		t.Fatal("ambiguous native packages accepted")
+	}
+}
+
+func TestAutomaticUpdateNativeSavedSettingsOutrankOldLaunchLog(t *testing.T) {
+	dir, c, settings := nativeAutomaticUpdateFixture(t)
+	log := "OpenOMSI gestartet: " + filepath.Join(dir, "PeDePeAdapter", "openomsi.exe") + " --root " + c.Root + " --schedule\r\n"
+	if err := os.WriteFile(filepath.Join(filepath.Dir(settings), "log.txt"), []byte(log), 0644); err != nil {
+		t.Fatal(err)
+	}
+	for _, enabled := range []string{"false", "true"} {
+		lines := make([]string, 51)
+		lines[0], lines[49], lines[50] = c.Root, filepath.Join(dir, "PeDePeAdapter"), enabled
+		if enabled == "true" {
+			lines[0] = t.TempDir()
+		}
+		if err := os.WriteFile(settings, []byte(strings.Join(lines, "\n")), 0644); err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := nativeBridgeUpdateTarget([]string{c.Root}); !errors.Is(err, errNoNativeUpdateTarget) {
+			t.Fatal("old log overrode explicit settings", err)
+		}
+	}
+}
+
+func TestAutomaticUpdateNativeReadsBCSLegacyAccentedPaths(t *testing.T) {
+	data := []byte(strings.Join(append([]string{"C:\\J\xe3o\\OMSI 2"}, make([]string, 50)...), "\r\n"))
+	lines := strings.Split(string(data), "\r\n")
+	lines[49], lines[50] = "D:\\Atualiza\xe7\xe3o \\PeDePeAdapter\\", "true"
+	root, adapter, enabled := nativeBCSUpdateSelection([]byte(strings.Join(lines, "\r\n")))
+	if !enabled || root != `C:\Jão\OMSI 2` || adapter != `D:\Atualização \PeDePeAdapter\` {
+		t.Fatal(root, adapter, enabled)
+	}
+	if got := decodeBCSUpdateConfig([]byte{0xa4, 0xa6, 0xa8, 0xb4, 0xb8, 0xbc, 0xbd, 0xbe}); got != "€ŠšŽžŒœŸ" {
+		t.Fatal(got)
+	}
+}
+
+func TestAutomaticUpdateNativeFindsRedirectedBCSSettings(t *testing.T) {
+	dir, c, settings := nativeAutomaticUpdateFixture(t)
+	redirect := t.TempDir()
+	data, err := os.ReadFile(settings)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(redirect, "config.cfg"), data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Remove(settings); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.WriteFile(filepath.Join(filepath.Dir(settings), "gad.txt"), []byte(redirect+"\r\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := automaticBridgeUpdateTarget(newMemoryRegistry(false), "", []string{c.Root})
+	if err != nil || got != dir {
+		t.Fatal(got, err)
+	}
+}
+
+func TestAutomaticUpdateNativeFindsSteamSecondaryLibrary(t *testing.T) {
+	dir, c, settings := nativeAutomaticUpdateFixture(t)
+	steam, library := t.TempDir(), t.TempDir()
+	root := filepath.Join(library, "steamapps", "common", "OMSI 2")
+	if err := os.MkdirAll(filepath.Dir(root), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(c.Root, root); err != nil {
+		t.Fatal(err)
+	}
+	c.Root = root
+	if err := saveInstalledConfig(dir, c); err != nil {
+		t.Fatal(err)
+	}
+	lines := make([]string, 51)
+	lines[0], lines[49], lines[50] = root, filepath.Join(dir, "PeDePeAdapter"), "true"
+	if err := os.WriteFile(filepath.Join(root, "Busbetrieb-Simulator", filepath.Base(settings)), []byte(strings.Join(lines, "\n")), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(steam, "steamapps"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	vdf := fmt.Sprintf("\"libraryfolders\" { \"0\" { \"path\" \"%s\" } }", library)
+	if err := os.WriteFile(filepath.Join(steam, "steamapps", "libraryfolders.vdf"), []byte(vdf), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got, _, err := automaticBridgeUpdateTarget(newMemoryRegistry(false), "", steamLibraryUpdateRoots(steam))
+	if err != nil || got != dir {
+		t.Fatal(got, err)
+	}
+}
+
+func TestAutomaticUpdateNativeReadsLastLaunchFromLargeUnicodeLog(t *testing.T) {
+	for _, encoding := range []string{"utf8", "le", "be"} {
+		t.Run(encoding, func(t *testing.T) {
+			dir, c, settings := nativeAutomaticUpdateFixture(t)
+			if err := os.Remove(settings); err != nil {
+				t.Fatal(err)
+			}
+			text := "OpenOMSI gestartet: " + filepath.Join(t.TempDir(), "PeDePeAdapter", "openomsi.exe") + " --root " + c.Root + "\r\n"
+			text += strings.Repeat("older log line\r\n", 160000)
+			text += "OpenOMSI gestartet: " + filepath.Join(dir, "PeDePeAdapter", "openomsi.exe") + " --root " + c.Root + " --schedule\r\n"
+			if err := os.WriteFile(filepath.Join(filepath.Dir(settings), "log.txt"), encodedLog(text, encoding), 0644); err != nil {
+				t.Fatal(err)
+			}
+			got, _, err := automaticBridgeUpdateTarget(newMemoryRegistry(false), "", []string{c.Root})
+			if err != nil || got != dir {
+				t.Fatal(got, err)
+			}
+		})
 	}
 }
 
