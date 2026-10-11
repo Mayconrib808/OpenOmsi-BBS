@@ -268,6 +268,32 @@ func TestLiveTripMonitorStableSelectionAndConfirmedHandoff(t *testing.T) {
 	if m.current.ID != "1002" || m.pending != nil || driver.EvaluationFrozen {
 		t.Fatal("confirmed handoff failed")
 	}
+	// Regression: after the confirmed handoff the old completed evaluation
+	// must stop being frozen. BCS's finish check requires real new counters.
+	oldRecord, err := parseDriver(b, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	progress := oldRecord
+	progress.Stops[0] += 18
+	progress.Hectom += 47
+	progress.Tickets += 12
+	if err := os.WriteFile(driver.OpenPath, progress.encode(true), 0600); err != nil {
+		t.Fatal(err)
+	}
+	_, _ = driver.poll()
+	changed, err := driver.poll()
+	if err != nil || !changed {
+		t.Fatalf("next-trip evaluation was not published: %t %v", changed, err)
+	}
+	newBytes, err := os.ReadFile(native)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newRecord, err := parseDriver(newBytes, false)
+	if err != nil || newRecord.Stops[0] != oldRecord.Stops[0]+18 || newRecord.Hectom != oldRecord.Hectom+47 || newRecord.Tickets != oldRecord.Tickets+12 {
+		t.Fatalf("BCS would still read the previous trip's counters: %+v %v", newRecord, err)
+	}
 	// Historical blocks cannot reopen the accepted transaction.
 	m.poll(now.Add(6*time.Second), driver)
 	if m.pending != nil {

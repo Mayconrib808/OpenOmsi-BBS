@@ -433,3 +433,42 @@ func TestAutomaticUpdateRealInstalledPackages(t *testing.T) {
 		}
 	}
 }
+
+func TestAutomaticUpdateCompleteBinaryPayloadAndSharedManifest(t *testing.T) {
+	var b bytes.Buffer
+	z := zip.NewWriter(&b)
+	payload := map[string][]byte{}
+	for _, name := range []string{"Setup.exe", "HostAgent.exe", "CompanyHost.exe", "PeDePeAdapter/openomsi.exe", "app/OpenOMSI_BCS_Bridge.exe", "app/compat/Omsi.exe", "app/compat/omsi-plugin-host32.exe"} {
+		data := []byte("MZ" + name)
+		payload[name] = data
+		w, e := z.Create(name)
+		if e != nil {
+			t.Fatal(e)
+		}
+		_, _ = w.Write(data)
+	}
+	_ = z.Close()
+	got, e := readAutomaticBridgePayload(b.Bytes())
+	if e != nil || len(got) != 7 {
+		t.Fatal(got, e)
+	}
+	old := []byte(fmt.Sprintf("%x  Setup.exe\n%x  HostAgent.exe\n", sha256.Sum256([]byte("old setup")), sha256.Sum256([]byte("old host"))))
+	manifest := string(updatedHostManifestForPayload(old, got))
+	for _, name := range []string{"Setup.exe", "HostAgent.exe"} {
+		if !strings.Contains(manifest, fmt.Sprintf("%x  %s", sha256.Sum256(payload[name]), name)) {
+			t.Fatal("host/player attestations conflict", manifest)
+		}
+	}
+}
+func TestAutomaticUpdateHandoffOptions(t *testing.T) {
+	root := t.TempDir()
+	o, e := parseBridgeUpdateOptions([]string{"--target-dir", root, "--wait-setup", "12", "--reopen"})
+	if e != nil || o.target != root || o.wait != 12 || !o.reopen {
+		t.Fatal(o, e)
+	}
+	for _, args := range [][]string{{"--target-dir", "relative"}, {"--wait-setup", "-1"}, {"--reopen"}, {"--wait-setup", "4294967296"}, {"--unknown"}} {
+		if _, e := parseBridgeUpdateOptions(args); e == nil {
+			t.Fatal("unsafe options accepted", args)
+		}
+	}
+}

@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -20,6 +21,7 @@ var guiDialogs = syscall.NewLazyDLL("comdlg32.dll")
 const (
 	guiWMCommand     = 0x0111
 	guiWMComplete    = 0x8001
+	guiWMUpdates     = 0x8002
 	guiWMClose       = 0x0010
 	guiWMDestroy     = 0x0002
 	guiWMDrawItem    = 0x002B
@@ -46,6 +48,7 @@ const (
 	guiIDCancel      = 111
 	guiIDMultiplayer = 112
 	guiIDLanguage    = 113
+	guiIDUpdates     = 114
 )
 
 type guiPoint struct{ X, Y int32 }
@@ -98,9 +101,10 @@ type guiBrowseInfo struct {
 	Image              int32
 }
 type guiResult struct {
-	config           Config
-	status, openPath string
-	err              error
+	config                      Config
+	status, openPath            string
+	err                         error
+	updateInstaller, updateHash string
 }
 type guiTranslation struct {
 	window uintptr
@@ -118,6 +122,12 @@ type setupGUI struct {
 	results                                                                      chan guiResult
 	cancel                                                                       context.CancelFunc
 	busy, smoke, smokeCompleted                                                  bool
+	updateButton, updateStatus                                                   uintptr
+	updateResults                                                                chan setupUpdateResult
+	updateChecking                                                               bool
+	updateState                                                                  string
+	updateCancel                                                                 context.CancelFunc
+	availableUpdate                                                              *bridgeRelease
 }
 
 var activeSetupGUI *setupGUI
@@ -199,6 +209,7 @@ func (g *setupGUI) applyLanguage() {
 		guiSetText(item.window, g.text(item.key))
 	}
 	g.updateMultiplayerControls()
+	g.renderUpdateState()
 	guiSetText(g.status, g.text("ready"))
 	guiUser.NewProc("InvalidateRect").Call(g.window, 0, 1)
 }
@@ -254,8 +265,11 @@ func (g *setupGUI) createControls() {
 	g.translatedButton("status", 520, 514, 194, 46, guiIDStatus)
 	g.cancelButton = g.translatedButton("cancel", 730, 514, 194, 46, guiIDCancel)
 	guiUser.NewProc("EnableWindow").Call(g.cancelButton, 0)
-	g.status = g.label(g.text("ready"), 34, 578, 890, 60)
+	g.status = g.label(g.text("ready"), 34, 578, 666, 60)
 	guiUser.NewProc("SendMessageW").Call(g.status, guiWMSetFont, g.smallFont, 1)
+	g.updateButton = g.translatedButton("updates_check", 716, 578, 208, 36, guiIDUpdates)
+	g.updateStatus = g.label(g.text("updates_checking"), 716, 617, 208, 30)
+	guiUser.NewProc("SendMessageW").Call(g.updateStatus, guiWMSetFont, g.smallFont, 1)
 	g.translatedButton("logs", 34, 650, 194, 36, guiIDLogs)
 	g.translatedButton("tutorial", 244, 650, 194, 36, guiIDTutorial)
 	g.translatedButton("host", 454, 650, 224, 36, guiIDHost)
@@ -277,6 +291,9 @@ func (g *setupGUI) busyState(busy bool) {
 	}
 	guiUser.NewProc("EnableWindow").Call(g.cancelButton, enabled)
 	g.updateMultiplayerControls()
+	if g.updateChecking {
+		guiUser.NewProc("EnableWindow").Call(g.updateButton, 0)
+	}
 }
 func (g *setupGUI) work(status string, task func(context.Context) guiResult) {
 	if g.busy {
@@ -310,6 +327,14 @@ func (g *setupGUI) finish() {
 		g.populate()
 	}
 	guiSetText(g.status, result.status)
+	if result.updateInstaller != "" {
+		if err := launchSetupUpdate(g.dir, result.updateInstaller, result.updateHash); err != nil {
+			guiMessageBox(g.window, err.Error(), 0x10)
+			return
+		}
+		guiUser.NewProc("DestroyWindow").Call(g.window)
+		return
+	}
 	if result.openPath != "" {
 		_ = openDocument(result.openPath)
 	}
@@ -354,6 +379,13 @@ func (g *setupGUI) saveAndActivate() {
 		}
 		if err := saveInstalledConfig(g.dir, c); err != nil {
 			return guiResult{err: err}
+		}
+		if setupNativeSelected(g.dir, c) {
+			err := prepareSetupNativeTrip(g.dir, c)
+			if errors.Is(err, os.ErrPermission) && !isElevated() {
+				err = elevateSetup("native-prepare", c.Language)
+			}
+			return guiResult{config: c, status: g.text("ready"), err: err}
 		}
 		var err error
 		if isElevated() {
@@ -427,6 +459,8 @@ func (g *setupGUI) command(id int) {
 		}
 	case guiIDSave:
 		g.saveAndActivate()
+	case guiIDUpdates:
+		g.updateCommand()
 	case guiIDDeactivate:
 		if guiMessageBox(g.window, g.text("confirm_deactivate"), 0x24) != 6 {
 			return
@@ -516,6 +550,9 @@ func setupWindowProcedure(window uintptr, message uint32, wparam, lparam uintptr
 	case guiWMComplete:
 		g.finish()
 		return 0
+	case guiWMUpdates:
+		g.finishUpdateCheck()
+		return 0
 	case guiWMColorEdit, guiWMColorStatic, guiWMColorButton:
 		guiGDI.NewProc("SetTextColor").Call(wparam, guiRGB(236, 243, 251))
 		color, brush := guiRGB(14, 25, 41), g.background
@@ -555,6 +592,9 @@ func setupWindowProcedure(window uintptr, message uint32, wparam, lparam uintptr
 		guiUser.NewProc("DestroyWindow").Call(window)
 		return 0
 	case guiWMDestroy:
+		if g.updateCancel != nil {
+			g.updateCancel()
+		}
 		guiUser.NewProc("PostQuitMessage").Call(0)
 		return 0
 	}
@@ -570,7 +610,7 @@ func runSetupGUI(dir string, smoke bool) error {
 	// System-DPI-aware sizing keeps native controls sharp and the full form fits
 	// a 900-pixel-high desktop. Virtualized coordinates work on older Windows.
 	guiUser.NewProc("SetProcessDPIAware").Call()
-	g := &setupGUI{dir: dir, config: readInstalledConfig(dir), results: make(chan guiResult, 1), smoke: smoke}
+	g := &setupGUI{dir: dir, config: readInstalledConfig(dir), results: make(chan guiResult, 1), updateResults: make(chan setupUpdateResult, 1), smoke: smoke}
 	activeSetupGUI = g
 	defer func() { activeSetupGUI = nil }()
 	g.background, _, _ = guiGDI.NewProc("CreateSolidBrush").Call(guiRGB(14, 25, 41))
@@ -672,6 +712,8 @@ func runSetupGUI(dir string, smoke bool) error {
 		if statusErr == nil {
 			guiSetText(g.status, status)
 		}
+		g.checkUpdates()
+		g.prepareNativeNextTripIfConfigured()
 	}
 	var message guiMessage
 	for {

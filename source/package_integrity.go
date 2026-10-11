@@ -152,7 +152,7 @@ func packagePatchHashes(dir string) (map[string][]byte, error) {
 			}
 			rel := line[66:]
 			// Only executable components may be replaced by these binary patches.
-			if rel != "Setup.exe" && rel != "HostAgent.exe" && rel != "PeDePeAdapter/openomsi.exe" {
+			if !bridgeUpdateBinaryAllowed(rel) {
 				return nil, fmt.Errorf("unsupported update component: %s", rel)
 			}
 			if old, ok := out[rel]; ok && !bytes.Equal(old, h) {

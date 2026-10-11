@@ -15,6 +15,15 @@ func setupLanguageIndex(lang string) int {
 }
 
 var setupStrings = map[string][3]string{
+	"updates_check": {"Buscar atualizações", "Check for updates", "Nach Updates suchen"},
+	"updates_install": {"Atualizar agora", "Update now", "Jetzt aktualisieren"},
+	"updates_checking": {"Buscando atualizações...", "Checking for updates...", "Updates werden gesucht..."},
+	"updates_current": {"Você está atualizado.", "You are up to date.", "Du bist auf dem neuesten Stand."},
+	"updates_available": {"Versão %s disponível.", "Version %s available.", "Version %s verfügbar."},
+	"updates_unavailable": {"Não foi possível buscar agora.", "Could not check right now.", "Prüfung derzeit nicht möglich."},
+	"updates_unconfigured": {"Distribuição aguardando configuração.", "Distribution awaiting configuration.", "Update-Dienst noch nicht eingerichtet."},
+	"updates_confirm": {"Instalar a versão %s? Feche BCS, openOMSI e o HostAgent. O Setup será reaberto ao concluir.", "Install version %s? Close BCS, openOMSI and HostAgent. Setup will reopen when finished.", "Version %s installieren? BBS, openOMSI und HostAgent schließen. Setup startet anschließend neu."},
+	"updates_downloading": {"Baixando e conferindo a atualização...", "Downloading and verifying the update...", "Update wird geladen und geprüft..."},
 	"language":           {"Idioma / Language / Sprache", "Language / Idioma / Sprache", "Sprache / Language / Idioma"},
 	"intro":              {"Configure uma vez.\r\nInicie suas viagens pelo BCS.", "Set up once.\r\nStart your trips from BCS/BBS.", "Einmal einrichten.\r\nFahrten über BBS starten."},
 	"games":              {"1   Escolha os jogos", "1   Choose your games", "1   Spiele auswählen"},

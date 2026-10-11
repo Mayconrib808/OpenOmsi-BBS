@@ -78,3 +78,25 @@ func checkBridgeSetupClosedForUpdate(dir string) error {
 	}
 	return nil
 }
+
+func checkUpdateHostClosed(dir string) error {
+	snapshot, err := syscall.CreateToolhelp32Snapshot(syscall.TH32CS_SNAPPROCESS, 0)
+	if err != nil {
+		return err
+	}
+	defer syscall.CloseHandle(snapshot)
+	var entry syscall.ProcessEntry32
+	entry.Size = uint32(unsafe.Sizeof(entry))
+	err = syscall.Process32First(snapshot, &entry)
+	for err == nil {
+		name := syscall.UTF16ToString(entry.ExeFile[:])
+		if (strings.EqualFold(name, "HostAgent.exe") || strings.EqualFold(name, "CompanyHost.exe")) && samePath(processExecutableForUpdate(entry.ProcessID), filepath.Join(dir, name)) {
+			return fmt.Errorf("feche o HostAgent e o servidor da empresa antes de atualizar")
+		}
+		err = syscall.Process32Next(snapshot, &entry)
+	}
+	if err != syscall.Errno(18) {
+		return err
+	}
+	return nil
+}

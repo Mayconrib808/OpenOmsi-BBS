@@ -34,7 +34,7 @@ func elevateAutomaticUpdate() error {
 	if err != nil {
 		return err
 	}
-	info := shellExecuteInfo{Mask: 0x40 | 0x100 | 0x400, Verb: winPtr("runas"), File: winPtr(exe), Parameters: winPtr("--apply"), Directory: winPtr(filepath.Dir(exe)), Show: 1}
+	info := shellExecuteInfo{Mask: 0x40 | 0x100 | 0x400, Verb: winPtr("runas"), File: winPtr(exe), Parameters: winPtr(automaticUpdateElevationArguments()), Directory: winPtr(filepath.Dir(exe)), Show: 1}
 	info.Size = uint32(unsafe.Sizeof(info))
 	ole := syscall.NewLazyDLL("ole32.dll")
 	initialized, _, _ := ole.NewProc("CoInitializeEx").Call(0, 2)
@@ -56,12 +56,26 @@ func elevateAutomaticUpdate() error {
 func main() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
-	if len(os.Args) > 2 || (len(os.Args) == 2 && os.Args[1] != "--apply") {
-		automaticUpdateMessage("Argumento inválido. Execute o atualizador normalmente.", true)
+	opts, err := parseBridgeUpdateOptions(os.Args[1:])
+	if err != nil {
+		automaticUpdateMessage(err.Error(), true)
 		return
 	}
 	saved := readConfig(filepath.Join(managedDataDir(exeDir()), "bridge.ini"))
-	dir, c, err := automaticBridgeUpdateTarget(newWindowsRegistry(), saved.Root, steamRootsForBridgeUpdate())
+	var dir string
+	var c Config
+	if opts.target != "" {
+		c = readInstalledConfig(opts.target)
+		dir, c, err = bridgeUpdateTargetAtAdapter(filepath.Join(opts.target, "PeDePeAdapter"), c.Root)
+	} else {
+		dir, c, err = automaticBridgeUpdateTarget(newWindowsRegistry(), saved.Root, steamRootsForBridgeUpdate())
+	}
+	if err == nil {
+		err = waitForSetupUpdate(uint32(opts.wait), dir)
+	}
+	if err == nil {
+		err = checkUpdateHostClosed(dir)
+	}
 	if err == nil {
 		var running bool
 		running, err = gamesRunning()
@@ -89,7 +103,7 @@ func main() {
 	// Most Steam libraries are writable by their owner. Ask Windows for UAC
 	// only when filesystem permissions actually require it; no registry writes
 	// or company setup are part of this update.
-	if err != nil && (errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ERROR_ACCESS_DENIED)) && !isElevated() && len(os.Args) == 1 {
+	if err != nil && (errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ERROR_ACCESS_DENIED)) && !isElevated() && !opts.apply {
 		if elevationErr := elevateAutomaticUpdate(); elevationErr != nil && elevationErr != syscall.Errno(1223) {
 			automaticUpdateMessage(elevationErr.Error(), true)
 		}
@@ -99,8 +113,30 @@ func main() {
 		automaticUpdateMessage(localText(c.Language, "Não foi possível concluir a atualização:\r\n", "Could not complete the update:\r\n", "Update fehlgeschlagen:\r\n")+strings.TrimSpace(err.Error()), true)
 		os.Exit(1)
 	}
+	if opts.reopen {
+		p, e := os.StartProcess(filepath.Join(dir, "Setup.exe"), []string{filepath.Join(dir, "Setup.exe")}, &os.ProcAttr{Dir: dir, Env: os.Environ()})
+		if e != nil {
+			automaticUpdateMessage(e.Error(), true)
+		} else {
+			_ = p.Release()
+		}
+		return
+	}
 	automaticUpdateMessage(localText(c.Language,
 		"Bridge atualizada!\r\n\r\nAbra o BCS e jogue normalmente. A comunicação da próxima viagem foi preparada automaticamente.\r\n\r\nSuas pastas, perfil da empresa e servidor foram preservados.",
 		"Bridge updated!\r\n\r\nOpen BCS and play normally. Next-trip communication was prepared automatically.\r\n\r\nYour paths, company profile and server were preserved.",
 		"Bridge aktualisiert!\r\n\r\nBBS öffnen und normal spielen. Die Kommunikation für die nächste Fahrt wurde automatisch vorbereitet.\r\n\r\nPfade, Firmenprofil und Server bleiben erhalten."), false)
+}
+
+func automaticUpdateElevationArguments() string {
+	args := []string{"--apply"}
+	for _, arg := range os.Args[1:] {
+		if arg != "--apply" {
+			args = append(args, arg)
+		}
+	}
+	for i, arg := range args {
+		args[i] = syscall.EscapeArg(arg)
+	}
+	return strings.Join(args, " ")
 }

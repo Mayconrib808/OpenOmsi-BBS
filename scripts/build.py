@@ -24,12 +24,12 @@ REFERENCE_GO = "go1.23.2"
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (SOURCE / "version.go").read_text()).group(1)
 PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
-    "main.go pedepe_native.go live_trip.go live_trip_vendor.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update.go bridge_update_native.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
+    "bridge_update_options.go setup_updates.go main.go pedepe_native.go live_trip.go live_trip_vendor.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update.go bridge_update_native.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
     "driver.go driver_live.go session.go config.go plugin_host.go registry.go package_integrity.go setup_files.go "
     "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go company_host_population.go company_gateway.go company_gateway_live.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
 TEST_FILES = (
-    "driver_test.go live_trip_test.go bcs_trip_log_patch_test.go bridge_update_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
+    "setup_updates_test.go driver_test.go live_trip_test.go bcs_trip_log_patch_test.go bridge_update_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go pedepe_native_test.go "
     "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go multiplayer_startup_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go company_host_population_test.go company_gateway_test.go company_gateway_native_test.go profile_store_test.go"
 ).split()
@@ -41,7 +41,7 @@ PROGRAMS = {
         "company_host_main.go company_host.go company_host_population.go company_gateway.go company_gateway_live.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go company_host_share.go company_host_process_windows.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "Setup.exe": (
-         "setup_main.go package_integrity.go setup_files.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update_windows.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
+         "setup_main.go setup_updates.go setup_updates_windows.go setup_native_next_trip_windows.go bridge_update_handoff_windows.go bridge_update.go bridge_update_native.go package_integrity.go setup_files.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update_windows.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
         "config.go plugin_host.go registry.go paths.go version.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "PeDePeAdapter/openomsi.exe": (
@@ -95,7 +95,7 @@ def pin_release_build_id(path: Path, relative_path: str) -> None:
 
 def assemble(stage: Path, host_hash: str) -> None:
     ignore = shutil.ignore_patterns("__pycache__", "*.pyc", "*.exe", "*.dll", "*.obj", "*.lib", "*.exp")
-    for name in ("source", "docs", "scripts", "examples", "relay", "native"):
+    for name in ("source", "docs", "scripts", "examples", "relay", "native", "update-service"):
         shutil.copytree(ROOT / name, stage / name, ignore=ignore)
     for p in ROOT.glob("*.md"):
         shutil.copy2(p, stage / p.name)
@@ -121,7 +121,7 @@ def assemble(stage: Path, host_hash: str) -> None:
         encoding="utf-8",
     )
     inventory = stage / "docs/PACKAGE_FILES.txt"
-    paths = sorted(p.relative_to(stage).as_posix() for p in stage.rglob("*") if p.is_file())
+    paths = sorted(p.relative_to(stage).as_posix() for p in stage.rglob("*") if p.is_file() and p.relative_to(stage).as_posix() not in {"docs/SHA256.txt", "docs/PACKAGE_FILES.txt"})
     paths.append("docs/PACKAGE_FILES.txt")
     inventory.write_text("\n".join(sorted(paths)) + "\n", encoding="utf-8")
     manifest = "".join(
@@ -150,6 +150,8 @@ def archive_package(directory: Path) -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check-only", action="store_true", help="Run complete build/checks in a temporary folder.")
+    parser.add_argument("--update-origin", default="", help="Deployed HTTPS distribution origin.")
+    parser.add_argument("--update-sequence", default="2026101101")
     parser.add_argument("--native-server", type=Path, help="Verified dedicated server directory built by build_native_server.py.")
     parser.add_argument("--output", type=Path, default=ROOT / "dist" / PACKAGE_NAME,
                         help="New full-package directory. A ZIP and checksum are written beside it.")
@@ -227,6 +229,7 @@ def main() -> int:
             if "plugin_host.go" in sources:
                 flags += " " + digest_flag
             if rel == "Setup.exe":
+                flags += " -X=main.bridgeUpdateOrigin=" + args.update_origin + " -X=main.bridgeUpdateSequence=" + args.update_sequence
                 # A file-list build ignores .syso resources. Use an isolated
                 # package with only Setup's explicitly selected source files.
                 setup_source = Path(temporary) / "setup-source"

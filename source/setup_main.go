@@ -124,7 +124,7 @@ func logSetup(dir, action string, e error) {
 }
 func adminAction(dir, action string) error {
 	c := readInstalledConfig(dir)
-	if action != "activate" && action != "deactivate" {
+	if action != "activate" && action != "deactivate" && action != "native-prepare" {
 		return fmt.Errorf("unknown admin action")
 	}
 	if !isElevated() {
@@ -134,6 +134,12 @@ func adminAction(dir, action string) error {
 		return e
 	} else if running {
 		return fmt.Errorf("%s", localText(c.Language, "Feche OMSI e openOMSI antes de mudar a ativação.", "Close OMSI and openOMSI before changing activation.", "Schließe OMSI und openOMSI, bevor du die Aktivierung änderst."))
+	}
+	if action == "native-prepare" {
+		if !setupNativeSelected(dir, c) {
+			return fmt.Errorf("BCS native selection changed")
+		}
+		return prepareSetupNativeTrip(dir, c)
 	}
 	bridge := bridgePath(dir)
 	if action == "activate" {

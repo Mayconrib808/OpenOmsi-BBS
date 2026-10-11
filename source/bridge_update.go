@@ -56,6 +56,14 @@ func registeredBridgeUpdateTarget(r registryAPI) (string, Config, error) {
 	return found, config, nil
 }
 
+func bridgeUpdateBinaryAllowed(name string) bool {
+	switch name {
+	case "Setup.exe", "HostAgent.exe", "CompanyHost.exe", "PeDePeAdapter/openomsi.exe", "app/OpenOMSI_BCS_Bridge.exe", "app/compat/Omsi.exe", "app/compat/omsi-plugin-host32.exe":
+		return true
+	}
+	return false
+}
+
 func readAutomaticBridgePayload(data []byte) (map[string][]byte, error) {
 	z, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 	if err != nil {
@@ -63,7 +71,7 @@ func readAutomaticBridgePayload(data []byte) (map[string][]byte, error) {
 	}
 	out := map[string][]byte{}
 	for _, f := range z.File {
-		if (f.Name != "Setup.exe" && f.Name != "PeDePeAdapter/openomsi.exe") || out[f.Name] != nil || f.UncompressedSize64 > 16<<20 {
+		if !bridgeUpdateBinaryAllowed(f.Name) || out[f.Name] != nil || f.UncompressedSize64 > 16<<20 {
 			return nil, fmt.Errorf("componente inesperado no atualizador")
 		}
 		r, err := f.Open()
@@ -80,14 +88,24 @@ func readAutomaticBridgePayload(data []byte) (map[string][]byte, error) {
 		}
 		out[f.Name] = b
 	}
-	if len(out) != 2 {
+	if len(out["Setup.exe"]) == 0 || len(out["PeDePeAdapter/openomsi.exe"]) == 0 {
 		return nil, fmt.Errorf("atualizador incompleto")
 	}
 	return out, nil
 }
 
 func automaticPlayerManifest(payload map[string][]byte) []byte {
-	return []byte(fmt.Sprintf("# Automatic next-trip Bridge update\n%x  Setup.exe\n%x  PeDePeAdapter/openomsi.exe\n", sha256.Sum256(payload["Setup.exe"]), sha256.Sum256(payload["PeDePeAdapter/openomsi.exe"])))
+	names := make([]string, 0, len(payload))
+	for name := range payload {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	b.WriteString("# Automatic Bridge update\n")
+	for _, name := range names {
+		fmt.Fprintf(&b, "%x  %s\n", sha256.Sum256(payload[name]), name)
+	}
+	return []byte(b.String())
 }
 
 // Preserve the host's attested binary while sharing the newly installed Setup
@@ -107,8 +125,13 @@ func updatedHostManifest(previous []byte, setup []byte) []byte {
 }
 
 func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byte, checkClosed func(string) error) (state bcsNextTripPreparation, err error) {
-	if len(payload) != 2 || len(payload["Setup.exe"]) == 0 || len(payload["PeDePeAdapter/openomsi.exe"]) == 0 {
+	if len(payload) < 2 || len(payload["Setup.exe"]) == 0 || len(payload["PeDePeAdapter/openomsi.exe"]) == 0 {
 		return state, fmt.Errorf("atualizador incompleto")
+	}
+	for name := range payload {
+		if !bridgeUpdateBinaryAllowed(name) {
+			return state, fmt.Errorf("componente inesperado no atualizador")
+		}
 	}
 	if _, err = verifyPackage(dir); err != nil {
 		return state, fmt.Errorf("a instalação atual não passou na integridade: %w", err)
@@ -134,13 +157,27 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	if _, err = automaticBCSLogger(logger); err != nil {
 		return state, err
 	}
+	baseManifest, err := os.ReadFile(filepath.Join(dir, "docs", "SHA256.txt"))
+	if err != nil {
+		return state, err
+	}
+	selected := map[string][]byte{}
+	for name, data := range payload {
+		if strings.Contains(string(baseManifest), "  "+name+"\n") || strings.Contains(string(baseManifest), "  "+name+"\r\n") {
+			selected[name] = data
+		}
+	}
+	if len(selected["Setup.exe"]) == 0 || len(selected["PeDePeAdapter/openomsi.exe"]) == 0 {
+		return state, fmt.Errorf("instalação sem componentes obrigatórios atestados")
+	}
+	payload = selected
 	files := map[string][]byte{}
 	for name, data := range payload {
 		files[name] = data
 	}
 	files["docs/PATCH-PLAYER-SHA256.txt"] = automaticPlayerManifest(payload)
 	if host, e := os.ReadFile(filepath.Join(dir, "docs", "PATCH-HOST-SHA256.txt")); e == nil {
-		files["docs/PATCH-HOST-SHA256.txt"] = updatedHostManifest(host, payload["Setup.exe"])
+		files["docs/PATCH-HOST-SHA256.txt"] = updatedHostManifestForPayload(host, payload)
 	} else if !os.IsNotExist(e) {
 		return state, e
 	}
@@ -189,4 +226,20 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	}
 	state, err = prepareBCSNextTrip(c, checkClosed)
 	return state, err
+}
+
+func updatedHostManifestForPayload(previous []byte, payload map[string][]byte) []byte {
+	var lines []string
+	for _, line := range strings.Split(string(previous), "\n") {
+		line = strings.TrimSuffix(line, "\r")
+		if len(line) >= 67 && line[64:66] == "  " {
+			if b, ok := payload[line[66:]]; ok {
+				line = fmt.Sprintf("%x  %s", sha256.Sum256(b), line[66:])
+			}
+		}
+		if line != "" {
+			lines = append(lines, line)
+		}
+	}
+	return []byte(strings.Join(lines, "\n") + "\n")
 }
