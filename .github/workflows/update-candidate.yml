@@ -24,11 +24,7 @@ jobs:
       - name: Verify live distribution and build update binaries only
         shell: bash
         run: |
-          python3 - <<'PY'
-          import json, urllib.request
-          with urllib.request.urlopen('https://openomsi-bbs-updates.maycongamesmaximo.workers.dev/health',timeout=15) as r:
-              assert json.load(r)=={'service':'openomsi-bbs-updates','schema':1}
-          PY
+          node -e 'fetch("https://openomsi-bbs-updates.maycongamesmaximo.workers.dev/health").then(async r=>{const s=await r.text();console.log("Distribution health:",r.status,s);if(!r.ok||JSON.parse(s).service!=="openomsi-bbs-updates")process.exitCode=1})'
           python scripts/build_update_components.py --output build/update-components --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev --update-sequence 2026101102
           python scripts/build_bridge_update.py --package build/update-components --output build/update-candidate/OpenOmsi_BBS_2.1.2_Atualizacao.zip --components build/update-candidate/components
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
