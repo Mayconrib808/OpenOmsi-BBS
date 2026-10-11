@@ -120,7 +120,7 @@ func main() {
 			peDePeAdapterLog(logPath, fmt.Sprintf("driver translation: simulator=%s BBS=%s baseline stops=%d", driver.OpenPath, driver.NativePath, driver.Last.Stops[0]))
 		}
 	}
-	peDePeAdapterLog(logPath, "adapter revision=native-lua-telemetry-8 outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	peDePeAdapterLog(logPath, "adapter revision=native-live-next-trip-1 outgoing argv="+fmt.Sprintf("%q", launchArgs))
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {
@@ -155,6 +155,8 @@ func main() {
 		peDePeAdapterLog(logPath, "BCS 32-bit plugin host: "+host)
 	}
 	var contentDir string
+	var live *liveTripMonitor
+	var vendorSync *liveVendorPlugin
 	if plan != nil || nativeTrip {
 		contentDir, err = os.MkdirTemp("", "openomsi-bbs-pedepe-")
 		if err != nil {
@@ -172,6 +174,16 @@ func main() {
 				os.Exit(10)
 			}
 			peDePeAdapterLog(logPath, fmt.Sprintf("BBS native Lua telemetry: source=%s destination=%s bytes=%d", source, filepath.Join(contentDir, "plugins", "bbs.lua"), size))
+			vendorSync = &liveVendorPlugin{source: source, destination: filepath.Join(contentDir, "plugins", "bbs.lua")}
+			liveCfg := cfg
+			liveCfg.Root = cmd.Dir
+			live, err = newLiveTripMonitor(liveCfg, in, contentDir, logPath)
+			if err != nil {
+				peDePeAdapterLog(logPath, "Live next-trip monitor unavailable; initial trip remains unchanged: "+err.Error())
+			}
+			if live != nil {
+				live.in.Situation = parsePeDePeNativeInvocation(args).Situation
+			}
 		}
 		if plan != nil {
 			cmd.Env = multiplayerEnvironment(cmd.Env, contentDir)
@@ -201,6 +213,14 @@ func main() {
 		defer ticker.Stop()
 		lastError := ""
 		poll := func() {
+			if vendorSync != nil {
+				if e := vendorSync.poll(); e != nil {
+					peDePeAdapterLog(logPath, "BBS telemetry update: "+e.Error())
+				}
+			}
+			if live != nil {
+				live.poll(time.Now(), driver)
+			}
 			changed, e := driver.poll()
 			if e != nil {
 				if e.Error() != lastError {

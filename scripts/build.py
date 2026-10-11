@@ -24,35 +24,35 @@ REFERENCE_GO = "go1.23.2"
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (SOURCE / "version.go").read_text()).group(1)
 PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
-    "main.go pedepe_native.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
-    "driver.go session.go config.go plugin_host.go registry.go setup_files.go "
-    "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go company_host_population.go company_gateway.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
+    "main.go pedepe_native.go live_trip.go live_trip_vendor.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
+    "driver.go driver_live.go session.go config.go plugin_host.go registry.go setup_files.go "
+    "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go company_host_population.go company_gateway.go company_gateway_live.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
 TEST_FILES = (
-    "driver_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
+    "driver_test.go live_trip_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go pedepe_native_test.go "
     "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go multiplayer_startup_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go company_host_population_test.go company_gateway_test.go company_gateway_native_test.go profile_store_test.go"
 ).split()
 PROGRAMS = {
     "HostAgent.exe": (
-        "host_agent_main.go host_agent.go host_config.go host_gui_windows.go host_gui_preview_windows.go company_directory.go weather.go log_text.go company_host.go company_host_population.go company_gateway.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go company_host_share.go company_host_process_windows.go company.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
+        "host_agent_main.go host_agent.go host_config.go host_gui_windows.go host_gui_preview_windows.go company_directory.go weather.go log_text.go company_host.go company_host_population.go company_gateway.go company_gateway_live.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go company_host_share.go company_host_process_windows.go company.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "CompanyHost.exe": (
-        "company_host_main.go company_host.go company_host_population.go company_gateway.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go company_host_share.go company_host_process_windows.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
+        "company_host_main.go company_host.go company_host_population.go company_gateway.go company_gateway_live.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go company_host_share.go company_host_process_windows.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "Setup.exe": (
          "setup_main.go setup_files.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
         "config.go plugin_host.go registry.go paths.go version.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "PeDePeAdapter/openomsi.exe": (
-        "pedepe_adapter_main.go pedepe_adapter_windows.go pedepe_native.go driver.go config.go plugin_host.go paths.go version.go company.go company_directory.go company_content.go company_clock.go multiplayer.go profile_store.go weather.go log_text.go openomsi_compatibility.go openomsi_probe_windows.go"
+        "pedepe_adapter_main.go pedepe_adapter_windows.go pedepe_native.go live_trip.go live_trip_vendor.go driver.go driver_live.go config.go plugin_host.go paths.go version.go company.go company_directory.go company_content.go company_clock.go multiplayer.go profile_store.go weather.go log_text.go openomsi_compatibility.go openomsi_probe_windows.go"
     ).split(),
     "app/OpenOMSI_BCS_Bridge.exe": (
-         "main.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go driver.go session.go launch_session.go session_transition.go openomsi_compatibility.go openomsi_probe_windows.go company_host_process_windows.go "
+         "main.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go driver.go driver_live.go session.go launch_session.go session_transition.go openomsi_compatibility.go openomsi_probe_windows.go company_host_process_windows.go "
         "config.go plugin_host.go paths.go version.go process_windows.go company.go company_directory.go company_content.go company_clock.go multiplayer.go profile_store.go"
     ).split(),
     "app/compat/Omsi.exe": (
-        "compat.go log_text.go startup_ack.go facade_memory.go driver.go version.go"
+        "compat.go log_text.go startup_ack.go facade_memory.go driver.go driver_live.go version.go"
     ).split(),
 }
 HOST = "app/compat/omsi-plugin-host32.exe"

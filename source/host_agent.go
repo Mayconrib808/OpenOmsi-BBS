@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const hostAgentVersion = "2.1.1-host.1"
+const hostAgentVersion = "2.1.1-host.2"
 
 type hostAgentMap struct {
 	state      companyDirectoryState

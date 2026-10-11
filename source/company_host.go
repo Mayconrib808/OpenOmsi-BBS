@@ -483,6 +483,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 		return err
 	}
 	defer gateway.Close()
+	gateway.adminPassword = password
 	f, err := os.CreateTemp(filepath.Dir(options.Config), "company-host-*.cfg")
 	if err != nil {
 		return fmt.Errorf("cannot create the private host configuration: %w", err)

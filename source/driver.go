@@ -266,6 +266,7 @@ type driverSync struct {
 	NativeConflicted                              bool
 	Pending                                       bool
 	EvaluationFrozen                              bool
+	LiveOrigin, LiveBaseline                      *driverRecord
 	LastBytes, Candidate                          []byte
 }
 
@@ -377,6 +378,12 @@ func (s *driverSync) poll() (bool, error) {
 	d, err := parseDriver(b, true)
 	if err != nil {
 		return false, err
+	}
+	if s.LiveOrigin != nil {
+		d, err = liveDriverRecord(d, *s.LiveOrigin, *s.LiveBaseline)
+		if err != nil {
+			return false, err
+		}
 	}
 	if err = driverAdvanced(d, s.Last); err != nil {
 		return false, err

@@ -24,14 +24,17 @@ type companyGatewayPeer struct {
 	upstream *net.UDPConn
 	remote   *net.UDPAddr
 	// id and bus belong to g.mu; connection lifetime belongs to mu/closed.
-	id        uint32
-	bus       string
-	mu        sync.Mutex
-	ws        *companyGatewayWS
-	closed    atomic.Bool
-	closedAt  atomic.Int64
-	lastAt    atomic.Int64
-	closeOnce sync.Once
+	id            uint32
+	bus           string
+	mu            sync.Mutex
+	ws            *companyGatewayWS
+	closed        atomic.Bool
+	closedAt      atomic.Int64
+	lastAt        atomic.Int64
+	liveRequest   string
+	livePlugin    string
+	liveRequestAt time.Time
+	closeOnce     sync.Once
 }
 type companyGateway struct {
 	mu                          sync.Mutex
@@ -60,6 +63,7 @@ type companyGateway struct {
 	client                      *http.Client
 	wg                          sync.WaitGroup
 	limit                       int
+	adminPassword               string
 }
 
 func newCompanyGateway(ctx context.Context, cfg companyHostConfig, session CompanySession, fleet []string, catalog map[string]string, mask string) (*companyGateway, error) {
@@ -191,6 +195,9 @@ func (p *companyGatewayPeer) send(packet []byte) error {
 		return net.ErrClosed
 	}
 	p.lastAt.Store(time.Now().UnixNano())
+	if handled, err := p.liveTripRequest(packet); handled {
+		return err
+	}
 	p.g.mu.Lock()
 	data, err := p.g.incoming(p, packet)
 	p.g.mu.Unlock()
