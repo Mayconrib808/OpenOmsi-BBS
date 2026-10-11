@@ -49,6 +49,7 @@ const (
 	guiIDMultiplayer = 112
 	guiIDLanguage    = 113
 	guiIDUpdates     = 114
+	guiIDAutoUpdates = 115
 )
 
 type guiPoint struct{ X, Y int32 }
@@ -122,7 +123,8 @@ type setupGUI struct {
 	results                                                                      chan guiResult
 	cancel                                                                       context.CancelFunc
 	busy, smoke, smokeCompleted                                                  bool
-	updateButton, updateStatus                                                   uintptr
+	updateButton, updateStatus, automaticUpdates                                 uintptr
+	autoCheckUpdates                                                             bool
 	updateResults                                                                chan setupUpdateResult
 	updateChecking                                                               bool
 	updateState                                                                  string
@@ -267,6 +269,13 @@ func (g *setupGUI) createControls() {
 	guiUser.NewProc("EnableWindow").Call(g.cancelButton, 0)
 	g.status = g.label(g.text("ready"), 34, 578, 666, 60)
 	guiUser.NewProc("SendMessageW").Call(g.status, guiWMSetFont, g.smallFont, 1)
+	g.automaticUpdates = g.control("BUTTON", g.text("updates_automatic"), 480, 430, 444, 32, guiWSTabStop|guiBMAutoCheck, guiIDAutoUpdates)
+	g.translations = append(g.translations, guiTranslation{g.automaticUpdates, "updates_automatic"})
+	g.controls = append(g.controls, g.automaticUpdates)
+	syscall.NewLazyDLL("uxtheme.dll").NewProc("SetWindowTheme").Call(g.automaticUpdates, uintptr(unsafe.Pointer(winPtr(""))), uintptr(unsafe.Pointer(winPtr(""))))
+	if g.autoCheckUpdates {
+		guiUser.NewProc("SendMessageW").Call(g.automaticUpdates, guiBMSetCheck, 1, 0)
+	}
 	g.updateButton = g.translatedButton("updates_check", 716, 578, 208, 36, guiIDUpdates)
 	g.updateStatus = g.label(g.text("updates_checking"), 716, 617, 208, 30)
 	guiUser.NewProc("SendMessageW").Call(g.updateStatus, guiWMSetFont, g.smallFont, 1)
@@ -459,6 +468,19 @@ func (g *setupGUI) command(id int) {
 		}
 	case guiIDSave:
 		g.saveAndActivate()
+	case guiIDAutoUpdates:
+		checked, _, _ := guiUser.NewProc("SendMessageW").Call(g.automaticUpdates, guiBMGetCheck, 0, 0)
+		enabled := checked == 1
+		if err := saveSetupAutomaticUpdates(g.dir, enabled); err != nil {
+			old := uintptr(0)
+			if g.autoCheckUpdates {
+				old = 1
+			}
+			guiUser.NewProc("SendMessageW").Call(g.automaticUpdates, guiBMSetCheck, old, 0)
+			guiMessageBox(g.window, err.Error(), 0x10)
+			return
+		}
+		g.autoCheckUpdates = enabled
 	case guiIDUpdates:
 		g.updateCommand()
 	case guiIDDeactivate:
@@ -660,6 +682,7 @@ func runSetupGUI(dir string, smoke bool) error {
 	if g.window == 0 {
 		return fmt.Errorf("Não foi possível abrir a janela: %v", err)
 	}
+	g.autoCheckUpdates = readSetupAutomaticUpdates(g.dir)
 	g.createControls()
 	if g.language == 0 || g.multiplayer == 0 || g.root == 0 || g.executable == 0 || g.profile == 0 || g.player == 0 || g.status == 0 {
 		guiUser.NewProc("DestroyWindow").Call(g.window)
@@ -712,7 +735,12 @@ func runSetupGUI(dir string, smoke bool) error {
 		if statusErr == nil {
 			guiSetText(g.status, status)
 		}
-		g.checkUpdates()
+		if g.autoCheckUpdates {
+			g.checkUpdates()
+		} else {
+			g.updateState = "updates_manual_only"
+			g.renderUpdateState()
+		}
 		g.prepareNativeNextTripIfConfigured()
 	}
 	var message guiMessage

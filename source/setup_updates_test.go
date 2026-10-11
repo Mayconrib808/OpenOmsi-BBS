@@ -89,3 +89,25 @@ func TestUpdateUnconfiguredDoesNotInventEndpoint(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSetupAutomaticUpdatePreferenceSurvivesReopening(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("LOCALAPPDATA", root)
+	if !readSetupAutomaticUpdates(root) {
+		t.Fatal("new installs should check automatically")
+	}
+	for _, enabled := range []bool{false, true, false} {
+		if err := saveSetupAutomaticUpdates(root, enabled); err != nil {
+			t.Fatal(err)
+		}
+		if got := readSetupAutomaticUpdates(root); got != enabled {
+			t.Fatal("preference not restored", got, enabled)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(managedDataDir(root), "setup-updates.json"), []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if !readSetupAutomaticUpdates(root) {
+		t.Fatal("missing preference silently disabled checks")
+	}
+}

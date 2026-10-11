@@ -219,3 +219,28 @@ func verifyDownloadedBridgeRelease(path, expected string) error {
 	}
 	return nil
 }
+
+// This is a per-user Setup preference, independent of the game's configuration.
+// Toggling it never requires activating the Bridge or saving an incomplete form.
+func readSetupAutomaticUpdates(packageDir string) bool {
+	raw, err := os.ReadFile(filepath.Join(managedDataDir(packageDir), "setup-updates.json"))
+	if err != nil || len(raw) > 4096 {
+		return true
+	}
+	var p struct {
+		Automatic *bool `json:"automatic_check"`
+	}
+	if json.Unmarshal(raw, &p) != nil || p.Automatic == nil {
+		return true
+	}
+	return *p.Automatic
+}
+func saveSetupAutomaticUpdates(packageDir string, enabled bool) error {
+	raw, err := json.Marshal(struct {
+		Automatic bool `json:"automatic_check"`
+	}{enabled})
+	if err != nil {
+		return err
+	}
+	return writeManagedFileAtomic(filepath.Join(managedDataDir(packageDir), "setup-updates.json"), append(raw, '\n'))
+}
