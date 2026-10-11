@@ -143,6 +143,11 @@ func adminAction(dir, action string) error {
 		if e := validateConfig(c, dir); e != nil {
 			return e
 		}
+		nextTrip, e := prepareBCSNextTrip(c, checkBCSClosedForUpdate)
+		logSetup(dir, fmt.Sprintf("automatic-next-trip BCS=%s changed=%t", nextTrip.Path, nextTrip.Changed), e)
+		if e != nil {
+			return e
+		}
 		d, e := activateRegistryWithHost(newWindowsRegistry(), c, dir, bridge)
 		if e == nil {
 			fmt.Printf("%s: %s\n", localText(c.Language, "Auxiliar BCS preparado", "BCS helper prepared", "BBS-Hilfsprogramm bereitgestellt"), d.Path)

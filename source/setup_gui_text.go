@@ -45,7 +45,7 @@ var setupStrings = map[string][3]string{
 	"cancelled":          {"Verificação cancelada.", "Check cancelled.", "Prüfung abgebrochen."},
 	"activated":          {"Tudo pronto! Abra o BCS e inicie sua viagem normalmente.", "All set! Open BCS/BBS and start your trip normally.", "Fertig! Öffne BBS und starte deine Fahrt wie gewohnt."},
 	"server_required":    {"\r\nNo multiplayer, o servidor da empresa precisa estar aberto.", "\r\nFor multiplayer, the company server must be running.", "\r\nFür Multiplayer muss der Firmenserver laufen."},
-	"close_games":        {"Feche o OMSI, o OpenOMSI e o CompanyHost antes de alterar a configuração.", "Close OMSI, OpenOMSI and CompanyHost before changing settings.", "Schließe OMSI, OpenOMSI und CompanyHost, bevor du Einstellungen änderst."},
+	"close_games":        {"Feche o BCS, o OMSI, o OpenOMSI e o CompanyHost antes de alterar a configuração.", "Close BCS, OMSI, OpenOMSI and CompanyHost before changing settings.", "Schließe BBS, OMSI, OpenOMSI und CompanyHost, bevor du Einstellungen änderst."},
 	"cancelling":         {"Cancelando a verificação... Se a ativação já começou, aguarde sua conclusão.", "Cancelling the check... If activation has started, wait for it to finish.", "Prüfung wird abgebrochen... Eine bereits begonnene Aktivierung bitte abwarten."},
 	"pick_executable":    {"Escolha openomsi.exe", "Choose openomsi.exe", "openomsi.exe auswählen"},
 	"executable_filter":  {"OpenOMSI (openomsi.exe)\x00openomsi.exe\x00Executáveis (*.exe)\x00*.exe\x00\x00", "OpenOMSI (openomsi.exe)\x00openomsi.exe\x00Executables (*.exe)\x00*.exe\x00\x00", "OpenOMSI (openomsi.exe)\x00openomsi.exe\x00Programme (*.exe)\x00*.exe\x00\x00"},

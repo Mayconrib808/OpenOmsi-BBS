@@ -13,8 +13,9 @@ import jdk.internal.org.objectweb.asm.tree.VarInsnNode;
 /** Build-time-only instrumenter. The user's JAR is not distributed. */
 public final class ApplyObserver {
     public static void main(String[] args) throws Exception {
+        ClassReader originalReader = new ClassReader(Files.readAllBytes(Paths.get(args[0])));
         ClassNode original = new ClassNode();
-        new ClassReader(Files.readAllBytes(Paths.get(args[0]))).accept(original, 0);
+        originalReader.accept(original, 0);
         ClassNode template = new ClassNode();
         new ClassReader(Files.readAllBytes(Paths.get(args[1]))).accept(template, 0);
         if (!original.name.equals("bbs/f")) throw new Exception("Unexpected logger class");
@@ -36,7 +37,9 @@ public final class ApplyObserver {
             observer.name, observer.desc, false));
         prefix.add(new VarInsnNode(Opcodes.ASTORE, 1));
         entry.instructions.insert(prefix);
-        ClassWriter writer = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+        // Preserve the vendor constant pool so the distributed automatic
+        // updater can carry only a narrow delta, never a vendor class.
+        ClassWriter writer = new ClassWriter(originalReader, ClassWriter.COMPUTE_MAXS);
         original.accept(writer);
         Files.write(Paths.get(args[2]), writer.toByteArray());
     }

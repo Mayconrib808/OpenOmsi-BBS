@@ -6,11 +6,14 @@ the inspected JAR hash, compiles the observational method, and embeds the one
 modified logger class into the optional Windows updater.
 """
 import argparse
+import base64
+import difflib
 import hashlib
 import os
 from pathlib import Path
 import shutil
 import subprocess
+import struct
 import tempfile
 import zipfile
 
@@ -26,12 +29,34 @@ def run(*args, **kwargs):
     subprocess.run(args, check=True, **kwargs)
 
 
+def emit_automatic_delta(original, patched, destination, jar_sha):
+    delta = bytearray(b'BCSDELTA1')
+    cursor = 0
+    for block in difflib.SequenceMatcher(None, original, patched, autojunk=False).get_matching_blocks():
+        if block.b > cursor:
+            literal = patched[cursor:block.b]
+            delta.extend(b'\x01' + struct.pack('>I', len(literal)) + literal)
+        if block.size:
+            delta.extend(b'\x00' + struct.pack('>II', block.a, block.size))
+        cursor = block.b + block.size
+    payload = base64.b64encode(delta).decode('ascii')
+    lines = '\n'.join('\t"'+payload[i:i+100]+'" +' for i in range(0,len(payload),100)).rstrip(' +')
+    destination.write_text(
+        'package main\n\n// Generated from ObserverTemplate.java and ApplyObserver.java.\n'
+        f'const bcsInspectedJarSHA = "{jar_sha}"\n'
+        f'const bcsOriginalLoggerSHA = "{hashlib.sha256(original).hexdigest()}"\n'
+        f'const bcsAutoLoggerSHA = "{hashlib.sha256(patched).hexdigest()}"\n'
+        'const bcsPreviousLoggerSHA = "7c5ab872e7e846433fa9045a68fde198e2f39a45efadd948d19b43d977b9cb13"\n'
+        'const bcsAutoLoggerDelta =\n'+lines+'\n')
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument('jar', type=Path)
     p.add_argument('--go', default='go')
     p.add_argument('--output', type=Path, required=True)
     p.add_argument('--keep-test-dir', type=Path)
+    p.add_argument('--emit-auto-delta', type=Path, help='Regenerate the source-only automatic Setup delta.')
     args = p.parse_args()
     inspected_hash = (ROOT/'source/bcs_trip_log_patch.sha256').read_text().strip()
     if hashlib.sha256(args.jar.read_bytes()).hexdigest() != inspected_hash:
@@ -94,6 +119,8 @@ public class ObserverCheck {
         check=True,capture_output=True,text=True)
     print(result.stdout)
     (work/'accepted-continuation.txt').write_text(result.stdout.split('\n',1)[1])
+    if args.emit_auto_delta:
+        emit_automatic_delta(original.read_bytes(),patched.read_bytes(),args.emit_auto_delta,inspected_hash)
     args.output.parent.mkdir(parents=True,exist_ok=True)
     env=os.environ.copy(); env.update(GOOS='windows',GOARCH='386',GO386='sse2',CGO_ENABLED='0')
     try:
