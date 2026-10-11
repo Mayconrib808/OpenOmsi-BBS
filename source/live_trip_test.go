@@ -20,6 +20,21 @@ import (
 func liveTestBlock(id, line, tour string) string {
 	return "Schicht ID: " + id + "\nKarte: Test\nTour: 04:05:00 - 04:30:00 (Linie: " + line + ")\nA - B (Umlauf: " + tour + ")\n"
 }
+
+func TestLiveTripAcceptsActualBCSContinuationObserverBlock(t *testing.T) {
+	// This event path does not call the launch screen that normally logs the
+	// new shift. The optional logger observer appends the accepted I state.
+	text := "Schicht ID: 4951232\nKarte: SP_Carrao City\nTour: 20:00:00 - 21:00:00 (Linie: 3539)\nMetro Bresser 3539 - Cidade Tiradentes 3539 (Umlauf: 02)\n" +
+		"Schicht abschließen: 4951232\n---\nWeitere Event Tour Multiplayer\n"
+	if _, e := readLiveBCSTrip(text); e == nil {
+		t.Fatal("inferred a selection that BCS did not expose")
+	}
+	text += "[OpenOmsi-BBS next-trip log v1]\nSchicht ID: 4951233\nKarte: SP_Carrao City\nTour: 21:10:00 - 22:10:00 (Linie: 3539)\nCidade Tiradentes 3539 - Metro Bresser 3539 (Umlauf: 02)\n"
+	trip, e := readLiveBCSTrip(text)
+	if e != nil || trip.ID != "4951233" || trip.Line != "3539" || trip.Tour != "02" || trip.Start != "21:10" || trip.Route != "Cidade Tiradentes 3539 - Metro Bresser 3539" {
+		t.Fatal(trip, e)
+	}
+}
 func TestLiveTripUsesNewestCompleteBCSSelection(t *testing.T) {
 	if liveDepartureMinute(-300) != 1435 || liveDepartureMinute(86400+300) != 5 {
 		t.Fatal("overnight departure normalization failed")
