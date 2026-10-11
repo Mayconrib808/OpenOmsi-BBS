@@ -394,7 +394,7 @@ func (g *setupGUI) saveAndActivate() {
 			if errors.Is(err, os.ErrPermission) && !isElevated() {
 				err = elevateSetup("native-prepare", c.Language)
 			}
-			return guiResult{config: c, status: g.text("ready"), err: err}
+			return guiResult{config: c, status: setupNativeActivationState(c, true), err: err}
 		}
 		var err error
 		if isElevated() {
@@ -503,7 +503,7 @@ func (g *setupGUI) command(id int) {
 		c := readInstalledConfig(g.dir)
 		c.Language = g.config.Language
 		g.work(g.text("checking_status"), func(ctx context.Context) guiResult {
-			status, err := setupRegistryState(g.dir, c, newWindowsRegistry())
+			status, err := setupCurrentState(g.dir, c, newWindowsRegistry())
 			return guiResult{config: c, status: status, err: err}
 		})
 	case guiIDLogs:
@@ -731,7 +731,7 @@ func runSetupGUI(dir string, smoke bool) error {
 		guiUser.NewProc("ShowWindow").Call(g.window, 1)
 		guiUser.NewProc("UpdateWindow").Call(g.window)
 		guiUser.NewProc("SetFocus").Call(g.root)
-		status, statusErr := setupRegistryState(dir, g.config, newWindowsRegistry())
+		status, statusErr := setupCurrentState(dir, g.config, newWindowsRegistry())
 		if statusErr == nil {
 			guiSetText(g.status, status)
 		}

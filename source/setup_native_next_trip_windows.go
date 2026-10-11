@@ -5,25 +5,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 )
-
-func setupNativeSelected(dir string, c Config) bool {
-	jar, err := installedBCSJar(c.Root)
-	if err != nil || jar == "" {
-		return false
-	}
-	settings, err := nativeBCSSettingsDir(jar)
-	if err != nil {
-		return false
-	}
-	data, err := readBCSUpdateSettings(filepath.Join(settings, "config.cfg"))
-	if err != nil {
-		return false
-	}
-	root, adapter, enabled := nativeBCSUpdateSelection(data)
-	return enabled && samePath(root, c.Root) && samePath(adapter, filepath.Join(dir, "PeDePeAdapter"))
-}
 
 func prepareSetupNativeTrip(dir string, c Config) error {
 	if _, err := verifyPackage(dir); err != nil {
@@ -48,6 +30,6 @@ func (g *setupGUI) prepareNativeNextTripIfConfigured() {
 	}
 	g.work(g.text("ready"), func(context.Context) guiResult {
 		err := prepareSetupNativeTrip(g.dir, c)
-		return guiResult{status: g.text("ready"), err: err}
+		return guiResult{status: setupNativeActivationState(c, true), err: err}
 	})
 }

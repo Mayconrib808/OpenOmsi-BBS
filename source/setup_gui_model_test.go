@@ -115,3 +115,53 @@ func TestSetupLanguageAndOptionalMultiplayerSurvivePackageUpdate(t *testing.T) {
 		})
 	}
 }
+
+func TestSetupCurrentStateUsesNativeBCSSelectionAndPreparation(t *testing.T) {
+	vendor := os.Getenv("BRIDGE_BCS_TEST_JAR")
+	if vendor == "" {
+		t.Skip("real inspected BCS fixture not available")
+	}
+	dir, root := t.TempDir(), t.TempDir()
+	c := defaultConfig()
+	c.Root = root
+	c.Multiplayer = true
+	c.CompanyID = "transfort-br"
+	c.PlayerName = "Mayconrib808"
+	folder := filepath.Join(root, "Busbetrieb-Simulator")
+	os.MkdirAll(folder, 0755)
+	data, err := os.ReadFile(vendor)
+	if err != nil {
+		t.Fatal(err)
+	}
+	jar := filepath.Join(folder, "busbetrieb-simulator.jar")
+	if err = os.WriteFile(jar, data, 0644); err != nil {
+		t.Fatal(err)
+	}
+	lines := make([]string, 51)
+	lines[0], lines[49], lines[50] = root, filepath.Join(dir, "PeDePeAdapter"), "true"
+	settings := filepath.Join(folder, "config.cfg")
+	os.WriteFile(settings, []byte(strings.Join(lines, "\r\n")), 0644)
+	r := &memoryRegistry{values: map[string]registryValue{}}
+	state, err := setupCurrentState(dir, c, r)
+	if err != nil || !strings.Contains(state, "Use Salvar e ativar") || strings.Contains(state, "Ponte ativada") {
+		t.Fatalf("unprepared: %q %v", state, err)
+	}
+	if _, err = prepareBCSNextTrip(c, nil); err != nil {
+		t.Fatal(err)
+	}
+	before, _ := os.ReadFile(jar)
+	state, err = setupCurrentState(dir, c, r)
+	if err != nil || !strings.HasPrefix(state, "Ponte ativada via PeDePeAdapter.") || !strings.Contains(state, "Próxima viagem preparada") || !strings.Contains(state, "transfort-br / Mayconrib808") {
+		t.Fatalf("native active without registry: %q %v", state, err)
+	}
+	after, _ := os.ReadFile(jar)
+	if string(before) != string(after) {
+		t.Fatal("checking status modified the BCS JAR")
+	}
+	lines[50] = "false"
+	os.WriteFile(settings, []byte(strings.Join(lines, "\r\n")), 0644)
+	state, err = setupCurrentState(dir, c, r)
+	if err != nil || !strings.HasPrefix(state, "Ponte desativada.") {
+		t.Fatalf("disabled native selection: %q %v", state, err)
+	}
+}

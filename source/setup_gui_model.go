@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -73,4 +74,54 @@ func setupRegistryState(dir string, c Config, r registryAPI) (string, error) {
 		state += localText(c.Language, "\r\nMultiplayer da empresa desativado.", "\r\nCompany multiplayer disabled.", "\r\nFirmen-Multiplayer deaktiviert.")
 	}
 	return state, nil
+}
+
+func setupNativeSelected(dir string, c Config) bool {
+	jar, err := installedBCSJar(c.Root)
+	if err != nil || jar == "" {
+		return false
+	}
+	settings, err := nativeBCSSettingsDir(jar)
+	if err != nil {
+		return false
+	}
+	data, err := readBCSUpdateSettings(filepath.Join(settings, "config.cfg"))
+	if err != nil {
+		return false
+	}
+	root, adapter, enabled := nativeBCSUpdateSelection(data)
+	return enabled && samePath(root, c.Root) && samePath(adapter, filepath.Join(dir, "PeDePeAdapter"))
+}
+
+// Report the integration BCS actually uses, including next-trip preparation.
+func setupCurrentState(dir string, c Config, r registryAPI) (string, error) {
+	if !setupNativeSelected(dir, c) {
+		return setupRegistryState(dir, c, r)
+	}
+	jar, err := installedBCSJar(c.Root)
+	if err != nil {
+		return "", err
+	}
+	logger, err := bcsLoggerBytes(jar)
+	if err != nil {
+		return "", err
+	}
+	prepared := fmt.Sprintf("%x", sha256.Sum256(logger)) == bcsAutoLoggerSHA
+	return setupNativeActivationState(c, prepared), nil
+}
+func setupNativeActivationState(c Config, prepared bool) string {
+	state := localText(c.Language,
+		"PeDePeAdapter selecionado no BCS. Use Salvar e ativar para preparar a próxima viagem.",
+		"PeDePeAdapter selected in BCS. Save and activate to prepare next-trip integration.",
+		"PeDePeAdapter im BBS ausgewählt. Speichern / aktivieren, um die nächste Fahrt vorzubereiten.")
+	if prepared {
+		state = localText(c.Language,
+			"Ponte ativada via PeDePeAdapter. Próxima viagem preparada. Abra o BCS normalmente.",
+			"Bridge active via PeDePeAdapter. Next-trip integration ready. Open BCS normally.",
+			"Bridge über PeDePeAdapter aktiviert. Nächste Fahrt vorbereitet. BBS normal öffnen.")
+	}
+	if c.Multiplayer {
+		state += "\r\nMultiplayer: " + c.CompanyID + " / " + c.PlayerName
+	}
+	return state
 }
