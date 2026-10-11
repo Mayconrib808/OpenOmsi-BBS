@@ -2,7 +2,7 @@ name: Build update candidate
 on:
   push:
     branches: ['release/2.1.0']
-    paths: ['.github/workflows/update-candidate.yml', 'scripts/build_update_components.py']
+    paths: ['.github/workflows/update-candidate.yml', 'scripts/build_update_components.py', 'scripts/build_bridge_update.py']
   workflow_dispatch:
 permissions:
   contents: read

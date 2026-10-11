@@ -35,6 +35,11 @@ def main():
     parser.add_argument('--components', type=Path, help='Optional source-built components for package integration tests.')
     parser.add_argument('--package', type=Path, help='Complete source-built package to embed.')
     args = parser.parse_args()
+    args.output = args.output.resolve()
+    if args.package:
+        args.package = args.package.resolve()
+    if args.components:
+        args.components = args.components.resolve()
     args.output.parent.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env.update(GOOS='windows', GOARCH='386', GO386='sse2', CGO_ENABLED='0', GOTOOLCHAIN='local')
