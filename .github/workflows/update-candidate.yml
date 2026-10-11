@@ -1,5 +1,5 @@
 name: Build update candidate
-# Setup startup only reads state; preparation requires Save and activate.
+# Setup startup neither activates nor checks bridge state; both require an explicit button.
 on:
   push:
     branches: ['release/2.1.0']
