@@ -6,6 +6,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: openomsi-update-distribution
   cancel-in-progress: false
@@ -17,6 +18,22 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
+      - name: Read approved candidate reference
+        id: publication
+        run: |
+          if test -f update-service/publication.json; then
+            node -e 'const p=require("./update-service/publication.json"); if(!Number.isSafeInteger(p.candidate_run_id)||p.candidate_run_id<1)throw Error("Invalid candidate run");require("fs").appendFileSync(process.env.GITHUB_OUTPUT,"run_id="+p.candidate_run_id+"\n")'
+          fi
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        if: steps.publication.outputs.run_id != ''
+        with:
+          name: Bridge-2.1.2-update-candidate
+          run-id: ${{ steps.publication.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: ${{ runner.temp }}/approved-update
+      - name: Verify signed manifest and installer
+        if: steps.publication.outputs.run_id != ''
+        run: node update-service/publication.mjs prepare "${{ runner.temp }}/approved-update/Atualizar-Bridge.exe"
       - name: Check existing Cloudflare credentials
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -32,3 +49,6 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
+      - name: Verify live manifest and download
+        if: steps.publication.outputs.run_id != ''
+        run: node update-service/publication.mjs verify-live
