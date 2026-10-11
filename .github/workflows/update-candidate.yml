@@ -1,4 +1,5 @@
 name: Build update candidate
+# Setup startup only reads state; preparation requires Save and activate.
 on:
   push:
     branches: ['release/2.1.0']

@@ -741,7 +741,6 @@ func runSetupGUI(dir string, smoke bool) error {
 			g.updateState = "updates_manual_only"
 			g.renderUpdateState()
 		}
-		g.prepareNativeNextTripIfConfigured()
 	}
 	var message guiMessage
 	for {
