@@ -16,9 +16,9 @@ if(process.argv[2]==='prepare') {
  writeFileSync(`update-service/assets/packages/${f.sha256}.exe`,bytes);
  console.log(`Verified release ${release.version}, sequence ${release.sequence}, ${bytes.length} bytes`);
 } else if(process.argv[2]==='verify-live') {
- const r=await fetch(`${origin}/stable.json`);
+ const r=await fetch(`${origin}/stable.json`,{signal:AbortSignal.timeout(15000)});
  if(!r.ok || r.headers.get('cache-control')!=='no-store' || !Buffer.from(await r.arrayBuffer()).equals(manifest)) throw Error('Live manifest differs from approved release');
- const p=await fetch(f.url);
+ const p=await fetch(f.url,{signal:AbortSignal.timeout(60000)});
  if(!p.ok || !p.headers.get('cache-control')?.includes('immutable')) throw Error('Live package unavailable');
  const bytes=Buffer.from(await p.arrayBuffer());
  if(bytes.length!==f.size || createHash('sha256').update(bytes).digest('hex')!==f.sha256) throw Error('Live installer integrity failed');
