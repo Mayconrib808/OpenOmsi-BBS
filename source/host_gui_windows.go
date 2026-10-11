@@ -128,6 +128,7 @@ const (
 	hostTimetable    = 322
 	hostStatus       = 323
 	hostMetar        = 324
+	hostPeople       = 325
 	hostBrowseRoot   = 331
 	hostBrowseServer = 332
 	hostScan         = 333
@@ -359,12 +360,12 @@ func (g *hostGUI) createControls() {
 	for _, v := range []struct {
 		id, y      int
 		pt, en, de string
-	}{{hostPlayers, 560, "Máximo de jogadores", "Max. players", "Max. Spieler"}, {hostTraffic, 600, "Tráfego", "Traffic", "Verkehr"}, {hostIdle, 640, "Fechar vazio após (min; 0 = nunca)", "Stop when empty (min; 0 = never)", "Leer stoppen (Min.; 0 = nie)"}} {
+	}{{hostPlayers, 558, "Máximo de jogadores", "Max. players", "Max. Spieler"}, {hostTraffic, 594, "Tráfego", "Traffic", "Verkehr"}, {hostPeople, 630, "Limite de pessoas (1–4096)", "People limit (1–4096)", "Personenlimit (1–4096)"}, {hostIdle, 666, "Fechar vazio após (min; 0 = nunca)", "Stop when empty (min; 0 = never)", "Leer stoppen (Min.; 0 = nie)"}} {
 		g.label(v.pt, v.en, v.de, 20, v.y, 285)
 		g.edit(v.id, "", 310, v.y-3, 90)
 	}
-	g.check("Passageiros", "Passengers", "Fahrgäste", 20, 680, 170, hostPassengers)
-	g.check("Tabela / ônibus AI", "Timetable / AI buses", "Fahrplan / KI-Busse", 195, 680, 215, hostTimetable)
+	g.check("Passageiros", "Passengers", "Fahrgäste", 20, 704, 170, hostPassengers)
+	g.check("Tabela / ônibus AI", "Timetable / AI buses", "Fahrplan / KI-Busse", 195, 704, 215, hostTimetable)
 	g.label("Substitutos opcionais — qualquer ônibus pode entrar", "Optional substitutes — any player bus can join", "Optionale Ersatzmodelle — jeder Spielerbus darf hinein", 425, 385, 655)
 	g.edit(hostFilter, "", 425, 409, 655)
 	g.control("LISTBOX", "", 425, 444, 655, 238, 0x00800000|0x00200000|0x00100000|0x10000|0x800|0x1, hostFleet)
@@ -438,12 +439,15 @@ func (g *hostGUI) storeMap() error {
 	for _, field := range []struct {
 		id    int
 		value *int
-	}{{hostPort, &m.Port}, {hostWeb, &m.WebPort}, {hostPlayers, &m.MaxPlayers}, {hostTraffic, &m.Traffic}, {hostIdle, &m.IdleMinutes}} {
+	}{{hostPort, &m.Port}, {hostWeb, &m.WebPort}, {hostPlayers, &m.MaxPlayers}, {hostTraffic, &m.Traffic}, {hostPeople, &m.MaxPeople}, {hostIdle, &m.IdleMinutes}} {
 		n, err := strconv.Atoi(strings.TrimSpace(hostText(g.fields[field.id])))
 		if err != nil {
 			return fmt.Errorf("preencha os números do mapa antes de trocar ou salvar")
 		}
 		*field.value = n
+	}
+	if m.MaxPeople < 1 || m.MaxPeople > companyHostMaxPeople {
+		return fmt.Errorf("%s", g.t("Limite de pessoas: informe de 1 a 4096.", "People limit: enter a value from 1 to 4096.", "Personenlimit: einen Wert von 1 bis 4096 eingeben."))
 	}
 	m.Enabled = g.checked(hostEnabled)
 	m.Passengers = g.checked(hostPassengers)
@@ -471,7 +475,7 @@ func (g *hostGUI) showMap(index int) {
 	for _, path := range s.Fleet {
 		g.selected[path] = true
 	}
-	for _, v := range []struct{ id, n int }{{hostPort, m.Port}, {hostWeb, m.WebPort}, {hostPlayers, m.MaxPlayers}, {hostTraffic, m.Traffic}, {hostIdle, m.IdleMinutes}} {
+	for _, v := range []struct{ id, n int }{{hostPort, m.Port}, {hostWeb, m.WebPort}, {hostPlayers, m.MaxPlayers}, {hostTraffic, m.Traffic}, {hostPeople, hostMapMaxPeople(m)}, {hostIdle, m.IdleMinutes}} {
 		hostSetText(g.fields[v.id], strconv.Itoa(v.n))
 	}
 	hostSetText(g.fields[hostMetar], m.MetarStation)
@@ -742,6 +746,9 @@ func hostWindowProc(window uintptr, message uint32, w, l uintptr) uintptr {
 							if station := s.MetarStations[state.SessionID]; station != "" {
 								text += " METAR: " + station
 							}
+							if limit := s.PopulationLimits[state.SessionID]; limit > 0 {
+								text += " " + localText(language, "pessoas: ", "people: ", "Personen: ") + strconv.Itoa(limit)
+							}
 							text += "  "
 						}
 						if s.DirectoryError != "" {
@@ -816,7 +823,7 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 		return fmt.Errorf("cannot register host window: %v", e)
 	}
 	defer hostUser.NewProc("UnregisterClassW").Call(uintptr(unsafe.Pointer(class.Name)), instance)
-	g.window, _, e = hostUser.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(class.Name)), uintptr(unsafe.Pointer(hostPtr("OpenOmsi + BBS — Host Agent "+bridgeVersion))), 0x00CF0000|0x00100000|0x00200000, 20, 20, 1120, 885, 0, 0, instance, 0)
+	g.window, _, e = hostUser.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(class.Name)), uintptr(unsafe.Pointer(hostPtr("OpenOmsi + BBS — Host Agent "+hostAgentVersion))), 0x00CF0000|0x00100000|0x00200000, 20, 20, 1120, 885, 0, 0, instance, 0)
 	if g.window == 0 {
 		return fmt.Errorf("cannot create host window: %v", e)
 	}
@@ -872,7 +879,7 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 		}
 		hostUser.NewProc("SetWindowPos").Call(g.window, 0, 0, 0, 1040, 740, 2|4|16)
 		g.layoutViewport()
-		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostBrowseServer, hostKey, hostMetar, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
+		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostBrowseServer, hostKey, hostMetar, hostPeople, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
 			g.revealControl(g.fields[id])
 			rect := g.controlRect(g.fields[id])
 			var client hostRect

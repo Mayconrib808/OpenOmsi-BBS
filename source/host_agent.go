@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+const hostAgentVersion = "2.1.1-host.1"
+
 type hostAgentMap struct {
 	state      companyDirectoryState
 	cancel     context.CancelFunc
@@ -32,18 +34,20 @@ type hostAgent struct {
 	runServer      func(context.Context, companyHostOptions, io.Writer) error
 }
 type hostAgentSnapshot struct {
-	Running        bool                    `json:"running"`
-	MetarStations  map[string]string       `json:"metar_stations,omitempty"`
-	DirectoryError string                  `json:"directory_error,omitempty"`
-	Sessions       []companyDirectoryState `json:"sessions"`
+	Running          bool                    `json:"running"`
+	MetarStations    map[string]string       `json:"metar_stations,omitempty"`
+	PopulationLimits map[string]int          `json:"population_limits,omitempty"`
+	DirectoryError   string                  `json:"directory_error,omitempty"`
+	Sessions         []companyDirectoryState `json:"sessions"`
 }
 
 func (a *hostAgent) snapshot() hostAgentSnapshot {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	s := hostAgentSnapshot{Running: true, DirectoryError: a.directoryError, MetarStations: map[string]string{}}
+	s := hostAgentSnapshot{Running: true, DirectoryError: a.directoryError, MetarStations: map[string]string{}, PopulationLimits: map[string]int{}}
 	for _, session := range a.config.Company.Sessions {
 		s.Sessions = append(s.Sessions, a.maps[session.ID].state)
+		s.PopulationLimits[session.ID] = hostMapMaxPeople(a.config.Maps[session.ID])
 		if station := strings.ToUpper(strings.TrimSpace(a.config.Maps[session.ID].MetarStation)); station != "" {
 			s.MetarStations[session.ID] = station
 		}
@@ -112,7 +116,7 @@ func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir 
 			}
 			err = writeCompanyHostFileAtomic(cfgPath, text)
 		}
-		options := companyHostOptions{Root: a.config.Root, Server: a.config.Server, Profile: profilePath, Session: id, Config: cfgPath, Share: filepath.Join(mapDir, "players.json")}
+		options := companyHostOptions{Root: a.config.Root, Server: a.config.Server, Profile: profilePath, Session: id, Config: cfgPath, Share: filepath.Join(mapDir, "players.json"), MaxPeople: hostMapMaxPeople(mapOptions)}
 		options.onStatus = func(status companyHostStatus, synced bool) {
 			a.mu.Lock()
 			defer a.mu.Unlock()
@@ -174,6 +178,7 @@ func runHostAgent(ctx context.Context, config hostAgentConfig, dir string, outpu
 	if err := validateHostAgentConfig(config, true); err != nil {
 		return err
 	}
+	fmt.Fprintf(output, "HostAgent %s: independent population limits by map\n", hostAgentVersion)
 	companyRuntimePackageChecksDisabled = true
 	if _, err := checkOpenOMSICompatibility(config.Server, true, false); err != nil {
 		return err

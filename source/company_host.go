@@ -59,6 +59,7 @@ func isolatedCompanyHostExecutable(server string) (string, error) {
 
 type companyHostOptions struct {
 	Profile, Session, Server, Root, Config string
+	MaxPeople                              int
 	Share                                  string
 	onReady                                func()
 	onPublicReady                          func(string)
@@ -501,6 +502,16 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 		return err
 	}
 	defer os.RemoveAll(contentDir)
+	parentEnvironment := os.Environ()
+	childEnvironment := companyHostEnvironment(parentEnvironment, contentDir)
+	if options.MaxPeople != 0 {
+		profile, err := prepareCompanyHostPopulation(parentEnvironment, options.Config, options.MaxPeople)
+		if err != nil {
+			return err
+		}
+		childEnvironment = companyHostPopulationEnvironment(childEnvironment, profile)
+		fmt.Fprintf(output, "Shared population: session %s, limit %d people, native settings %s\n", session.ID, options.MaxPeople, filepath.Join(profile, ".openomsi", "settings.cfg"))
+	}
 	serverExecutable := options.Server
 	if runtime.GOOS == "windows" {
 		serverExecutable, err = isolatedCompanyHostExecutable(options.Server)
@@ -511,7 +522,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	}
 	child := exec.Command(serverExecutable, "--root", options.Root, "--server", privateConfig)
 	child.Dir = filepath.Dir(options.Server)
-	child.Env = companyHostEnvironment(os.Environ(), contentDir)
+	child.Env = childEnvironment
 	tunnelOutput := newCompanyHostTunnelOutput(output)
 	output = tunnelOutput
 	child.Stdout, child.Stderr = output, output

@@ -11,7 +11,7 @@ Em telas menores, use as barras de rolagem ou a roda do mouse para alcançar os 
 1. Informe a pasta original do OMSI 2. O aplicativo oferece o servidor incluído no pacote e também aceita um servidor oficial com protocolo 6, como a 0.2.23. Em **Servidor dedicado → Procurar**, escolha o `openomsi.exe` dentro da pasta do servidor que você extraiu. Uma escolha externa salva é mantida ao reabrir o aplicativo e nas atualizações do pacote.
 2. Se já tiver o JSON da empresa, clique **Importar JSON atual**. Os mapas e as opções cadastradas são preservados. A antiga frota passa a ser apenas uma preferência de modelos substitutos. Os caminhos anteriores do CompanyHost são importados automaticamente quando disponíveis.
 3. Para cadastrar outro mapa, clique **Detectar mapas**, escolha o mapa instalado e clique **Adicionar mapa**. O nome vem do `global.cfg`; o aplicativo cria a sessão e atribui portas separadas.
-4. Escolha o **Mapa configurado**. Ajuste porta UDP/HTTP, máximo de jogadores, tráfego, passageiros, tabela de horários e tempo para fechar vazio. `0` no tempo vazio mantém esse mapa aberto até você parar o agente.
+4. Escolha o **Mapa configurado**. Ajuste porta UDP/HTTP, máximo de jogadores, tráfego, passageiros, limite de pessoas, tabela de horários e tempo para fechar vazio. `0` no tempo vazio mantém esse mapa aberto até você parar o agente.
 5. **Substitutos opcionais** pode ficar vazio. Qualquer jogador pode dirigir o seu ônibus, mesmo privado ou ausente no host, sem cadastrá-lo aqui. Se quiser, use Ctrl/Shift para dar preferência a modelos locais como substitutos. Sem preferência, usa os MAN originais ou outro ônibus instalado. O host precisa de pelo menos um ônibus local para representar os veículos ausentes; não precisa dos ônibus privados dos jogadores. A lista nunca limita a entrada.
 6. Configure o fuso e o ajuste em minutos da empresa, conferindo a hora usada pelo BCS. O exemplo Transfort usa `Europe/Berlin` e `-480` minutos.
 
@@ -26,6 +26,16 @@ A escolha fica nas opções privadas de cada mapa em `HostAgent.local.json`. Cad
 Use o código **ICAO de quatro letras**, de uma estação que publique METAR. O servidor consulta o relatório no início e a cada dez minutos; os valores correspondem ao último boletim disponível, e não a medições a cada segundo. O host precisa ter acesso à internet. Um mapa pode usar SBBH enquanto outro usa uma estação de outra cidade.
 
 Deixar o campo vazio desativa METAR somente naquele mapa e mantém o comportamento anterior do clima: o primeiro pedido pode fornecer o clima preparado pelo BBS, e, sem dados recentes válidos, permanece o padrão do servidor. Um pedido de jogador não substitui o clima de um mapa com METAR ativo. O status e o log do HostAgent identificam a estação pelo ID de cada sessão. O suporte foi conferido no servidor oficial 0.2.27 e no servidor incluído no pacote.
+
+## Limite de pessoas por mapa no HostAgent 2.1.1-host.1
+
+Cada mapa tem o campo **Limite de pessoas (1–4096)**. O padrão para mapas novos e configurações antigas é **1000**. O limite é compartilhado entre passageiros esperando nos pontos, pessoas locais nos ônibus AI e pedestres daquele mapa; a densidade e a capacidade interna do ônibus continuam sendo opções distintas.
+
+Escolha um mapa, preencha seu limite e repita nos outros mapas. Clique **Salvar**. Se o agente estava ativo, use **Parar agente** e **Salvar e iniciar agente** para os servidores carregarem os novos valores. Dois mapas simultâneos podem usar números diferentes.
+
+O HostAgent cria uma configuração nativa própria por mapa dentro de `HostedMaps/<empresa>/<mapa>/native-profile/.openomsi/settings.cfg`. O processo dedicado usa esse perfil para ler seu limite. As preferências pessoais do host não são modificadas, e o clima METAR por mapa continua configurado na mesma tela. O status local inclui `population_limits`; o log registra `Shared population: session ..., limit ... people`.
+
+Esta atualização altera apenas o HostAgent. Os jogadores mantêm a versão instalada e o mesmo perfil da empresa. A 0.2.27 e a 0.2.28 oficiais leem esse orçamento das configurações nativas. Valores maiores podem aumentar o trabalho do servidor; 1000 é o ponto de partida do ajuste e ainda precisa de validação em uma sessão real com os jogadores.
 
 ## Atualizar ou trocar a pasta do servidor
 

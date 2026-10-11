@@ -20,6 +20,7 @@ type hostMapOptions struct {
 	MaxPlayers   int    `json:"max_players"`
 	Traffic      int    `json:"traffic"`
 	Passengers   bool   `json:"passengers"`
+	MaxPeople    int    `json:"max_people,omitempty"`
 	Timetable    bool   `json:"timetable"`
 	IdleMinutes  int    `json:"idle_minutes"`
 	MetarStation string `json:"metar_station,omitempty"`
@@ -91,7 +92,14 @@ func defaultHostMapOptions(c hostAgentConfig) hostMapOptions {
 		port++
 		web++
 	}
-	return hostMapOptions{Enabled: true, Port: port, WebPort: web, MaxPlayers: 16, Traffic: 30, Passengers: true, Timetable: true, IdleMinutes: 15}
+	return hostMapOptions{Enabled: true, Port: port, WebPort: web, MaxPlayers: 16, Traffic: 30, Passengers: true, MaxPeople: companyHostDefaultMaxPeople, Timetable: true, IdleMinutes: 15}
+}
+
+func hostMapMaxPeople(m hostMapOptions) int {
+	if m.MaxPeople == 0 { // existing profiles predate this field
+		return companyHostDefaultMaxPeople
+	}
+	return m.MaxPeople
 }
 func loadHostAgentConfig(path string) (hostAgentConfig, error) {
 	var c hostAgentConfig
@@ -108,6 +116,7 @@ func loadHostAgentConfig(path string) (hostAgentConfig, error) {
 	}
 	for id, m := range c.Maps {
 		m.MetarStation = strings.ToUpper(strings.TrimSpace(m.MetarStation))
+		m.MaxPeople = hostMapMaxPeople(m)
 		c.Maps[id] = m
 	}
 	return c, err
@@ -115,6 +124,7 @@ func loadHostAgentConfig(path string) (hostAgentConfig, error) {
 func saveHostAgentConfig(path string, c hostAgentConfig) error {
 	for id, m := range c.Maps {
 		m.MetarStation = strings.ToUpper(strings.TrimSpace(m.MetarStation))
+		m.MaxPeople = hostMapMaxPeople(m)
 		c.Maps[id] = m
 	}
 	if err := validateHostAgentConfig(c, false); err != nil {
@@ -153,6 +163,12 @@ func validateHostAgentConfig(c hostAgentConfig, running bool) error {
 		m, ok := c.Maps[s.ID]
 		if !ok || s.Date != "company" {
 			return fmt.Errorf("mapa sem configuração de hospedagem: %s", s.Name)
+		}
+		if hostMapMaxPeople(m) < 1 || hostMapMaxPeople(m) > companyHostMaxPeople {
+			return fmt.Errorf("%s: %s", s.Name, localText(c.Language,
+				"Limite de pessoas: informe de 1 a 4096.",
+				"People limit: enter a value from 1 to 4096.",
+				"Personenlimit: einen Wert von 1 bis 4096 eingeben."))
 		}
 		station := strings.ToUpper(strings.TrimSpace(m.MetarStation))
 		if station != "" && (len(station) != 4 || strings.IndexFunc(station, func(r rune) bool { return r < 'A' || r > 'Z' }) >= 0) {

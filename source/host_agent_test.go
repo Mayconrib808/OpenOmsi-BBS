@@ -31,6 +31,90 @@ func hostConfigFixture(t *testing.T) hostAgentConfig {
 	config.Maps[config.Company.Sessions[0].ID] = defaultHostMapOptions(config)
 	return config
 }
+
+func TestHostPopulationLimitsPersistPerMapAndReachTheServer(t *testing.T) {
+	c := hostConfigFixture(t)
+	first := c.Company.Sessions[0].ID
+	s := c.Company.Sessions[0]
+	s.ID = "second-population-map"
+	s.Name = "Second map"
+	c.Company.Sessions = append(c.Company.Sessions, s)
+	opts := defaultHostMapOptions(c)
+	opts.MaxPeople = 1800
+	c.Maps[s.ID] = opts
+	one := c.Maps[first]
+	one.MaxPeople = 700
+	c.Maps[first] = one
+	path := filepath.Join(t.TempDir(), "HostAgent.local.json")
+	if err := saveHostAgentConfig(path, c); err != nil {
+		t.Fatal(err)
+	}
+	c, err := loadHostAgentConfig(path)
+	if err != nil || c.Maps[first].MaxPeople != 700 || c.Maps[s.ID].MaxPeople != 1800 {
+		t.Fatal("per-map settings lost", c.Maps, err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	a := &hostAgent{config: c, maps: map[string]*hostAgentMap{first: {}, s.ID: {}}, output: io.Discard}
+	budgets := make(chan companyHostOptions, 2)
+	a.runServer = func(ctx context.Context, options companyHostOptions, _ io.Writer) error {
+		budgets <- options
+		<-ctx.Done()
+		return nil
+	}
+	dir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", dir)
+	a.demand(ctx, first, 1, dir)
+	a.demand(ctx, s.ID, 1, dir)
+	seen := map[string]int{}
+	for i := 0; i < 2; i++ {
+		select {
+		case options := <-budgets:
+			seen[options.Session] = options.MaxPeople
+		case <-time.After(3 * time.Second):
+			t.Fatal("server did not receive its population budget")
+		}
+	}
+	if seen[first] != 700 || seen[s.ID] != 1800 {
+		t.Fatal("server options shared one budget", seen)
+	}
+	snapshot := a.snapshot()
+	if snapshot.PopulationLimits[first] != 700 || snapshot.PopulationLimits[s.ID] != 1800 {
+		t.Fatal("status reports the wrong budgets", snapshot)
+	}
+	cancel()
+	a.wg.Wait()
+}
+
+func TestHostPopulationLegacyProfilesMigrateAndValidate(t *testing.T) {
+	c := hostConfigFixture(t)
+	id := c.Company.Sessions[0].ID
+	m := c.Maps[id]
+	m.MaxPeople = 0
+	c.Maps[id] = m
+	b, _ := json.Marshal(c)
+	if strings.Contains(string(b), "max_people") {
+		t.Fatal("fixture should reproduce an old profile")
+	}
+	path := filepath.Join(t.TempDir(), "HostAgent.local.json")
+	if err := os.WriteFile(path, b, 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, err := loadHostAgentConfig(path)
+	if err != nil || c.Maps[id].MaxPeople != 1000 {
+		t.Fatal("old map did not acquire the new default", err)
+	}
+	for _, limit := range []int{1, 4096, -1, 4097} {
+		m := c.Maps[id]
+		m.MaxPeople = limit
+		c.Maps[id] = m
+		err := validateHostAgentConfig(c, true)
+		valid := limit >= 1 && limit <= 4096
+		if (err == nil) != valid {
+			t.Fatalf("limit %d: %v", limit, err)
+		}
+	}
+}
 func TestHostMapDiscoveryPortsAndFleetAreIndependent(t *testing.T) {
 	c := hostConfigFixture(t)
 	maps, err := hostDiscoverMaps(c.Root)
