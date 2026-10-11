@@ -28,7 +28,8 @@ local function state()
     map = (omsi.map.info() or {}).path, bus = omsi.bus.file(),
     line = d and d.line, tour = d and d.tour, trip = d and d.trip,
     trip_name = d and d.trip_name, departure = d and d.departure,
-    selected_trip = resolved and resolved.trip, version = omsi.game.version() }
+    selected_trip = resolved and resolved.trip, version = omsi.game.version(),
+    host_ready = host_ready, issued = issued, host_ack = host_ack }
 end
 local function valid_vehicle(c)
   return key((omsi.map.info() or {}).path) == key(c.map) and
@@ -83,20 +84,31 @@ local function dispatch()
       return
     end
     local ok, why = omsi.lan.send(1, text)
-    if not ok then fail(why) else issued = true end
+    if not ok then fail(why) else
+      if not issued then omsi.log("BCS next trip: requested " .. current.id .. " / " .. current.line .. " / " .. current.tour) end
+      issued = true
+    end
   else
     local ok, why = omsi.duty.start(current.line, current.tour, resolved.trip, 1)
     if not ok then fail(why) else issued, host_ack = true, true end
   end
 end
-function lan_message(from, text)
+-- The game invokes registered handlers or on_<event>, never a bare
+-- function named after the event. Both ready and done must reach this handler.
+omsi.on("lan_message", function(from, text)
   if from ~= 1 then return end
-  if text == "ready" then host_ready = true end
-  if current and text == "done " .. current.id then host_ack = true end
+  if text == "ready" and not host_ready then
+    host_ready = true
+    omsi.log("BCS next trip: native host ready")
+  end
+  if current and text == "done " .. current.id and not host_ack then
+    host_ack = true
+    omsi.log("BCS next trip: native client confirmed " .. current.id)
+  end
   if current and text:sub(1, #("no " .. current.id .. " ")) == "no " .. current.id .. " " then
     fail(text)
   end
-end
+end)
 omsi.every(0.25, function()
   local raw = omsi.files.read("command.json")
   local c = raw and omsi.json.decode(raw)
@@ -142,7 +154,10 @@ omsi.every(0.25, function()
             "BBS: Fahrplan aktualisiert. Prüfe die Zielanzeige."), 8)
         end
       end
-    elseif elapsed >= 20 then fail("No confirmed timetable change; check the host update and server version")
+    elseif elapsed >= 20 then
+      if omsi.lan.active() and not host_ready then fail("The native host did not answer the next-trip handshake")
+      elseif not host_ack then fail("The native client did not confirm the requested duty")
+      else fail("The loaded timetable does not match the selected BCS trip") end
     elseif resend <= 0 then dispatch(); resend = 2 end
   end
   omsi.files.write("status.json", omsi.json.encode(state()))

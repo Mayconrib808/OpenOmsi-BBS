@@ -9,7 +9,7 @@ from lupa import LuaRuntime
 SCRIPT = (Path(__file__).resolve().parents[1] / "source/live_trip_plugin.lua").read_text()
 BOOT = r'''
 local callback
-command, status, messages, sends, starts, saves = nil, nil, {}, {}, 0, 0
+command, status, messages, sends, starts, saves, handlers, logs = nil, nil, {}, {}, 0, 0, {}, {}
 lan_active, bus_file, map_path = false, "Vehicles/Test/bus.bus", "/OMSI/maps/Test/global.cfg"
 rows = {
   {trip=1, station=1, name="A", departure=14700},
@@ -24,7 +24,11 @@ function take(line, tour, trip)
   destination_index=1
 end
 omsi = {
+ on=function(event, fn)
+   handlers[event]=handlers[event] or {}; table.insert(handlers[event],fn); return fn
+ end,
  every=function(_, fn) callback=fn end,
+ log=function(s) table.insert(logs,s) end,
  message=function(s) table.insert(messages,s) end,
  speed=function() return 0 end,
  command=function(s) assert(s=="save"); saves=saves+1; return true end,
@@ -40,6 +44,13 @@ omsi = {
  lan={active=function() return lan_active end,me=function() return 2,"Test",false end,
       send=function(id,text) assert(id==1);table.insert(sends,text);return true end}
 }
+-- Match the plugin runtime: registered handlers or on_<event> receive events.
+-- A bare function named after the event is not called by the game.
+function emit(event, ...)
+  local global=_G["on_"..event]
+  if type(global)=="function" then global(...) end
+  for _,fn in ipairs(handlers[event] or {}) do fn(...) end
+end
 function step(n) for _=1,n do callback() end end
 function prepare()
  command={token="0123456789abcdef",id="1002_1234abcd",phase="prepare",map=map_path,
@@ -60,9 +71,15 @@ lua.execute('step(20);assert(starts==1)')
 
 lua = runtime()
 lua.execute('lan_active=true;prepare();step(6);command.phase="apply";step(1);assert(sends[1]=="hello" and starts==0)')
-lua.execute('lan_message(3,"ready");step(8);assert(starts==0)')
-lua.execute('lan_message(1,"ready");step(9);assert(sends[#sends]=="take 1002_1234abcd 130%20&%20N30 Mo-Fr%209 1 0")')
-lua.execute('take("130 & N30","Mo-Fr 9",2);step(1);assert(status.phase=="applying");lan_message(1,"done 1002_1234abcd");step(1);assert(status.phase=="applied" and status.sign_ok)')
+lua.execute('emit("lan_message",3,"ready");step(8);assert(starts==0 and not status.host_ready)')
+lua.execute('emit("lan_message",1,"ready");step(9);assert(sends[#sends]=="take 1002_1234abcd 130%20&%20N30 Mo-Fr%209 1 0", "host readiness event was not received")')
+lua.execute('take("130 & N30","Mo-Fr 9",2);step(1);assert(status.phase=="applying" and status.issued and not status.host_ack);emit("lan_message",1,"done other_request");emit("lan_message",3,"done 1002_1234abcd");step(1);assert(status.phase=="applying" and not status.host_ack);emit("lan_message",1,"done 1002_1234abcd");step(1);assert(status.phase=="applied" and status.sign_ok and status.host_ack)')
+
+lua = runtime()
+lua.execute('lan_active=true;prepare();step(6);command.phase="apply";step(85);assert(status.phase=="error" and status.error=="The native host did not answer the next-trip handshake" and starts==0)')
+
+lua = runtime()
+lua.execute('lan_active=true;prepare();step(6);command.phase="apply";step(1);emit("lan_message",1,"ready");step(9);emit("lan_message",1,"no 1002_1234abcd Native client rejected the duty");step(1);assert(status.phase=="error" and starts==0)')
 
 lua = runtime()
 lua.execute('table.insert(rows,{trip=3,station=1,name="B",departure=16500});table.insert(rows,{trip=3,station=2,name="A",departure=18000});prepare();step(1);assert(status.phase=="error" and starts==0 and saves==0)')
@@ -72,4 +89,4 @@ lua.execute('prepare();command.bus="Vehicles/Other/bus.bus";step(1);assert(statu
 
 lua = runtime()
 lua.execute('prepare();step(6);command.phase="cancel";step(1);command.phase="apply";step(8);assert(status.phase=="error" and starts==0)')
-print("Lua companion: local and multiplayer handoffs, host identity, duplicate, ambiguity, vehicle and cancellation checks passed")
+print("Lua companion: actual registered LAN events, local and multiplayer handoffs, host/request identity, acknowledgment, timeout, rejection, ambiguity, vehicle and cancellation checks passed")
