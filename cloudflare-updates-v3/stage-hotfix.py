@@ -6,9 +6,9 @@ build=root.parent/'hotfix-build'
 info=json.loads((build/'BUILD-INFO.json').read_text())
 envelope=json.loads((root/'preview.json').read_text())
 release=json.loads(base64.b64decode(envelope['payload']))
-assert info['version']==release['version']=='3.0.2-dev.7'
+assert info['version']==release['version']=='3.0.2-dev.8'
 assert info['product']==release['product']=='bbs-openomsi-multiplayer'
-assert info['sequence']==release['sequence']==2026101207
+assert info['sequence']==release['sequence']==2026101208
 updater=build/f"Atualizar-Multiplayer-{info['version']}.exe"
 data=updater.read_bytes()
 sha=hashlib.sha256(data).hexdigest()
