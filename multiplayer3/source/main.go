@@ -14,9 +14,10 @@ import (
 	"time"
 )
 
-const version = "3.0.2-dev.12"
+const version = "3.0.2-dev.13"
 
-// BCS redirects inherited stdout into its real game.log and checks spawn readiness there.
+// Inherited BCS stdout is optional and can be invalid for GUI launches.
+// Scheduled game output is also written directly to the game.log that BCS reads.
 var bcsLaunchOutput io.Writer
 
 const productName = "BBS+OpenOmsi Multiplayer"

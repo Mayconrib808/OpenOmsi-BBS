@@ -7,16 +7,19 @@ import (
  "os"
  "path/filepath"
  "testing"
+ "strings"
 )
 
 func TestBCSReadyLaunchChild(t *testing.T) {
  if os.Getenv("BBS_READY_LAUNCH_TEST") != "1" { return }
+ if os.Getenv("BBS_READY_CAPTURE_OUTPUT") == "1" { fmt.Fprintln(os.Stderr, "[INFO] openOMSI first version line") }
  folder := filepath.Dir(os.Args[0])
  companion,err:=os.ReadFile(filepath.Join(folder,"Plugins",bcsReadyPluginName))
  if os.Getenv("BBS_READY_EXPECT_PLUGIN")=="yes" {
   if err!=nil || !bytes.Equal(companion,[]byte(bcsReadyPluginSource)) {t.Fatal("readiness plugin missing when the game starts",err)}
   bbs,err:=os.ReadFile(filepath.Join(folder,"Plugins","bbs.lua"))
   if err!=nil || string(bbs)!="original BCS plugin" {t.Fatal("BCS plugin was modified",err)}
+ if os.Getenv("BBS_READY_CAPTURE_OUTPUT") == "1" { fmt.Fprintln(os.Stderr, "[INFO plugin] [BBS bridge] spawned at multiplayer player vehicle ready") }
  }else if !os.IsNotExist(err) {t.Fatal("non-BCS launch installed a readiness plugin",err)}
 }
 func TestBCSReadyPluginInstalledByActualLaunchBeforeGameStarts(t *testing.T) {
@@ -25,7 +28,7 @@ func TestBCSReadyPluginInstalledByActualLaunchBeforeGameStarts(t *testing.T) {
 func TestBCSReadyPluginNotInstalledForOrdinaryGameLaunch(t *testing.T) {
  testReadyLaunch(t,false)
 }
-func testReadyLaunch(t *testing.T,scheduled bool) {
+func testReadyLaunch(t *testing.T,scheduled bool, invalidOutput ...bool) {
  t.Helper()
  base:=t.TempDir()
  root:=filepath.Join(base,"OMSI 2")
@@ -49,7 +52,21 @@ func testReadyLaunch(t *testing.T,scheduled bool) {
  expected:="no";if scheduled{expected="yes"};t.Setenv("BBS_READY_EXPECT_PLUGIN",expected)
  args:=[]string{"-test.run=^TestBCSReadyLaunchChild$","--","--root",root}
  if scheduled{args=append(args,"--schedule","--line","178","--tour","5 (Pow)","--trip","05:52")}
+ var capturedPath string
+ if len(invalidOutput)>0 && invalidOutput[0] {
+  capturedPath=filepath.Join(base,"user-profile",".openomsi","game.log")
+  _ = os.MkdirAll(filepath.Dir(capturedPath),0755)
+  _ = os.WriteFile(capturedPath,[]byte("[old trip] spawned at old bus\n"),0600)
+  oldOutput,oldLocator:=bcsLaunchOutput,bcsGameLogPath
+  bcsLaunchOutput=&invalidGameOutput{}
+  bcsGameLogPath=func()(string,error){return capturedPath,nil}
+  defer func(){bcsLaunchOutput=oldOutput;bcsGameLogPath=oldLocator}()
+  t.Setenv("BBS_READY_CAPTURE_OUTPUT","1")
+ }
  process,err:=launchNative(localConfig{Root:root,Game:game},args,dir)
  if err!=nil{t.Fatal(err)}
  if err=process.Wait();err!=nil{t.Fatal("real launch did not prepare BCS readiness",err)}
+ if capturedPath!="" { data,err:=os.ReadFile(capturedPath);if err!=nil{t.Fatal(err)};text:=string(data);if !strings.Contains(text,"openOMSI first version line") || !strings.Contains(text,"] spawned at multiplayer player vehicle ready") || strings.Contains(text,"old trip"){t.Fatal("actual launch lost or reused game log readiness",text)} }
 }
+
+func TestBCSGameLogActualLaunchWithInvalidInheritedOutput(t *testing.T) { testReadyLaunch(t,true,true) }

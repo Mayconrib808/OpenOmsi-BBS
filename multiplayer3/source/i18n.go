@@ -44,6 +44,7 @@ func saveLanguage(dir, v string) error {
 }
 
 var translations = map[string][3]string{
+"errorbcsgamelog": {"Não foi possível abrir o game.log necessário para o BCS", "Could not open the game.log required by BCS", "Die für BCS erforderliche game.log konnte nicht geöffnet werden"},
 "errorreadyplugin": {"Não foi possível preparar o aviso de carregamento para o BCS", "Could not prepare the BCS loading signal", "Das Ladesignal für BCS konnte nicht vorbereitet werden"},
 "client": {"Cliente openOMSI", "openOMSI client", "openOMSI-Client"},
 "clientautomatic": {"Atualizar automaticamente", "Update automatically", "Automatisch aktualisieren"},

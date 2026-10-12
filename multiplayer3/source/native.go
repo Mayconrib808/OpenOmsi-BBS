@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -218,10 +217,12 @@ type nativeProcess struct {
 	*exec.Cmd
 	stopDriver    chan struct{}
 	driverStopped chan struct{}
+	gameLog       *os.File
 }
 
 func (p *nativeProcess) Wait() error {
 	err := p.Cmd.Wait()
+	if p.gameLog != nil { _ = p.gameLog.Close() }
 	if p.stopDriver != nil {
 		close(p.stopDriver)
 		<-p.driverStopped
@@ -261,15 +262,23 @@ func launchNative(cfg localConfig, args []string, dir string) (*nativeProcess, e
 	cmd.Dir = filepath.Dir(cfg.Game)
 	cmd.Env = env
 	cmd.Stdout, cmd.Stderr = os.Stdout, os.Stderr
+	var bcsLog *os.File
 	if bcsLaunchOutput != nil {
-		// Forward actual game output to the BCS-owned log. Never fabricate readiness.
-		cmd.Stdout = gameLogOutput(os.Stdout, bcsLaunchOutput)
-		cmd.Stderr = gameLogOutput(os.Stderr, bcsLaunchOutput)
+		path, e := bcsGameLogPath()
+		if e != nil { return nil, e }
+		bcsLog, e = openBCSGameLog(path)
+		if e != nil { return nil, fmt.Errorf("%s: %w", tr("errorbcsgamelog"), e) }
+		log.Printf("BCS game log prepared: %s", path)
+		// BCS GUI launches may have an invalid inherited stdout handle. The
+		// actual game output must still reach both disk logs in that case.
+		out := gameLogOutput(os.Stdout, bcsLog, bcsLaunchOutput)
+		cmd.Stdout, cmd.Stderr = out, out
 	}
 	if e := cmd.Start(); e != nil {
+		if bcsLog != nil { _ = bcsLog.Close() }
 		return nil, e
 	}
-	process := &nativeProcess{Cmd: cmd}
+	process := &nativeProcess{Cmd: cmd, gameLog: bcsLog}
 	if driver != nil {
 		process.stopDriver = make(chan struct{})
 		process.driverStopped = make(chan struct{})
@@ -320,9 +329,6 @@ func replaceOption(args []string, flag, value string) []string {
 	return out
 }
 
-func gameLogOutput(diagnostics, inherited io.Writer) io.Writer {
-	return io.MultiWriter(diagnostics, inherited)
-}
 
 func withoutLANArguments(args []string) []string {
 	var out []string
