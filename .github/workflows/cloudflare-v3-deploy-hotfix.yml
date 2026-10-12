@@ -1,0 +1,58 @@
+name: Publish tested 3.x runtime hotfix to Cloudflare
+on:
+  push:
+    branches: [multiplayer-3-preview]
+    paths: [.github/workflows/cloudflare-v3-deploy-hotfix.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: cloudflare-updates-v3
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download the exact tested build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 38209655407 --repo "$GITHUB_REPOSITORY" --name cloudflare-client-hotfix --dir hotfix-build
+      - name: Verify publisher signature and stage matching assets
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {createPublicKey,verify} from 'node:crypto';
+          const envelope=JSON.parse(readFileSync('cloudflare-updates-v3/preview.json'));
+          const bytes=Buffer.from(envelope.payload,'base64');
+          const key=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),Buffer.from('GKwwvTrPr3W3ctc9dfPrGtsjztkET1XAVPnAIlbwKLU=','base64')]),format:'der',type:'spki'});
+          if(!verify(null,bytes,key,Buffer.from(envelope.signature,'base64')))throw Error('Publisher signature mismatch');
+          JS
+          python3 cloudflare-updates-v3/stage-hotfix.py
+      - name: Keep the previous verified updater available during rollout
+        run: |
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          const sha='c5e86eac9da2f1eba5cc64ec5a949b4e439ce826d57e3e59886cd0fee2a11c01';
+          const url='https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev/packages/'+sha+'.exe';
+          const response=await fetch(url,{headers:{'User-Agent':'OpenOmsi-BBS-Setup/3.0.2-dev.6'}});
+          if(!response.ok)throw Error('Previous updater unavailable: '+response.status);
+          const data=Buffer.from(await response.arrayBuffer());
+          if(createHash('sha256').update(data).digest('hex')!==sha)throw Error('Previous updater hash mismatch');
+          writeFileSync('cloudflare-updates-v3/public/packages/'+sha+'.exe',data);
+          JS
+      - name: Publish to the isolated 3.x Cloudflare Worker
+        working-directory: cloudflare-updates-v3
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
+      - name: Verify live signature and complete download checksums
+        run: node cloudflare-updates-v3/verify-live.mjs
