@@ -1,12 +1,16 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"debug/buildinfo"
+	"debug/pe"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf16"
 )
 
 const installedPluginHostName = "OpenOMSI_BCS_PluginHost32.exe"
@@ -30,6 +34,82 @@ var bundledPluginHostSHA256 string
 func recognisedPluginHostDigest(digest [32]byte) bool {
 	hash := fmt.Sprintf("%x", digest)
 	return hash == historicalPluginHostSHA256 || hash == previousSourcePluginHostSHA256 || hash == previousGUIPluginHostSHA256 || hash == previousMetadataPluginHostSHA256 || (bundledPluginHostSHA256 != "" && hash == bundledPluginHostSHA256)
+}
+
+// Version resources change every release. Identify our source-built Windows
+// helper without pinning its release version or executing the installed file.
+// These are ownership checks, not a signature or trust check for execution.
+func recognisedPluginHostPayload(payload []byte) bool {
+	if recognisedPluginHostDigest(sha256.Sum256(payload)) {
+		return true
+	}
+	info, err := buildinfo.Read(bytes.NewReader(payload))
+	if err != nil || info.Path != "openomsi-bbs/pluginhost" || info.Main.Path != info.Path {
+		return false
+	}
+	osName, arch := "", ""
+	for _, setting := range info.Settings {
+		switch setting.Key {
+		case "GOOS":
+			osName = setting.Value
+		case "GOARCH":
+			arch = setting.Value
+		}
+	}
+	if osName != "windows" || arch != "386" {
+		return false
+	}
+	executable, err := pe.NewFile(bytes.NewReader(payload))
+	if err != nil {
+		return false
+	}
+	defer executable.Close()
+	resources := executable.Section(".rsrc")
+	if executable.Machine != pe.IMAGE_FILE_MACHINE_I386 || resources == nil {
+		return false
+	}
+	data, err := resources.Data()
+	if err != nil {
+		return false
+	}
+	for _, identity := range []string{"OpenOMSI_BCS_PluginHost32", "OpenOMSI BCS 32-bit plugin host", "Mayconrib808"} {
+		var encoded []byte
+		for _, unit := range utf16.Encode([]rune(identity + "\x00")) {
+			encoded = append(encoded, byte(unit), byte(unit>>8))
+		}
+		if !bytes.Contains(data, encoded) {
+			return false
+		}
+	}
+	return true
+}
+
+// A content-addressed backup is retained after successful activation, including
+// downgrades. Never overwrite another backup or follow a link at its path.
+func backupPluginHost(path string, payload []byte, mode os.FileMode) error {
+	name := fmt.Sprintf("%s.backup-%x.bak", path, sha256.Sum256(payload))
+	f, err := os.OpenFile(name, os.O_CREATE|os.O_EXCL|os.O_WRONLY, mode)
+	if os.IsExist(err) {
+		digest, e := regularFileDigest(name)
+		if e != nil || digest != sha256.Sum256(payload) {
+			return fmt.Errorf("helper backup conflicts; original preserved: %s", name)
+		}
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(payload)
+	if err == nil {
+		err = f.Sync()
+	}
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		os.Remove(name)
+	}
+	return err
 }
 
 type pluginHostDeployment struct {
@@ -110,20 +190,29 @@ func preparePluginHost(c Config, packageDir string) (pluginHostDeployment, error
 			return err
 		}
 		if digest != result.digest {
-			if recognisedPluginHostDigest(digest) {
+			previous, readErr := os.ReadFile(result.Path)
+			if readErr != nil {
+				return readErr
+			}
+			if sha256.Sum256(previous) != digest {
+				return fmt.Errorf("helper changed during update; preserved: %s", result.Path)
+			}
+			if recognisedPluginHostPayload(previous) {
 				st, err := os.Lstat(result.Path)
 				if err != nil || !st.Mode().IsRegular() {
 					return fmt.Errorf("helper changed during update; preserved: %s", result.Path)
 				}
-				previous, err := os.ReadFile(result.Path)
-				if err != nil {
-					return err
-				}
-				if sha256.Sum256(previous) != digest {
+				if current, e := regularFileDigest(result.Path); e != nil || current != digest {
 					return fmt.Errorf("helper changed during update; preserved: %s", result.Path)
 				}
-				if err := replacePluginHost(result.Path, b, st.Mode().Perm()); err != nil {
+				if err := backupPluginHost(result.Path, previous, st.Mode().Perm()); err != nil {
 					return err
+				}
+				if err := replacePluginHost(result.Path, b, st.Mode().Perm()); err != nil {
+					return fmt.Errorf("%s: %w", localText(c.Language,
+						"Não foi possível substituir o auxiliar. Feche BBS, openOMSI e os auxiliares do Bridge e tente novamente. O backup foi mantido",
+						"Could not replace the helper. Close BBS, openOMSI and the Bridge helpers and retry. The backup was retained",
+						"Das Hilfsprogramm konnte nicht ersetzt werden. Schließe BBS, openOMSI und die Bridge-Hilfsprogramme und versuche es erneut. Die Sicherung wurde beibehalten"), err)
 				}
 				result.previous, result.previousMode = previous, st.Mode().Perm()
 				return nil

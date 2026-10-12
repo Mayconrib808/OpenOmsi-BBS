@@ -635,6 +635,78 @@ func TestRecognisedHelperUpgradeAndRollback(t *testing.T) {
 	}
 }
 
+func TestReleaseHelperUpgradeWithoutPinnedHash(t *testing.T) {
+	path := os.Getenv("BRIDGE_PREVIOUS_VERSION_HOST")
+	if path == "" {
+		t.Skip("requires a source-built released Windows helper")
+	}
+	previous, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldHash := bundledPluginHostSHA256
+	bundledPluginHostSHA256 = ""
+	t.Cleanup(func() { bundledPluginHostSHA256 = oldHash })
+	if recognisedPluginHostDigest(sha256.Sum256(previous)) || !recognisedPluginHostPayload(previous) {
+		t.Fatal("release fixture must be identified without a pinned digest")
+	}
+	for _, fail := range []bool{false, true} {
+		t.Run(fmt.Sprintf("rollback=%t", fail), func(t *testing.T) {
+			c, dir, updated := pluginHostFixture(t)
+			target, _ := pluginHostPath(c)
+			if err := os.WriteFile(target, previous, 0755); err != nil {
+				t.Fatal(err)
+			}
+			registry := newMemoryRegistry(false)
+			if fail {
+				registry.failAt = 8
+			}
+			before := cloneValues(registry)
+			_, err := activateRegistryWithHost(registry, c, dir, bridgePath(dir))
+			if (err != nil) != fail {
+				t.Fatal(err)
+			}
+			want := updated
+			if fail {
+				want = previous
+				if !reflect.DeepEqual(before, registry.values) {
+					t.Fatal("failed activation changed Registry state")
+				}
+			}
+			got, err := os.ReadFile(target)
+			if err != nil || !bytes.Equal(got, want) {
+				t.Fatal("incorrect release update/rollback", err)
+			}
+			backup := fmt.Sprintf("%s.backup-%x.bak", target, sha256.Sum256(previous))
+			got, err = os.ReadFile(backup)
+			if err != nil || !bytes.Equal(got, previous) {
+				t.Fatal("original release backup missing", err)
+			}
+		})
+	}
+}
+
+func TestPluginHelperBackupConflictPreservesOriginal(t *testing.T) {
+	c, dir, previous := pluginHostFixture(t)
+	target, _ := pluginHostPath(c)
+	os.WriteFile(target, previous, 0755)
+	oldHash := bundledPluginHostSHA256
+	bundledPluginHostSHA256 = fmt.Sprintf("%x", sha256.Sum256(previous))
+	t.Cleanup(func() { bundledPluginHostSHA256 = oldHash })
+	os.WriteFile(filepath.Join(appDir(dir), "compat", "omsi-plugin-host32.exe"), append(previous, byte(1)), 0755)
+	backup := fmt.Sprintf("%s.backup-%x.bak", target, sha256.Sum256(previous))
+	os.WriteFile(backup, []byte("unrelated backup"), 0644)
+	if _, err := preparePluginHost(c, dir); err == nil {
+		t.Fatal("conflicting backup was overwritten")
+	}
+	if got, _ := os.ReadFile(target); !bytes.Equal(got, previous) {
+		t.Fatal("original helper changed after failed backup")
+	}
+	if got, _ := os.ReadFile(backup); string(got) != "unrelated backup" {
+		t.Fatal("conflicting backup changed")
+	}
+}
+
 func TestBuiltRuntimePackage(t *testing.T) {
 	dir := os.Getenv("BRIDGE_BUILT_PACKAGE")
 	if dir == "" {
@@ -860,16 +932,26 @@ func TestDiagnosticCollectionOnlyIncludesExpectedLocalFiles(t *testing.T) {
 }
 
 func TestPackageDocumentationCanChangeOrBeMissing(t *testing.T) {
- dir := t.TempDir()
- files := map[string][]byte{"Setup.exe":[]byte("setup"),"app/OpenOMSI_BCS_Bridge.exe":[]byte("bridge"),"app/compat/Omsi.exe":[]byte("facade"),"app/compat/omsi-plugin-host32.exe":[]byte("helper"),"LEIA-ME.txt":[]byte("instructions"),"README.pt-BR.md":[]byte("readme"),"docs/GUIA_JOGADOR.md":[]byte("guide"),"docs/BUILD-INFO.txt":[]byte("build info")}
- manifest(t,dir,files)
- os.WriteFile(filepath.Join(dir,"LEIA-ME.txt"),[]byte("company instructions"),0644)
- os.Remove(filepath.Join(dir,"README.pt-BR.md"));os.Remove(filepath.Join(dir,"docs","GUIA_JOGADOR.md"))
- if n,err:=verifyPackage(dir);err!=nil||n!=4 {t.Fatalf("optional docs blocked package: %d %v",n,err)}
- for _,critical:=range []string{"run.ps1","app/bridge.lua","app/settings.json","docs/PACKAGE_FILES.txt"} {
-  dir:=t.TempDir();files:=map[string][]byte{"Setup.exe":[]byte("setup"),"app/OpenOMSI_BCS_Bridge.exe":[]byte("bridge"),"app/compat/Omsi.exe":[]byte("facade"),"app/compat/omsi-plugin-host32.exe":[]byte("helper"),critical:[]byte("original")}
-  manifest(t,dir,files);os.WriteFile(filepath.Join(dir,filepath.FromSlash(critical)),[]byte("changed"),0644)
-  if _,err:=verifyPackage(dir);err==nil {t.Fatalf("critical tampering accepted: %s",critical)}
- }
- os.Remove(filepath.Join(dir,"docs","SHA256.txt"));if _,err:=verifyPackage(dir);err==nil {t.Fatal("missing integrity manifest accepted")}
+	dir := t.TempDir()
+	files := map[string][]byte{"Setup.exe": []byte("setup"), "app/OpenOMSI_BCS_Bridge.exe": []byte("bridge"), "app/compat/Omsi.exe": []byte("facade"), "app/compat/omsi-plugin-host32.exe": []byte("helper"), "LEIA-ME.txt": []byte("instructions"), "README.pt-BR.md": []byte("readme"), "docs/GUIA_JOGADOR.md": []byte("guide"), "docs/BUILD-INFO.txt": []byte("build info")}
+	manifest(t, dir, files)
+	os.WriteFile(filepath.Join(dir, "LEIA-ME.txt"), []byte("company instructions"), 0644)
+	os.Remove(filepath.Join(dir, "README.pt-BR.md"))
+	os.Remove(filepath.Join(dir, "docs", "GUIA_JOGADOR.md"))
+	if n, err := verifyPackage(dir); err != nil || n != 4 {
+		t.Fatalf("optional docs blocked package: %d %v", n, err)
+	}
+	for _, critical := range []string{"run.ps1", "app/bridge.lua", "app/settings.json", "docs/PACKAGE_FILES.txt"} {
+		dir := t.TempDir()
+		files := map[string][]byte{"Setup.exe": []byte("setup"), "app/OpenOMSI_BCS_Bridge.exe": []byte("bridge"), "app/compat/Omsi.exe": []byte("facade"), "app/compat/omsi-plugin-host32.exe": []byte("helper"), critical: []byte("original")}
+		manifest(t, dir, files)
+		os.WriteFile(filepath.Join(dir, filepath.FromSlash(critical)), []byte("changed"), 0644)
+		if _, err := verifyPackage(dir); err == nil {
+			t.Fatalf("critical tampering accepted: %s", critical)
+		}
+	}
+	os.Remove(filepath.Join(dir, "docs", "SHA256.txt"))
+	if _, err := verifyPackage(dir); err == nil {
+		t.Fatal("missing integrity manifest accepted")
+	}
 }
