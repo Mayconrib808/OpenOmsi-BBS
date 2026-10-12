@@ -1,4 +1,4 @@
-name: Publish tested dev.9 BCS hotfix to Cloudflare
+name: Publish tested dev.10 BCS helper hotfix to Cloudflare
 on:
   push:
     branches: [multiplayer-3-preview]
@@ -20,11 +20,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Download the exact tested dev.9 build
+      - name: Download the exact tested dev.10 build
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download 38213553592 --repo "$GITHUB_REPOSITORY" --name cloudflare-client-hotfix --dir hotfix-build
-      - name: Verify legacy signature and dev.9 publisher anchor
+        run: gh run download 38215010374 --repo "$GITHUB_REPOSITORY" --name cloudflare-client-hotfix --dir hotfix-build
+      - name: Verify legacy signature and dev.10 publisher anchor
         run: |
           node --input-type=module <<'JS'
           import {readFileSync} from 'node:fs';
@@ -46,7 +46,7 @@ jobs:
           const trustedBytes=Buffer.from(await trusted.arrayBuffer());
           if(!trustedBytes.equals(payload))throw Error('Immutable publisher metadata mismatch');
           const release=JSON.parse(payload);
-          if(release.version!=='3.0.2-dev.9'||release.sequence!==2026101209)throw Error('Wrong dev.9 metadata');
+          if(release.version!=='3.0.2-dev.10'||release.sequence!==2026101210)throw Error('Wrong dev.10 metadata');
           JS
           python3 cloudflare-updates-v3/stage-hotfix.py
       - name: Keep previous verified updaters available during rollout
@@ -57,10 +57,11 @@ jobs:
           for(const sha of [
             'c5e86eac9da2f1eba5cc64ec5a949b4e439ce826d57e3e59886cd0fee2a11c01',
             'e2237fa02a98c5135d3ea3d0030167febce8568d907612906f9bdb9106c13b3b',
-            '16eb467b482d166990ad966c66322da60022d20f893f7f7b365b6c7b0ba9f69d'
+            '16eb467b482d166990ad966c66322da60022d20f893f7f7b365b6c7b0ba9f69d',
+            'a18ec1050e55cfd528f774bb387245cd677fbd144ae02e6b6328a6943435c876'
           ]){
             const url='https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev/packages/'+sha+'.exe';
-            const response=await fetch(url,{headers:{'User-Agent':'OpenOmsi-BBS-Setup/3.0.2-dev.8'}});
+            const response=await fetch(url,{headers:{'User-Agent':'OpenOmsi-BBS-Setup/3.0.2-dev.10'}});
             if(!response.ok)throw Error('Previous updater unavailable: '+response.status+' '+sha);
             const data=Buffer.from(await response.arrayBuffer());
             if(createHash('sha256').update(data).digest('hex')!==sha)throw Error('Previous updater hash mismatch: '+sha);
@@ -73,5 +74,5 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
-      - name: Verify live legacy and dev.9 feeds
+      - name: Verify live legacy and dev.10 feeds
         run: node cloudflare-updates-v3/verify-live.mjs
