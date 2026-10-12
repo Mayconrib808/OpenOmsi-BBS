@@ -125,22 +125,140 @@ func readSmallFile(path string, limit int64) ([]byte, error) {
 	return b, err
 }
 
+func expandBCSPath(raw string) string {
+	raw = os.ExpandEnv(raw)
+	// Java/Windows applications commonly store %APPDATA%-style variables.
+	// Expand only variables that actually exist; leave unknown tokens untouched.
+	for start := strings.IndexByte(raw, '%'); start >= 0; {
+		rest := raw[start+1:]
+		endRel := strings.IndexByte(rest, '%')
+		if endRel < 0 {
+			break
+		}
+		end := start + 1 + endRel
+		name := raw[start+1 : end]
+		value, ok := os.LookupEnv(name)
+		if !ok || name == "" {
+			next := strings.IndexByte(raw[end+1:], '%')
+			if next < 0 {
+				break
+			}
+			start = end + 1 + next
+			continue
+		}
+		raw = raw[:start] + value + raw[end+1:]
+		start = strings.IndexByte(raw, '%')
+	}
+	return raw
+}
+
+func firstBCSPathLine(b []byte) string {
+	for _, line := range splitConfigLines(decodeBCSConfig(b)) {
+		line = strings.Trim(strings.TrimSpace(line), "\"")
+		if line != "" {
+			return line
+		}
+	}
+	return ""
+}
+
+func regularBCSConfig(path string) (bool, error) {
+	s, err := os.Lstat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	if !s.Mode().IsRegular() {
+		return false, fmt.Errorf("bcs settings: config.cfg não é arquivo regular: %s", path)
+	}
+	if s.Size() > 128<<10 {
+		return false, fmt.Errorf("bcs settings: config.cfg grande demais: %s", path)
+	}
+	return true, nil
+}
+
 func bcsSettingsPath(root string) (string, error) {
 	jar, err := installedBCSJar(root)
 	if err != nil {
 		return "", err
 	}
-	dir := filepath.Dir(jar)
-	b, err := readSmallFile(filepath.Join(dir, "gad.txt"), 128<<10)
-	if err == nil {
-		dir = strings.TrimSpace(strings.SplitN(decodeBCSConfig(b), "\n", 2)[0])
-		if !filepath.IsAbs(dir) || strings.ContainsAny(dir, "\x00\r\n\"") {
-			return "", fmt.Errorf("bcs settings: diretório inválido")
+	jarDir := filepath.Dir(jar)
+	var candidates []string
+	add := func(path string) {
+		path = filepath.Clean(path)
+		for _, current := range candidates {
+			if samePath(current, path) {
+				return
+			}
 		}
-	} else if !os.IsNotExist(err) {
-		return "", err
+		candidates = append(candidates, path)
 	}
-	return filepath.Join(dir, "config.cfg"), nil
+
+	gadPath := filepath.Join(jarDir, "gad.txt")
+	gad, gadErr := readSmallFile(gadPath, 128<<10)
+	if gadErr == nil {
+		target := expandBCSPath(firstBCSPathLine(gad))
+		if target != "" && !strings.ContainsAny(target, "\x00\r\n") {
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(jarDir, target)
+			}
+			if strings.EqualFold(filepath.Base(target), "config.cfg") {
+				add(target)
+			} else {
+				add(filepath.Join(target, "config.cfg"))
+			}
+		}
+	} else if !os.IsNotExist(gadErr) {
+		return "", fmt.Errorf("não foi possível ler gad.txt do BCS: %w", gadErr)
+	}
+
+	// Old and current BCS builds can keep config.cfg beside the JAR. Do not let
+	// a stale/quoted gad.txt hide a perfectly valid local configuration.
+	add(filepath.Join(jarDir, "config.cfg"))
+	for _, path := range candidates {
+		ok, err := regularBCSConfig(path)
+		if err != nil {
+			return "", err
+		}
+		if ok {
+			return path, nil
+		}
+	}
+	if gadErr == nil {
+		return "", fmt.Errorf("config.cfg do BCS não encontrado; gad.txt=%q; também verificado %s", firstBCSPathLine(gad), filepath.Join(jarDir, "config.cfg"))
+	}
+	return "", fmt.Errorf("config.cfg do BCS não encontrado em %s", jarDir)
+}
+
+func bcsSettingIndexes(lines []string, root string) (rootIndex, pathIndex, boolIndex int, err error) {
+	rootIndex = -1
+	if len(lines) > 0 && samePath(strings.Trim(strings.TrimSpace(lines[0]), "\""), root) {
+		rootIndex = 0
+	} else {
+		for i, line := range lines {
+			selected := strings.Trim(strings.TrimSpace(line), "\"")
+			if selected != "" && samePath(selected, root) {
+				if rootIndex >= 0 {
+					return -1, -1, -1, fmt.Errorf("bcs settings: pasta do OMSI aparece mais de uma vez")
+				}
+				rootIndex = i
+			}
+		}
+	}
+	if rootIndex < 0 {
+		return -1, -1, -1, fmt.Errorf("bcs settings belong to another OMSI installation")
+	}
+	pathIndex, boolIndex = rootIndex+49, rootIndex+50
+	if boolIndex >= len(lines) {
+		return -1, -1, -1, fmt.Errorf("bcs settings unsupported")
+	}
+	enabled := strings.TrimSpace(lines[boolIndex])
+	if enabled != "true" && enabled != "false" {
+		return -1, -1, -1, fmt.Errorf("bcs settings unsupported")
+	}
+	return rootIndex, pathIndex, boolIndex, nil
 }
 
 // This is the user settings layout inspected in the 2.x integration, not a
@@ -155,17 +273,14 @@ func updatedBCSSettings(original []byte, root, adapter string) ([]byte, error) {
 		separator = "\r\n"
 	}
 	lines := strings.Split(text, separator)
-	if len(lines) < 51 || (strings.TrimSpace(lines[50]) != "true" && strings.TrimSpace(lines[50]) != "false") {
-		return nil, fmt.Errorf("bcs settings unsupported")
-	}
-	selectedRoot := strings.Trim(strings.TrimSpace(lines[0]), "\"")
-	if !samePath(root, selectedRoot) {
-		return nil, fmt.Errorf("bcs settings belong to another OMSI installation")
+	_, pathIndex, boolIndex, err := bcsSettingIndexes(lines, root)
+	if err != nil {
+		return nil, err
 	}
 	if !filepath.IsAbs(adapter) || strings.ContainsAny(adapter, "\r\n\x00\"") {
 		return nil, fmt.Errorf("pasta do adaptador inválida")
 	}
-	lines[49], lines[50] = filepath.Clean(adapter)+string(filepath.Separator), "true"
+	lines[pathIndex], lines[boolIndex] = filepath.Clean(adapter)+string(filepath.Separator), "true"
 	return encodeBCSConfig(strings.Join(lines, separator), original)
 }
 
@@ -241,10 +356,11 @@ func inspectBCS(root, dir string) (bool, error) {
 		return false, err
 	}
 	lines := strings.Split(strings.ReplaceAll(decodeBCSConfig(b), "\r\n", "\n"), "\n")
-	if len(lines) < 51 {
-		return false, fmt.Errorf("bcs settings unsupported")
+	_, pathIndex, boolIndex, err := bcsSettingIndexes(lines, root)
+	if err != nil {
+		return false, err
 	}
-	return samePath(strings.Trim(strings.TrimSpace(lines[0]), "\""), root) && samePath(strings.Trim(strings.TrimSpace(lines[49]), "\""), adapterDirectory(dir)) && strings.TrimSpace(lines[50]) == "true", nil
+	return samePath(strings.Trim(strings.TrimSpace(lines[pathIndex]), "\""), adapterDirectory(dir)) && strings.TrimSpace(lines[boolIndex]) == "true", nil
 }
 
 func deactivateBCS(root, dir string, closed func() error) (string, error) {
@@ -259,22 +375,24 @@ func deactivateBCS(root, dir string, closed func() error) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if _, err = updatedBCSSettings(before, root, adapterDirectory(dir)); err != nil {
-		return "", err
-	}
 	text := decodeBCSConfig(before)
 	sep := "\n"
 	if strings.Contains(text, "\r\n") {
 		sep = "\r\n"
 	}
 	lines := strings.Split(text, sep)
-	if strings.TrimSpace(lines[50]) == "false" {
+	_, pathIndex, boolIndex, err := bcsSettingIndexes(lines, root)
+	if err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(lines[boolIndex]) == "false" {
 		return "", nil
 	}
-	if !samePath(strings.Trim(strings.TrimSpace(lines[49]), "\""), adapterDirectory(dir)) && !knownPreviousV3Adapter(strings.Trim(strings.TrimSpace(lines[49]), "\"")) {
+	currentAdapter := strings.Trim(strings.TrimSpace(lines[pathIndex]), "\"")
+	if !samePath(currentAdapter, adapterDirectory(dir)) && !knownPreviousV3Adapter(currentAdapter) {
 		return "", fmt.Errorf("BCS now points to another adapter; preserved")
 	}
-	lines[50] = "false"
+	lines[boolIndex] = "false"
 	after, err := encodeBCSConfig(strings.Join(lines, sep), before)
 	if err != nil {
 		return "", err
