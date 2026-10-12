@@ -1,0 +1,10 @@
+BBS+OpenOmsi Multiplayer — 3.0.2-dev.1
+Entwicklungsversion für private Tests, keine öffentliche Veröffentlichung.
+
+1. In einen separaten Ordner entpacken. Die funktionierende 2.x-Installation behalten.
+2. Configurar.exe öffnen, Sprache auswählen und Firmeneinladung speichern oder Raum erstellen.
+3. BCS schließen und BCS einrichten anklicken. Einrichtung abschließen und die Fahrt im BCS starten.
+
+BCS-JAR und -DLL werden weder mitgeliefert noch verändert. Nächste Fahrt und 3.x-Update-Kanal stehen noch aus.
+Das ZIP mit Update-Dateien ist nur für bestehende 3.x-Installationen. Den config-Ordner behalten.
+Unabhängiges Projekt, kein offizielles PeDePe-Produkt.

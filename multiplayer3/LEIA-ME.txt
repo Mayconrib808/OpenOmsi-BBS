@@ -1,0 +1,10 @@
+BBS+OpenOmsi Multiplayer — 3.0.2-dev.1
+Versão de desenvolvimento para teste particular. Ainda não é a versão pública.
+
+1. Extraia em uma pasta separada e mantenha sua instalação 2.x funcionando.
+2. Abra Configurar.exe, escolha o idioma e salve o convite da empresa ou crie uma sala.
+3. Feche o BCS e clique em Configurar BCS. Conclua e inicie a viagem pelo BCS.
+
+Não inclui nem modifica o JAR ou a DLL do BCS. Próxima viagem e o canal de atualização 3.x continuam pendentes.
+O ZIP de arquivos de atualização é apenas para uma instalação 3.x existente. Preserve a pasta config.
+Projeto independente. Não é um produto oficial da PeDePe.
