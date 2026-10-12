@@ -18,3 +18,5 @@ jobs:
           node-version: '22'
       - name: Verify live dev.7 signature and complete download checksums
         run: node cloudflare-updates-v3/verify-live.mjs
+
+# Verify complete streamed ZIP bytes and SHA-256 without requiring a Content-Length header.
