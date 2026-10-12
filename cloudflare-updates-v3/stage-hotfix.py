@@ -1,14 +1,18 @@
 """Stage an already tested Windows package for the isolated Cloudflare 3.x feed."""
-import base64,hashlib,json,shutil
+import base64,hashlib,json,re,shutil
 from pathlib import Path
 root=Path(__file__).resolve().parent
 build=root.parent/'hotfix-build'
 info=json.loads((build/'BUILD-INFO.json').read_text())
-envelope=json.loads((root/'preview.json').read_text())
-release=json.loads(base64.b64decode(envelope['payload']))
-assert info['version']==release['version']=='3.0.2-dev.8'
+anchor=json.loads((root/'preview-v2.json').read_text())
+assert re.fullmatch(r'[a-f0-9]{40}',anchor['source_commit'])
+payload=base64.b64decode(anchor['payload'],validate=True)
+trusted=(root/'release-v2.json').read_bytes()
+assert payload==trusted
+release=json.loads(payload)
+assert info['version']==release['version']=='3.0.2-dev.9'
 assert info['product']==release['product']=='bbs-openomsi-multiplayer'
-assert info['sequence']==release['sequence']==2026101208
+assert info['sequence']==release['sequence']==2026101209
 updater=build/f"Atualizar-Multiplayer-{info['version']}.exe"
 data=updater.read_bytes()
 sha=hashlib.sha256(data).hexdigest()
@@ -18,7 +22,10 @@ out=root/'public'
 if out.exists():shutil.rmtree(out)
 (out/'packages').mkdir(parents=True)
 (out/'packages'/f'{sha}.exe').write_bytes(data)
+# Legacy dev.8 clients keep using the original signed endpoint. dev.9+ uses
+# preview-v2.json, whose payload is verified against an immutable GitHub commit.
 (out/'preview.json').write_bytes((root/'preview.json').read_bytes())
+(out/'preview-v2.json').write_bytes((root/'preview-v2.json').read_bytes())
 full=build/f"BBS-OpenOmsi-Multiplayer-{info['version']}-teste.zip"
 data=full.read_bytes()
 downloads=out/'downloads';downloads.mkdir()
