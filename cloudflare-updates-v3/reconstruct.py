@@ -1,4 +1,4 @@
-import base64,gzip,hashlib,json,struct,sys,os,shutil,subprocess,tempfile,zipfile,zlib
+import io,base64,gzip,hashlib,json,struct,sys,os,shutil,subprocess,tempfile,zipfile,zlib
 from pathlib import Path
 root=Path(__file__).resolve().parent
 repo=root.parent
@@ -13,10 +13,35 @@ while True:
  if pos<0:break
  if pos>=30 and partial[pos-30:pos-26]==b'PK\x03\x04':start=pos-30;break
 if start<0:raise SystemExit('Cannot recover embedded payload')
-end=partial.find(b'PK\x05\x06',start)
-if end<0:raise SystemExit('Embedded payload footer was not recovered')
-comment=struct.unpack_from('<H',partial,end+20)[0]
-payload=partial[start:end+22+comment]
+# Recover complete launcher/helper entries; the truncated third entry duplicates the launcher.
+entries={}
+dates={}
+offset=start
+while partial[offset:offset+4]==b'PK\x03\x04':
+ header=struct.unpack_from('<4s5H3I2H',partial,offset)
+ _,needed,flags,method,dostime,dosdate,crc,csize,usize,nlen,xlen=header
+ name=partial[offset+30:offset+30+nlen].decode()
+ dates[name]=(1980+(dosdate>>9),(dosdate>>5)&15,dosdate&31,dostime>>11,(dostime>>5)&63,(dostime&31)*2)
+ body=offset+30+nlen+xlen
+ if body+csize>len(partial):break
+ raw=zlib.decompress(partial[body:body+csize],-15) if method==8 else partial[body:body+csize]
+ if len(raw)!=usize or zlib.crc32(raw)&0xffffffff!=crc:raise SystemExit('Recovered entry CRC mismatch')
+ entries[name]=raw
+ offset=body+csize
+launcher=entries['OpenOMSI-BBS/PeDePeAdapter/openomsi.exe']
+helper=entries['OpenOMSI-BBS/compat/omsi-plugin-host32.exe']
+entries['Setup.exe']=launcher
+receipt=json.loads((repo/'multiplayer3'/'server'/'bbs-server.json').read_text())
+manifest={'product':'bbs-openomsi-multiplayer','version':'3.0.2-dev.6','sequence':2026101206,'channel':'preview','source_commit':'','client_default':'0.2.29','update_origin':'https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev','native_server':receipt,'files':{'Setup.exe':hashlib.sha256(launcher).hexdigest(),'OpenOMSI-BBS/PeDePeAdapter/openomsi.exe':hashlib.sha256(launcher).hexdigest(),'OpenOMSI-BBS/compat/omsi-plugin-host32.exe':hashlib.sha256(helper).hexdigest()},'public_release_ready':False,'pending':['next_trip_supported_interface','3x_update_feed_publication','real_bcs_multiplayer_tests','company_map_weather_passenger_settings']}
+entries['package.json']=json.dumps(manifest,indent=2).encode()
+buffer=io.BytesIO()
+with zipfile.ZipFile(buffer,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as archive:
+ for name,data in sorted(entries.items()):
+  info=zipfile.ZipInfo(name,dates.get(name,dates['Setup.exe']))
+  info.compress_type=zipfile.ZIP_DEFLATED
+  info.external_attr=(0o100644 if name=='package.json' else 0o100755)<<16
+  archive.writestr(info,data,compresslevel=9)
+payload=buffer.getvalue()
 source=repo/'multiplayer3'/'source'
 updater=source/'updater'
 (updater/'update_payload.zip').write_bytes(payload)
@@ -29,7 +54,9 @@ exe=out/'packages'/(meta['sha256']+'.exe')
 obj,resources,fields=build_preview.metadata(updater,'3.0.2-dev.6','amd64',build_preview.PRODUCT+' updater','Atualizar-Multiplayer.exe')
 build_preview.compile_exe('go',updater,'amd64',exe,'-s -w -H=windowsgui',resources,fields)
 obj.unlink(missing_ok=True)
-if exe.stat().st_size!=meta['size'] or build_preview.digest(exe)!=meta['sha256']:raise SystemExit('Recovered updater differs from locally verified bytes')
+actual=build_preview.digest(exe)
+print('RECOVERED_UPDATER_SHA256='+actual+' SIZE='+str(exe.stat().st_size),flush=True)
+if exe.stat().st_size!=meta['size'] or actual!=meta['sha256']:raise SystemExit('Recovered wrapper requires a new publisher-signed manifest')
 (out/'preview.json').write_bytes((root/'preview.json').read_bytes())
 with tempfile.TemporaryDirectory() as temp:
  stage=Path(temp)
