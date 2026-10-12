@@ -13,7 +13,11 @@ func recordSetupError(dir, action string, c localConfig, err error) {
 		return
 	}
 	// Paths and underlying local setup error only. Never log room invitations or admin keys.
-	f, e := os.OpenFile(filepath.Join(dir, "logs", "setup.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	logs := filepath.Join(dir, "logs")
+	if e := os.MkdirAll(logs, 0755); e != nil {
+		return
+	}
+	f, e := os.OpenFile(filepath.Join(logs, "setup.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
 	if e != nil {
 		return
 	}
