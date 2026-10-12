@@ -2,6 +2,7 @@
 package main
 import (
  "errors"
+ "bytes"
  "fmt"
  "os"
  "syscall"
@@ -16,6 +17,10 @@ func replacePreparedFile(temp,target string)error {
  deadline:=time.Now().Add(12*time.Second)
  var last error
  for {
+  current,currentErr:=os.ReadFile(target)
+  if readErr==nil {
+   if currentErr!=nil || !bytes.Equal(current,original){return fmt.Errorf("installation changed during update; preserved: %s",target)}
+  }else if !os.IsNotExist(currentErr){return fmt.Errorf("installation changed during update; preserved: %s",target)}
   last=os.Rename(temp,target)
   if last==nil{return nil}
   if !transientReplacementError(last){return last}
