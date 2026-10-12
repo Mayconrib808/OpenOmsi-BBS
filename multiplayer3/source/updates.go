@@ -22,10 +22,10 @@ import (
 
 // Set only when packaging a release for the deployed distribution service.
 // The player never receives a publication credential or the signing seed.
-var bridgeUpdateOrigin = ""
-var bridgeUpdateSequence = "2026101204"
+var bridgeUpdateOrigin = "https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev"
+var bridgeUpdateSequence = "2026101206"
 
-const bridgeUpdatePublicKey = "5xKCV4uIoc9e0/sGeF9s9+cd5m5rwPOdyqslWqxPRrs="
+const bridgeUpdatePublicKey = "GKwwvTrPr3W3ctc9dfPrGtsjztkET1XAVPnAIlbwKLU="
 const updateDownloadLimit int64 = 64 << 20
 
 var errUpdateNotConfigured = errors.New("update distribution not configured")
@@ -121,9 +121,7 @@ func bridgeUpdateClient() *http.Client {
 
 func checkBridgeRelease(ctx context.Context, client *http.Client, origin string) (*bridgeRelease, error) {
 	if origin == "" {
-		ctx, cancel := context.WithTimeout(ctx, 8*time.Second)
-		defer cancel()
-		return checkGitHubV3(ctx, client)
+		return nil, errUpdateNotConfigured
 	}
 	base, err := updateOrigin(origin)
 	if err != nil {

@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"net/http"
 	"strings"
 	"testing"
 )
@@ -12,7 +14,7 @@ import (
 func TestSignedUpdatesRejectWrongProductChannelOriginAndTampering(t *testing.T) {
 	public, private, _ := ed25519.GenerateKey(rand.Reader)
 	origin := "https://v3-updates.example"
-	release := bridgeRelease{Product: "bbs-openomsi-multiplayer", Channel: "preview", Schema: 1, Sequence: 2026101202, Version: "3.0.2-dev.4", Installer: bridgeReleaseFile{URL: origin + "/packages/" + strings.Repeat("a", 64) + ".exe", SHA256: strings.Repeat("a", 64), Size: 1024}}
+	release := bridgeRelease{Product: "bbs-openomsi-multiplayer", Channel: "preview", Schema: 1, Sequence: 2026101202, Version: "3.0.2-dev.6", Installer: bridgeReleaseFile{URL: origin + "/packages/" + strings.Repeat("a", 64) + ".exe", SHA256: strings.Repeat("a", 64), Size: 1024}}
 	sign := func(r bridgeRelease) []byte {
 		b, _ := json.Marshal(r)
 		envelope := bridgeReleaseEnvelope{Payload: base64.StdEncoding.EncodeToString(b), Signature: base64.StdEncoding.EncodeToString(ed25519.Sign(private, b))}
@@ -46,5 +48,11 @@ func TestSignedUpdatesRejectWrongProductChannelOriginAndTampering(t *testing.T) 
 	valid[len(valid)/2] ^= 1
 	if _, err := decodeBridgeRelease(valid, public, origin); err == nil {
 		t.Fatal("tampered signature accepted")
+	}
+}
+
+func TestUnconfiguredFeedNeverFallsBackToGitHub(t *testing.T) {
+	if _, err := checkBridgeRelease(context.Background(), &http.Client{}, ""); err != errUpdateNotConfigured {
+		t.Fatal("unexpected fallback", err)
 	}
 }

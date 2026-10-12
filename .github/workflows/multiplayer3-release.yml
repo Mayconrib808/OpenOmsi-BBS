@@ -1,8 +1,6 @@
 name: Publish isolated 3.x preview
 on:
-  push:
-    branches: [multiplayer-3-preview]
-    paths: ['multiplayer3/**', '.github/workflows/multiplayer3-release.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:

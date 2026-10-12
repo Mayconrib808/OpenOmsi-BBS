@@ -14,6 +14,13 @@ const installedPluginHostName = "OpenOMSI_BCS_PluginHost32_v3.exe"
 var bundledPluginHostSHA256 string
 
 var previousPluginHosts = map[string]bool{
+	"faf9a79bd1430a1b0116cf33bd324114514a98c0ce46e02da6ffc4d80a14be67": true,
+	// Known source-built 3.x previews; allows moving to a new package folder.
+	"79f9f302d84e19c941886336d1b57894a81db73bd3f5a3433e99d846458b6877": true,
+	"aae3a40b7a4a619daf829a7ce9692b93e49f0f0a32c11f0ab5a71932c7e1cd58": true,
+	"b5863a0a9cc9f489045d42e9fdc96931b8848e7c7d9ad2deeb0cff49138cd07e": true,
+	"beb6e7a61fced7ac91744031e7ebf8f3bc1f6b2985918a4dc46b27a33e7a3bd6": true,
+
 	// Helper retained by the 2.1.x player-only updates.
 	"676166e5efa539ed59ac605bf07d3defa05172d33f86dab633b7c4f7dd2453f4": true,
 	"b26af8f2fc55f272ae89f0dcd02c423c26fb758daf24e860960bd2002c82b2d4": true,

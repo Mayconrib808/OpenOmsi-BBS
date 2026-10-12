@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -93,5 +95,33 @@ func TestSoloLaunchDoesNotNeedDirectory(t *testing.T) {
 	saveConfig(dir, cfg)
 	if err := run(context.Background(), dir, []string{"--no-menu"}); err != nil {
 		t.Fatal("solo tried to access directory", err)
+	}
+}
+
+func TestDeactivateKnownPrevious3xFolder(t *testing.T) {
+	root := t.TempDir()
+	dir := appDirectory(t.TempDir())
+	old := adapterDirectory(appDirectory(t.TempDir()))
+	os.MkdirAll(old, 0755)
+	payload := []byte("MZknown previous v3 adapter")
+	hash := fmt.Sprintf("%x", sha256.Sum256(payload))
+	previousV3Adapters[hash] = true
+	defer delete(previousV3Adapters, hash)
+	os.WriteFile(filepath.Join(old, "openomsi.exe"), payload, 0600)
+	jar := filepath.Join(root, "Busbetrieb-Simulator")
+	os.MkdirAll(jar, 0755)
+	os.WriteFile(filepath.Join(jar, "busbetrieb-simulator.jar"), []byte("vendor"), 0600)
+	active, err := updatedBCSSettings(bcsConfigFixture(root), root, old)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(jar, "config.cfg")
+	os.WriteFile(path, active, 0600)
+	if _, err = deactivateBCS(root, dir, func() error { return nil }); err != nil {
+		t.Fatal("old 3.x folder prevents disable", err)
+	}
+	b, _ := os.ReadFile(path)
+	if splitConfigLines(decodeBCSConfig(b))[50] != "false" {
+		t.Fatal("not disabled")
 	}
 }

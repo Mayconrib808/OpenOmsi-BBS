@@ -271,7 +271,7 @@ func deactivateBCS(root, dir string, closed func() error) (string, error) {
 	if strings.TrimSpace(lines[50]) == "false" {
 		return "", nil
 	}
-	if !samePath(strings.Trim(strings.TrimSpace(lines[49]), "\""), adapterDirectory(dir)) {
+	if !samePath(strings.Trim(strings.TrimSpace(lines[49]), "\""), adapterDirectory(dir)) && !knownPreviousV3Adapter(strings.Trim(strings.TrimSpace(lines[49]), "\"")) {
 		return "", fmt.Errorf("BCS now points to another adapter; preserved")
 	}
 	lines[50] = "false"

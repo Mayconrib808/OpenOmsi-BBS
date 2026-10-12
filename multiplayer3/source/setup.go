@@ -20,6 +20,7 @@ import (
 var setupPage string
 
 type setupView struct {
+	ErrorDetail                                                                                                string
 	BCSStatusKey, UpdateStatusKey                                                                              string
 	Token, Lang, Stage, Root, Player, Game, Invite, Name, Zone, Offset, Mode, ServerMode, ServerVersion, Error string
 	UpdatePage                                                                                                 string
@@ -131,6 +132,8 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		view.UpdatePage = ""
 		update = nil
 		if err != nil {
+			view.ErrorDetail = setupErrorDetail(c, err)
+			recordSetupError(dir, "check_update", c, err)
 			view.UpdateStatusKey = "updateerror"
 			view.refreshStatuses()
 			if err == errUpdateNotConfigured {
@@ -173,7 +176,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			if r.URL.Path == "/updates" {
 				view.refreshStatuses()
 				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(map[string]any{"message": view.UpdateStatus, "available": view.UpdateAvailable, "page": view.UpdatePage, "checking": checking, "version": view.UpdateVersion, "preparing": view.Preparing, "notice": view.Message, "bcs": view.BCSStatus, "error": view.Error})
+				_ = json.NewEncoder(w).Encode(map[string]any{"message": view.UpdateStatus, "available": view.UpdateAvailable, "page": view.UpdatePage, "checking": checking, "version": view.UpdateVersion, "preparing": view.Preparing, "notice": view.Message, "bcs": view.BCSStatus, "detail": view.ErrorDetail, "error": view.Error})
 			} else {
 				view.refreshStatuses()
 				_ = page.Execute(w, view)
@@ -191,6 +194,8 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		}
 		if r.Form.Get("action") == "language" {
 			if e := saveLanguage(dir, r.Form.Get("language")); e != nil {
+				view.ErrorDetail = setupErrorDetail(c, e)
+				recordSetupError(dir, "setup_action", c, e)
 				view.Error = friendlyError(e)
 			} else {
 				chosen = true
@@ -205,17 +210,27 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			http.Error(w, tr("error"), 403)
 			return
 		}
-		view.Error, view.Message = "", ""
-		if view.Preparing && (r.Form.Get("action") == "save" || r.Form.Get("action") == "configurebcs" || r.Form.Get("action") == "finish" || r.Form.Get("action") == "installupdate" || r.Form.Get("action") == "disableprogram" || r.Form.Get("action") == "togglemultiplayer") {
+		view.Error, view.Message, view.ErrorDetail = "", "", ""
+		if view.Preparing && (r.Form.Get("action") == "save" || r.Form.Get("action") == "configurebcs" || r.Form.Get("action") == "finish" || r.Form.Get("action") == "installupdate" || r.Form.Get("action") == "disableprogram" || r.Form.Get("action") == "togglemultiplayer" || r.Form.Get("action") == "editconfiguration") {
 			view.Message = tr("clientdownload")
 			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			return
 		}
 		switch r.Form.Get("action") {
+		case "editconfiguration":
+			view.Stage = "setup"
+			view.Root, view.Game, view.Player, view.Invite = c.Root, c.Game, c.Player, c.Invitation
+			view.Mode = "join" // Editing an existing invitation must never create a duplicate room.
+			view.ServerMode, view.ServerVersion = c.Server.Mode, c.Server.Version
+			view.refreshStatuses()
+			_ = page.Execute(w, view)
+			return
 		case "togglemultiplayer":
 			enabled := !readPreferences(dir).MultiplayerEnabled
 			if e := writeControls(dir, &enabled, nil); e != nil {
+				view.ErrorDetail = setupErrorDetail(c, e)
+				recordSetupError(dir, "setup_action", c, e)
 				view.Error = friendlyError(e)
 			} else {
 				view.MultiplayerEnabled = enabled
@@ -228,10 +243,14 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			if c.Root == "" {
 				view.Error = tr("bcsmustsave")
 			} else if _, e := deactivateBCS(c.Root, dir, options.CheckClosed); e != nil {
+				view.ErrorDetail = setupErrorDetail(c, e)
+				recordSetupError(dir, "setup_action", c, e)
 				view.Error = friendlyError(e)
 			} else {
 				disabled := true
 				if e := writeControls(dir, nil, &disabled); e != nil {
+					view.ErrorDetail = setupErrorDetail(c, e)
+					recordSetupError(dir, "setup_action", c, e)
 					view.Error = friendlyError(e)
 				} else {
 					view.ProgramDisabled = true
@@ -245,6 +264,8 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		case "preferences":
 			automatic := r.Form.Get("automatic_updates") == "on"
 			if e := writePreferences(dir, r.Form.Get("language"), &automatic); e != nil {
+				view.ErrorDetail = setupErrorDetail(c, e)
+				recordSetupError(dir, "setup_action", c, e)
 				view.Error = friendlyError(e)
 			} else {
 				setLanguage(r.Form.Get("language"))
@@ -271,6 +292,8 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 				return
 			}
 			if err := options.CheckClosed(); err != nil {
+				view.ErrorDetail = setupErrorDetail(c, err)
+				recordSetupError(dir, "setup_action", c, err)
 				view.Error = friendlyError(err)
 				view.refreshStatuses()
 				_ = page.Execute(w, view)
@@ -301,7 +324,10 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 				view.Error = tr("bcsmustsave")
 			} else if c.Game == "" {
 				if e := options.CheckClosed(); e != nil {
+					view.ErrorDetail = setupErrorDetail(c, e)
+					recordSetupError(dir, "setup_action", c, e)
 					view.Error = friendlyError(e)
+					view.ErrorDetail = e.Error()
 					view.refreshStatuses()
 					_ = page.Execute(w, view)
 					return
@@ -315,7 +341,10 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 					}
 				}
 				if e != nil {
+					view.ErrorDetail = setupErrorDetail(c, e)
+					recordSetupError(dir, "setup_action", c, e)
 					view.Error = friendlyError(e)
+					view.ErrorDetail = e.Error()
 					view.refreshStatuses()
 					_ = page.Execute(w, view)
 					return
@@ -342,7 +371,11 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 						_, err = configureStandaloneBCS(c.Root, dir, options.CheckClosed)
 					}
 					if err != nil {
+						view.ErrorDetail = setupErrorDetail(c, err)
+						recordSetupError(dir, "setup_action", c, err)
 						view.Error = friendlyError(err)
+						view.ErrorDetail = err.Error()
+						recordSetupError(dir, "configure_bcs", c, err)
 						view.Message = ""
 					} else {
 						disabled := false
@@ -354,7 +387,10 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 					}
 				}()
 			} else if _, e := configureStandaloneBCS(c.Root, dir, options.CheckClosed); e != nil {
+				view.ErrorDetail = setupErrorDetail(c, e)
+				recordSetupError(dir, "setup_action", c, e)
 				view.Error = friendlyError(e)
+				view.ErrorDetail = e.Error()
 			} else {
 				disabled := false
 				_ = writeControls(dir, nil, &disabled)
@@ -370,6 +406,8 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			if c.Root == "" {
 				view.Error = tr("bcsmustsave")
 			} else if ready, e := inspectBCS(c.Root, dir); e != nil {
+				view.ErrorDetail = setupErrorDetail(c, e)
+				recordSetupError(dir, "setup_action", c, e)
 				view.Error = friendlyError(e)
 			} else if ready {
 				view.BCSStatusKey = "bcsconfigured"
@@ -390,7 +428,11 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			view.Stage = "done"
 			view.refreshStatuses()
 			_ = page.Execute(w, view)
-			closeSoon()
+			if options.Launching {
+				closeSoon()
+			} else {
+				finished = true // Keep navigation available without a later unsaved-config warning.
+			}
 			return
 		}
 		if r.Form.Get("action") != "save" {
@@ -470,6 +512,8 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			err = saveConfig(dir, candidate)
 		}
 		if err != nil {
+			view.ErrorDetail = setupErrorDetail(c, err)
+			recordSetupError(dir, "setup_action", c, err)
 			view.Error = friendlyError(err)
 			view.Stage = "setup"
 			view.refreshStatuses()

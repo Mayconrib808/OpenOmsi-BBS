@@ -195,3 +195,12 @@ func init() {
 func init() {
 	translations["updatecurrent"] = [3]string{"Nenhuma atualização 3.x mais recente foi publicada no canal consultado.", "No newer 3.x update is published in this channel.", "In diesem Kanal ist kein neueres 3.x-Update veröffentlicht."}
 }
+
+func init() {
+	translations["editconfiguration"] = [3]string{"Ver ou editar configuração", "View or edit configuration", "Konfiguration ansehen oder bearbeiten"}
+	translations["errordetails"] = [3]string{"Ver detalhes do erro", "View error details", "Fehlerdetails anzeigen"}
+}
+
+func init() {
+	translations["error"] = [3]string{"Não foi possível continuar. Abra Ver detalhes do erro abaixo.", "Could not continue. Open View error details below.", "Vorgang fehlgeschlagen. Unten Fehlerdetails anzeigen öffnen."}
+}
