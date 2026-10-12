@@ -1,4 +1,4 @@
-name: Build and test transactional Windows updater hotfix
+name: Build and test dev.8 Windows updater hotfix
 on:
   push:
     branches: [multiplayer-3-preview]

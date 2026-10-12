@@ -20,6 +20,7 @@ import (
 var setupPage string
 
 type setupView struct {
+	Version string
 	ErrorDetail                                                                                                string
 	BCSStatusKey, UpdateStatusKey                                                                              string
 	Token, Lang, Stage, Root, Player, Game, Invite, Name, Zone, Offset, Mode, ClientMode, ServerMode, ServerVersion, Error string
@@ -57,7 +58,7 @@ func newSetupView(c localConfig, dir, token string) setupView {
 	}
 	clientMode, _ := normalizeClientMode(c, dir)
 	prefs := readPreferences(dir)
-	return setupView{MultiplayerEnabled: prefs.MultiplayerEnabled, ProgramDisabled: prefs.ProgramDisabled, Token: token, Lang: language(), Stage: "setup", Root: root, Player: player, Game: game, Invite: c.Invitation, Zone: "", Offset: "", Mode: "join", ClientMode: clientMode, ServerMode: c.Server.Mode, ServerVersion: c.Server.Version, Detected: root != "" && root == detectRoot(dir), Adapter: adapterDirectory(dir), AutomaticUpdates: readPreferences(dir).AutomaticUpdates, BCSStatus: tr("bcsnotchecked"), UpdateStatus: tr("updatenotchecked"), BCSStatusKey: "bcsnotchecked", UpdateStatusKey: "updatenotchecked"}
+	return setupView{Version: version, MultiplayerEnabled: prefs.MultiplayerEnabled, ProgramDisabled: prefs.ProgramDisabled, Token: token, Lang: language(), Stage: "setup", Root: root, Player: player, Game: game, Invite: c.Invitation, Zone: "", Offset: "", Mode: "join", ClientMode: clientMode, ServerMode: c.Server.Mode, ServerVersion: c.Server.Version, Detected: root != "" && root == detectRoot(dir), Adapter: adapterDirectory(dir), AutomaticUpdates: readPreferences(dir).AutomaticUpdates, BCSStatus: tr("bcsnotchecked"), UpdateStatus: tr("updatenotchecked"), BCSStatusKey: "bcsnotchecked", UpdateStatusKey: "updatenotchecked"}
 }
 func setup(dir string) error { return setupWithReason(dir, "") }
 func setupWithReason(dir, reason string) error {
