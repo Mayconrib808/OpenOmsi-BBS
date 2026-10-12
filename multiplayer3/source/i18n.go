@@ -44,6 +44,7 @@ func saveLanguage(dir, v string) error {
 }
 
 var translations = map[string][3]string{
+"errorreadyplugin": {"Não foi possível preparar o aviso de carregamento para o BCS", "Could not prepare the BCS loading signal", "Das Ladesignal für BCS konnte nicht vorbereitet werden"},
 "client": {"Cliente openOMSI", "openOMSI client", "openOMSI-Client"},
 "clientautomatic": {"Atualizar automaticamente", "Update automatically", "Automatisch aktualisieren"},
 "clientmanual": {"Manual — usar meu executável", "Manual — use my executable", "Manuell — eigene Datei verwenden"},

@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const version = "3.0.2-dev.11"
+const version = "3.0.2-dev.12"
 
 // BCS redirects inherited stdout into its real game.log and checks spawn readiness there.
 var bcsLaunchOutput io.Writer

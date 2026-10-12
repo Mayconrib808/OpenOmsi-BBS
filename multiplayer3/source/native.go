@@ -238,6 +238,10 @@ func launchNative(cfg localConfig, args []string, dir string) (*nativeProcess, e
 			return nil, e
 		}
 		env = pluginEnvironment(env, helper)
+		if e := prepareBCSReadyPlugin(cfg); e != nil {
+			return nil, fmt.Errorf("%s: %w", tr("errorreadyplugin"), e)
+		}
+		log.Printf("BCS readiness plugin prepared: %s", filepath.Join(contentFolder(cfg), "Plugins", bcsReadyPluginName))
 	}
 	if e := forwardPlugin(cfg, dir); e != nil {
 		return nil, fmt.Errorf("não foi possível encaminhar o plugin nativo BCS: %w", e)
