@@ -166,7 +166,7 @@ func resolveServer(ctx context.Context, dir string, p serverPreference) (string,
 	return resolveRuntime(ctx, dir, p, false)
 }
 func resolveClient(ctx context.Context, dir string) (string, error) {
-	return resolveRuntime(ctx, dir, serverPreference{Mode: "manual", Version: "0.2.29"}, true)
+	return resolveRuntime(ctx, dir, serverPreference{Mode: "latest"}, true)
 }
 func resolveRuntime(ctx context.Context, dir string, p serverPreference, client bool) (string, error) {
 	cacheName := "server-cache"
@@ -197,6 +197,9 @@ func resolveRuntime(ctx context.Context, dir string, p serverPreference, client 
 	defer c.CloseIdleConnections()
 	var r serverRelease
 	if e = requestJSON(ctx, c, "GET", endpoint, "", nil, &r); e != nil {
+		if client {
+			return "", fmt.Errorf("não foi possível consultar a versão mais recente do cliente openOMSI; verifique a conexão e tente novamente: %w", e)
+		}
 		return "", fmt.Errorf("não foi possível consultar a versão do servidor; escolha Recomendada para usar o pacote local: %w", e)
 	}
 	v, a, e := runtimeReleaseSelection(r, p.Version, client)

@@ -1,7 +1,7 @@
-# BBS+OpenOmsi Multiplayer 3.0.2-dev.6
+# BBS+OpenOmsi Multiplayer 3.0.2-dev.7
 
 Base recuperada da 3.0.1 e correções de lançamento/dados reais portadas da 2.1.5.
-O cliente padrão para uma nova instalação é o openOMSI 0.2.29; um cliente existente configurado é preservado.
+O campo do cliente vazio consulta a última release oficial estável Windows x64 na primeira configuração. O cliente escolhido fica salvo para as próximas viagens; clientes existentes configurados são preservados. O download verifica o SHA-256 oficial e mantém o cache separado por versão.
 
 - Setup PT-BR/EN/DE: empresa ou convite, detecção de OMSI pelo Steam, pastas avançadas opcionais.
 - Abrir carrega dados; não ativa nem verifica o BCS. A configuração é um clique explícito, exige BCS fechado e cria backup.
@@ -23,12 +23,12 @@ O ZIP completo contém a fonte MIT da integração e a licença do runtime openO
 
 1. Implementar Próxima viagem por uma interface permitida e confirmar os requisitos da PeDePe; não portar o patch de JAR da 2.x.
 2. Validar BCS real, finalizar viagem, troca de mapa, host/guest e saída do host em pelo menos dois computadores.
-3. Publicar e testar o canal Cloudflare específico da 3.x depois da validação, com assinatura. O canal 2.x não é usado nem alterado.
+3. Validar instalação de atualizações Cloudflare em um computador Windows real. O feed 3.x já está publicado com assinatura; o canal 2.x não é usado nem alterado.
 4. Migrar as opções da empresa para temperatura e limite de passageiros por mapa.
 
 O servidor empacotado mantém a proveniência bbs-server.json da 3.0.1 (0.2.20-bbs-free2). Não é apresentado como o cliente 0.2.29 nem como a última versão oficial.
 
-## 3.0.2-dev.6 — instalação independente
+## 3.0.2-dev.7 — instalação independente
 
 ZIP completo utilizável sem Bridge 2.x. Setup.exe instala o auxiliar próprio na configuração explícita do BCS. Cliente oficial baixado quando necessário; arte existente do programa e identificação Setup em inglês embutidas como recursos PE. Conteúdo do cliente não herda OMSI_CONTENT de uma instalação anterior. Próxima viagem e canal de atualização permanecem pendentes conforme indicado acima.
 
@@ -36,12 +36,12 @@ ZIP completo utilizável sem Bridge 2.x. Setup.exe instala o auxiliar próprio n
 
 Preserva stdout herdado do BCS e encaminha a saída real do jogo tanto para o game.log esperado pelo BCS quanto para multiplayer.log. Nenhuma mensagem de prontidão é fabricada; nenhum JAR é modificado. Padrão para novas salas: Europe/Berlin −8 horas; salas existentes preservam seu relógio, que deve ser corrigido pelo criador quando necessário.
 
-## Controles e atualizações 3.0.2-dev.6
+## Controles e atualizações 3.0.2-dev.7
 
 Desativar multiplayer persiste modo solo sem contato com o diretório, mantendo a integração nativa do BCS. Desativar programa exige BCS fechado, salva backup e desmarca o lançamento openOMSI somente se a pasta ativa é nosso adaptador; reativação usa Configurar BCS. Preserva sessões em andamento.
 
-Sem feed 3.x assinado configurado, a busca automática/manual consulta releases deste repositório via API GitHub e filtra exclusivamente tags v3.x/3.x; o canal 2.x não é alterado. Instalação integrada requer asset Atualizar-Multiplayer-VERSAO.exe e digest SHA-256 fornecido pelo GitHub. Release sem esse asset aparece com link para download manual. Publicar somente ZIP não fornece instalação integrada. Feed assinado continua separado por produto/canal, com rejeição explícita de versão 2.x.
+As atualizações desta integração usam exclusivamente o feed Cloudflare 3.x assinado, sem fallback para GitHub. Downloads do cliente oficial openOMSI usam as releases oficiais upstream; são independentes das atualizações da integração.
 
-## 3.0.2-dev.6 — voltar à configuração
+## 3.0.2-dev.7 — voltar à configuração
 
 A tela salva e a conclusão manual oferecem Ver ou editar configuração. Volta aos campos salvos sem criar outra sala; conclusão quando o BCS está aguardando mantém o fluxo de iniciar a viagem. Erros de Configurar BCS são exibidos em detalhes e registrados em logs/setup.log sem convite ou token.

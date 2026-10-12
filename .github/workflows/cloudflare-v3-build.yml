@@ -1,0 +1,34 @@
+name: Build 3.x client hotfix for Cloudflare
+on:
+  push:
+    branches: [multiplayer-3-preview]
+    paths: [.github/workflows/cloudflare-v3-build.yml]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Preserve known dev.6 component ownership
+        run: python3 multiplayer3/scripts/prepare_previous_preview.py
+      - name: Test client selection and integration
+        working-directory: multiplayer3/source
+        run: go test ./...
+      - name: Recover verified packaged server
+        run: python3 multiplayer3/scripts/recover_preview_server.py
+      - name: Build Windows package with official latest client selection
+        run: python3 multiplayer3/scripts/build_preview.py --server multiplayer3/server --sequence 2026101207 --source-commit "" --output hotfix-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cloudflare-client-hotfix
+          path: hotfix-build/
+          retention-days: 7
+          compression-level: 0

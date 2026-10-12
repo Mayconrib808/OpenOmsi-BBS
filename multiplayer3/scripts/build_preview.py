@@ -72,7 +72,7 @@ def main():
     ap.add_argument("--server", type=Path, help="Verified server folder; omit for minimal update builds")
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--update-origin", default="https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev", help="Separate deployed 3.x HTTPS feed")
-    ap.add_argument("--sequence", default="2026101206")
+    ap.add_argument("--sequence", default="2026101207")
     ap.add_argument("--source-commit", default=os.environ.get("GITHUB_SHA", ""))
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -108,7 +108,7 @@ def main():
                    "OpenOMSI-BBS/PeDePeAdapter/openomsi.exe": launcher,
                    "OpenOMSI-BBS/compat/omsi-plugin-host32.exe": helper}
         build = {"product": IDENTITY, "version": version, "sequence": int(args.sequence), "channel": "preview", "source_commit": args.source_commit,
-                 "client_default": "0.2.29", "update_origin": args.update_origin,
+                 "client_default": "latest-official", "update_origin": args.update_origin,
                  "native_server": receipt, "files": {n: digest(p) for n, p in runtime.items()},
                  "public_release_ready": False,
                  "pending": ["next_trip_supported_interface", "3x_update_feed_publication", "real_bcs_multiplayer_tests", "company_map_weather_passenger_settings"]}

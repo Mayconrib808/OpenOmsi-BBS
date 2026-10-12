@@ -1,8 +1,6 @@
 name: Upload prebuilt 3.x updates to Cloudflare
 on:
-  push:
-    branches: [multiplayer-3-preview]
-    paths: ['cloudflare-updates-v3/**','.github/workflows/cloudflare-v3-updates.yml']
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
