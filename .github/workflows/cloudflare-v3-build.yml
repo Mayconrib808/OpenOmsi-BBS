@@ -1,4 +1,4 @@
-name: Build and test dev.9 BCS configuration hotfix
+name: Build and test dev.10 BCS helper migration hotfix
 on:
   push:
     branches: [multiplayer-3-preview]
@@ -32,17 +32,17 @@ jobs:
         with:
           go-version: '1.23.2'
           cache: false
-      - name: Preserve known dev.6 component ownership
+      - name: Preserve known preview component ownership
         run: python3 multiplayer3/scripts/prepare_previous_preview.py
       - name: Format changed Go source
-        run: gofmt -w multiplayer3/source/updater/*.go multiplayer3/source/client_preferences.go multiplayer3/source/client_latest_test.go multiplayer3/source/automatic_preferences_test.go multiplayer3/source/clock.go multiplayer3/source/host.go multiplayer3/source/main.go multiplayer3/source/setup.go multiplayer3/source/setup_log.go multiplayer3/source/setup_log_test.go multiplayer3/source/bcs_settings.go multiplayer3/source/bcs_settings_current_test.go multiplayer3/source/updates.go multiplayer3/source/updates_test.go multiplayer3/source/updates_anchor_test.go multiplayer3/source/server_versions.go multiplayer3/source/i18n.go multiplayer3/source/previous_development_generated.go
-      - name: Test BCS discovery, update trust, client selection and integration
+        run: gofmt -w multiplayer3/source/updater/*.go multiplayer3/source/client_preferences.go multiplayer3/source/client_latest_test.go multiplayer3/source/automatic_preferences_test.go multiplayer3/source/clock.go multiplayer3/source/host.go multiplayer3/source/main.go multiplayer3/source/setup.go multiplayer3/source/setup_log.go multiplayer3/source/setup_log_test.go multiplayer3/source/bcs_host.go multiplayer3/source/bcs_host_migration_test.go multiplayer3/source/bcs_settings.go multiplayer3/source/bcs_settings_current_test.go multiplayer3/source/updates.go multiplayer3/source/updates_test.go multiplayer3/source/updates_anchor_test.go multiplayer3/source/server_versions.go multiplayer3/source/i18n.go multiplayer3/source/previous_development_generated.go
+      - name: Test BCS helper migration, update trust and integration
         working-directory: multiplayer3/source
         run: go test -race ./...
       - name: Recover verified packaged server
         run: python3 multiplayer3/scripts/recover_preview_server.py
-      - name: Build Windows dev.9 package
-        run: python3 multiplayer3/scripts/build_preview.py --server multiplayer3/server --sequence 2026101209 --source-commit "" --output hotfix-build
+      - name: Build Windows dev.10 package
+        run: python3 multiplayer3/scripts/build_preview.py --server multiplayer3/server --sequence 2026101210 --source-commit "" --output hotfix-build
       - uses: actions/upload-artifact@v4
         with:
           name: cloudflare-client-hotfix
