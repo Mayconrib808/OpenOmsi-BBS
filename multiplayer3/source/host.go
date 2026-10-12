@@ -169,7 +169,7 @@ func clockAligned(raw string, t time.Time) bool {
 	d := math.Abs(float64(h*3600+m*60) + s - float64(t.Hour()*3600+t.Minute()*60+t.Second()))
 	return math.Min(d, 86400-d) <= 90
 }
-func hostAndPlay(ctx context.Context, cfg localConfig, dir, m string, args []string, l lease, c *http.Client) error {
+func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease, c *http.Client, announce func(string) error) error {
 	// Release only after terminating the owned dedicated process and its tunnel.
 	var stop func()
 	var finished chan error
@@ -245,11 +245,7 @@ func hostAndPlay(ctx context.Context, cfg localConfig, dir, m string, args []str
 	start := lastAck
 	onlineAddress := ""
 	ready := false
-	var game *nativeProcess
-	var gameDone chan error
-	gameEnded := false
-	var idleSince time.Time
-	var gameErr error
+	idle := hostIdle{Started: start}
 	tick := time.NewTicker(2 * time.Second)
 	defer tick.Stop()
 	for {
@@ -259,9 +255,6 @@ func hostAndPlay(ctx context.Context, cfg localConfig, dir, m string, args []str
 		case <-finished:
 			serverExited = true
 			return fmt.Errorf("o servidor do mapa encerrou; a próxima entrada poderá criar uma nova sessão")
-		case gameErr = <-gameDone:
-			gameEnded = true
-			gameDone = nil
 		case <-tick.C:
 			now := time.Now()
 			if now.Sub(lastAck) >= 35*time.Second {
@@ -320,16 +313,9 @@ func hostAndPlay(ctx context.Context, cfg localConfig, dir, m string, args []str
 					lastAck = time.Now()
 					ready = true
 					onlineAddress = a
-					game, e = launchNative(cfg, nativeArguments(args, base, cfg.Player), dir)
-					if e != nil {
+					if e = announce(base); e != nil {
 						return e
 					}
-					gameDone = make(chan error, 1)
-					mirrorCtx, mirrorCancel := context.WithCancel(ctx)
-					defer mirrorCancel()
-					go mirrorPlugin(mirrorCtx, cfg, dir)
-					ch := gameDone
-					go func() { ch <- game.Wait() }()
 				}
 			}
 			if ready {
@@ -341,18 +327,26 @@ func hostAndPlay(ctx context.Context, cfg localConfig, dir, m string, args []str
 				}
 			}
 
-			if gameEnded {
-				if s.Players == 0 {
-					if idleSince.IsZero() {
-						idleSince = time.Now()
-					}
-					if time.Since(idleSince) > 60*time.Second {
-						return gameErr
-					}
-				} else {
-					idleSince = time.Time{}
-				}
+			if ready && idle.shouldStop(now, s.Players) {
+				return nil
 			}
 		}
 	}
+}
+
+type hostIdle struct {
+	Started, LastActive time.Time
+	SeenPlayer          bool
+}
+
+func (h *hostIdle) shouldStop(now time.Time, players int) bool {
+	if players > 0 {
+		h.SeenPlayer = true
+		h.LastActive = now
+		return false
+	}
+	if h.SeenPlayer {
+		return now.Sub(h.LastActive) > 60*time.Second
+	}
+	return now.Sub(h.Started) > 15*time.Minute
 }

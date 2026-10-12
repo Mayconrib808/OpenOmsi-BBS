@@ -20,9 +20,22 @@ import (
 var setupPage string
 
 type setupView struct {
+	BCSStatusKey, UpdateStatusKey                                                                              string
 	Token, Lang, Stage, Root, Player, Game, Invite, Name, Zone, Offset, Mode, ServerMode, ServerVersion, Error string
 	Adapter, Message, BCSStatus, UpdateStatus, UpdateVersion                                                   string
 	Detected, AutomaticUpdates, UpdateAvailable, Launching, Preparing                                          bool
+}
+
+func (v *setupView) refreshStatuses() {
+	if v.BCSStatusKey != "" {
+		v.BCSStatus = tr(v.BCSStatusKey)
+	}
+	if v.UpdateStatusKey != "" {
+		v.UpdateStatus = tr(v.UpdateStatusKey)
+		if v.UpdateStatusKey == "updatefound" {
+			v.UpdateStatus += " " + v.UpdateVersion
+		}
+	}
 }
 
 func newSetupView(c localConfig, dir, token string) setupView {
@@ -39,7 +52,7 @@ func newSetupView(c localConfig, dir, token string) setupView {
 	if game == "" {
 		game = detectClient(root, dir)
 	}
-	return setupView{Token: token, Lang: language(), Stage: "setup", Root: root, Player: player, Game: game, Invite: c.Invitation, Zone: "Europe/Berlin", Offset: "-3", Mode: "join", ServerMode: c.Server.Mode, ServerVersion: c.Server.Version, Detected: root != "" && root == detectRoot(dir), Adapter: adapterDirectory(dir), AutomaticUpdates: readPreferences(dir).AutomaticUpdates, BCSStatus: tr("bcsnotchecked"), UpdateStatus: tr("updatenotchecked")}
+	return setupView{Token: token, Lang: language(), Stage: "setup", Root: root, Player: player, Game: game, Invite: c.Invitation, Zone: "Europe/Berlin", Offset: "-3", Mode: "join", ServerMode: c.Server.Mode, ServerVersion: c.Server.Version, Detected: root != "" && root == detectRoot(dir), Adapter: adapterDirectory(dir), AutomaticUpdates: readPreferences(dir).AutomaticUpdates, BCSStatus: tr("bcsnotchecked"), UpdateStatus: tr("updatenotchecked"), BCSStatusKey: "bcsnotchecked", UpdateStatusKey: "updatenotchecked"}
 }
 func setup(dir string) error { return setupWithReason(dir, "") }
 func setupWithReason(dir, reason string) error {
@@ -114,20 +127,24 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		view.UpdateAvailable = false
 		update = nil
 		if err != nil {
-			view.UpdateStatus = tr("updateerror")
+			view.UpdateStatusKey = "updateerror"
+			view.refreshStatuses()
 			if err == errUpdateNotConfigured {
-				view.UpdateStatus = tr("updatepreview")
+				view.UpdateStatusKey = "updatepreview"
+				view.refreshStatuses()
 			}
 			return
 		}
 		if release == nil {
-			view.UpdateStatus = tr("updatecurrent")
+			view.UpdateStatusKey = "updatecurrent"
+			view.refreshStatuses()
 			return
 		}
 		update = release
 		view.UpdateAvailable = true
 		view.UpdateVersion = release.Version
-		view.UpdateStatus = tr("updatefound") + " " + release.Version
+		view.UpdateStatusKey = "updatefound"
+		view.refreshStatuses()
 	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
@@ -149,9 +166,11 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 				return
 			}
 			if r.URL.Path == "/updates" {
+				view.refreshStatuses()
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(map[string]any{"message": view.UpdateStatus, "available": view.UpdateAvailable, "checking": checking, "version": view.UpdateVersion, "preparing": view.Preparing, "notice": view.Message, "bcs": view.BCSStatus, "error": view.Error})
 			} else {
+				view.refreshStatuses()
 				_ = page.Execute(w, view)
 			}
 			return
@@ -173,6 +192,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 				view.Lang = language()
 				view.Stage = "setup"
 			}
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			return
 		}
@@ -183,6 +203,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		view.Error, view.Message = "", ""
 		if view.Preparing && (r.Form.Get("action") == "save" || r.Form.Get("action") == "configurebcs" || r.Form.Get("action") == "finish" || r.Form.Get("action") == "installupdate") {
 			view.Message = tr("clientdownload")
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			return
 		}
@@ -197,14 +218,17 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 				view.AutomaticUpdates = automatic
 				view.Message = tr("preferencessaved")
 			}
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			return
 		case "checkupdate":
 			if !checking {
 				checking = true
-				view.UpdateStatus = tr("updatechecking")
+				view.UpdateStatusKey = "updatechecking"
+				view.refreshStatuses()
 				go checkUpdate()
 			}
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			return
 		case "installupdate":
@@ -214,6 +238,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			}
 			if err := options.CheckClosed(); err != nil {
 				view.Error = friendlyError(err)
+				view.refreshStatuses()
 				_ = page.Execute(w, view)
 				return
 			}
@@ -228,10 +253,12 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			}
 			if err != nil {
 				view.Error = tr("updateerror")
+				view.refreshStatuses()
 				_ = page.Execute(w, view)
 				return
 			}
 			view.Stage = "updating"
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			closeSoon()
 			return
@@ -241,6 +268,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			} else if c.Game == "" {
 				if e := options.CheckClosed(); e != nil {
 					view.Error = friendlyError(e)
+					view.refreshStatuses()
 					_ = page.Execute(w, view)
 					return
 				}
@@ -254,6 +282,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 				}
 				if e != nil {
 					view.Error = friendlyError(e)
+					view.refreshStatuses()
 					_ = page.Execute(w, view)
 					return
 				}
@@ -282,16 +311,19 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 						view.Error = friendlyError(err)
 						view.Message = ""
 					} else {
-						view.BCSStatus = tr("bcsconfigured")
+						view.BCSStatusKey = "bcsconfigured"
+						view.refreshStatuses()
 						view.Message = tr("bcsconfigured")
 					}
 				}()
 			} else if _, e := configureBCS(c.Root, dir, options.CheckClosed); e != nil {
 				view.Error = friendlyError(e)
 			} else {
-				view.BCSStatus = tr("bcsconfigured")
+				view.BCSStatusKey = "bcsconfigured"
+				view.refreshStatuses()
 				view.Message = tr("bcsconfigured")
 			}
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			return
 		case "inspectbcs":
@@ -300,10 +332,13 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			} else if ready, e := inspectBCS(c.Root, dir); e != nil {
 				view.Error = friendlyError(e)
 			} else if ready {
-				view.BCSStatus = tr("bcsconfigured")
+				view.BCSStatusKey = "bcsconfigured"
+				view.refreshStatuses()
 			} else {
-				view.BCSStatus = tr("bcsneedsconfiguration")
+				view.BCSStatusKey = "bcsneedsconfiguration"
+				view.refreshStatuses()
 			}
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			return
 		}
@@ -313,6 +348,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 				return
 			}
 			view.Stage = "done"
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			closeSoon()
 			return
@@ -394,6 +430,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		if err != nil {
 			view.Error = friendlyError(err)
 			view.Stage = "setup"
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 			return
 		}
@@ -401,9 +438,11 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		view.Invite = c.Invitation
 		if created {
 			view.Stage = "created"
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 		} else {
 			view.Stage = "ready"
+			view.refreshStatuses()
 			_ = page.Execute(w, view)
 		}
 	})
@@ -415,7 +454,8 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 	}
 	if view.AutomaticUpdates && bridgeUpdateOrigin != "" {
 		checking = true
-		view.UpdateStatus = tr("updatechecking")
+		view.UpdateStatusKey = "updatechecking"
+		view.refreshStatuses()
 		go checkUpdate()
 	}
 	timer := time.AfterFunc(30*time.Minute, func() { _ = srv.Close() })

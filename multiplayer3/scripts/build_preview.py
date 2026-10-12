@@ -71,6 +71,7 @@ def main():
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--update-origin", default="", help="Separate deployed 3.x HTTPS feed")
     ap.add_argument("--sequence", default="2026101201")
+    ap.add_argument("--source-commit", default=os.environ.get("GITHUB_SHA", ""))
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
     source = root / "source"
@@ -104,7 +105,7 @@ def main():
         runtime = {"Configurar.exe": launcher,
                    "OpenOMSI-BBS/PeDePeAdapter/openomsi.exe": launcher,
                    "OpenOMSI-BBS/compat/omsi-plugin-host32.exe": helper}
-        build = {"product": IDENTITY, "version": version, "sequence": int(args.sequence), "channel": "preview",
+        build = {"product": IDENTITY, "version": version, "sequence": int(args.sequence), "channel": "preview", "source_commit": args.source_commit,
                  "client_default": "0.2.29", "update_origin": args.update_origin,
                  "native_server": receipt, "files": {n: digest(p) for n, p in runtime.items()},
                  "public_release_ready": False,

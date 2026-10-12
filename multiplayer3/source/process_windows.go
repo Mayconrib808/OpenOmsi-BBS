@@ -11,6 +11,10 @@ import (
 	"unsafe"
 )
 
+func detachHostAgent(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x00000200 | 0x00000008, HideWindow: true}
+}
+
 // A separate process group leaves Ctrl+C handling with the supervisor. Closing
 // its Job Object also terminates the server's tunnel, including when the console
 // is closed or the supervisor exits unexpectedly.

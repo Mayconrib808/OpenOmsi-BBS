@@ -41,7 +41,7 @@ func TestPeDePeFreshSituationStartsDutyInsteadOfResuming(t *testing.T) {
 	if pedepeHasArg(got, "--situation") {
 		t.Fatal("saved resume still suppresses IBIS initialization")
 	}
-	for flag, want := range map[string]string{"--line": "130 & N30", "--tour": "Mo-Fr 6", "--trip": "02:05", "--time": "01:55:00", "--date": "1994-10-10", "--hof": "Spandau 94", "--paint": "3", "--bus": "Vehicles/MAN_SD202/SD92.bus", "--future-vendor-flag": "value"} {
+	for flag, want := range map[string]string{"--line": "130 & N30", "--tour": "Mo-Fr 6", "--trip": "02:05", "--time": "01:55:00", "--date": "1994-10-10", "--hof": "Spandau 94", "--paint": "3", "--bus": filepath.Join("Vehicles", "MAN_SD202", "SD92.bus"), "--future-vendor-flag": "value"} {
 		value, ok := pedepeArgValue(got, flag)
 		if !ok || value != want {
 			t.Errorf("%s = %q want %q", flag, value, want)

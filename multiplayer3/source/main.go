@@ -84,6 +84,12 @@ func main() {
 	}
 	migrateConfig(launcher, dir)
 	loadLanguage(dir)
+	if len(os.Args) == 3 && os.Args[1] == "--host-session" {
+		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+		defer cancel()
+		_ = runHostAgent(ctx, dir, os.Args[2])
+		return
+	}
 	if len(os.Args) == 1 || os.Args[1] == "--setup" || strings.EqualFold(filepath.Base(exe), "Configurar.exe") {
 		if e = setup(dir); e != nil {
 			showError(friendlyError(e))
@@ -193,7 +199,18 @@ func run(ctx context.Context, dir string, args []string) error {
 		}
 		if l.Role == "host" {
 			log.Printf("%s %s", tr("host"), m)
-			return hostAndPlay(ctx, cfg, dir, m, args, l, client)
+			address, e := startHostAgent(ctx, cfg, dir, m, l)
+			if e != nil {
+				return e
+			}
+			mirrorCtx, mirrorCancel := context.WithCancel(ctx)
+			defer mirrorCancel()
+			go mirrorPlugin(mirrorCtx, cfg, dir)
+			game, e := launchNative(cfg, nativeArguments(args, address, cfg.Player), dir)
+			if e != nil {
+				return e
+			}
+			return game.Wait()
 		}
 		if l.State == "online" && l.Address != "" {
 			log.Print(tr("guest"))

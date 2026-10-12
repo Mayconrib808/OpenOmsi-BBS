@@ -9,7 +9,7 @@ O cliente padrão para uma nova instalação é o openOMSI 0.2.29; um cliente ex
 - Lua da PeDePe encaminhado byte por byte, motorista com contadores realmente salvos e proteção contra mudança de identidade/arquivo.
 - Viagens BCS completas usam autostart e expansão da situação para inicialização de timetable/IBIS; saves manuais e probes não são convertidos.
 - Auxiliar próprio da 3.x na raiz OMSI; o auxiliar da 2.x, bbs.start, JAR, DLL e Omsi.exe ficam preservados.
-- Convite por empresa, lease por empresa/mapa, host automático, portas dinâmicas, sincronização de relógio e validação de capacidades nativas.
+- Convite por empresa, lease por empresa/mapa e host automático em um processo independente. O lançador do BCS espera só pelo próprio jogo; a hospedagem continua para os colegas e encerra após a sala ficar vazia. Portas dinâmicas, relógio e capacidades nativas são verificados.
 - Preferência de atualização independente do idioma; busca manual sempre disponível. Ed25519, SHA-256, produto/canal e origem separados da 2.x.
 - Atualizador transacional só substitui seus componentes; configuração e documentos não são pré-requisitos nem são substituídos.
 
