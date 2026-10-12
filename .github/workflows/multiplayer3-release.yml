@@ -1,0 +1,59 @@
+name: Publish isolated 3.x preview
+on:
+  push:
+    branches: [multiplayer-3-preview]
+    paths: ['multiplayer3/**', '.github/workflows/multiplayer3-release.yml']
+permissions:
+  contents: read
+concurrency:
+  group: multiplayer3-preview-release
+  cancel-in-progress: false
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - run: go test ./...
+        working-directory: multiplayer3/source
+      - run: go vet ./...
+        working-directory: multiplayer3/source
+      - run: node --test relay/test/multiplayer3.test.js relay/test/room.test.js
+        working-directory: multiplayer3
+  release:
+    needs: test
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Recover the already published verified native runtime
+        run: python multiplayer3/scripts/recover_preview_server.py
+      - name: Build isolated 3.x complete package and updater
+        run: python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --source-commit ${{ github.sha }}
+      - name: Publish 3.x prerelease without changing stable/latest 2.x
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version=$(python -c "import json; print(json.load(open('build-v3/BUILD-INFO.json'))['version'])")
+          tag="v$version"
+          if ! gh release view "$tag" >/dev/null 2>&1; then
+            gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "BBS+OpenOmsi Multiplayer $version — test preview" --notes-file multiplayer3/RELEASE-NOTES.md
+          fi
+          gh release upload "$tag" "build-v3/Atualizar-Multiplayer-$version.exe" "build-v3/BBS-OpenOmsi-Multiplayer-$version-teste.zip" "build-v3/BBS-OpenOmsi-Multiplayer-$version-arquivos-atualizacao.zip" build-v3/BUILD-INFO.json --clobber

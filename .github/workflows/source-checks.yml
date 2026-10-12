@@ -2,6 +2,7 @@ name: Source checks
 
 on:
   push:
+    branches-ignore: [multiplayer-3-preview]
   pull_request:
   workflow_dispatch:
 

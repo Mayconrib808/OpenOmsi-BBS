@@ -1,0 +1,14 @@
+BBS+OpenOmsi Multiplayer — 3.0.2-dev.4
+Entwicklungsversion für private Tests, keine öffentliche Veröffentlichung.
+
+1. Das vollständige ZIP in einen festen Ordner entpacken. Bridge 2.0/2.x wird nicht benötigt. OMSI 2 und BCS müssen regulär installiert sein.
+2. Setup.exe öffnen, Sprache auswählen und Firmeneinladung speichern oder Raum erstellen.
+3. BCS schließen und BCS einrichten anklicken. Einrichtung abschließen und die Fahrt im BCS starten.
+
+Setup installiert beim Einrichten von BCS den eigenen 3.x-Helfer und lädt bei Bedarf den openOMSI-Client herunter (Internet bei der Ersteinrichtung erforderlich).
+BCS-JAR und -DLL werden weder mitgeliefert noch verändert. Nächste Fahrt und 3.x-Update-Kanal stehen noch aus.
+Das ZIP mit Update-Dateien ist nur für bestehende 3.x-Installationen. Den config-Ordner behalten.
+Unabhängiges Projekt, kein offizielles PeDePe-Produkt.
+
+Die nächste Fahrt ist noch ausstehend. Updates werden nur aus 3.x-GitHub-Releases gesucht; der eigene signierte Kanal muss noch veröffentlicht werden.
+Programmsteuerung: Multiplayer deaktivieren für Einzelspieler; Programm bei geschlossenem BCS deaktivieren, um wieder das originale OMSI zu starten.
