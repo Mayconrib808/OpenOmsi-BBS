@@ -22,7 +22,7 @@ var setupPage string
 type setupView struct {
 	ErrorDetail                                                                                                string
 	BCSStatusKey, UpdateStatusKey                                                                              string
-	Token, Lang, Stage, Root, Player, Game, Invite, Name, Zone, Offset, Mode, ServerMode, ServerVersion, Error string
+	Token, Lang, Stage, Root, Player, Game, Invite, Name, Zone, Offset, Mode, ClientMode, ServerMode, ServerVersion, Error string
 	UpdatePage                                                                                                 string
 	Adapter, Message, BCSStatus, UpdateStatus, UpdateVersion                                                   string
 	MultiplayerEnabled, ProgramDisabled                                                                        bool
@@ -55,8 +55,9 @@ func newSetupView(c localConfig, dir, token string) setupView {
 	if game == "" {
 		game = detectClient(root, dir)
 	}
+	clientMode, _ := normalizeClientMode(c, dir)
 	prefs := readPreferences(dir)
-	return setupView{MultiplayerEnabled: prefs.MultiplayerEnabled, ProgramDisabled: prefs.ProgramDisabled, Token: token, Lang: language(), Stage: "setup", Root: root, Player: player, Game: game, Invite: c.Invitation, Zone: "Europe/Berlin", Offset: "-8", Mode: "join", ServerMode: c.Server.Mode, ServerVersion: c.Server.Version, Detected: root != "" && root == detectRoot(dir), Adapter: adapterDirectory(dir), AutomaticUpdates: readPreferences(dir).AutomaticUpdates, BCSStatus: tr("bcsnotchecked"), UpdateStatus: tr("updatenotchecked"), BCSStatusKey: "bcsnotchecked", UpdateStatusKey: "updatenotchecked"}
+	return setupView{MultiplayerEnabled: prefs.MultiplayerEnabled, ProgramDisabled: prefs.ProgramDisabled, Token: token, Lang: language(), Stage: "setup", Root: root, Player: player, Game: game, Invite: c.Invitation, Zone: "", Offset: "", Mode: "join", ClientMode: clientMode, ServerMode: c.Server.Mode, ServerVersion: c.Server.Version, Detected: root != "" && root == detectRoot(dir), Adapter: adapterDirectory(dir), AutomaticUpdates: readPreferences(dir).AutomaticUpdates, BCSStatus: tr("bcsnotchecked"), UpdateStatus: tr("updatenotchecked"), BCSStatusKey: "bcsnotchecked", UpdateStatusKey: "updatenotchecked"}
 }
 func setup(dir string) error { return setupWithReason(dir, "") }
 func setupWithReason(dir, reason string) error {
@@ -221,6 +222,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		case "editconfiguration":
 			view.Stage = "setup"
 			view.Root, view.Game, view.Player, view.Invite = c.Root, c.Game, c.Player, c.Invitation
+			view.ClientMode, _ = normalizeClientMode(c, dir)
 			view.Mode = "join" // Editing an existing invitation must never create a duplicate room.
 			view.ServerMode, view.ServerVersion = c.Server.Mode, c.Server.Version
 			view.refreshStatuses()
@@ -322,7 +324,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		case "configurebcs":
 			if c.Root == "" {
 				view.Error = tr("bcsmustsave")
-			} else if c.Game == "" {
+			} else if c.Game == "" || c.ClientMode == "latest" {
 				if e := options.CheckClosed(); e != nil {
 					view.ErrorDetail = setupErrorDetail(c, e)
 					recordSetupError(dir, "setup_action", c, e)
@@ -357,12 +359,13 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 					if resolver == nil {
 						resolver = resolveClient
 					}
-					game, err := resolver(setupCtx, dir)
+					resolved, err := prepareConfiguredClient(setupCtx, snapshot, dir, resolver)
+					game := resolved.Game
 					mu.Lock()
 					defer mu.Unlock()
 					view.Preparing = false
 					if err == nil {
-						snapshot.Game = game
+						snapshot.Game, snapshot.ClientMode = game, resolved.ClientMode
 						err = saveConfig(dir, snapshot)
 					}
 					if err == nil {
@@ -443,15 +446,23 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			_ = saveLanguage(dir, r.Form.Get("language"))
 			view.Lang = language()
 		}
-		candidate := localConfig{Version: 3, Root: strings.Trim(strings.TrimSpace(r.Form.Get("root")), "\""), Game: strings.Trim(strings.TrimSpace(r.Form.Get("game")), "\""), Player: strings.TrimSpace(r.Form.Get("player")), Invitation: strings.TrimSpace(r.Form.Get("invite")), Server: serverPreference{Mode: r.Form.Get("server_mode"), Version: r.Form.Get("server_version")}}
+		candidate := localConfig{ClientMode: r.Form.Get("client_mode"), Version: 3, Root: strings.Trim(strings.TrimSpace(r.Form.Get("root")), "\""), Game: strings.Trim(strings.TrimSpace(r.Form.Get("game")), "\""), Player: strings.TrimSpace(r.Form.Get("player")), Invitation: strings.TrimSpace(r.Form.Get("invite")), Server: serverPreference{Mode: r.Form.Get("server_mode"), Version: r.Form.Get("server_version")}}
 		view.Root, view.Game, view.Player, view.Invite, view.Mode = candidate.Root, candidate.Game, candidate.Player, candidate.Invitation, r.Form.Get("room_mode")
 		view.Name, view.Zone, view.Offset = r.Form.Get("name"), r.Form.Get("zone"), r.Form.Get("offset")
+		view.ClientMode = candidate.ClientMode
+		if candidate.ClientMode == "latest" {
+			candidate.Game = ""
+			if c.Game != "" && insideDirectory(filepath.Join(dir, "client"), c.Game) { candidate.Game = c.Game }
+			view.Game = candidate.Game
+		}
 		view.ServerMode, view.ServerVersion = candidate.Server.Mode, candidate.Server.Version
 		view.Error = ""
 		var err error
-		candidate.Server, err = normalizeServer(candidate.Server)
+		candidate.ClientMode, err = normalizeClientMode(candidate, dir)
+		if err == nil && candidate.ClientMode == "manual" && candidate.Game == "" { err = fmt.Errorf("informe o caminho do openomsi.exe para o cliente manual") }
+		if err == nil { candidate.Server, err = normalizeServer(candidate.Server) }
 		if err == nil {
-			err = validateInstall(candidate, dir)
+			err = validateConfiguredInstall(candidate, dir)
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
 		defer cancel()
@@ -461,9 +472,9 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		if err == nil && !readPreferences(dir).MultiplayerEnabled {
 			// Solo launch does not require the company directory or an invitation.
 		} else if err == nil && view.Mode == "create" {
-			offset, pe := strconv.ParseFloat(view.Offset, 64)
-			s := companySettings{Name: strings.TrimSpace(view.Name), Clock: CompanyClock{TimeZone: view.Zone, ShiftMinutes: int(offset * 60)}}
-			if pe != nil || offset < -24 || offset > 24 || offset*60 != float64(s.Clock.ShiftMinutes) {
+			clock, pe := parseCompanyClockInput(view.Zone, view.Offset)
+			s := companySettings{Name: strings.TrimSpace(view.Name), Clock: clock}
+			if pe != nil {
 				err = fmt.Errorf("horário inválido")
 			} else if strings.TrimSpace(s.Name) == "" {
 				err = fmt.Errorf("informe um nome")
@@ -494,9 +505,9 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			if re != nil || json.Unmarshal(b, &a) != nil || a.AdminToken == "" || candidate.Invitation != c.Invitation {
 				err = fmt.Errorf("chave do criador indisponível")
 			} else {
-				offset, pe := strconv.ParseFloat(view.Offset, 64)
-				s := companySettings{Name: strings.TrimSpace(view.Name), Clock: CompanyClock{view.Zone, int(offset * 60)}}
-				if pe != nil || offset < -24 || offset > 24 || offset*60 != float64(s.Clock.ShiftMinutes) {
+				clock, pe := parseCompanyClockInput(view.Zone, view.Offset)
+				s := companySettings{Name: strings.TrimSpace(view.Name), Clock: clock}
+				if pe != nil {
 					err = fmt.Errorf("horário inválido")
 				} else if err = validateCompanyClock(s.Clock); err == nil {
 					err = requestJSON(ctx, client, "POST", candidate.Invitation+"/v3/settings", a.AdminToken, s, nil)

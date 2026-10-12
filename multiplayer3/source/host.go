@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net"
 	"net/http"
@@ -39,6 +40,10 @@ func status(ctx context.Context, c *http.Client, address string) (serverStatus, 
 	e := requestJSON(ctx, c, "GET", strings.TrimRight(address, "/")+"/status", "", nil, &s)
 	return s, e
 }
+var errServerCapabilities = errors.New("a versão selecionada não confirma protocolo 6 e ônibus livres; use Recomendada no Setup.exe. O convite continua igual")
+
+func automaticServerFallback(mode string, tried bool, err error) bool { return mode == "latest" && !tried && errors.Is(err, errServerCapabilities) }
+
 func validStatus(s serverStatus, m string) error {
 	mapFile, e := canonicalMap(s.Map)
 	if e != nil || mapFile != m {
@@ -47,7 +52,7 @@ func validStatus(s serverStatus, m string) error {
 	// /status reports the Rust workspace version (0.1.0), while the CLI
 	// reports OPENOMSI_VERSION. Validate wire capabilities, not that label.
 	if s.Protocol != 6 || !s.Free {
-		return fmt.Errorf("a versão selecionada não confirma protocolo 6 e ônibus livres; use Recomendada no Setup.exe. O convite continua igual")
+		return errServerCapabilities
 	}
 	var fleet []string
 	var text string
@@ -221,23 +226,25 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 	if e = os.WriteFile(conf, []byte(config), 0600); e != nil {
 		return e
 	}
-	server := exec.Command(serverExe, "--root", cfg.Root, "--server", conf)
-	server.Dir = filepath.Dir(serverExe)
-	server.Env = nativeEnvironment(os.Environ(), contentFolder(cfg), true)
-	out := &tunnelLog{}
-	server.Stdout, server.Stderr = out, out
-	prepareCompanyHostProcess(server)
-	if e = server.Start(); e != nil {
-		return e
+	var out *tunnelLog
+	startServer := func(exe string) error {
+		server := exec.Command(exe, "--root", cfg.Root, "--server", conf)
+		server.Dir = filepath.Dir(exe)
+		server.Env = nativeEnvironment(os.Environ(), contentFolder(cfg), true)
+		out = &tunnelLog{}
+		server.Stdout, server.Stderr = out, out
+		prepareCompanyHostProcess(server)
+		if e := server.Start(); e != nil { return e }
+		ownedStop, e := ownCompanyHostProcess(server)
+		if e != nil { _ = server.Process.Kill(); _ = server.Wait(); return e }
+		stop = ownedStop
+		finished = make(chan error, 1)
+		serverExited = false
+		go func() { finished <- server.Wait() }()
+		return nil
 	}
-	stop, e = ownCompanyHostProcess(server)
-	if e != nil {
-		_ = server.Process.Kill()
-		_ = server.Wait()
-		return e
-	}
-	finished = make(chan error, 1)
-	go func() { finished <- server.Wait() }()
+	if e = startServer(serverExe); e != nil { return e }
+	fallbackTried := false
 	localClient := webClient()
 	defer localClient.CloseIdleConnections()
 	lastAck := time.Now()
@@ -291,7 +298,20 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 				continue
 			}
 			if e = validStatus(s, m); e != nil {
-				return e
+				if !automaticServerFallback(cfg.Server.Mode, fallbackTried, e) { return e }
+				compatible, fallbackErr := recommendedServer(dir)
+				if fallbackErr != nil { return fmt.Errorf("servidor compatível indisponível: %w", fallbackErr) }
+				log.Printf("Automatic server %s has no confirmed unrestricted-bus support; using bundled compatible server: %v", serverExe, e)
+				stop()
+				select {
+				case <-finished: serverExited = true
+				case <-time.After(5 * time.Second): return fmt.Errorf("servidor anterior não encerrou; nenhuma segunda sessão foi iniciada")
+				}
+				fallbackTried = true
+				if e = startServer(compatible); e != nil { return e }
+				start = time.Now()
+				nextRenew = start
+				continue
 			}
 			if !activeWorld(s.World) {
 				continue

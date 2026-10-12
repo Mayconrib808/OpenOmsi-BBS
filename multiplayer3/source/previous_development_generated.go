@@ -1,0 +1,5 @@
+package main
+func init(){
+previousV3Adapters["78878ef429f5e948a56c774f947236beb096b3e4654c3f07073b581851465cb2"]=true
+previousPluginHosts["60524c4f9567190a28a5c8fe5e696ca302342b4ef8de1c7a7263778a045bfc67"]=true
+}

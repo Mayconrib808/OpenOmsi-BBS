@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+ "strconv"
 	"strings"
 	"time"
 	_ "time/tzdata" // Windows installs need not provide an IANA timezone database.
@@ -53,4 +54,14 @@ func automaticBridgeDate(raw string) bool {
 		return true
 	}
 	return false
+}
+
+func parseCompanyClockInput(zone, offset string) (CompanyClock,error) {
+ if strings.TrimSpace(zone)=="" || strings.TrimSpace(offset)=="" {
+  return CompanyClock{},fmt.Errorf("informe o relógio de referência e a mudança de horário da empresa")
+ }
+ hours,err:=strconv.ParseFloat(strings.TrimSpace(offset),64)
+ c:=CompanyClock{TimeZone:strings.TrimSpace(zone),ShiftMinutes:int(hours*60)}
+ if err!=nil || hours < -24 || hours > 24 || hours*60 != float64(c.ShiftMinutes) { return c,fmt.Errorf("horário inválido") }
+ return c,validateCompanyClock(c)
 }

@@ -45,3 +45,11 @@ As atualizações desta integração usam exclusivamente o feed Cloudflare 3.x a
 ## 3.0.2-dev.7 — voltar à configuração
 
 A tela salva e a conclusão manual oferecem Ver ou editar configuração. Volta aos campos salvos sem criar outra sala; conclusão quando o BCS está aguardando mantém o fluxo de iniciar a viagem. Erros de Configurar BCS são exibidos em detalhes e registrados em logs/setup.log sem convite ou token.
+
+## Atualização automática de cliente e servidor
+
+Novas configurações selecionam Automático para ambos. O cliente consulta a release oficial mais recente antes de cada viagem pelo BCS, inclusive com caminho já salvo. O cache só é reutilizado após verificação SHA-256. Manual preserva o executável escolhido sem consulta. Sem conexão ao serviço de releases, um cliente gerenciado anterior só é reutilizado se continuar verificado. Caminhos externos existentes continuam manuais.
+
+Servidor Automático consulta a release oficial ao criar uma nova sessão. Sessões em uso não são interrompidas. Se /status não confirmar protocolo 6 e ônibus livres, o processo é encerrado e o servidor incluído compatível é iniciado uma única vez, com motivo no log. Servidor Manual mantém a escolha e erros explícitos.
+
+Ao criar uma empresa, relógio de referência e mudança de horário começam vazios e são obrigatórios no navegador e no servidor. O exemplo mostra “Mudança de horário: -8 Horas”, conforme o print das Definições do BCS; cada empresa deve copiar seu próprio valor, incluindo 0 explicitamente quando apropriado. Entrar por convite usa o relógio do criador.

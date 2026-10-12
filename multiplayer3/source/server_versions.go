@@ -29,7 +29,7 @@ var releaseVersion = regexp.MustCompile(`^0\.[0-9]{1,4}\.[0-9]{1,6}$`)
 
 func normalizeServer(p serverPreference) (serverPreference, error) {
 	if p.Mode == "" {
-		p.Mode = "recommended"
+		p.Mode = "latest"
 	}
 	p.Version = strings.TrimPrefix(strings.TrimSpace(p.Version), "v")
 	switch p.Mode {

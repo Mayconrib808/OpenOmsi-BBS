@@ -19,9 +19,11 @@ jobs:
           cache: false
       - name: Preserve known dev.6 component ownership
         run: python3 multiplayer3/scripts/prepare_previous_preview.py
+      - name: Format changed Go source
+        run: gofmt -w multiplayer3/source/client_preferences.go multiplayer3/source/client_latest_test.go multiplayer3/source/automatic_preferences_test.go multiplayer3/source/clock.go multiplayer3/source/host.go multiplayer3/source/main.go multiplayer3/source/setup.go multiplayer3/source/server_versions.go multiplayer3/source/i18n.go multiplayer3/source/previous_development_generated.go
       - name: Test client selection and integration
         working-directory: multiplayer3/source
-        run: go test ./...
+        run: go test -race ./...
       - name: Recover verified packaged server
         run: python3 multiplayer3/scripts/recover_preview_server.py
       - name: Build Windows package with official latest client selection

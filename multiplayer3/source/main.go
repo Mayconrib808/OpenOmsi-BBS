@@ -22,6 +22,7 @@ var bcsLaunchOutput io.Writer
 const productName = "BBS+OpenOmsi Multiplayer"
 
 type localConfig struct {
+	ClientMode string `json:"client_mode,omitempty"`
 	Server     serverPreference `json:"server"`
 	Version    int              `json:"version"`
 	Game       string           `json:"game"`
@@ -41,6 +42,8 @@ func readConfig(dir string) (localConfig, error) {
 	if e != nil || c.Version != 3 {
 		return c, fmt.Errorf("configuração 3.0 inválida")
 	}
+	c.ClientMode, e = normalizeClientMode(c, dir)
+	if e != nil { return c, e }
 	c.Server, e = normalizeServer(c.Server)
 	if e != nil {
 		return c, e
@@ -157,20 +160,20 @@ func run(ctx context.Context, dir string, args []string) error {
 	if e != nil {
 		return e
 	}
-	if e = validateInstall(cfg, dir); e != nil {
+	if e = validateConfiguredInstall(cfg, dir); e != nil {
 		return e
 	}
 	if readPreferences(dir).ProgramDisabled {
 		return fmt.Errorf("program disabled; open Setup.exe to reactivate")
 	}
-	if cfg.Game == "" {
-		log.Print(tr("clientdownload"))
-		cfg.Game, e = resolveClient(ctx, dir)
-		if e != nil {
-			return e
-		}
-		if e = saveConfig(dir, cfg); e != nil {
-			return e
+	probe := false
+	for _, a := range args { if a == "--help" || a == "--version" { probe = true } }
+	if !probe || cfg.Game == "" {
+		previous := cfg.Game
+		cfg, e = prepareConfiguredClient(ctx, cfg, dir, resolveClient)
+		if e != nil { return e }
+		if previous != cfg.Game {
+			if e = saveConfig(dir, cfg); e != nil { return e }
 		}
 	}
 	for _, a := range args {

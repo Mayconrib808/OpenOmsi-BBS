@@ -12,7 +12,7 @@ import (
 
 func TestServerSelectionModes(t *testing.T) {
 	p, e := normalizeServer(serverPreference{})
-	if e != nil || p.Mode != "recommended" {
+	if e != nil || p.Mode != "latest" {
 		t.Fatal(p, e)
 	}
 	p, e = normalizeServer(serverPreference{"manual", " v0.2.27 "})
