@@ -102,6 +102,14 @@ func preparePluginHost(cfg localConfig, dir string) (string, error) {
 	if err = writeAtomic(statePath, state, 0600); err != nil {
 		return "", err
 	}
+	// During a real BCS trip cfg.Game is known. Install the companion readiness
+	// plugin before openOMSI starts so LAN-joined vehicles can publish the same
+	// observable spawn marker that BCS waits for on ordinary local starts.
+	if cfg.Game != "" {
+		if err = prepareBCSReadyPlugin(cfg); err != nil {
+			return "", err
+		}
+	}
 	return target, nil
 }
 
