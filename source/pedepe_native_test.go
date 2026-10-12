@@ -550,6 +550,9 @@ func TestPeDePeFreshSituationStartsDutyInsteadOfResuming(t *testing.T) {
 	}
 	for flag, want := range map[string]string{"--line": "130 & N30", "--tour": "Mo-Fr 6", "--trip": "02:05", "--time": "01:55:00", "--date": "1994-10-10", "--hof": "Spandau 94", "--paint": "3", "--bus": "Vehicles/MAN_SD202/SD92.bus", "--future-vendor-flag": "value"} {
 		value, ok := pedepeArgValue(got, flag)
+		if flag == "--bus" {
+			value, want = filepath.ToSlash(value), filepath.ToSlash(want)
+		}
 		if !ok || value != want {
 			t.Errorf("%s = %q want %q", flag, value, want)
 		}

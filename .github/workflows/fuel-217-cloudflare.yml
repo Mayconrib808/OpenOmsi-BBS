@@ -28,7 +28,7 @@ jobs:
           sys.path.insert(0,'scripts'); import build
           files=[*build.TEST_COMMON,'process_windows.go','company_host_process_windows.go','openomsi_probe_windows.go',*build.TEST_FILES,'company_host_process_windows_test.go']
           env=dict(os.environ,GO111MODULE='off',CGO_ENABLED='0')
-          subprocess.run(['go','test','-run','TestPeDePeFuel|TestPeDePeFreshSituation|TestPeDePeSavedPosition',*files],cwd='source',env=env,check=True)
+          subprocess.run(['go','test','-count=1','-run','TestPeDePeFuel|TestPeDePeFreshSituation|TestPeDePeSavedPosition',*files],cwd='source',env=env,check=True)
           PY
   publish:
     needs: validate
