@@ -10,9 +10,9 @@ payload=base64.b64decode(anchor['payload'],validate=True)
 trusted=(root/'release-v2.json').read_bytes()
 assert payload==trusted
 release=json.loads(payload)
-assert info['version']==release['version']=='3.0.2-dev.12'
+assert info['version']==release['version']=='3.0.2-dev.13'
 assert info['product']==release['product']=='bbs-openomsi-multiplayer'
-assert info['sequence']==release['sequence']==2026101212
+assert info['sequence']==release['sequence']==2026101213
 updater=build/f"Atualizar-Multiplayer-{info['version']}.exe"
 data=updater.read_bytes()
 sha=hashlib.sha256(data).hexdigest()

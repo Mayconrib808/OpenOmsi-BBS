@@ -1,6 +1,6 @@
 import {createPublicKey,verify,createHash} from 'node:crypto';
 const origin='https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev';
-const headers={'User-Agent':'OpenOmsi-BBS-Setup/3.0.2-dev.12','Cache-Control':'no-cache'};
+const headers={'User-Agent':'OpenOmsi-BBS-Setup/3.0.2-dev.13','Cache-Control':'no-cache'};
 const hash=data=>createHash('sha256').update(data).digest('hex');
 
 async function fetchBytes(url){
@@ -24,27 +24,27 @@ if(legacyBinary.data.length!==legacyRelease.installer.size||hash(legacyBinary.da
 // dev.9+ metadata is anchored to an immutable file in the publisher repository.
 let response,anchor,payload,release;
 for(let n=0;n<12;n++){
- response=await fetch(origin+'/preview-v2.json?sequence=2026101212&attempt='+n,{headers});
+ response=await fetch(origin+'/preview-v2.json?sequence=2026101213&attempt='+n,{headers});
  if(response.ok){
   anchor=await response.json();
   payload=Buffer.from(anchor.payload,'base64');
   release=JSON.parse(payload);
-  if(release.version==='3.0.2-dev.12')break;
+  if(release.version==='3.0.2-dev.13')break;
   console.log('Waiting for Cloudflare publication to propagate; current version:',release.version);
  }else console.log('Cloudflare v2 manifest status:',response.status);
  if(n<11)await new Promise(r=>setTimeout(r,5000));
 }
-if(!response?.ok||release?.version!=='3.0.2-dev.12')throw Error('New v2 manifest unavailable after propagation window');
+if(!response?.ok||release?.version!=='3.0.2-dev.13')throw Error('New v2 manifest unavailable after propagation window');
 if(!/^[a-f0-9]{40}$/.test(anchor.source_commit))throw Error('Invalid publisher commit');
 const trusted=await fetchBytes('https://raw.githubusercontent.com/Mayconrib808/OpenOmsi-BBS/'+anchor.source_commit+'/cloudflare-updates-v3/release-v2.json');
 if(!trusted.data.equals(payload))throw Error('Cloudflare metadata differs from immutable GitHub publisher metadata');
-if(release.product!=='bbs-openomsi-multiplayer'||release.sequence!==2026101212)throw Error('Wrong dev.12 update channel');
+if(release.product!=='bbs-openomsi-multiplayer'||release.sequence!==2026101213)throw Error('Wrong dev.13 update channel');
 const binary=await fetchBytes(release.installer.url);
-if(binary.data.length!==release.installer.size||hash(binary.data)!==release.installer.sha256)throw Error('Dev.12 updater checksum mismatch');
+if(binary.data.length!==release.installer.size||hash(binary.data)!==release.installer.sha256)throw Error('Dev.13 updater checksum mismatch');
 
 const zip=await fetch(origin+'/download/full.zip',{headers});
 console.log('Full ZIP',zip.status,Object.fromEntries(zip.headers));
 if(!zip.ok)throw Error('Full package unavailable');
 const fullData=Buffer.from(await zip.arrayBuffer());
-if(fullData.length!==28403163||hash(fullData)!=='463028200511f92b987cde6ae5b4bcc058761738d23652cf8397a84ef873a4b1')throw Error('Full ZIP checksum mismatch');
-console.log('CLOUDFLARE_3X_VERIFIED: legacy dev.8 signature preserved; dev.12 metadata anchored to GitHub; updater and complete ZIP match.');
+if(fullData.length!==28407847||hash(fullData)!=='b3b7cf1946ad1fdc54f916ec4b973b9ffd09369e73d4fd1a63d445249529ef07')throw Error('Full ZIP checksum mismatch');
+console.log('CLOUDFLARE_3X_VERIFIED: legacy dev.8 signature preserved; dev.13 metadata anchored to GitHub; updater and complete ZIP match.');
