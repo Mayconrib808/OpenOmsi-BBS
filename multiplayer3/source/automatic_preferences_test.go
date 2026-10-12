@@ -1,6 +1,9 @@
 package main
 import (
  "context"
+ "encoding/json"
+ "os"
+ "strings"
  "fmt"
  "path/filepath"
  "testing"
@@ -40,4 +43,21 @@ func TestAutomaticServerFallbackIsLimitedToUnsupportedCapabilities(t *testing.T)
  for _,tc:=range []struct{mode string;tried bool;err error}{{"manual",false,errServerCapabilities},{"recommended",false,errServerCapabilities},{"latest",true,errServerCapabilities},{"latest",false,fmt.Errorf("wrong map")}} {
   if automaticServerFallback(tc.mode,tc.tried,tc.err) {t.Fatal("unsafe or repeated fallback",tc)}
  }
+}
+
+func TestUpgradeEnablesAutomaticDefaultsAndPreservesExplicitManualChoices(t *testing.T) {
+ dir:=t.TempDir()
+ if err:=ensureLayout(dir);err!=nil {t.Fatal(err)}
+ c:=localConfig{Version:3,Game:filepath.Join(dir,"client","0.2.29","openomsi.exe"),Invitation:"https://directory.example/rooms/"+strings.Repeat("b",32),Server:serverPreference{Mode:"recommended"}}
+ data,_:=json.Marshal(c);_ = os.WriteFile(configPath(dir),data,0600)
+ got,err:=readConfig(dir)
+ if err!=nil||got.ClientMode!="latest"||got.Server.Mode!="latest" {t.Fatal(got,err)}
+ got.Server.Mode="manual";got.Server.Version="0.2.29";got.ClientMode="manual"
+ if err=saveConfig(dir,got);err!=nil {t.Fatal(err)}
+ got,err=readConfig(dir)
+ if err!=nil||got.ClientMode!="manual"||got.Server.Mode!="manual" {t.Fatal(got,err)}
+ got.Server=serverPreference{Mode:"recommended"}
+ if err=saveConfig(dir,got);err!=nil {t.Fatal(err)}
+ got,err=readConfig(dir)
+ if err!=nil||got.Server.Mode!="recommended" {t.Fatal("saved compatible-server selection was reset",got,err)}
 }

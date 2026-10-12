@@ -446,7 +446,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 			_ = saveLanguage(dir, r.Form.Get("language"))
 			view.Lang = language()
 		}
-		candidate := localConfig{ClientMode: r.Form.Get("client_mode"), Version: 3, Root: strings.Trim(strings.TrimSpace(r.Form.Get("root")), "\""), Game: strings.Trim(strings.TrimSpace(r.Form.Get("game")), "\""), Player: strings.TrimSpace(r.Form.Get("player")), Invitation: strings.TrimSpace(r.Form.Get("invite")), Server: serverPreference{Mode: r.Form.Get("server_mode"), Version: r.Form.Get("server_version")}}
+		candidate := localConfig{RuntimePreferencesVersion: 1, ClientMode: r.Form.Get("client_mode"), Version: 3, Root: strings.Trim(strings.TrimSpace(r.Form.Get("root")), "\""), Game: strings.Trim(strings.TrimSpace(r.Form.Get("game")), "\""), Player: strings.TrimSpace(r.Form.Get("player")), Invitation: strings.TrimSpace(r.Form.Get("invite")), Server: serverPreference{Mode: r.Form.Get("server_mode"), Version: r.Form.Get("server_version")}}
 		view.Root, view.Game, view.Player, view.Invite, view.Mode = candidate.Root, candidate.Game, candidate.Player, candidate.Invitation, r.Form.Get("room_mode")
 		view.Name, view.Zone, view.Offset = r.Form.Get("name"), r.Form.Get("zone"), r.Form.Get("offset")
 		view.ClientMode = candidate.ClientMode

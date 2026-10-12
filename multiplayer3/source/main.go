@@ -22,6 +22,7 @@ var bcsLaunchOutput io.Writer
 const productName = "BBS+OpenOmsi Multiplayer"
 
 type localConfig struct {
+	RuntimePreferencesVersion int `json:"runtime_preferences_version,omitempty"`
 	ClientMode string `json:"client_mode,omitempty"`
 	Server     serverPreference `json:"server"`
 	Version    int              `json:"version"`
@@ -41,6 +42,10 @@ func readConfig(dir string) (localConfig, error) {
 	e = json.Unmarshal(b, &c)
 	if e != nil || c.Version != 3 {
 		return c, fmt.Errorf("configuração 3.0 inválida")
+	}
+	if c.RuntimePreferencesVersion == 0 {
+		if c.Server.Mode == "" || c.Server.Mode == "recommended" { c.Server.Mode = "latest" }
+		c.RuntimePreferencesVersion = 1
 	}
 	c.ClientMode, e = normalizeClientMode(c, dir)
 	if e != nil { return c, e }
