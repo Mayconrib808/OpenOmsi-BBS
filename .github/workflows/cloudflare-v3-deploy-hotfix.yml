@@ -1,4 +1,4 @@
-name: Publish tested dev.11 BCS readiness hotfix to Cloudflare
+name: Publish tested dev.12 BCS readiness hotfix to Cloudflare
 on:
   push:
     branches: [multiplayer-3-preview]
@@ -20,11 +20,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Download the exact tested dev.11 build
+      - name: Download the exact tested dev.12 build
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh run download 38217694376 --repo "$GITHUB_REPOSITORY" --name cloudflare-client-hotfix --dir hotfix-build
-      - name: Verify legacy signature and dev.11 publisher anchor
+        run: gh run download 38245444375 --repo "$GITHUB_REPOSITORY" --name cloudflare-client-hotfix --dir hotfix-build
+      - name: Verify legacy signature and dev.12 publisher anchor
         run: |
           node --input-type=module <<'JS'
           import {readFileSync} from 'node:fs';
@@ -46,7 +46,7 @@ jobs:
           const trustedBytes=Buffer.from(await trusted.arrayBuffer());
           if(!trustedBytes.equals(payload))throw Error('Immutable publisher metadata mismatch');
           const release=JSON.parse(payload);
-          if(release.version!=='3.0.2-dev.11'||release.sequence!==2026101211)throw Error('Wrong dev.11 metadata');
+          if(release.version!=='3.0.2-dev.12'||release.sequence!==2026101212)throw Error('Wrong dev.12 metadata');
           JS
           python3 cloudflare-updates-v3/stage-hotfix.py
       - name: Keep previous verified updaters available during rollout
@@ -59,10 +59,11 @@ jobs:
             'e2237fa02a98c5135d3ea3d0030167febce8568d907612906f9bdb9106c13b3b',
             '16eb467b482d166990ad966c66322da60022d20f893f7f7b365b6c7b0ba9f69d',
             'a18ec1050e55cfd528f774bb387245cd677fbd144ae02e6b6328a6943435c876',
-            '5f9ca62e452c670c980635b3e5d3b76ed6ce692b15666a48ac79e7f8be0a195c'
+            '5f9ca62e452c670c980635b3e5d3b76ed6ce692b15666a48ac79e7f8be0a195c',
+            '0c9fe6559201796a1ca478057432d03a80d9dc735f521a2466b71cb7b4572f01'
           ]){
             const url='https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev/packages/'+sha+'.exe';
-            const response=await fetch(url,{headers:{'User-Agent':'OpenOmsi-BBS-Setup/3.0.2-dev.11'}});
+            const response=await fetch(url,{headers:{'User-Agent':'OpenOmsi-BBS-Setup/3.0.2-dev.12'}});
             if(!response.ok)throw Error('Previous updater unavailable: '+response.status+' '+sha);
             const data=Buffer.from(await response.arrayBuffer());
             if(createHash('sha256').update(data).digest('hex')!==sha)throw Error('Previous updater hash mismatch: '+sha);
@@ -75,5 +76,5 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
-      - name: Verify live legacy and dev.11 feeds
+      - name: Verify live legacy and dev.12 feeds
         run: node cloudflare-updates-v3/verify-live.mjs
