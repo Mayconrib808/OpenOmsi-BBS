@@ -32,7 +32,7 @@ func showFailure(root string, err error) {
 	if filepath.IsAbs(root) {
 		_ = os.WriteFile(filepath.Join(root, "OpenOMSI-BBS", "logs", "update-error.txt"), []byte(err.Error()), 0600)
 	}
-	message, _ := syscall.UTF16PtrFromString("Atualização não concluída. Consulte update-error.txt nos logs.\nUpdate could not finish. Check update-error.txt in the logs.\nUpdate fehlgeschlagen. Siehe update-error.txt im Protokollordner.")
+	message, _ := syscall.UTF16PtrFromString("Atualização não concluída / Update could not finish / Update fehlgeschlagen.\n\n" + err.Error() + "\n\nDetalhes / Details: OpenOMSI-BBS/logs/update-error.txt")
 	title, _ := syscall.UTF16PtrFromString("BBS+OpenOmsi Multiplayer")
 	syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(message)), uintptr(unsafe.Pointer(title)), 0x10)
 }

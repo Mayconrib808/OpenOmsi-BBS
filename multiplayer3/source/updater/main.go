@@ -89,7 +89,7 @@ func atomicWrite(path string, b []byte) error {
 	if err != nil {
 		return err
 	}
-	return os.Rename(name, path)
+	return replacePreparedFile(name, path)
 }
 
 func existingParent(path string) string {
@@ -233,6 +233,7 @@ func main() {
 		showFailure(*target, err)
 		return
 	}
+	_ = os.Remove(filepath.Join(*target, "OpenOMSI-BBS", "logs", "update-error.txt"))
 	cmd := exec.Command(filepath.Join(*target, "Setup.exe"))
 	if err = cmd.Start(); err == nil {
 		err = cmd.Process.Release()
