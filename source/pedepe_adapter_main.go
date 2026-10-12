@@ -120,7 +120,10 @@ func main() {
 			peDePeAdapterLog(logPath, fmt.Sprintf("driver translation: simulator=%s BBS=%s baseline stops=%d", driver.OpenPath, driver.NativePath, driver.Last.Stops[0]))
 		}
 	}
-	peDePeAdapterLog(logPath, "adapter revision=native-live-next-trip-3 outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	peDePeAdapterLog(logPath, "adapter revision=native-live-next-trip-4-fuel outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	if fuel, e := peDePeSavedFuel(parsePeDePeNativeInvocation(args), cfg.Root); e == nil && fuel != nil {
+		peDePeAdapterLog(logPath, fmt.Sprintf("BCS initial fuel: bus=%s variable=%s litres=%.6f; requested once by native --setvar at spawn", fuel.Bus, fuel.Field, fuel.Litres))
+	}
 	if plan != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {

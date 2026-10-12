@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"math"
 	"os"
 	"path/filepath"
@@ -9,7 +10,107 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf16"
 )
+
+func TestPeDePeFuelSelectsPlayerForAnyMapAndBus(t *testing.T) {
+	for _, field := range []string{"engine_tank_content", "fuel", "ENGINE_TANK_CONTENT"} {
+		for _, amount := range []string{"231.0", "0", "17,25"} {
+			for _, marker := range []string{"[myvehicle]\n1\n", "[ismyVehicle]\n"} {
+				root := t.TempDir()
+				saved := "[map]\nmaps/Arbitrary Map/global.cfg\n[vehicle]\nVehicles/AI/ai.bus\n[vars]\n1\nengine_tank_content\n999\n[vehicle]\nVehicles/Ônibus customizado/model.bus\n[vars]\n2\nColorscheme\n4\n" + field + "\n" + amount + "\n" + marker
+				want, _ := strconv.ParseFloat(strings.ReplaceAll(amount, ",", "."), 64)
+				for _, wide := range []bool{false, true} {
+					data := []byte(saved)
+					if wide {
+						data = []byte{0xff, 0xfe}
+						for _, value := range utf16.Encode([]rune(saved)) {
+							data = binary.LittleEndian.AppendUint16(data, value)
+						}
+					}
+					fuel, err := parsePeDePeFuelSnapshot(data, root)
+					if err != nil || fuel == nil || fuel.Litres != want || fuel.Field != field || !strings.Contains(fuel.Bus, "customizado") {
+						t.Fatalf("wrong player fuel for field=%s amount=%s marker=%s UTF16=%t: %+v %v", field, amount, marker, wide, fuel, err)
+					}
+				}
+			}
+		}
+	}
+}
+
+func TestPeDePeFuelMissingAndInvalidValues(t *testing.T) {
+	for _, raw := range []string{"-1", "NaN", "Inf", "1e100", "bad"} {
+		data := "[vehicle]\nVehicles/Test/test.bus\n[vars]\n1\nengine_tank_content\n" + raw + "\n[ismyvehicle]\n"
+		if _, err := parsePeDePeFuelSnapshot([]byte(data), t.TempDir()); err == nil {
+			t.Fatal("invalid fuel accepted", raw)
+		}
+	}
+	for _, data := range []string{
+		"[vehicle]\nVehicles/Test/test.bus\n[vars]\n0\n",
+		"[vehicle]\nVehicles/Test/test.bus\n[vars]\n1\nColorscheme\n3\n",
+	} {
+		if fuel, err := parsePeDePeFuelSnapshot([]byte(data), t.TempDir()); err != nil || fuel != nil {
+			t.Fatalf("missing fuel invented: %+v %v", fuel, err)
+		}
+	}
+	if _, err := parsePeDePeFuelSnapshot([]byte("[vehicle]\nAI/a.bus\n[vehicle]\nAI/b.bus\n[myvehicle]\nbad\n"), t.TempDir()); err == nil {
+		t.Fatal("ambiguous player accepted")
+	}
+}
+
+func TestPeDePeFuelMergesAssignmentsWithoutChangingOtherState(t *testing.T) {
+	for _, option := range [][]string{{"--setvar", "door_0=0,engine_tank_content=999,IBIS_Ziel=42"}, {"--setvar=door_0=0,engine_tank_content=999,IBIS_Ziel=42"}} {
+		args := append([]string{"--bus", "Vehicles/Any/model.bus", "--map", "maps/Any/global.cfg", "--autostart"}, option...)
+		saved := &pedepeFuelSnapshot{Bus: "Vehicles/Any/model.bus", Field: "engine_tank_content", Litres: 231}
+		out, err := peDePeFuelArgs(args, saved, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		value, _ := pedepeArgValue(out, "--setvar")
+		if value != "door_0=0,IBIS_Ziel=42,engine_tank_content=231" {
+			t.Fatal("assignments lost", value)
+		}
+		if again, err := peDePeFuelArgs(out, saved, ""); err != nil || !reflect.DeepEqual(out, again) {
+			t.Fatal("fuel assignment duplicated", again, err)
+		}
+		if _, err := peDePeFuelArgs([]string{"--bus", "Vehicles/Other/model.bus"}, saved, ""); err == nil {
+			t.Fatal("fuel applied to a different bus")
+		}
+		if out, err := peDePeFuelArgs(args, nil, ""); err != nil || !reflect.DeepEqual(out, args) {
+			t.Fatal("missing saved fuel changed arguments")
+		}
+	}
+}
+
+func TestPeDePeReportedFuelSituation(t *testing.T) {
+	path := os.Getenv("BRIDGE_FUEL_SITUATION")
+	if path == "" {
+		t.Skip("local reported BCS situation not redistributed")
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	if saved, err := parsePeDePeFuelSnapshot(data, root); err != nil || saved == nil || saved.Litres != 231 {
+		t.Fatalf("reported snapshot: %+v %v", saved, err)
+	}
+	// Resolve the Windows asset separators on either test platform; fuel bytes
+	// and vehicle selection still come from the supplied BCS situation.
+	data = []byte(strings.ReplaceAll(string(data), `\`, string(filepath.Separator)))
+	dir := filepath.Join(root, "maps", "Brigadeiro V2")
+	os.MkdirAll(dir, 0755)
+	os.WriteFile(filepath.Join(dir, "global.cfg"), []byte("[name]\nBrigadeiro V2\n"), 0644)
+	situation := filepath.Join(dir, "laststn.osn")
+	os.WriteFile(situation, data, 0644)
+	out, err := peDePeFreshTripArgs([]string{"--root", root, "--situation", situation, "--schedule", "--line", "1", "--tour", "A", "--trip", "14:32"}, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fuel, _ := pedepeArgValue(out, "--setvar"); fuel != "engine_tank_content=231" {
+		t.Fatal("reported 231 litres not restored", fuel)
+	}
+}
 
 func TestPeDePePluginHostWorksWithoutOfficialHelperBesideGame(t *testing.T) {
 	t.Setenv("OMSI_PLUGIN_HOST32", "")
@@ -434,7 +535,7 @@ func TestPeDePeFreshSituationStartsDutyInsteadOfResuming(t *testing.T) {
 		t.Fatal(err)
 	}
 	situation := filepath.Join(mapDir, "laststn.osn")
-	saved := "[map]\n" + filepath.Join(mapDir, "global.cfg") + "\n[time]\n1994\n283\n1\n55\n0\n[vehicle]\nVehicles/MAN_SD202/SD92.bus\n230.665\n24.532\n205.29\n0\n0.976\n0\n-0.219\n0\n0\n0\n2394\n11288\n12345\nSpandau 94\n[ismyVehicle]\n[vars]\n2\nColorscheme\n3\nIBIS_Ziel\n0\n[settimetable]\nSTALE\nOLD\n0\n0\n0\n0\n"
+	saved := "[map]\n" + filepath.Join(mapDir, "global.cfg") + "\n[time]\n1994\n283\n1\n55\n0\n[vehicle]\nVehicles/MAN_SD202/SD92.bus\n230.665\n24.532\n205.29\n0\n0.976\n0\n-0.219\n0\n0\n0\n2394\n11288\n12345\nSpandau 94\n[ismyVehicle]\n[vars]\n3\nColorscheme\n3\nIBIS_Ziel\n0\nengine_tank_content\n231.0\n[settimetable]\nSTALE\nOLD\n0\n0\n0\n0\n"
 	if err := os.WriteFile(situation, []byte(saved), 0644); err != nil {
 		t.Fatal(err)
 	}
@@ -455,6 +556,9 @@ func TestPeDePeFreshSituationStartsDutyInsteadOfResuming(t *testing.T) {
 	}
 	if !pedepeHasArg(got, "--autostart") {
 		t.Fatal("fresh duty needs autostart")
+	}
+	if fuel, ok := pedepeArgValue(got, "--setvar"); !ok || fuel != "engine_tank_content=231" {
+		t.Fatalf("BCS initial fuel was not passed to native spawn: %q", fuel)
 	}
 	spawn, _ := pedepeArgValue(got, "--spawn")
 	values := strings.Split(spawn, ",")
