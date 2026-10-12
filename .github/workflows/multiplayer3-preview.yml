@@ -1,0 +1,73 @@
+name: Multiplayer 3 preview
+
+on:
+  push:
+    branches: ['codex/3.0-public-onboarding']
+  pull_request:
+    paths: ['multiplayer3/**', '.github/workflows/multiplayer3-preview.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: multiplayer3-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Launch, driver, setup and signed-update regressions
+        working-directory: multiplayer3/source
+        run: go test -race ./...
+      - name: Company and map lease regressions
+        run: node --test multiplayer3/relay/test/*.test.js
+      - name: Install UI test library
+        env:
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
+        run: npm install --prefix '${{ runner.temp }}/bbs-ui' --no-save --package-lock=false playwright@1.62.1
+      - name: Check real setup UI in three languages
+        env:
+          NODE_PATH: '${{ runner.temp }}/bbs-ui/node_modules'
+          UI_PREVIEW_DIR: '${{ runner.temp }}/bbs-ui-previews'
+        run: node multiplayer3/scripts/check_setup_ui.cjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: Multiplayer-3-UI-previews
+          path: '${{ runner.temp }}/bbs-ui-previews/*.png'
+          if-no-files-found: ignore
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Native Windows regression tests
+        working-directory: multiplayer3/source
+        run: go test ./...
+      - name: Retained 32-bit host protocol tests
+        working-directory: multiplayer3/source
+        shell: pwsh
+        run: |
+          $env:GOARCH='386'
+          $env:CGO_ENABLED='0'
+          go test ./pluginhost
+      - name: Build minimal updates and verify Windows metadata without rebuilding Rust
+        run: python multiplayer3/scripts/build_preview.py --output dist/multiplayer3
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: BBS-OpenOmsi-Multiplayer-3-preview-components
+          path: dist/multiplayer3/*
+          if-no-files-found: error
+          retention-days: 30

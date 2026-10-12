@@ -15,6 +15,8 @@ concurrency:
 
 jobs:
   native-server:
+    # 3.x has its own Go preview checks and reuses the verified native runtime.
+    if: github.ref != 'refs/heads/codex/3.0-public-onboarding' && github.head_ref != 'codex/3.0-public-onboarding'
     runs-on: windows-latest
     timeout-minutes: 90
     steps:
@@ -141,3 +143,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 scripts/publish_dev_release.py --run-id '${{ github.run_id }}' --commit '${{ github.sha }}' --artifact-dir '${{ runner.temp }}/development-release'
+
