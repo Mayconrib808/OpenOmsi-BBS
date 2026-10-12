@@ -1,0 +1,25 @@
+name: Verify published 2.1.7 fuel update
+on:
+  push:
+    branches: ['hotfix/2.1.7-fuel']
+    paths: ['.github/workflows/fuel-217-verify.yml']
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Verify the published signed update after edge propagation
+        run: |
+          python3 hotfix217/reconstruct.py
+          node update-service/publication.mjs prepare hotfix217/Atualizar-Bridge.exe
+          for attempt in 1 2 3 4 5 6; do
+            if node update-service/publication.mjs verify-live; then exit 0; fi
+            if test "$attempt" -lt 6; then sleep 5; fi
+          done
+          node -e 'fetch("https://openomsi-bbs-updates.maycongamesmaximo.workers.dev/stable.json").then(async r=>{console.log("HTTP",r.status,"Cache-Control",r.headers.get("cache-control"));const j=await r.json();console.log("Live release",JSON.parse(Buffer.from(j.payload,"base64").toString()).version)})'
+          exit 1
