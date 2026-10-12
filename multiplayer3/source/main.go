@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const version = "3.0.2-dev.10"
+const version = "3.0.2-dev.11"
 
 // BCS redirects inherited stdout into its real game.log and checks spawn readiness there.
 var bcsLaunchOutput io.Writer
@@ -191,7 +191,7 @@ func run(ctx context.Context, dir string, args []string) error {
 			if e = saveConfig(dir, cfg); e != nil {
 				return e
 			}
-		}
+	}
 	}
 	for _, a := range args {
 		if a == "--help" || a == "--version" {
