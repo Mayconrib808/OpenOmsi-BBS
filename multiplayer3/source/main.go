@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const version = "3.0.2-dev.8"
+const version = "3.0.2-dev.9"
 
 // BCS redirects inherited stdout into its real game.log and checks spawn readiness there.
 var bcsLaunchOutput io.Writer
@@ -22,14 +22,14 @@ var bcsLaunchOutput io.Writer
 const productName = "BBS+OpenOmsi Multiplayer"
 
 type localConfig struct {
-	RuntimePreferencesVersion int `json:"runtime_preferences_version,omitempty"`
-	ClientMode string `json:"client_mode,omitempty"`
-	Server     serverPreference `json:"server"`
-	Version    int              `json:"version"`
-	Game       string           `json:"game"`
-	Root       string           `json:"root"`
-	Invitation string           `json:"invitation"`
-	Player     string           `json:"player"`
+	RuntimePreferencesVersion int              `json:"runtime_preferences_version,omitempty"`
+	ClientMode                string           `json:"client_mode,omitempty"`
+	Server                    serverPreference `json:"server"`
+	Version                   int              `json:"version"`
+	Game                      string           `json:"game"`
+	Root                      string           `json:"root"`
+	Invitation                string           `json:"invitation"`
+	Player                    string           `json:"player"`
 }
 
 func configPath(dir string) string { return filepath.Join(configDirectory(dir), "multiplayer.json") }
@@ -44,11 +44,15 @@ func readConfig(dir string) (localConfig, error) {
 		return c, fmt.Errorf("configuração 3.0 inválida")
 	}
 	if c.RuntimePreferencesVersion == 0 {
-		if c.Server.Mode == "" || c.Server.Mode == "recommended" { c.Server.Mode = "latest" }
+		if c.Server.Mode == "" || c.Server.Mode == "recommended" {
+			c.Server.Mode = "latest"
+		}
 		c.RuntimePreferencesVersion = 1
 	}
 	c.ClientMode, e = normalizeClientMode(c, dir)
-	if e != nil { return c, e }
+	if e != nil {
+		return c, e
+	}
 	c.Server, e = normalizeServer(c.Server)
 	if e != nil {
 		return c, e
@@ -172,13 +176,21 @@ func run(ctx context.Context, dir string, args []string) error {
 		return fmt.Errorf("program disabled; open Setup.exe to reactivate")
 	}
 	probe := false
-	for _, a := range args { if a == "--help" || a == "--version" { probe = true } }
+	for _, a := range args {
+		if a == "--help" || a == "--version" {
+			probe = true
+		}
+	}
 	if !probe || cfg.Game == "" {
 		previous := cfg.Game
 		cfg, e = prepareConfiguredClient(ctx, cfg, dir, resolveClient)
-		if e != nil { return e }
+		if e != nil {
+			return e
+		}
 		if previous != cfg.Game {
-			if e = saveConfig(dir, cfg); e != nil { return e }
+			if e = saveConfig(dir, cfg); e != nil {
+				return e
+			}
 		}
 	}
 	for _, a := range args {
