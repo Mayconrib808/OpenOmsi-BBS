@@ -379,7 +379,10 @@ func TestCompanyServerUsesSupportedProtocolInsteadOfReleaseAllowlist(t *testing.
 		if !compatibleCompanyServer(version, 6) {
 			t.Errorf("supported protocol rejected because of release label: %s", version)
 		}
-		if compatibleCompanyServer(version, 7) {
+		if !compatibleCompanyServer(version, 7) {
+			t.Errorf("supported protocol 7 rejected: %s", version)
+		}
+		if compatibleCompanyServer(version, 8) {
 			t.Errorf("wrong protocol accepted: %s", version)
 		}
 	}

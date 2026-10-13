@@ -26,6 +26,13 @@ import (
 const companyProfileLimit = 8 << 20
 const companyFileLimit = 30000
 const multiplayerProtocol = 6
+
+// Profile metadata is a compatibility hint. Each running map uses the
+// protocol reported by its native server; packets are never translated.
+func supportedMultiplayerProtocol(protocol int) bool {
+	return protocol == 6 || protocol == 7
+}
+
 const multiplayerGameVersion = "0.2.11"
 
 type CompanyProfile struct {
@@ -128,8 +135,8 @@ func validateCompanyProfile(p CompanyProfile) error {
 	if p.SchemaVersion != 1 || !companyIDPattern.MatchString(p.CompanyID) || !companyText(p.CompanyName, 120) {
 		return fmt.Errorf("invalid company identity or unsupported profile schema")
 	}
-	if !validOpenOMSIVersion(p.OpenOMSIVersion) || p.Protocol != multiplayerProtocol {
-		return fmt.Errorf("company profile requires a valid openOMSI release label and network protocol %d", multiplayerProtocol)
+	if !validOpenOMSIVersion(p.OpenOMSIVersion) || !supportedMultiplayerProtocol(p.Protocol) {
+		return fmt.Errorf("company profile requires a valid openOMSI release label and network protocol 6 or 7")
 	}
 	if p.Clock != nil {
 		if err := validateCompanyClock(*p.Clock); err != nil {
@@ -666,5 +673,5 @@ func writeCompanyReport(runtimeDir, lang, company string, problems []CompanyProb
 }
 
 func compatibleCompanyServer(version string, protocol int) bool {
-	return protocol == multiplayerProtocol && validOpenOMSIVersion(strings.TrimSpace(version))
+	return supportedMultiplayerProtocol(protocol) && validOpenOMSIVersion(strings.TrimSpace(version))
 }

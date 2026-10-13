@@ -33,6 +33,10 @@ type gatewayFixture struct {
 }
 
 func newGatewayFixture(t *testing.T) *gatewayFixture {
+	return newGatewayProtocolFixture(t, 6)
+}
+
+func newGatewayProtocolFixture(t *testing.T, protocol int) *gatewayFixture {
 	t.Helper()
 	root := t.TempDir()
 	bus := filepath.Join(root, filepath.FromSlash(gatewayTestKnown))
@@ -56,7 +60,10 @@ func newGatewayFixture(t *testing.T) *gatewayFixture {
 		g.Close()
 		t.Fatal(err)
 	}
-	f := &gatewayFixture{g: g, native: udp, packets: make(chan []byte, 32), version: "0.2.23", protocol: 6}
+	f := &gatewayFixture{g: g, native: udp, packets: make(chan []byte, 32), version: "0.2.23", protocol: protocol}
+	if protocol == 7 {
+		f.version = "0.2.48 (42ebc79 2026-10-13 18:11)"
+	}
 	web := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/status" || r.URL.Path == "/status.json" {
 			f.mu.Lock()
@@ -76,6 +83,13 @@ func newGatewayFixture(t *testing.T) *gatewayFixture {
 	web.Listener = listener
 	web.Start()
 	f.web = web
+	status, err := readCompanyHostStatus(context.Background(), g.client, g.backendWeb)
+	if err == nil {
+		_, err = g.adaptStatus(status)
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
 	g.ready.Store(true)
 	go f.simulateOfficial()
 	t.Cleanup(func() { g.Close(); udp.Close(); web.Close() })
@@ -98,9 +112,16 @@ func (f *gatewayFixture) simulateOfficial() {
 		default:
 		}
 		text := string(packet)
+		f.mu.Lock()
+		protocol := f.protocol
+		f.mu.Unlock()
 		if strings.HasPrefix(text, "HELLO|") {
 			fields := strings.Split(text, "|")
 			if len(fields) < 5 {
+				continue
+			}
+			if fields[1] != fmt.Sprint(protocol) {
+				_, _ = f.native.WriteToUDP([]byte(fmt.Sprintf("REJECT|%d|protocol mismatch", protocol)), from)
 				continue
 			}
 			allowed := false
@@ -110,7 +131,7 @@ func (f *gatewayFixture) simulateOfficial() {
 				}
 			}
 			if !allowed {
-				_, _ = f.native.WriteToUDP([]byte("REJECT|6|unlisted bus"), from)
+				_, _ = f.native.WriteToUDP([]byte(fmt.Sprintf("REJECT|%d|unlisted bus", protocol)), from)
 				continue
 			}
 			id := ids[from.String()]
@@ -119,7 +140,7 @@ func (f *gatewayFixture) simulateOfficial() {
 				id = next
 				ids[from.String()] = id
 			}
-			_, _ = f.native.WriteToUDP([]byte(fmt.Sprintf("WELCOME|6|%d|session|Host|map|date|time|weather|season|2", id)), from)
+			_, _ = f.native.WriteToUDP([]byte(fmt.Sprintf("WELCOME|%d|%d|session|Host|map|date|time|weather|season|2", protocol, id)), from)
 		} else {
 			_, _ = f.native.WriteToUDP(packet, from)
 		}
@@ -206,7 +227,7 @@ func TestCompanyGatewayStatusAndVersionUpdates(t *testing.T) {
 		}
 	}
 	f.mu.Lock()
-	f.protocol = 7
+	f.protocol = 8
 	f.mu.Unlock()
 	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/status", f.g.webPort))
 	if err != nil {
@@ -427,5 +448,116 @@ func TestCompanyGatewayManagedTunnelPublicationAndMapIsolation(t *testing.T) {
 	}
 	if strings.Contains(logs[1].String(), addresses[0]) {
 		t.Fatal("mixed two maps' tunnel output")
+	}
+}
+
+// Protocol 7 adds a rebind secret and challenge/proof fields. The bridge owns
+// transport routing and bus substitution only; these native fields stay exact.
+func TestCompanyGatewayProtocol7TransportsAndReconnect(t *testing.T) {
+	for _, transport := range []string{"udp", "websocket"} {
+		t.Run(transport, func(t *testing.T) {
+			f := newGatewayProtocolFixture(t, 7)
+			var send func([]byte)
+			var read func() []byte
+			if transport == "udp" {
+				c := gatewayUDPClient(t, f.g)
+				send = func(b []byte) {
+					if _, e := c.Write(b); e != nil {
+						t.Fatal(e)
+					}
+				}
+				read = func() []byte { return gatewayReadUDP(t, c) }
+			} else {
+				c, r := gatewayWSClient(t, f.g)
+				send = func(b []byte) {
+					if _, e := c.Write(gatewayMaskedFrame(2, true, b)); e != nil {
+						t.Fatal(e)
+					}
+				}
+				read = func() []byte {
+					op, b := gatewayReadWS(t, r)
+					if op != 2 {
+						t.Fatal(op)
+					}
+					return b
+				}
+			}
+			tail := "|maps/Test/global.cfg|2026-10-13|61200.5|Weather/#CAVOK.owt|0|1234567890abcdef|fedcba9876543210|1122334455667788"
+			hello := []byte("HELLO|7|-|Alice|" + gatewayTestPrivate + tail)
+			send(hello)
+			if welcome := read(); !bytes.HasPrefix(welcome, []byte("WELCOME|7|1|")) {
+				t.Fatal(string(welcome))
+			}
+			if got := <-f.packets; string(got) != "HELLO|7|-|Alice|"+f.g.mask+tail {
+				t.Fatal("reconnect proof changed", string(got))
+			}
+			for _, packet := range [][]byte{
+				[]byte("CHALLENGE|fedcba9876543210"),
+				[]byte("WELCOME|7|1|abcdef123456|Host|map|date|time|weather|season|2|00112233445566778899aabbccddeeff"),
+				[]byte{0, 255, 7, 128, 25, 0, 46, 255},
+				[]byte("CMD|1|1|admin-challenge abc 00112233445566778899aabbccddeeff 600000"),
+			} {
+				send(packet)
+				if got := read(); !bytes.Equal(got, packet) {
+					t.Fatal("native authentication or binary packet changed", got)
+				}
+				if got := <-f.packets; !bytes.Equal(got, packet) {
+					t.Fatal(got)
+				}
+			}
+			info := []byte("INFO|1|Alice|" + gatewayTestPrivate + "|Paint|810|Centro|12|2.5|0|table|tour|abcd|figure.hum")
+			send(info)
+			if got := read(); !bytes.Equal(got, info) {
+				t.Fatal("private bus lost", string(got))
+			}
+			if got := <-f.packets; !bytes.Contains(got, []byte("|"+f.g.mask+"|")) {
+				t.Fatal(string(got))
+			}
+			send([]byte("INFO|2|Other|Vehicles/Other/bus.bus|"))
+			if got := read(); !bytes.HasPrefix(got, []byte("REJECT|7|")) {
+				t.Fatal("wrong rejection protocol", string(got))
+			}
+		})
+	}
+}
+
+func TestCompanyGatewayProtocol7StatusAndLegacyIsolation(t *testing.T) {
+	legacy, current := newGatewayFixture(t), newGatewayProtocolFixture(t, 7)
+	for _, f := range []*gatewayFixture{legacy, current} {
+		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/status", f.g.webPort))
+		if err != nil {
+			t.Fatal(err)
+		}
+		var status map[string]json.RawMessage
+		err = json.NewDecoder(resp.Body).Decode(&status)
+		resp.Body.Close()
+		if err != nil || resp.StatusCode != 200 || string(status["protocol"]) != fmt.Sprint(f.protocol) || string(status["bbs_vehicle_adapter"]) != fmt.Sprintf(`"protocol-%d"`, f.protocol) {
+			t.Fatal(status, resp.StatusCode, err)
+		}
+	}
+	// A mismatched client is left to the native server to reject. We never
+	// relabel its HELLO as 7, which could corrupt binary traffic later.
+	c := gatewayUDPClient(t, current.g)
+	hello := gatewayHello(gatewayTestKnown)
+	_, _ = c.Write(hello)
+	if got := gatewayReadUDP(t, c); string(got) != "REJECT|7|protocol mismatch" {
+		t.Fatal(string(got))
+	}
+	if got := <-current.packets; !bytes.Equal(got, hello) {
+		t.Fatal("client protocol translated", string(got))
+	}
+	if legacy.g.networkProtocol() != 6 || current.g.networkProtocol() != 7 {
+		t.Fatal("maps shared protocol state")
+	}
+	current.mu.Lock()
+	current.protocol = 6
+	current.mu.Unlock()
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/status", current.g.webPort))
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 503 || current.g.networkProtocol() != 7 {
+		t.Fatal("wire protocol changed in running map", resp.StatusCode)
 	}
 }

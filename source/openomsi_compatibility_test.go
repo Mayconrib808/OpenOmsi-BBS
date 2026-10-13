@@ -75,7 +75,11 @@ func TestCompanyProfilesKeepReleaseHintWithoutRestrictingPlayers(t *testing.T) {
 			t.Fatalf("valid descriptive release %s rejected: %v", version, err)
 		}
 	}
-	profile.Protocol = multiplayerProtocol + 1
+	profile.Protocol = 7
+	if err := validateCompanyProfile(profile); err != nil {
+		t.Fatal("protocol-7 profile rejected", err)
+	}
+	profile.Protocol = 8
 	if err := validateCompanyProfile(profile); err == nil {
 		t.Fatal("an unsupported company protocol was accepted")
 	}
@@ -87,12 +91,18 @@ func TestCompanyProfilesKeepReleaseHintWithoutRestrictingPlayers(t *testing.T) {
 }
 
 func TestOfficialCLIVersionWithStartupLog(t *testing.T) {
- output:="[2026-10-07T09:03:54Z INFO  openomsi_game] openOMSI 0.2.0, build 538ad31 2026-10-05 23:39\nopenomsi 0.2.0\n"
- got,err:=parseOpenOMSIVersionOutput(output)
- if err!=nil||got!="0.2.0"{t.Fatal(got,err)}
- got,err=parseOpenOMSIVersionOutput("openomsi 0.2.11\r\n")
- if err!=nil||got!="0.2.11"{t.Fatal(got,err)}
- for _,bad:=range []string{"", "[INFO] openOMSI 0.2.0, build 538ad31", "openomsi bogus", "openomsi 0.2.0\nopenomsi 0.2.11", "openomsi 0.2.0\x1b"} {
-  if _,err:=parseOpenOMSIVersionOutput(bad);err==nil{t.Fatal("invalid metadata accepted",bad)}
- }
+	output := "[2026-10-07T09:03:54Z INFO  openomsi_game] openOMSI 0.2.0, build 538ad31 2026-10-05 23:39\nopenomsi 0.2.0\n"
+	got, err := parseOpenOMSIVersionOutput(output)
+	if err != nil || got != "0.2.0" {
+		t.Fatal(got, err)
+	}
+	got, err = parseOpenOMSIVersionOutput("openomsi 0.2.11\r\n")
+	if err != nil || got != "0.2.11" {
+		t.Fatal(got, err)
+	}
+	for _, bad := range []string{"", "[INFO] openOMSI 0.2.0, build 538ad31", "openomsi bogus", "openomsi 0.2.0\nopenomsi 0.2.11", "openomsi 0.2.0\x1b"} {
+		if _, err := parseOpenOMSIVersionOutput(bad); err == nil {
+			t.Fatal("invalid metadata accepted", bad)
+		}
+	}
 }

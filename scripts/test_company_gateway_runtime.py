@@ -18,14 +18,18 @@ ASSETS = {
     "nt": ("windows", "b8296340956670031de576056776ef6f02b62ddaa11c63b5d6c4f40988b49bd5"),
     "posix": ("linux", "57822a77d899494d47b95c6c5a6e37f77a81cdc81a3dc1df60cb0de32c5df527"),
 }
+ASSETS_048 = {
+    "nt": ("windows", "0158548bea4cf659dad61cbb55e6639c1c6bdc40de3cd407136dcb91c86db63d"),
+    "posix": ("linux", "99c643044b87c726ec9350337756501dc15384a7515eb09e5a6c975909c286b7"),
+}
 
 
-def download_server(destination: Path) -> Path:
-    platform, expected = ASSETS[os.name]
-    asset = f"openOMSI-{VERSION}-server-{platform}-x64.zip"
+def download_server(destination: Path, version: str = VERSION) -> Path:
+    platform, expected = (ASSETS_048 if version == "0.2.48" else ASSETS)[os.name]
+    asset = f"openOMSI-{version}-server-{platform}-x64.zip"
     destination.mkdir(parents=True, exist_ok=True)
     archive = destination / asset
-    url = f"https://github.com/openOMSI-org/openOMSI/releases/download/v{VERSION}/{asset}"
+    url = f"https://github.com/openOMSI-org/openOMSI/releases/download/v{version}/{asset}"
     if not archive.is_file() or hashlib.sha256(archive.read_bytes()).hexdigest() != expected:
         request = urllib.request.Request(url, headers={"User-Agent": "OpenOmsi-BBS-runtime-test"})
         with urllib.request.urlopen(request, timeout=90) as response, archive.open("wb") as output:
@@ -51,13 +55,15 @@ def download_server(destination: Path) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--server", type=Path, help="Existing official executable for an offline runtime test.")
+    parser.add_argument("--version", choices=["0.2.23", "0.2.48"], default=VERSION)
     args = parser.parse_args()
-    executable = args.server.resolve() if args.server else download_server(build.ROOT / "build" / "official-gateway-test")
+    executable = args.server.resolve() if args.server else download_server(build.ROOT / "build" / "official-gateway-test" / args.version, args.version)
     go = shutil.which("go")
     if not go:
         parser.error("Go 1.23.2 must be on PATH")
     env = os.environ.copy()
     env.update(GO111MODULE="off", CGO_ENABLED="0", GOTOOLCHAIN="local", OPENOMSI_GATEWAY_TEST_SERVER=str(executable))
+    env["OPENOMSI_GATEWAY_TEST_PROTOCOL"] = "7" if args.version == "0.2.48" else "6"
     env.pop("GOOS", None)
     env.pop("GOARCH", None)
     platform = ["process_windows.go", "company_host_process_windows.go", "openomsi_probe_windows.go"] if os.name == "nt" else ["process_teststub_test.go", "company_host_process_other.go", "openomsi_probe_other.go"]

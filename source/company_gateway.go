@@ -53,6 +53,7 @@ type companyGateway struct {
 	releaseOnce                 sync.Once
 	closeOnce                   sync.Once
 	ready                       atomic.Bool
+	protocol                    atomic.Int32
 	nextPeer                    atomic.Uint64
 	peers                       map[string]*companyGatewayPeer
 	buses                       map[uint32]*companyGatewayBus
@@ -272,7 +273,7 @@ func (g *companyGateway) readUDP() {
 		}
 		if p != nil {
 			if err := p.send(buf[:n]); err != nil {
-				_ = p.sendClient([]byte(fmt.Sprintf("REJECT|%d|%s", multiplayerProtocol, err)))
+				_ = p.sendClient([]byte(fmt.Sprintf("REJECT|%d|%s", g.networkProtocol(), err)))
 				p.close()
 			}
 		}
@@ -311,7 +312,15 @@ func (g *companyGateway) adaptStatus(status companyHostStatus) (companyHostStatu
 	}
 	status.FreePlayerVehicles = true
 	status.Vehicles = json.RawMessage(`[]`)
-	return status, validateCompanyHostStatus(status, g.session, nil)
+	if err := validateCompanyHostStatus(status, g.session, nil); err != nil {
+		return status, err
+	}
+	// Freeze the wire version once this gateway has read a valid server status.
+	// A server restart with another protocol needs a new map session.
+	if !g.protocol.CompareAndSwap(0, int32(status.Protocol)) && g.networkProtocol() != status.Protocol {
+		return status, fmt.Errorf("native server protocol changed during the session; restart HostAgent")
+	}
+	return status, nil
 }
 
 func (g *companyGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
@@ -361,7 +370,7 @@ func (g *companyGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		raw["vehicles"] = json.RawMessage(`[]`)
 		raw["free_player_vehicles"] = json.RawMessage(`true`)
-		raw["bbs_vehicle_adapter"] = json.RawMessage(`"protocol-6"`)
+		raw["bbs_vehicle_adapter"], _ = json.Marshal(fmt.Sprintf("protocol-%d", status.Protocol))
 		data, err = json.Marshal(raw)
 	} else if strings.HasPrefix(path, "/players") {
 		var players []map[string]json.RawMessage

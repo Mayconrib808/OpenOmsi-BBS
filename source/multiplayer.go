@@ -90,7 +90,7 @@ func validateCompanyServer(status companyServerStatus, session CompanySession, t
 
 func validateCompanyServerAt(status companyServerStatus, session CompanySession, trip MultiplayerTrip, clock *CompanyClock, now time.Time) error {
 	if !compatibleCompanyServer(status.Version, status.Protocol) {
-		return fmt.Errorf("openOMSI server compatibility check failed: %s / protocol %d; this bridge supports network protocol %d", status.Version, status.Protocol, multiplayerProtocol)
+		return fmt.Errorf("openOMSI server compatibility check failed: %s / protocol %d; this bridge supports network protocols 6 and 7", status.Version, status.Protocol)
 	}
 	if !companyText(status.Name, 120) || companyAssetKey(status.Map) != companyAssetKey(session.MapFile) {
 		return fmt.Errorf("server map differs from the company profile")

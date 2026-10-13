@@ -110,7 +110,7 @@ func (g *companyGateway) serveWS(w http.ResponseWriter, r *http.Request) {
 		}
 		if !fragmenting {
 			if err := p.send(message); err != nil {
-				_ = ws.write(2, []byte(fmt.Sprintf("REJECT|%d|%s", multiplayerProtocol, err)))
+				_ = ws.write(2, []byte(fmt.Sprintf("REJECT|%d|%s", g.networkProtocol(), err)))
 				return
 			}
 			message = nil

@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/binary"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -20,6 +24,14 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 	exe := os.Getenv("OPENOMSI_GATEWAY_TEST_SERVER")
 	if exe == "" {
 		t.Skip("set OPENOMSI_GATEWAY_TEST_SERVER to test an official server binary")
+	}
+	protocol := 6
+	if value := os.Getenv("OPENOMSI_GATEWAY_TEST_PROTOCOL"); value != "" {
+		var err error
+		protocol, err = strconv.Atoi(value)
+		if err != nil || !supportedMultiplayerProtocol(protocol) {
+			t.Fatal("invalid expected runtime protocol", value)
+		}
 	}
 	if _, err := checkOpenOMSICompatibility(exe, true, false); err != nil {
 		t.Fatal(err)
@@ -110,10 +122,12 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 	var status companyHostStatus
 	err = json.NewDecoder(resp.Body).Decode(&status)
 	resp.Body.Close()
-	if err != nil || resp.StatusCode != 200 || !status.FreePlayerVehicles || string(status.Vehicles) != "[]" || status.Protocol != 6 || !companyActiveWorld(status.World) {
+	if err != nil || resp.StatusCode != 200 || !status.FreePlayerVehicles || string(status.Vehicles) != "[]" || status.Protocol != protocol || !companyActiveWorld(status.World) {
 		t.Fatal("official server not freely joinable", status, err)
 	}
 	clients := make([]*net.UDPConn, 2)
+	hellos := make([]string, 2)
+	secrets := make([]string, 2)
 	ids := make([]uint32, 2)
 	buses := []string{"Vehicles/PrivateAlice/private.bus", "Vehicles/PrivateBob/another.bus"}
 	readUntil := func(c *net.UDPConn, prefix string) []byte {
@@ -140,17 +154,24 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 		}
 		clients[i] = c
 		defer c.Close()
-		hello := fmt.Sprintf("HELLO|6|-|Driver%d|%s|%s|2026-10-09|13:15:00||0|nonce%d", i, buses[i], session.MapFile, i)
+		hello := fmt.Sprintf("HELLO|%d|-|Driver%d|%s|%s|2026-10-09|13:15:00||0|%016x", protocol, i, buses[i], session.MapFile, i+1)
+		hellos[i] = hello
 		_, _ = c.Write([]byte(hello))
 		fields := strings.Split(string(readUntil(c, "WELCOME|")), "|")
 		ids[i] = companyGatewayID(fields[2])
 		if ids[i] == 0 {
 			t.Fatal(fields)
 		}
+		if protocol == 7 && (len(fields) != 12 || len(fields[11]) != 32) {
+			t.Fatal("native rebind secret was lost", len(fields))
+		}
+		if protocol == 7 {
+			secrets[i] = fields[11]
+		}
 		info := fmt.Sprintf("INFO|%d|Driver%d|%s||810|Centro|12|2.5|0|00000000|810/Tour||", ids[i], i, buses[i])
 		_, _ = c.Write([]byte(info))
 		state := make([]byte, 128)
-		state[0], state[1] = 0xb3, 6
+		state[0], state[1] = 0xb3, byte(protocol)
 		binary.LittleEndian.PutUint16(state[2:4], uint16(ids[i]))
 		state[4], state[6] = 1, 1
 		_, _ = c.Write(state)
@@ -170,6 +191,38 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 			t.Fatal("official stand-in was not instantiated", string(data))
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+	if protocol == 7 {
+		// Reconnect from a new transport address after INFO settled the peer.
+		// The native host must challenge it and keep the ID only after proof.
+		back, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port})
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer back.Close()
+		_, _ = back.Write([]byte(hellos[0]))
+		challenge := strings.TrimPrefix(string(readUntil(back, "CHALLENGE|")), "CHALLENGE|")
+		_, _ = back.Write([]byte(hellos[0] + "|" + challenge + "|0000000000000000"))
+		_ = readUntil(back, "CHALLENGE|") // A forged proof must not receive WELCOME.
+		key, err := hex.DecodeString(secrets[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		c, err := strconv.ParseUint(challenge, 16, 64)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var number [8]byte
+		binary.BigEndian.PutUint64(number[:], c)
+		mac := hmac.New(sha256.New, key)
+		_, _ = mac.Write(number[:])
+		proof := hex.EncodeToString(mac.Sum(nil)[:8])
+		_, _ = back.Write([]byte(hellos[0] + "|" + challenge + "|" + proof))
+		fields := strings.Split(string(readUntil(back, "WELCOME|")), "|")
+		if companyGatewayID(fields[2]) != ids[0] || len(fields) != 12 || fields[11] != secrets[0] {
+			t.Fatal("native reconnect identity or secret changed")
+		}
+		t.Log("protocol 7 native challenge rejected a forged proof and accepted the correct proof through the gateway, preserving player ID and secret")
 	}
 	if data, err := os.ReadFile(configPath); err != nil || string(data) != config {
 		t.Fatal("user config changed", err, string(data))

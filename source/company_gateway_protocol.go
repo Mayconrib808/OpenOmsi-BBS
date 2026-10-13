@@ -15,6 +15,13 @@ import (
 
 const companyGatewayPacketLimit = 65507
 
+func (g *companyGateway) networkProtocol() int {
+	if protocol := int(g.protocol.Load()); protocol != 0 {
+		return protocol
+	}
+	return multiplayerProtocol
+}
+
 func companyGatewayBusKey(path string) string {
 	if len(path) > 1024 || !utf8.ValidString(path) || strings.ContainsAny(path, "|;\r\n\x00") {
 		return ""
@@ -168,7 +175,7 @@ func (g *companyGateway) incoming(p *companyGatewayPeer, packet []byte) ([]byte,
 		return nil, fmt.Errorf("anúncio de ônibus inválido")
 	}
 	if isHello {
-		if parts[1] != fmt.Sprint(multiplayerProtocol) {
+		if parts[1] != fmt.Sprint(g.networkProtocol()) {
 			return packet, nil
 		}
 	} else if id := companyGatewayID(parts[1]); id == 0 || id != p.id {
@@ -203,7 +210,7 @@ func (g *companyGateway) incoming(p *companyGatewayPeer, packet []byte) ([]byte,
 func (g *companyGateway) outgoing(p *companyGatewayPeer, packet []byte) []byte {
 	if bytes.HasPrefix(packet, []byte("WELCOME|")) {
 		parts := strings.Split(string(packet), "|")
-		if len(parts) > 3 && parts[1] == fmt.Sprint(multiplayerProtocol) {
+		if len(parts) > 3 && parts[1] == fmt.Sprint(g.networkProtocol()) {
 			if id := companyGatewayID(parts[2]); id != 0 {
 				if old := g.buses[p.id]; old != nil && old.owner == p && p.id != id {
 					delete(g.buses, p.id)
