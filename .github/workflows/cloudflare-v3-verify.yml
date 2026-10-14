@@ -1,0 +1,22 @@
+name: Verify Cloudflare 3.x publication
+on:
+  push:
+    branches: [multiplayer-3-preview]
+    paths: [.github/workflows/cloudflare-v3-verify.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify live dev.7 signature and complete download checksums
+        run: node cloudflare-updates-v3/verify-live.mjs
+
+# Verify complete streamed ZIP bytes and SHA-256 without requiring a Content-Length header.

@@ -1,0 +1,81 @@
+name: Publish tested dev.13 BCS readiness hotfix to Cloudflare
+on:
+  push:
+    branches: [multiplayer-3-preview]
+    paths: [.github/workflows/cloudflare-v3-deploy-hotfix.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: cloudflare-updates-v3
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Download the exact tested dev.13 build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh run download 38249246146 --repo "$GITHUB_REPOSITORY" --name cloudflare-client-hotfix --dir hotfix-build
+      - name: Verify legacy signature and dev.13 publisher anchor
+        run: |
+          node --input-type=module <<'JS'
+          import {readFileSync} from 'node:fs';
+          import {createPublicKey,verify} from 'node:crypto';
+          const legacy=JSON.parse(readFileSync('cloudflare-updates-v3/preview.json'));
+          const legacyBytes=Buffer.from(legacy.payload,'base64');
+          const key=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),Buffer.from('GKwwvTrPr3W3ctc9dfPrGtsjztkET1XAVPnAIlbwKLU=','base64')]),format:'der',type:'spki'});
+          if(!verify(null,legacyBytes,key,Buffer.from(legacy.signature,'base64')))throw Error('Legacy publisher signature mismatch');
+          const legacyRelease=JSON.parse(legacyBytes);
+          if(legacyRelease.version!=='3.0.2-dev.8')throw Error('Legacy endpoint must remain dev.8');
+
+          const anchor=JSON.parse(readFileSync('cloudflare-updates-v3/preview-v2.json'));
+          if(!/^[a-f0-9]{40}$/.test(anchor.source_commit))throw Error('Invalid publisher commit');
+          const payload=Buffer.from(anchor.payload,'base64');
+          const local=readFileSync('cloudflare-updates-v3/release-v2.json');
+          if(!payload.equals(local))throw Error('Local anchored payload mismatch');
+          const trusted=await fetch('https://raw.githubusercontent.com/Mayconrib808/OpenOmsi-BBS/'+anchor.source_commit+'/cloudflare-updates-v3/release-v2.json');
+          if(!trusted.ok)throw Error('Publisher commit unavailable: '+trusted.status);
+          const trustedBytes=Buffer.from(await trusted.arrayBuffer());
+          if(!trustedBytes.equals(payload))throw Error('Immutable publisher metadata mismatch');
+          const release=JSON.parse(payload);
+          if(release.version!=='3.0.2-dev.13'||release.sequence!==2026101213)throw Error('Wrong dev.13 metadata');
+          JS
+          python3 cloudflare-updates-v3/stage-hotfix.py
+      - name: Keep previous verified updaters available during rollout
+        run: |
+          node --input-type=module <<'JS'
+          import {writeFileSync} from 'node:fs';
+          import {createHash} from 'node:crypto';
+          for(const sha of [
+            'c5e86eac9da2f1eba5cc64ec5a949b4e439ce826d57e3e59886cd0fee2a11c01',
+            'e2237fa02a98c5135d3ea3d0030167febce8568d907612906f9bdb9106c13b3b',
+            '16eb467b482d166990ad966c66322da60022d20f893f7f7b365b6c7b0ba9f69d',
+            'a18ec1050e55cfd528f774bb387245cd677fbd144ae02e6b6328a6943435c876',
+            '5f9ca62e452c670c980635b3e5d3b76ed6ce692b15666a48ac79e7f8be0a195c',
+            '0c9fe6559201796a1ca478057432d03a80d9dc735f521a2466b71cb7b4572f01',
+            '97905ecdd5d325d288387c95ad2692e03bae40ff32fc0b36eb4b71f6a9757c43'
+          ]){
+            const url='https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev/packages/'+sha+'.exe';
+            const response=await fetch(url,{headers:{'User-Agent':'OpenOmsi-BBS-Setup/3.0.2-dev.13'}});
+            if(!response.ok)throw Error('Previous updater unavailable: '+response.status+' '+sha);
+            const data=Buffer.from(await response.arrayBuffer());
+            if(createHash('sha256').update(data).digest('hex')!==sha)throw Error('Previous updater hash mismatch: '+sha);
+            writeFileSync('cloudflare-updates-v3/public/packages/'+sha+'.exe',data);
+          }
+          JS
+      - name: Publish to the isolated 3.x Cloudflare Worker
+        working-directory: cloudflare-updates-v3
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
+      - name: Verify live legacy and dev.13 feeds
+        run: node cloudflare-updates-v3/verify-live.mjs

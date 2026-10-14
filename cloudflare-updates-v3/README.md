@@ -1,0 +1,1 @@
+Dedicated Cloudflare 3.x update feed. The 2.x Worker is never deployed by this workflow. Payload is precompiled locally; the workflow only reconstructs, checks SHA-256 and uploads. Only signed public manifest and updater are included; no publication credentials or signing seed.
