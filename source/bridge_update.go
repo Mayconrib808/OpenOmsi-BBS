@@ -236,6 +236,7 @@ func updatedHostManifestForPayload(previous []byte, payload map[string][]byte) [
 			if b, ok := payload[line[66:]]; ok {
 				line = fmt.Sprintf("%x  %s", sha256.Sum256(b), line[66:])
 			}
+		}
 		if line != "" {
 			lines = append(lines, line)
 		}
