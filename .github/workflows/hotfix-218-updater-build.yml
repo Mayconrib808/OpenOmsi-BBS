@@ -1,0 +1,74 @@
+name: Build 2.1.8 updater handoff hotfix
+
+on:
+  push:
+    branches: ['hotfix/2.1.8-updater-handoff']
+    paths:
+      - 'source/bridge_update_handoff_windows.go'
+      - 'source/bridge_update_windows.go'
+      - 'source/bridge_update_windows_test.go'
+      - 'scripts/build_update_components.py'
+      - 'scripts/build_bridge_update.py'
+      - '.github/workflows/hotfix-218-updater-build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hotfix-218-updater-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Test updater handoff sources
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os, subprocess, sys
+          sys.path.insert(0,'scripts')
+          import build_bridge_update as b
+          env=dict(os.environ,GO111MODULE='off',CGO_ENABLED='0',GOOS='windows',GOARCH='386',GO386='sse2',GOTOOLCHAIN='local')
+          subprocess.run(['go','test','-count=1',*b.UPDATER_SOURCES,'bridge_update_windows_test.go'],cwd='source',env=env,check=True)
+          PY
+      - name: Build source-backed update components
+        shell: bash
+        run: >-
+          python scripts/build_update_components.py
+          --output build/update-components
+          --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev
+          --update-sequence 2026101401
+      - name: Build corrected automatic updater
+        shell: bash
+        run: >-
+          python scripts/build_bridge_update.py
+          --package build/update-components
+          --output build/update-hotfix/OpenOmsi_BBS_Atualizacao.zip
+          --components build/update-hotfix/components
+      - name: Record updater checksum
+        shell: pwsh
+        run: |
+          $p='build/update-hotfix/Atualizar-Bridge.exe'
+          if (-not (Test-Path -LiteralPath $p)) { throw 'Atualizar-Bridge.exe was not built' }
+          $h=(Get-FileHash -Algorithm SHA256 -LiteralPath $p).Hash.ToLowerInvariant()
+          $s=(Get-Item -LiteralPath $p).Length
+          "sha256=$h" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          "size=$s" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          Write-Host "Updater SHA256 $h size $s"
+        id: updater
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Bridge-2.1.8-handoff-hotfix
+          path: build/update-hotfix/Atualizar-Bridge.exe
+          if-no-files-found: error
+          retention-days: 30
