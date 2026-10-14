@@ -1,0 +1,122 @@
+name: Build 2.1.9 integrity-repair updater
+
+on:
+  push:
+    branches: ['release/2.1.9-bcs-5.0.2.0']
+    paths: ['.github/workflows/build-219-integrity-repair.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-219-integrity-repair
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+
+      - name: Regression test signed repair preflight
+        shell: bash
+        run: |
+          cat > source/package_integrity_repair_temp_test.go <<'EOF'
+          package main
+
+          import (
+              "os"
+              "path/filepath"
+              "testing"
+          )
+
+          func TestSignedUpdaterCanRepairCoveredBinaryMismatch(t *testing.T) {
+              dir := t.TempDir()
+              files := map[string][]byte{
+                  "Setup.exe": []byte("MZ setup"),
+                  "CompanyHost.exe": []byte("MZ company"),
+                  "PeDePeAdapter/openomsi.exe": []byte("MZ adapter"),
+                  "app/OpenOMSI_BCS_Bridge.exe": []byte("MZ bridge"),
+                  "app/compat/Omsi.exe": []byte("MZ facade"),
+                  "app/compat/omsi-plugin-host32.exe": []byte("MZ helper"),
+              }
+              manifest(t, dir, files)
+              if err := os.WriteFile(filepath.Join(dir, "CompanyHost.exe"), []byte("MZ stale official host"), 0644); err != nil {
+                  t.Fatal(err)
+              }
+              payload := map[string][]byte{
+                  "Setup.exe": []byte("MZ new setup"),
+                  "CompanyHost.exe": []byte("MZ new company"),
+                  "PeDePeAdapter/openomsi.exe": []byte("MZ new adapter"),
+              }
+              if _, err := verifyPackageForUpdate(dir, payload); err != nil {
+                  t.Fatal("covered executable mismatch was not repairable", err)
+              }
+              if _, err := verifyPackage(dir); err == nil {
+                  t.Fatal("normal integrity check accepted the mismatch")
+              }
+              if err := os.WriteFile(filepath.Join(dir, "app", "OpenOMSI_BCS_Bridge.exe"), []byte("MZ unrelated tamper"), 0644); err != nil {
+                  t.Fatal(err)
+              }
+              if _, err := verifyPackageForUpdate(dir, payload); err == nil {
+                  t.Fatal("uncovered executable mismatch was accepted")
+              }
+          }
+          EOF
+          python - <<'PY'
+          import os, subprocess, sys
+          sys.path.insert(0, 'scripts')
+          import build
+          files=[*build.TEST_COMMON,'process_windows.go','company_host_process_windows.go','openomsi_probe_windows.go',*build.TEST_FILES,'company_host_process_windows_test.go','package_integrity_repair_temp_test.go']
+          env=dict(os.environ,GO111MODULE='off',CGO_ENABLED='0',GOTOOLCHAIN='local')
+          subprocess.run(['go','test','-count=1','-run','^TestSignedUpdaterCanRepairCoveredBinaryMismatch$',*files],cwd='source',env=env,check=True)
+          PY
+          rm source/package_integrity_repair_temp_test.go
+
+      - name: Build corrected 2.1.9 update components
+        shell: bash
+        run: >-
+          python scripts/build_update_components.py
+          --output build/update-components-219-repair
+          --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev
+          --update-sequence 2026101403
+
+      - name: Build corrected cumulative updater
+        shell: bash
+        run: >-
+          python scripts/build_bridge_update.py
+          --package build/update-components-219-repair
+          --output build/update-219-repair/OpenOmsi_BBS_2.1.9_IntegrityRepair.zip
+          --components build/update-219-repair/components
+
+      - name: Record corrected updater hash
+        id: updater
+        shell: pwsh
+        run: |
+          $p='build/update-219-repair/Atualizar-Bridge.exe'
+          if (-not (Test-Path -LiteralPath $p)) { throw 'Atualizar-Bridge.exe was not built' }
+          $h=(Get-FileHash -Algorithm SHA256 -LiteralPath $p).Hash.ToLowerInvariant()
+          $s=(Get-Item -LiteralPath $p).Length
+          "sha256=$h" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          "size=$s" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
+          "Updater SHA-256: $h" | Set-Content build/update-219-repair/RELEASE-HASHES.txt
+          "Updater size: $s" | Add-Content build/update-219-repair/RELEASE-HASHES.txt
+          Write-Host "Corrected updater SHA256 $h size $s"
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Bridge-2.1.9-integrity-repair
+          path: |
+            build/update-219-repair/Atualizar-Bridge.exe
+            build/update-219-repair/OpenOmsi_BBS_2.1.9_IntegrityRepair.zip
+            build/update-219-repair/RELEASE-HASHES.txt
+          if-no-files-found: error
+          retention-days: 30
