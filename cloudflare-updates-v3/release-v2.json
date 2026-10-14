@@ -1,1 +1,17 @@
-{"product":"bbs-openomsi-multiplayer","channel":"preview","schema":1,"sequence":2026101213,"version":"3.0.2-dev.13","notes":{"pt":"Corrige o game.log vazio quando o BCS inicia o jogo com stdout inválido. A saída real do openOMSI é gravada diretamente no game.log do usuário e em multiplayer.log; uma saída herdada quebrada não interrompe mais a captura. Mantém o aviso de ônibus pronto dependente do veículo real.","en":"Fixes empty game.log when BCS starts the game with invalid inherited stdout. Real openOMSI output is written directly to the user's game.log and multiplayer.log; a broken inherited output no longer stops capture. Readiness remains gated on the real player vehicle.","de":"Behebt die leere game.log bei ungültigem geerbtem stdout im BCS-Start. Die echte openOMSI-Ausgabe wird direkt in game.log und multiplayer.log geschrieben; ein fehlerhafter Ausgabekanal beendet die Erfassung nicht mehr. Das Bereitschaftssignal bleibt vom echten Spielerfahrzeug abhängig."},"installer":{"url":"https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev/packages/d0aa1367d42afb48633eeb850ad163fbf956ccac5e4ce6b9fc33e3ec77ce8c51.exe","sha256":"d0aa1367d42afb48633eeb850ad163fbf956ccac5e4ce6b9fc33e3ec77ce8c51","size":10829312}}
+{
+  "product": "bbs-openomsi-multiplayer",
+  "channel": "preview",
+  "schema": 1,
+  "sequence": 2026101403,
+  "version": "3.0.3",
+  "notes": {
+    "pt": "Candidata 3.0 para BCS 5.0.2.0 e multiplayer openOMSI com protocolo 7. Servidor oficial 0.2.50, próxima viagem nativa, combustível e logs. Mantém empresa e preferências. A viagem completa com dois PCs ainda precisa de validação.",
+    "en": "3.0 candidate for BCS 5.0.2.0 and protocol-7 openOMSI multiplayer. Official 0.2.50 server, native next trip, fuel and diagnostics. Company and preferences are retained. Complete two-PC gameplay still needs validation.",
+    "de": "3.0-Kandidat für BBS 5.0.2.0 und openOMSI-Multiplayer mit Protokoll 7. Offizieller Server 0.2.50, native nächste Fahrt, Kraftstoff und Diagnose. Firma und Einstellungen bleiben erhalten. Vollständige Fahrt mit zwei PCs noch prüfen."
+  },
+  "installer": {
+    "url": "https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev/packages/c5fc1ccd8407682c3ec4511e2cf95707e33ca76a71c51a798986899b14f894e0.exe",
+    "sha256": "c5fc1ccd8407682c3ec4511e2cf95707e33ca76a71c51a798986899b14f894e0",
+    "size": 19682304
+  }
+}
