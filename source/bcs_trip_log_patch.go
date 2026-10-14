@@ -25,6 +25,28 @@ func bcsJarSHA(path string) (string, error) {
 	return fmt.Sprintf("%x", h.Sum(nil)), nil
 }
 
+// Keep the original legacy backup name when possible. If a BCS update replaced
+// the vendor JAR while an older Bridge backup is still beside it, preserve that
+// backup and create a build-specific backup for the new vendor JAR instead.
+func bcsPatchBackupPath(path, expectedSHA string) (string, error) {
+	legacy := path + ".antes-proxima-viagem.bak"
+	old, err := bcsJarSHA(legacy)
+	if err == nil {
+		if old == expectedSHA {
+			return legacy, nil
+		}
+		prefix := expectedSHA
+		if len(prefix) > 12 {
+			prefix = prefix[:12]
+		}
+		return path + ".antes-proxima-viagem." + prefix + ".bak", nil
+	}
+	if os.IsNotExist(err) {
+		return legacy, nil
+	}
+	return "", err
+}
+
 // The SHA is the complete inspected vendor build, not a filename/version guess.
 // Preserve all other entries byte for byte and keep a recoverable original.
 func patchBCSJar(path, expectedSHA string, logger []byte) (bool, error) {
@@ -127,7 +149,10 @@ func patchBCSJar(path, expectedSHA string, logger []byte) (bool, error) {
 		return false, e
 	}
 	reader.Close()
-	backup := path + ".antes-proxima-viagem.bak"
+	backup, e := bcsPatchBackupPath(path, expectedSHA)
+	if e != nil {
+		return false, e
+	}
 	if old, err := bcsJarSHA(backup); err == nil {
 		if old != expectedSHA {
 			return false, fmt.Errorf("há um backup diferente neste caminho; ele foi preservado")
