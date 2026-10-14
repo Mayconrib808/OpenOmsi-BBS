@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -23,6 +24,27 @@ func processExecutableForUpdate(pid uint32) string {
 		return ""
 	}
 	return syscall.UTF16ToString(buffer[:n])
+}
+
+// Process image paths are not guaranteed to use the same textual spelling as
+// the package path. Windows can report a junction/symlink/alias even when both
+// names point at exactly the same executable. Prefer file identity when a
+// simple normalized string comparison is not enough.
+func sameExecutableForUpdate(actual, expected string) bool {
+	if actual == "" || expected == "" {
+		return false
+	}
+	if samePath(actual, expected) {
+		return true
+	}
+	actualInfo, actualErr := os.Stat(actual)
+	expectedInfo, expectedErr := os.Stat(expected)
+	if actualErr == nil && expectedErr == nil && os.SameFile(actualInfo, expectedInfo) {
+		return true
+	}
+	actualResolved, actualErr := filepath.EvalSymlinks(actual)
+	expectedResolved, expectedErr := filepath.EvalSymlinks(expected)
+	return actualErr == nil && expectedErr == nil && samePath(actualResolved, expectedResolved)
 }
 
 func checkBCSClosedForUpdate(jar string) error {
@@ -68,7 +90,7 @@ func checkBridgeSetupClosedForUpdate(dir string) error {
 	entry.Size = uint32(unsafe.Sizeof(entry))
 	err = syscall.Process32First(snapshot, &entry)
 	for err == nil {
-		if strings.EqualFold(syscall.UTF16ToString(entry.ExeFile[:]), "Setup.exe") && samePath(processExecutableForUpdate(entry.ProcessID), filepath.Join(dir, "Setup.exe")) {
+		if strings.EqualFold(syscall.UTF16ToString(entry.ExeFile[:]), "Setup.exe") && sameExecutableForUpdate(processExecutableForUpdate(entry.ProcessID), filepath.Join(dir, "Setup.exe")) {
 			return fmt.Errorf("feche o Setup da Bridge antes de atualizar")
 		}
 		err = syscall.Process32Next(snapshot, &entry)
@@ -90,7 +112,7 @@ func checkUpdateHostClosed(dir string) error {
 	err = syscall.Process32First(snapshot, &entry)
 	for err == nil {
 		name := syscall.UTF16ToString(entry.ExeFile[:])
-		if (strings.EqualFold(name, "HostAgent.exe") || strings.EqualFold(name, "CompanyHost.exe")) && samePath(processExecutableForUpdate(entry.ProcessID), filepath.Join(dir, name)) {
+		if (strings.EqualFold(name, "HostAgent.exe") || strings.EqualFold(name, "CompanyHost.exe")) && sameExecutableForUpdate(processExecutableForUpdate(entry.ProcessID), filepath.Join(dir, name)) {
 			return fmt.Errorf("feche o HostAgent e o servidor da empresa antes de atualizar")
 		}
 		err = syscall.Process32Next(snapshot, &entry)
