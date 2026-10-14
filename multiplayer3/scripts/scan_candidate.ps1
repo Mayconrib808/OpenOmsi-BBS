@@ -17,7 +17,8 @@ try {
  Expand-Archive -LiteralPath $source -DestinationPath $folder -Force
  $targets=@($source)+$AdditionalPaths+@(Get-ChildItem $folder -Recurse -File|Where-Object {$_.Extension -in '.exe','.dll'}|ForEach-Object {$_.FullName})
  $failed=$false
- foreach($target in $targets) {
+ foreach($candidatePath in $targets) {
+  $target=(Resolve-Path -LiteralPath $candidatePath).Path
   $result=& $path -Scan -ScanType 3 -File $target -DisableRemediation 2>&1|Out-String
   $code=$LASTEXITCODE
   $report.scans+=@{file=(Split-Path $target -Leaf);sha256=(Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant();exit_code=$code;output=$result}
