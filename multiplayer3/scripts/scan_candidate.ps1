@@ -23,6 +23,21 @@ try {
   $report.scans+=@{file=(Split-Path $target -Leaf);sha256=(Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant();exit_code=$code;output=$result}
   Write-Host "Defender result: $(Split-Path $target -Leaf), exit $code"
   Write-Host $result
+  if($code -ne 0 -and $result -match '0x800106ba|0x800706ba') {
+   # Repair only the ephemeral CI scanner's service state, never weaken protection.
+   try {
+    & $path -WdEnable 2>&1|Out-String|Write-Host
+    Start-Service WinDefend
+    Update-MpSignature
+    $result=& $path -Scan -ScanType 3 -File $target -DisableRemediation 2>&1|Out-String
+    $code=$LASTEXITCODE
+    $report.scans+=@{file=(Split-Path $target -Leaf);retry=$true;exit_code=$code;output=$result}
+    Write-Host $result
+   } catch {Write-Host $_}
+   if($code -ne 0 -and $result -match '0x800106ba|0x800706ba') {
+    $report.status='scanner_unavailable_rpc';Write-Host 'Defender RPC service unavailable; no file verdict was produced.';return
+   }
+  }
   if($code -ne 0){$failed=$true}
  }
  if($failed){$report.status='detection_or_scan_error';throw 'Defender detection or scan error: publication blocked.'}

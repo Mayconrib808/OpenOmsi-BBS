@@ -133,7 +133,7 @@ def main():
                 if file.is_file(): full["OpenOMSI-BBS/server/" + file.relative_to(args.server).as_posix()] = file
         for folder in (source, root / "scripts", root / "relay"):
             for file in folder.rglob("*"):
-                if file.is_file() and file.suffix not in {".syso", ".pyc"} and "__pycache__" not in file.parts:
+                if file.is_file() and file.suffix not in {".syso", ".pyc", ".zip", ".exe", ".dll"} and "__pycache__" not in file.parts:
                     full["OpenOMSI-BBS/" + file.relative_to(root).as_posix()] = file
         for name in ["LICENSE", "LEIA-ME.txt", "README-en.txt", "LESEN-de.txt", "DESENVOLVIMENTO.md", "TUTORIAL.html"]:
             full["OpenOMSI-BBS/" + name] = root / name

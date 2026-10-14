@@ -11,20 +11,6 @@ concurrency:
   group: multiplayer3-preview-release-${{ github.event_name }}
   cancel-in-progress: false
 jobs:
-  inspect-prior-scan:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-      contents: read
-    steps:
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
-        with:
-          name: multiplayer3-candidate-and-scan
-          run-id: 38648447266
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          path: prior-scan
-      - name: Print actual prior scanner evidence
-        run: cat prior-scan/DEFENDER-REPORT.json
   test:
     runs-on: ${{ matrix.os }}
     strategy:
