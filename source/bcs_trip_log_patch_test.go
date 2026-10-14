@@ -63,8 +63,8 @@ func TestBCSLogPatchPreservesBackupAndOtherEntries(t *testing.T) {
 	}
 }
 
-func TestBCSLogPatchRejectsUnknownBuildAndConflictingBackup(t *testing.T) {
-	p, h := testBCSJar(t)
+func TestBCSLogPatchRejectsUnknownBuild(t *testing.T) {
+	p, _ := testBCSJar(t)
 	before, _ := os.ReadFile(p)
 	if _, e := patchBCSJar(p, "another vendor build", []byte("observer")); e == nil {
 		t.Fatal("unknown build accepted")
@@ -76,13 +76,65 @@ func TestBCSLogPatchRejectsUnknownBuildAndConflictingBackup(t *testing.T) {
 	if _, e := os.Stat(p + ".antes-proxima-viagem.bak"); !os.IsNotExist(e) {
 		t.Fatal("unknown build generated a backup")
 	}
-	backup := p + ".antes-proxima-viagem.bak"
-	os.WriteFile(backup, []byte("different original"), 0600)
-	if _, e := patchBCSJar(p, h, []byte("observer")); e == nil {
-		t.Fatal("conflicting backup accepted")
+}
+
+func TestBCSLogPatchKeepsBackupFromPreviousVendorBuild(t *testing.T) {
+	p, h := testBCSJar(t)
+	original, _ := os.ReadFile(p)
+	legacy := p + ".antes-proxima-viagem.bak"
+	if e := os.WriteFile(legacy, []byte("older BCS vendor backup"), 0600); e != nil {
+		t.Fatal(e)
 	}
-	after, _ = os.ReadFile(p)
+	changed, e := patchBCSJar(p, h, []byte("observer"))
+	if e != nil || !changed {
+		t.Fatal(changed, e)
+	}
+	old, _ := os.ReadFile(legacy)
+	if string(old) != "older BCS vendor backup" {
+		t.Fatal("previous vendor backup was overwritten")
+	}
+	prefix := h
+	if len(prefix) > 12 {
+		prefix = prefix[:12]
+	}
+	versioned := p + ".antes-proxima-viagem." + prefix + ".bak"
+	backup, e := os.ReadFile(versioned)
+	if e != nil || !bytes.Equal(original, backup) {
+		t.Fatal("current vendor build did not get its own backup", e)
+	}
+}
+
+func TestBCSLogPatchRejectsConflictingBuildSpecificBackup(t *testing.T) {
+	p, h := testBCSJar(t)
+	before, _ := os.ReadFile(p)
+	if e := os.WriteFile(p+".antes-proxima-viagem.bak", []byte("older BCS vendor backup"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	prefix := h
+	if len(prefix) > 12 {
+		prefix = prefix[:12]
+	}
+	versioned := p + ".antes-proxima-viagem." + prefix + ".bak"
+	if e := os.WriteFile(versioned, []byte("conflicting backup"), 0600); e != nil {
+		t.Fatal(e)
+	}
+	if _, e := patchBCSJar(p, h, []byte("observer")); e == nil {
+		t.Fatal("conflicting build-specific backup accepted")
+	}
+	after, _ := os.ReadFile(p)
 	if !bytes.Equal(before, after) {
-		t.Fatal("original replaced despite conflicting backup")
+		t.Fatal("original replaced despite conflicting build-specific backup")
+	}
+}
+
+func TestBCSSupportedVendorBuilds(t *testing.T) {
+	if !supportedBCSJarSHA(bcsInspectedJarSHA) {
+		t.Fatal("current BCS vendor build rejected")
+	}
+	if !supportedBCSJarSHA(bcsPreviousInspectedJarSHA) {
+		t.Fatal("previous BCS vendor build rejected")
+	}
+	if supportedBCSJarSHA("unknown") {
+		t.Fatal("unknown BCS vendor build accepted")
 	}
 }
