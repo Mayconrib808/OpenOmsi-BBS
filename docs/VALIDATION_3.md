@@ -1,10 +1,10 @@
-# 3.0.3-rc.1 — validation record
+# 3.0.3-rc.2 — validation record
 
 Date: 14 October 2026. This record is about the new multiplayer integration, not a claim that every map, bus or graphics configuration has been played.
 
 | Check | Evidence / status |
 | --- | --- |
-| Official BCS 5.0.2.0 JAR | SHA-256 and native launch/command contract passed; [audit receipt](releases/v3.0.3-rc.1-bcs-audit.json). Original file unchanged. |
+| Official BCS 5.0.2.0 JAR | SHA-256 and native launch/command contract passed; [audit receipt](releases/v3.0.3-rc.2-bcs-audit.json). Original file unchanged. |
 | Original BCS Lua plugin | Executed against a mocked simulator API: stale command ignored, vehicle required, pause avoided, command once, next trip selected, 62-field telemetry and acknowledgment passed. |
 | Source | Go tests with race detector and vet; Windows amd64/386 cross-compilation. Windows execution is recorded separately in GitHub Actions. |
 | Multiplayer transports | UDP and WebSocket, fragmentation/ping, private bus names, opaque binary packets, protocol-7 challenges/reconnect fields and player ID ownership checked. |

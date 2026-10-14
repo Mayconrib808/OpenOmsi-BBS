@@ -9,12 +9,12 @@ go vet ./...
 cd ../..
 node --test multiplayer3/relay/test/*.test.js
 python multiplayer3/scripts/recover_preview_server.py
-python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --sequence 2026101401 --source-commit YOUR_COMMIT_SHA
+python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --sequence 2026101402 --source-commit YOUR_COMMIT_SHA
 ```
 
 The recovery script downloads the official server archive and verifies every hash against its committed provenance. The builder cross-compiles Windows amd64 Setup/adapter/updater and the 386 BCS helper, validates PE resources, includes source and guides, and generates package/executable checksums. Ordinary Go compilation retains debugging information. No executable packer or obfuscator is used.
 
-The complete `-teste.zip` is playable without Go, Python or Node installed. The `-arquivos-atualizacao.zip` and `Atualizar-Multiplayer-*.exe` contain only integration components. They preserve configured games, maps, invitations and preferences. An update from an old 3.x preview will download a current official server when needed; choose Automatic or install the full candidate to use the new bundled Recommended server.
+The complete `-teste.zip` is playable without Go, Python or Node installed. The `-arquivos-atualizacao.zip` and `Atualizar-Multiplayer-*.exe` contain only integration components. They preserve configured games, maps, invitations and preferences. An update from an old 3.x preview will download a current official server when needed; an old Recommended bundle is upgraded automatically through the verified cache, without reinstallation.
 
 Optional local interoperability audit of the exact official BCS 5.0.2.0 JAR:
 

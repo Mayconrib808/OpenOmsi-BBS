@@ -115,3 +115,32 @@ func TestSeparateActivationResolvesJunctionParent(t *testing.T) {
 		t.Fatal("write through alias was not blocked")
 	}
 }
+
+func TestOldPreviewRecommendedServerUpgradesWithoutReinstallation(t *testing.T) {
+	dir := t.TempDir()
+	entries := map[string]string{}
+	for _, name := range []string{"openomsi.exe", "steam_api64.dll", "vcruntime140.dll", "vcruntime140_1.dll", "msvcp140.dll"} {
+		entries["pkg/"+name] = "binary " + name
+	}
+	zip := makeRuntimeZip(t, entries)
+	old, err := unpackServer(zip, filepath.Join(dir, "server"), "0.2.20-bbs-free2", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ := json.Marshal(old)
+	_ = os.WriteFile(filepath.Join(dir, "server", "bbs-server.json"), b, 0600)
+	current, err := unpackServer(zip, filepath.Join(dir, "server-cache", "0.2.50"), "0.2.50", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, _ = json.Marshal(current)
+	_ = os.WriteFile(filepath.Join(dir, "server-cache", "0.2.50", "verified.json"), b, 0600)
+	exe, err := resolveServer(context.Background(), dir, serverPreference{Mode: "recommended"})
+	if err != nil || exe != filepath.Join(dir, "server-cache", "0.2.50", "openomsi.exe") {
+		t.Fatal("old preview demanded reinstall or started protocol 6", exe, err)
+	}
+	retained, _ := os.ReadFile(filepath.Join(dir, "server", "bbs-server.json"))
+	if !strings.Contains(string(retained), "0.2.20-bbs-free2") {
+		t.Fatal("old bundle unexpectedly overwritten")
+	}
+}

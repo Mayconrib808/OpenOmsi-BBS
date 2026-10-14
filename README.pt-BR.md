@@ -6,9 +6,9 @@
 
 **Use o multiplayer do openOMSI nas suas viagens do Bus Company Simulator.** O BCS/BBS escolhe a viagem e recebe os dados da condução. O openOMSI simula o mundo compartilhado, para os motoristas no mesmo mapa encontrarem uns aos outros.
 
-> **Candidata de lançamento: 3.0.3-rc.1.** Esta candidata usa BCS 5.0.2.0 e openOMSI com protocolo 7. O servidor oficial incluído é 0.2.50; o cliente oficial mínimo é 0.2.48. A 0.2.47 não foi publicada oficialmente. Uma viagem completa com dois PCs ainda é a verificação final de jogabilidade.
+> **Candidata de lançamento: 3.0.3-rc.2.** Esta candidata usa BCS 5.0.2.0 e openOMSI com protocolo 7. O servidor oficial incluído é 0.2.50; o cliente oficial mínimo é 0.2.48. A 0.2.47 não foi publicada oficialmente. Uma viagem completa com dois PCs ainda é a verificação final de jogabilidade.
 
-**[Baixar o ZIP completo para Windows](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.1)** · [SHA-256 / source / release notes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.1)
+**[Baixar o ZIP completo para Windows](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.2)** · [SHA-256 / source / release notes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.2)
 
 ## Começar a jogar
 

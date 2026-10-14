@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const version = "3.0.3-rc.1"
+const version = "3.0.3-rc.2"
 
 // Inherited BCS stdout is optional and can be invalid for GUI launches.
 // Scheduled game output is also written directly to the game.log that BCS reads.

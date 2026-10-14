@@ -1,6 +1,6 @@
 # Changelog
 
-## 3.0.3-rc.1 — 14 October 2026
+## 3.0.3-rc.2 — 14 October 2026
 
 BCS 5.0.2.0 / openOMSI protocol-7 multiplayer candidate. Unmodified official server 0.2.50, native next-trip interface without JAR patch, private buses and separate per-map tunnels ported from 2.1, selected-player fuel restoration, fresh BCS readiness logs, PT-BR/EN/DE guides and local diagnostics. README and GitHub Pages focus on BCS trips in openOMSI multiplayer. Source, runtime provenance and SHA-256 are published; live two-PC qualification and the final VirusTotal report remain pending.
 

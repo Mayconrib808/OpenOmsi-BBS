@@ -109,6 +109,9 @@ func verifiedRuntime(dir string, receipt serverReceipt) error {
 	}
 	return nil
 }
+
+var errRecommendedRuntimeOutdated = errors.New("protocolo 7: servidor recomendado antigo precisa de atualização")
+
 func recommendedServer(dir string) (string, error) {
 	folder := filepath.Join(dir, "server")
 	b, e := os.ReadFile(filepath.Join(folder, "bbs-server.json"))
@@ -121,6 +124,9 @@ func recommendedServer(dir string) (string, error) {
 	}
 	if e = verifiedRuntime(folder, receipt); e != nil {
 		return "", e
+	}
+	if !protocol7EraVersion(receipt.Version) {
+		return "", errRecommendedRuntimeOutdated
 	}
 	return filepath.Join(folder, "openomsi.exe"), nil
 }
@@ -182,7 +188,13 @@ func resolveRuntime(ctx context.Context, dir string, p serverPreference, client 
 		return "", e
 	}
 	if p.Mode == "recommended" {
-		return recommendedServer(dir)
+		exe, err := recommendedServer(dir)
+		if !errors.Is(err, errRecommendedRuntimeOutdated) {
+			return exe, err
+		}
+		// Minimal 3.x updates preserve the old bundle. Obtain the pinned official
+		// replacement in cache, without requiring reinstallation or changing preferences.
+		p = serverPreference{Mode: "manual", Version: "0.2.50"}
 	}
 	if p.Mode == "manual" && !protocol7EraVersion(p.Version) {
 		return "", fmt.Errorf("protocolo 7: servidor openOMSI 0.2.48+ necessário; a 0.2.47 não foi publicada oficialmente")

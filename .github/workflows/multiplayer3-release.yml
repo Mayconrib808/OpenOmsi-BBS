@@ -47,7 +47,7 @@ jobs:
       - name: Recover the already published verified native runtime
         run: python multiplayer3/scripts/recover_preview_server.py
       - name: Build isolated 3.x complete package and updater
-        run: python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --source-commit ${{ github.sha }} --sequence 2026101401
+        run: python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --source-commit ${{ github.sha }} --sequence 2026101402
       - name: Scan the exact candidate package and binaries
         shell: pwsh
         run: |

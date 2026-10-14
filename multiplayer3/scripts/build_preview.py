@@ -72,7 +72,7 @@ def main():
     ap.add_argument("--server", type=Path, help="Verified server folder; omit for minimal update builds")
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--update-origin", default="https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev", help="Separate deployed 3.x HTTPS feed")
-    ap.add_argument("--sequence", default="2026101401")
+    ap.add_argument("--sequence", default="2026101402")
     ap.add_argument("--source-commit", default=os.environ.get("GITHUB_SHA", ""))
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
