@@ -1,0 +1,9 @@
+Upstream game: openOMSI-org/openOMSI, tag v0.2.50, MIT license.
+Native DLSS/DLAA reference: public Criisko/openOMSI v0.2.314, including the
+Nussaccino Streamline integration and the ReShade initialization workaround.
+The Streamline ABI declarations in dlss.rs retain the original NVIDIA notice.
+The original game LICENSE remains included in the package.
+
+Adaptation and test packaging for Mayconrib808/OpenOmsi-BBS: assisted by OpenAI Codex.
+No OmniLine paid source is included. The server and multiplayer protocol are those
+of the official 0.2.50 source. RenoDX, ReShade and DLSS 5 Swapper are installed separately.

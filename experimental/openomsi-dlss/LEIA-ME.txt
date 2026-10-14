@@ -1,0 +1,34 @@
+openOMSI 0.2.50-dlss-test.1 — edição de teste, protocolo 7
+
+Base: openOMSI oficial 0.2.50. DLSS/DLAA nativo adaptado do fork público de Criisko.
+O DLSS 5 Neural Rendering continua sendo aplicado pelo RenoDX/DLSS 5 Swapper.
+
+1. Extraia o pacote inteiro em uma pasta separada.
+2. Feche openOMSI e o launcher. Execute Preparar-DLSS.cmd.
+   O script pode copiar as quatro DLLs da instalação 0.2.314 que você já usou;
+   quando ela não existe, baixa o SDK Streamline 2.14.1 da NVIDIA.
+3. No DLSS 5 Swapper: Adicionar jogo -> selecione a pasta deste pacote.
+   Use a rota DLSS nativo (RenoDX), DirectX 12.
+4. Feche o Swapper pelo ícone próximo do relógio -> Sair.
+   Execute Preparar-DLSS.cmd novamente para configurar a gravação do ReShade.
+5. Abra openomsi.exe. No launcher, selecione DirectX 12 e NVIDIA DLSS / DLAA.
+   DLAA mantém 1080p nativo; Quality reduz o custo de renderização da cena.
+6. Teste primeiro sozinho no mapa e ônibus que você escolher.
+   Depois, no Setup do Bridge, escolha o openomsi.exe desta pasta e salve/ative.
+   Inicie a viagem pelo BCS normalmente. O servidor usa protocolo 7.
+
+Para verificar DLSS 5 NR: abra Home -> aba DLSS 5 Neural Rendering.
+O processamento precisa estar ativo e o contador Successful NR frames aumentar.
+Apenas F8 CONNECTED ou DLSS ON não comprova que os quadros foram processados.
+
+Validação necessária no seu PC: imagem e movimento com DLSS/DLAA; NR processando;
+fechar/reabrir mantendo ajustes; viagem pelo Bridge, outro jogador visível e
+finalização pelo BCS. A compilação e os testes de código não substituem esses testes.
+
+DLSS é opcional por jogador. Os colegas podem usar o openOMSI oficial compatível.
+O servidor não precisa de ReShade, Swapper ou DLLs NVIDIA.
+Esta edição de teste não recebe atualização oficial automática; para trocar de
+edição, selecione outra instalação no Setup do Bridge.
+
+Arquivos e origem da compilação: dlss-build.json. Código: ramo de teste do
+https://github.com/Mayconrib808/OpenOmsi-BBS/tree/test/openomsi-0.2.50-dlss

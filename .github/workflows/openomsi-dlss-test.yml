@@ -1,0 +1,51 @@
+name: Build openOMSI 0.2.50 DLSS test client
+on:
+  push:
+    branches: ['test/openomsi-0.2.50-dlss']
+    paths:
+      - 'experimental/openomsi-dlss/**'
+      - 'scripts/build_openomsi_dlss.py'
+      - '.github/workflows/openomsi-dlss-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openomsi-dlss-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-client:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Verify pinned 0.2.50 source and the DLSS adaptation
+        run: python scripts/build_openomsi_dlss.py --prepare-only
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            build/openomsi-dlss-source
+            build/openomsi-dlss-source/launcher/src-tauri
+          shared-key: openomsi-0250-dlss-test-v1
+      - name: Compile Windows, run regressions and package the isolated test client
+        run: python scripts/build_openomsi_dlss.py --build-only
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openOMSI-0.2.50-DLSS-TEST-Windows-x64
+          path: |
+            build/0.2.50-dlss-test.1-windows-x64.zip
+            build/0.2.50-dlss-test.1-windows-x64.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Keep diagnostic logs on a failed build
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: openOMSI-DLSS-build-diagnostics
+          path: |
+            build/openomsi-dlss-source/Cargo.lock
+            build/openomsi-dlss-source/Cargo.toml
+          if-no-files-found: ignore

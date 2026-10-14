@@ -1,0 +1,20 @@
+openOMSI 0.2.50-dlss-test.1 — Testclient, Protokoll 7
+
+Das ganze Paket in einen eigenen Ordner entpacken. Spiel und Launcher schliessen.
+Preparar-DLSS.cmd startet die Vorbereitung der vier nativen DLSS-DLLs: aus einer
+vorhandenen 0.2.314-Installation oder dem NVIDIA Streamline SDK 2.14.1.
+In DLSS 5 Swapper den ORDNER DIESES PAKETS hinzufuegen, Native DLSS (RenoDX), DX12.
+Swapper ueber das Taskleistensymbol beenden. Preparar-DLSS.cmd erneut ausfuehren.
+openomsi.exe starten und unter Grafik DirectX 12 sowie NVIDIA DLSS / DLAA waehlen.
+Zuerst Karte und Bus im Einzelspiel testen. Danach diese openomsi.exe in Bridge-Setup
+waehlen. Karte, Bus, Fahrplan und Server kommen weiterhin aus der BBS-Fahrt.
+
+Der Port bietet natives DLSS/DLAA. Neural Rendering bleibt Aufgabe von RenoDX/Swapper.
+Home -> DLSS 5 Neural Rendering muss aktive Verarbeitung und einen steigenden
+Zaehler Successful NR frames zeigen. F8 Connected/On allein reicht nicht aus.
+
+Bild, Bewegung, gespeicherte Einstellungen, BBS und echter Multiplayer muessen
+auf einem Windows-PC mit RTX getestet werden. Kompiliert bedeutet nicht spielgetestet.
+Andere Spieler koennen den offiziellen Protokoll-7-Client verwenden. Der Server
+braucht kein DLSS. Die Testedition installiert keine offiziellen automatischen Updates.
+Herkunft und Pruefsummen stehen in dlss-build.json.
