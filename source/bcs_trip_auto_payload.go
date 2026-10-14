@@ -2,7 +2,7 @@ package main
 
 // Generated from our ObserverTemplate.java and ApplyObserver.java. The vendor
 // logger is reconstructed locally from copy ranges, guarded by exact hashes.
-const bcsInspectedJarSHA = "b624b07f436eaa67aee51ea41340529b8f6a6d1d0d29d4c9c199c61d0ca3bbe0"
+const bcsInspectedJarSHA = "bfbf51cbb9033b130ecd4bebd41e1d04b926d8ef6c578737f1363a3146b196c6"
 const bcsOriginalLoggerSHA = "dd7553b9ba51d1a8eb76cdba0b7f07116193d173bf7210cb3e71c536a1f9ae5e"
 const bcsAutoLoggerSHA = "0e528a75eddbb84945480832e95822ccfc18bc1bce5b76c5781d593f3a970272"
 const bcsPreviousLoggerSHA = "7c5ab872e7e846433fa9045a68fde198e2f39a45efadd948d19b43d977b9cb13"
