@@ -1,4 +1,4 @@
-param([Parameter(Mandatory=$true)][string]$PackagePath)
+param([Parameter(Mandatory=$true)][string]$PackagePath,[string[]]$AdditionalPaths=@())
 $ErrorActionPreference='Stop'
 $source=(Resolve-Path -LiteralPath $PackagePath).Path
 $report=[ordered]@{package=(Split-Path $source -Leaf);sha256=(Get-FileHash $source -Algorithm SHA256).Hash.ToLowerInvariant();status='not_scanned';scans=@();utc=[DateTime]::UtcNow.ToString('o')}
@@ -15,7 +15,7 @@ try {
  $folder=Join-Path $env:RUNNER_TEMP 'bbs-v3-candidate-scan'
  New-Item -ItemType Directory -Force $folder|Out-Null
  Expand-Archive -LiteralPath $source -DestinationPath $folder -Force
- $targets=@($source)+@(Get-ChildItem $folder -Recurse -File|Where-Object {$_.Extension -in '.exe','.dll'}|ForEach-Object {$_.FullName})
+ $targets=@($source)+$AdditionalPaths+@(Get-ChildItem $folder -Recurse -File|Where-Object {$_.Extension -in '.exe','.dll'}|ForEach-Object {$_.FullName})
  $failed=$false
  foreach($target in $targets) {
   $result=& $path -Scan -ScanType 3 -File $target -DisableRemediation 2>&1|Out-String

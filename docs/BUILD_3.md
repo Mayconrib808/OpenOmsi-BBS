@@ -9,7 +9,7 @@ go vet ./...
 cd ../..
 node --test multiplayer3/relay/test/*.test.js
 python multiplayer3/scripts/recover_preview_server.py
-python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --sequence 2026101402 --source-commit YOUR_COMMIT_SHA
+python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --sequence 2026101403 --source-commit YOUR_COMMIT_SHA
 ```
 
 The recovery script downloads the official server archive and verifies every hash against its committed provenance. The builder cross-compiles Windows amd64 Setup/adapter/updater and the 386 BCS helper, validates PE resources, includes source and guides, and generates package/executable checksums. Ordinary Go compilation retains debugging information. No executable packer or obfuscator is used.

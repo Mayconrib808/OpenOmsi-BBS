@@ -18,7 +18,7 @@ The source, offline guide, licenses and SHA-256 checksums are included. Updates 
 
 **Current download is a release candidate:** live two-PC trip completion and next-trip validation remain required before the final release. Antivirus evidence must refer to the exact published hashes; no universal zero-detection claim is made.
 
-[Download and release notes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.2) · [Full instructions](https://mayconrib808.github.io/OpenOmsi-BBS/en.html) · [Source/support](https://github.com/Mayconrib808/OpenOmsi-BBS)
+[Download and release notes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.3) · [Full instructions](https://mayconrib808.github.io/OpenOmsi-BBS/en.html) · [Source/support](https://github.com/Mayconrib808/OpenOmsi-BBS)
 
 Independent community project. Not an official PeDePe/openOMSI product or endorsement. Integration source: MIT; third-party software keeps its own license. Maps, buses, paid DLC assets, BCS binaries and credentials are not redistributed. Discord: **`.zmaycon.`** (both dots).
 
@@ -36,7 +36,7 @@ Extraia tudo, feche o BCS, abra Setup.exe, escolha o idioma, crie/entre na empre
 
 Inclui código, tutorial, licenças, hashes, atualizações Cloudflare 3.x, modo solo, busca manual/automática, desativação e coleta local de logs. O download atual é uma candidata; a viagem completa com dois PCs e o relatório de antivírus do hash final precisam ser registrados antes do lançamento definitivo.
 
-[Download](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.2) · [Tutorial](https://mayconrib808.github.io/OpenOmsi-BBS/) · [Suporte](https://github.com/Mayconrib808/OpenOmsi-BBS/issues/new/choose). Discord **`.zmaycon.`**, com os dois pontos.
+[Download](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.3) · [Tutorial](https://mayconrib808.github.io/OpenOmsi-BBS/) · [Suporte](https://github.com/Mayconrib808/OpenOmsi-BBS/issues/new/choose). Discord **`.zmaycon.`**, com os dois pontos.
 
 ## Deutsch
 
@@ -52,4 +52,4 @@ ZIP vollständig entpacken, BBS schließen, Setup.exe öffnen, Sprache wählen, 
 
 Quellcode, Anleitung, Lizenzen, Hashes, geprüfte Cloudflare-Updates 3.x, Einzelspieler, Updatesuche, Deaktivierung und lokale Diagnose enthalten. Der aktuelle Download ist ein Release-Kandidat; vollständige Fahrt mit zwei PCs und Antivirusbericht zum endgültigen Hash vor der finalen Veröffentlichung dokumentieren.
 
-[Download](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.2) · [Anleitung](https://mayconrib808.github.io/OpenOmsi-BBS/de.html) · [Support](https://github.com/Mayconrib808/OpenOmsi-BBS/issues/new/choose). Discord **`.zmaycon.`** mit beiden Punkten.
+[Download](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.3) · [Anleitung](https://mayconrib808.github.io/OpenOmsi-BBS/de.html) · [Support](https://github.com/Mayconrib808/OpenOmsi-BBS/issues/new/choose). Discord **`.zmaycon.`** mit beiden Punkten.

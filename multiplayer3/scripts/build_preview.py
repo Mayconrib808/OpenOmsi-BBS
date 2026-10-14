@@ -72,7 +72,7 @@ def main():
     ap.add_argument("--server", type=Path, help="Verified server folder; omit for minimal update builds")
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--update-origin", default="https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev", help="Separate deployed 3.x HTTPS feed")
-    ap.add_argument("--sequence", default="2026101402")
+    ap.add_argument("--sequence", default="2026101403")
     ap.add_argument("--source-commit", default=os.environ.get("GITHUB_SHA", ""))
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -135,7 +135,7 @@ def main():
             for file in folder.rglob("*"):
                 if file.is_file() and file.suffix not in {".syso", ".pyc", ".zip", ".exe", ".dll"} and "__pycache__" not in file.parts:
                     full["OpenOMSI-BBS/" + file.relative_to(root).as_posix()] = file
-        for name in ["LICENSE", "LEIA-ME.txt", "README-en.txt", "LESEN-de.txt", "DESENVOLVIMENTO.md", "TUTORIAL.html"]:
+        for name in ["LICENSE", "LEIA-ME.txt", "README-en.txt", "LESEN-de.txt", "DESENVOLVIMENTO.md", "TUTORIAL.html", "GO_LICENSE.txt", "GO_TOOLCHAIN_NOTICES.txt", "THIRD_PARTY_NOTICES.md"]:
             full["OpenOMSI-BBS/" + name] = root / name
         if args.server:
             checks = staging / "SHA256SUMS.txt"
