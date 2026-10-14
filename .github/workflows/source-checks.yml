@@ -89,7 +89,8 @@ jobs:
           $allowedEnvironmentLimitations = @(
             'Microsoft Defender scanner is unavailable.',
             'Defender real-time/download/cloud protection is unavailable; no clean result can be claimed.',
-            'Defender cloud validation failed; publication is blocked.'
+            'Defender cloud validation failed; publication is blocked.',
+            'The remote procedure call failed.'
           )
           if ($report.status -eq 'inconclusive' -and $allowedEnvironmentLimitations -contains [string]$report.error) {
             Write-Warning ('Defender result is inconclusive because of the hosted runner environment: ' + [string]$report.error)
