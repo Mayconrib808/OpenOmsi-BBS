@@ -16,13 +16,19 @@ try {
  New-Item -ItemType Directory -Force $folder|Out-Null
  Expand-Archive -LiteralPath $source -DestinationPath $folder -Force
  $targets=@($source)+@(Get-ChildItem $folder -Recurse -File|Where-Object {$_.Extension -in '.exe','.dll'}|ForEach-Object {$_.FullName})
+ $failed=$false
  foreach($target in $targets) {
   $result=& $path -Scan -ScanType 3 -File $target -DisableRemediation 2>&1|Out-String
   $code=$LASTEXITCODE
   $report.scans+=@{file=(Split-Path $target -Leaf);sha256=(Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant();exit_code=$code;output=$result}
-  if($code -ne 0){$report.status='detection_or_scan_error';throw 'Defender detection or scan error: publication blocked.'}
+  Write-Host "Defender result: $(Split-Path $target -Leaf), exit $code"
+  Write-Host $result
+  if($code -ne 0){$failed=$true}
  }
+ if($failed){$report.status='detection_or_scan_error';throw 'Defender detection or scan error: publication blocked.'}
  $report.status='clean_on_this_runner'
 } finally {
+ try {$report.threats=@(Get-MpThreat|Select-Object ThreatName,IsActive,ThreatID)}catch{}
+ $report|ConvertTo-Json -Depth 8|Write-Host
  $report|ConvertTo-Json -Depth 8|Set-Content -LiteralPath $output -Encoding utf8
 }
