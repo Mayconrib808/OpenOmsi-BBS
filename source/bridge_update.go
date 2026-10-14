@@ -133,7 +133,7 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 			return state, fmt.Errorf("componente inesperado no atualizador")
 		}
 	}
-	if _, err = verifyPackage(dir); err != nil {
+	if _, err = verifyPackageForUpdate(dir, payload); err != nil {
 		return state, fmt.Errorf("a instalação atual não passou na integridade: %w", err)
 	}
 	jar, err := installedBCSJar(c.Root)
@@ -236,7 +236,6 @@ func updatedHostManifestForPayload(previous []byte, payload map[string][]byte) [
 			if b, ok := payload[line[66:]]; ok {
 				line = fmt.Sprintf("%x  %s", sha256.Sum256(b), line[66:])
 			}
-		}
 		if line != "" {
 			lines = append(lines, line)
 		}
