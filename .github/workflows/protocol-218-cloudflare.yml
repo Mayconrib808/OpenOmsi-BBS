@@ -1,4 +1,4 @@
-name: Validate and publish manual 2.1.8 update
+name: Validate and publish signed 2.1.8 update
 on:
   push:
     branches: ['hotfix/2.1.8-protocol7']
@@ -40,22 +40,23 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
           persist-credentials: false
-      - name: Preserve existing signed stable channel and prepare manual update
+      - name: Preserve previous package and verify signed 2.1.8 update
         run: |
           python3 hotfix217/reconstruct.py
           node update-service/publication.mjs prepare hotfix217/Atualizar-Bridge.exe
           python3 hotfix218/reconstruct.py
+          node update-service/publication.mjs prepare update-service/assets/packages/c760c4c6563421805c3cf9ee0cf6d9a70e0bea719492dc4dc10115ee05e287cd.exe
           node --test update-service/worker*.test.mjs
-      - name: Publish immutable manual download
+      - name: Publish signed automatic update to Cloudflare
         working-directory: update-service
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
-      - name: Verify manual download and preserved signed manifest
+      - name: Verify live original-key signature and installer integrity
         run: |
           for attempt in 1 2 3 4 5 6; do
-            if node hotfix218/verify-live.mjs && node update-service/publication.mjs verify-live; then exit 0; fi
+            if node update-service/publication.mjs verify-live; then exit 0; fi
             if test "$attempt" -lt 6; then sleep 5; fi
           done
           exit 1
