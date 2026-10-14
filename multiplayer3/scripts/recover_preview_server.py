@@ -1,14 +1,17 @@
-"""Recover the exact already published runtime used in the 3.x test package."""
+"""Recover the unmodified official server pinned by the package provenance."""
 import hashlib,json,urllib.request,zipfile,io
 from pathlib import Path
 root=Path(__file__).resolve().parents[1]
-url='https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v2.0.5-dev.4/OpenOmsi.%2B.BBS.2.0.5-dev.4.zip'
-with urllib.request.urlopen(url,timeout=120) as response:data=response.read()
-if hashlib.sha256(data).hexdigest()!='6c704e92037813aa16e8c3b14aa100a55bd1e2668d1491e65adcfda77a7190dc':raise SystemExit('Published native runtime archive hash mismatch')
-expected=json.loads((root/'server/bbs-server.json').read_text())
+receipt=json.loads((root/"server/bbs-server.json").read_text())
+assert receipt["protocol"]==7 and receipt["unmodified"]
+with urllib.request.urlopen(receipt["upstream_url"],timeout=120) as response:data=response.read()
+assert hashlib.sha256(data).hexdigest()==receipt["archive_sha256"],"Official runtime archive hash mismatch"
 with zipfile.ZipFile(io.BytesIO(data)) as archive:
- for name,sha in expected['files'].items():
-  payload=archive.read('app/server/'+name)
-  if hashlib.sha256(payload).hexdigest()!=sha:raise SystemExit('Native runtime hash mismatch: '+name)
-  (root/'server'/name).write_bytes(payload)
-print('Verified native runtime recovered; no 2.x player installation required.')
+ for name,sha in receipt["files"].items():
+  assert Path(name).name==name
+  candidates=[p for p in archive.namelist() if Path(p).name==name]
+  assert len(candidates)==1
+  payload=archive.read(candidates[0])
+  assert hashlib.sha256(payload).hexdigest()==sha,"Official runtime file hash mismatch: "+name
+  (root/"server"/name).write_bytes(payload)
+print("Verified unmodified official server",receipt["version"],"protocol",receipt["protocol"])

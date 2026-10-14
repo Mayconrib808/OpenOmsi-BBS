@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-// Recommended is the bundled, patched build that preserves free player buses.
+// Recommended is the verified, unmodified official protocol-7 server bundled with the integration.
 type serverPreference struct {
 	Mode    string `json:"mode"`
 	Version string `json:"version,omitempty"`
@@ -37,7 +37,7 @@ func normalizeServer(p serverPreference) (serverPreference, error) {
 		p.Version = ""
 	case "manual":
 		if !releaseVersion.MatchString(p.Version) {
-			return p, fmt.Errorf("informe o número da versão, por exemplo 0.2.27")
+			return p, fmt.Errorf("informe o número da versão, por exemplo 0.2.50")
 		}
 	default:
 		return p, fmt.Errorf("modo de servidor inválido")
@@ -184,6 +184,9 @@ func resolveRuntime(ctx context.Context, dir string, p serverPreference, client 
 	if p.Mode == "recommended" {
 		return recommendedServer(dir)
 	}
+	if p.Mode == "manual" && !protocol7EraVersion(p.Version) {
+		return "", fmt.Errorf("protocolo 7: servidor openOMSI 0.2.48+ necessário; a 0.2.47 não foi publicada oficialmente")
+	}
 	if p.Mode == "manual" {
 		if exe, e := cached(dir, p.Version); e == nil {
 			return exe, nil
@@ -205,6 +208,9 @@ func resolveRuntime(ctx context.Context, dir string, p serverPreference, client 
 	v, a, e := runtimeReleaseSelection(r, p.Version, client)
 	if e != nil {
 		return "", e
+	}
+	if !protocol7EraVersion(v) {
+		return "", fmt.Errorf("protocolo 7: runtime openOMSI 0.2.48+ necessário")
 	}
 	if exe, e := cached(dir, v); e == nil {
 		return exe, nil

@@ -1,6 +1,10 @@
-name: Publish isolated 3.x preview
+name: Test and publish 3.0 candidate
 on:
   workflow_dispatch:
+  push:
+    branches: ["release/3.0.3-rc.1"]
+  pull_request:
+    paths: ["multiplayer3/**", "docs/*3*", ".github/workflows/multiplayer3-release.yml"]
 permissions:
   contents: read
 concurrency:
@@ -28,6 +32,7 @@ jobs:
         working-directory: multiplayer3
   release:
     needs: test
+    if: github.event_name != 'pull_request'
     runs-on: windows-latest
     permissions:
       contents: write
@@ -42,7 +47,18 @@ jobs:
       - name: Recover the already published verified native runtime
         run: python multiplayer3/scripts/recover_preview_server.py
       - name: Build isolated 3.x complete package and updater
-        run: python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --source-commit ${{ github.sha }}
+        run: python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --source-commit ${{ github.sha }} --sequence 2026101401
+      - name: Scan the exact candidate package and binaries
+        shell: pwsh
+        run: |
+          $meta=Get-Content build-v3/BUILD-INFO.json|ConvertFrom-Json
+          ./multiplayer3/scripts/scan_candidate.ps1 -PackagePath "build-v3/BBS-OpenOmsi-Multiplayer-$($meta.version)-teste.zip"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: multiplayer3-candidate-and-scan
+          path: build-v3/
+          if-no-files-found: ignore
       - name: Publish 3.x prerelease without changing stable/latest 2.x
         shell: bash
         env:
@@ -54,4 +70,4 @@ jobs:
           if ! gh release view "$tag" >/dev/null 2>&1; then
             gh release create "$tag" --target "$GITHUB_SHA" --prerelease --latest=false --title "BBS+OpenOmsi Multiplayer $version — test preview" --notes-file multiplayer3/RELEASE-NOTES.md
           fi
-          gh release upload "$tag" "build-v3/Atualizar-Multiplayer-$version.exe" "build-v3/BBS-OpenOmsi-Multiplayer-$version-teste.zip" "build-v3/BBS-OpenOmsi-Multiplayer-$version-arquivos-atualizacao.zip" build-v3/BUILD-INFO.json --clobber
+          gh release upload "$tag" "build-v3/Atualizar-Multiplayer-$version.exe" "build-v3/BBS-OpenOmsi-Multiplayer-$version-teste.zip" "build-v3/BBS-OpenOmsi-Multiplayer-$version-arquivos-atualizacao.zip" build-v3/BUILD-INFO.json build-v3/*.sha256 build-v3/DEFENDER-REPORT.json

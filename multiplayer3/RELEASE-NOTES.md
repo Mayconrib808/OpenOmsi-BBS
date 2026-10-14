@@ -1,13 +1,16 @@
-Development preview for testing BBS + openOMSI multiplayer integration. This is an independent project, not an official PeDePe product.
+# BBS+OpenOmsi Multiplayer 3.0.3-rc.1
 
-- Complete standalone package: no Bridge 2.x installation required. Original OMSI 2 and BCS installations are required.
-- English Setup.exe name and project artwork; PT-BR, English and German interface.
-- Forward real openOMSI output to the BCS-owned game.log to unblock its loading detection.
-- Disable multiplayer for solo openOMSI; disable/reactivate the integration with BCS closed, preserving settings and backing up BCS configuration.
-- Manual and automatic update checks filter only 3.x releases. The 2.x channel and stable/latest release remain unchanged.
+Bring BCS 5.0.2.0 trips into openOMSI multiplayer, with automatic company/map sessions.
 
-Assets: use the full `-teste.zip` for a first install. `Atualizar-Multiplayer-3.0.2-dev.4.exe` updates an existing 3.x installation. Close BCS and the game first. An updater executable with a GitHub-provided SHA-256 digest is needed for installation from the new update button.
+- Protocol 7, official unmodified 0.2.50 server, no fallback to old protocol 6.
+- Private-bus adapter and an independent tunnel for every map, ported from the recent 2.1 corrections.
+- Native BCS next-trip command and acknowledgment; no JAR patch.
+- Restore selected player fuel, retain original Lua telemetry and dashboard content.
+- Fresh BCS game.log capture and readiness after the real player bus exists.
+- PT-BR/EN/DE Setup and offline guide, local diagnostics, saved preferences and verified 3.x updates.
 
-The GitHub update query first exists in dev.4. Older dev.1–dev.3 packages need one manual update; publishing a release does not retrofit their disabled update feed.
+Download the named **-teste.zip** Windows package under Assets, extract everything and run Setup.exe with BCS closed. Choose a company invitation and configure BCS to launch **OpenOMSI-BBS/PeDePeAdapter**.
 
-Still pending: real BCS host/guest and trip-finalization validation on two PCs, next-trip integration through a permitted interface, dedicated signed update feed publication, and company weather/passenger settings. The bundled server is the verified 0.2.20-bbs-free2 runtime, not an official 0.2.29 server. Existing company clock settings are preserved; Transfort's configuration used Europe/Berlin minus 8 hours.
+This is a release candidate. Complete a real two-PC trip, evaluation and next-trip check before promoting the final WebDisk release. A VirusTotal report for the exact release hashes is not yet recorded. No zero-detection claim or vendor endorsement is made.
+
+0.2.47 was not officially released. Use official clients 0.2.48+ with protocol 7, including 0.2.50. A company invitation routes maps; a direct Berlin server URL only joins Berlin.

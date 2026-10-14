@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const version = "3.0.2-dev.13"
+const version = "3.0.3-rc.1"
 
 // Inherited BCS stdout is optional and can be invalid for GUI launches.
 // Scheduled game output is also written directly to the game.log that BCS reads.
@@ -192,7 +192,7 @@ func run(ctx context.Context, dir string, args []string) error {
 			if e = saveConfig(dir, cfg); e != nil {
 				return e
 			}
-	}
+		}
 	}
 	for _, a := range args {
 		if a == "--help" || a == "--version" {
@@ -219,6 +219,9 @@ func run(ctx context.Context, dir string, args []string) error {
 			return e
 		}
 		return cmd.Wait()
+	}
+	if e = validateMultiplayerClient(ctx, cfg.Game); e != nil {
+		return e
 	}
 	m, e := tripMap(args, cfg.Root)
 	if e != nil {

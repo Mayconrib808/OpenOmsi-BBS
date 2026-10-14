@@ -1,0 +1,19 @@
+{
+  "bcs_version": "5.0.2.0",
+  "jar_sha256": "bfbf51cbb9033b130ecd4bebd41e1d04b926d8ef6c578737f1363a3146b196c6",
+  "native_launch_class_sha256": "a6e998c7651ba771dcc33e1712194f01b977d89bcc6f95c8372c6099cbfa4ae7",
+  "native_lua_sha256": "9dc44aacd87898fb43189d10c3db46aab6c9a557c895114d62a0e2f213f3c11b",
+  "launch_contract": "passed",
+  "next_trip_interface": "native BCS command file and plugin acknowledgment",
+  "jar_modified": false,
+  "vendor_code_distributed": false,
+  "live_gameplay_test": "requires Windows BCS/openOMSI and two PCs",
+  "lua_simulation": [
+    "stale_command_ignored",
+    "real_vehicle_required",
+    "pause_not_selected",
+    "command_executed_once",
+    "next_trip_without_restart",
+    "62_field_udp_telemetry_and_ack"
+  ]
+}

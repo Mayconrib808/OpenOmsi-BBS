@@ -15,20 +15,20 @@ func TestServerSelectionModes(t *testing.T) {
 	if e != nil || p.Mode != "latest" {
 		t.Fatal(p, e)
 	}
-	p, e = normalizeServer(serverPreference{"manual", " v0.2.27 "})
-	if e != nil || p.Version != "0.2.27" {
+	p, e = normalizeServer(serverPreference{"manual", " v0.2.50 "})
+	if e != nil || p.Version != "0.2.50" {
 		t.Fatal(p, e)
 	}
-	for _, v := range []string{"../0.2.27", "latest", "0.2.27;command", "https://example.test"} {
+	for _, v := range []string{"../0.2.50", "latest", "0.2.50;command", "https://example.test"} {
 		if _, e := normalizeServer(serverPreference{"manual", v}); e == nil {
 			t.Fatal("invalid version accepted", v)
 		}
 	}
-	r := serverRelease{Tag: "v0.2.27", Assets: []releaseAsset{{Name: "openOMSI-0.2.27-server-windows-x64.zip", URL: "https://github.com/openOMSI-org/openOMSI/releases/download/v0.2.27/server.zip", Digest: "sha256:" + strings.Repeat("a", 64), Size: 100}}}
-	if v, _, e := releaseSelection(r, ""); e != nil || v != "0.2.27" {
+	r := serverRelease{Tag: "v0.2.50", Assets: []releaseAsset{{Name: "openOMSI-0.2.50-server-windows-x64.zip", URL: "https://github.com/openOMSI-org/openOMSI/releases/download/v0.2.50/server.zip", Digest: "sha256:" + strings.Repeat("a", 64), Size: 100}}}
+	if v, _, e := releaseSelection(r, ""); e != nil || v != "0.2.50" {
 		t.Fatal(v, e)
 	}
-	if _, _, e := releaseSelection(r, "0.2.26"); e == nil {
+	if _, _, e := releaseSelection(r, "0.2.49"); e == nil {
 		t.Fatal("version substitution accepted")
 	}
 	r.Assets[0].Digest = ""
@@ -64,26 +64,26 @@ func TestServerCacheOfflineAndTampering(t *testing.T) {
 		entries["package/"+name] = "binary " + name
 	}
 	archive := makeRuntimeZip(t, entries)
-	dest := filepath.Join(dir, "server-cache", "0.2.27")
-	receipt, e := unpackServer(archive, dest, "0.2.27", strings.Repeat("a", 64))
+	dest := filepath.Join(dir, "server-cache", "0.2.50")
+	receipt, e := unpackServer(archive, dest, "0.2.50", strings.Repeat("a", 64))
 	if e != nil {
 		t.Fatal(e)
 	}
 	b, _ := json.Marshal(receipt)
 	_ = os.WriteFile(filepath.Join(dest, "verified.json"), b, 0600)
-	exe, e := resolveServer(context.Background(), dir, serverPreference{"manual", "0.2.27"})
+	exe, e := resolveServer(context.Background(), dir, serverPreference{"manual", "0.2.50"})
 	if e != nil || exe != filepath.Join(dest, "openomsi.exe") {
 		t.Fatal(exe, e)
 	}
 	_ = os.WriteFile(exe, []byte("altered"), 0600)
-	if _, e = cachedServer(dir, "0.2.27"); e == nil {
+	if _, e = cachedServer(dir, "0.2.50"); e == nil {
 		t.Fatal("corrupt cached server accepted")
 	}
 }
 func TestServerArchiveCannotEscapeCache(t *testing.T) {
 	for _, bad := range []string{"../escape.dll", "/escape.dll", "package/../escape.dll", `package\escape.dll`} {
 		p := makeRuntimeZip(t, map[string]string{"openomsi.exe": "binary", bad: "escape"})
-		if _, e := unpackServer(p, filepath.Join(t.TempDir(), "runtime"), "0.2.27", ""); e == nil {
+		if _, e := unpackServer(p, filepath.Join(t.TempDir(), "runtime"), "0.2.50", ""); e == nil {
 			t.Fatal("unsafe archive accepted", bad)
 		}
 	}

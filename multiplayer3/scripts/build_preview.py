@@ -72,7 +72,7 @@ def main():
     ap.add_argument("--server", type=Path, help="Verified server folder; omit for minimal update builds")
     ap.add_argument("--output", type=Path, required=True)
     ap.add_argument("--update-origin", default="https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev", help="Separate deployed 3.x HTTPS feed")
-    ap.add_argument("--sequence", default="2026101208")
+    ap.add_argument("--sequence", default="2026101401")
     ap.add_argument("--source-commit", default=os.environ.get("GITHUB_SHA", ""))
     args = ap.parse_args()
     root = Path(__file__).resolve().parents[1]
@@ -93,12 +93,12 @@ def main():
         helper = staging / "omsi-plugin-host32.exe"
         obj, resources, fields = metadata(source / "pluginhost", version, "386", "BCS 32-bit plugin host", "omsi-plugin-host32.exe")
         try:
-            compile_exe(args.go, source / "pluginhost", "386", helper, "-s -w -H=windowsgui", resources, fields)
+            compile_exe(args.go, source / "pluginhost", "386", helper, "-H=windowsgui", resources, fields)
         finally:
             obj.unlink(missing_ok=True)
         launcher = staging / "Setup.exe"
         obj, resources, fields = metadata(source, version, "amd64", PRODUCT + " setup and BCS launcher", "Setup.exe")
-        flags = (f"-s -w -H=windowsgui -X main.bundledPluginHostSHA256={digest(helper)} "
+        flags = (f"-H=windowsgui -X main.bundledPluginHostSHA256={digest(helper)} "
                  f"-X main.bridgeUpdateSequence={args.sequence} -X main.bridgeUpdateOrigin={args.update_origin}")
         try:
             compile_exe(args.go, source, "amd64", launcher, flags, resources, fields)
@@ -107,11 +107,12 @@ def main():
         runtime = {"Setup.exe": launcher,
                    "OpenOMSI-BBS/PeDePeAdapter/openomsi.exe": launcher,
                    "OpenOMSI-BBS/compat/omsi-plugin-host32.exe": helper}
-        build = {"product": IDENTITY, "version": version, "sequence": int(args.sequence), "channel": "preview", "source_commit": args.source_commit,
+        build = {"product": IDENTITY, "version": version, "sequence": int(args.sequence), "channel": "preview", "source_commit": args.source_commit, "toolchain": subprocess.check_output([args.go,"version"],text=True).strip(),
                  "client_default": "latest-official", "update_origin": args.update_origin,
                  "native_server": receipt, "files": {n: digest(p) for n, p in runtime.items()},
                  "public_release_ready": False,
-                 "pending": ["next_trip_supported_interface", "3x_update_feed_publication", "real_bcs_multiplayer_tests", "company_map_weather_passenger_settings"]}
+                 "bcs": "5.0.2.0", "multiplayer_protocol": 7, "minimum_openomsi": "0.2.48", "next_trip": "native-bcs-command", "obfuscation": False, "executable_packer": False, "authenticode": "unsigned", "virus_total": "not_scanned",
+                 "pending": ["real_bcs_two_pc_full_trip", "virus_total_final_binary_report"]}
         manifest = staging / "package.json"; manifest.write_text(json.dumps(build, indent=2))
         payload_files = dict(runtime, **{"package.json": manifest})
         payload_path = source / "updater" / "update_payload.zip"
@@ -121,7 +122,7 @@ def main():
         updater = args.output / f"Atualizar-Multiplayer-{version}.exe"
         obj, resources, fields = metadata(source / "updater", version, "amd64", PRODUCT + " updater", "Atualizar-Multiplayer.exe")
         try:
-            compile_exe(args.go, source / "updater", "amd64", updater, "-s -w -H=windowsgui", resources, fields)
+            compile_exe(args.go, source / "updater", "amd64", updater, "-H=windowsgui", resources, fields)
         finally:
             obj.unlink(missing_ok=True); payload_path.unlink(missing_ok=True); generated.unlink(missing_ok=True)
         runtime["OpenOMSI-BBS/build.json"] = manifest
@@ -134,10 +135,16 @@ def main():
             for file in folder.rglob("*"):
                 if file.is_file() and file.suffix not in {".syso", ".pyc"} and "__pycache__" not in file.parts:
                     full["OpenOMSI-BBS/" + file.relative_to(root).as_posix()] = file
-        for name in ["LICENSE", "LEIA-ME.txt", "README-en.txt", "LESEN-de.txt", "DESENVOLVIMENTO.md"]:
+        for name in ["LICENSE", "LEIA-ME.txt", "README-en.txt", "LESEN-de.txt", "DESENVOLVIMENTO.md", "TUTORIAL.html"]:
             full["OpenOMSI-BBS/" + name] = root / name
         if args.server:
+            checks = staging / "SHA256SUMS.txt"
+            checks.write_text("".join(digest(p)+"  "+n+"\n" for n,p in sorted(full.items())),encoding="utf-8")
+            full["OpenOMSI-BBS/SHA256SUMS.txt"] = checks
             archive(args.output / f"BBS-OpenOmsi-Multiplayer-{version}-teste.zip", full)
+        for p in args.output.glob("*.zip"):
+            (p.with_name(p.name+".sha256")).write_text(digest(p)+"  "+p.name+"\n",encoding="utf-8")
+        updater.with_name(updater.name+".sha256").write_text(digest(updater)+"  "+updater.name+"\n",encoding="utf-8")
         build["updater_sha256"] = digest(updater)
         build["updater_size"] = updater.stat().st_size
         (args.output / "BUILD-INFO.json").write_text(json.dumps(build, indent=2))

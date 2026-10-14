@@ -16,7 +16,7 @@ import (
 const githubReleaseAPI = "https://api.github.com/repos/Mayconrib808/OpenOmsi-BBS/releases"
 const githubReleaseRoot = "https://github.com/Mayconrib808/OpenOmsi-BBS/releases/"
 
-var v3Tag = regexp.MustCompile(`^v?(3)\.(\d+)\.(\d+)(?:-dev\.(\d+))?$`)
+var v3Tag = regexp.MustCompile(`^v?(3)\.(\d+)\.(\d+)(?:-(?:dev|rc)\.(\d+))?$`)
 
 type githubRelease struct {
 	Tag    string `json:"tag_name"`

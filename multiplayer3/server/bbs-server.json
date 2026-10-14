@@ -1,12 +1,11 @@
 {
-  "version": "0.2.20-bbs-free2",
-  "commit": "dbcfb6e7bf02aba9294365a9c91eb64a55597140",
-  "upstream_url": "https://codeload.github.com/openOMSI-org/openOMSI/zip/refs/tags/v0.2.20",
-  "upstream_sha256": "9776a04ea06c0e4197cb9bc7d036dfb357c395c35c8f7930b0eb97c94e1c000c",
-  "patch_sha256": "f1b8afd868c69d7d1bb2a16194c663fc80596c37efdc01a21761ca832ca93fb8",
-  "rustc": "rustc 1.99.0 (b940084d7 2026-09-28)",
+  "version": "0.2.50",
+  "protocol": 7,
+  "upstream_url": "https://github.com/openOMSI-org/openOMSI/releases/download/v0.2.50/openOMSI-0.2.50-server-windows-x64.zip",
+  "archive_sha256": "6965478e4f20dc3df2db80e2d37017045ed215868f0a42c31821c85f46ac779f",
+  "unmodified": true,
   "files": {
-    "openomsi.exe": "84df2ff86c98dfaf7a96efd42db8146c287d6a4862d0329ecc65142dcd93c9a5",
+    "openomsi.exe": "3bfa254a225633f1162390a07eba6baf733e7e1f1a60c59a383f7594a2057ad2",
     "steam_api64.dll": "e6d9bafb9a41e42fba7b21553db49f8719027af3f0deb23ff86cfc44d60e776d",
     "vcruntime140.dll": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7",
     "vcruntime140_1.dll": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e",

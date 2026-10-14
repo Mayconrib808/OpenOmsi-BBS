@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"net"
 	"net/http"
@@ -21,14 +20,16 @@ import (
 )
 
 type serverStatus struct {
-	Map      string          `json:"map"`
-	Version  string          `json:"version"`
-	Protocol int             `json:"protocol"`
-	Time     string          `json:"time"`
-	Players  int             `json:"players"`
-	Free     bool            `json:"free_player_vehicles"`
-	Vehicles json.RawMessage `json:"vehicles"`
-	World    json.RawMessage `json:"world"`
+	Name       string          `json:"name"`
+	MaxPlayers int             `json:"max_players"`
+	Map        string          `json:"map"`
+	Version    string          `json:"version"`
+	Protocol   int             `json:"protocol"`
+	Time       string          `json:"time"`
+	Players    int             `json:"players"`
+	Free       bool            `json:"free_player_vehicles"`
+	Vehicles   json.RawMessage `json:"vehicles"`
+	World      json.RawMessage `json:"world"`
 }
 
 func activeWorld(raw json.RawMessage) bool {
@@ -40,9 +41,8 @@ func status(ctx context.Context, c *http.Client, address string) (serverStatus, 
 	e := requestJSON(ctx, c, "GET", strings.TrimRight(address, "/")+"/status", "", nil, &s)
 	return s, e
 }
-var errServerCapabilities = errors.New("a versão selecionada não confirma protocolo 6 e ônibus livres; use Recomendada no Setup.exe. O convite continua igual")
 
-func automaticServerFallback(mode string, tried bool, err error) bool { return mode == "latest" && !tried && errors.Is(err, errServerCapabilities) }
+var errServerCapabilities = errors.New("a versão selecionada não confirma protocolo 7 e ônibus livres; use o servidor 0.2.48 ou superior no Setup.exe. O convite continua igual")
 
 func validStatus(s serverStatus, m string) error {
 	mapFile, e := canonicalMap(s.Map)
@@ -51,7 +51,7 @@ func validStatus(s serverStatus, m string) error {
 	}
 	// /status reports the Rust workspace version (0.1.0), while the CLI
 	// reports OPENOMSI_VERSION. Validate wire capabilities, not that label.
-	if s.Protocol != 6 || !s.Free {
+	if s.Protocol != 7 || !s.Free {
 		return errServerCapabilities
 	}
 	var fleet []string
@@ -204,7 +204,17 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 	if e != nil {
 		return e
 	}
-	base := fmt.Sprintf("http://127.0.0.1:%d", tcp)
+	fleet, catalog, mask, e := companyGatewayFleet(cfg.Root, nil, randomID())
+	if e != nil {
+		return e
+	}
+	gateway, e := newCompanyGateway(ctx, gatewayPorts{Port: udp, WebPort: tcp}, m, fleet, catalog, mask)
+	if e != nil {
+		return e
+	}
+	defer gateway.Close()
+	base := gateway.backendWeb
+	publicBase := fmt.Sprintf("http://127.0.0.1:%d", gateway.webPort)
 	secret := randomID() + randomID()
 	civil, e := companyNow(l.Clock, time.Now())
 	if e != nil {
@@ -223,7 +233,7 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 	}, name)
 	config := fmt.Sprintf("name = %s\nmotd = OpenOmsi + BBS %s\nmap = %s\ndate = %s\ntime = %s\nreal_time = 0\ntime_speed = 1\nvehicles =\nfree_player_vehicles = 1\ntraffic = 30\ntimetable = 1\npassengers = 1\nport = %d\nweb_port = %d\nmax_players = 16\ntunnel = 1\nradius = 0\nmetar_sync = 0\nshare_positions = 0\nadmin_password = %s\n", name, version, m, civil.Format("2006-01-02"), civil.Format("15:04:05"), udp, tcp, secret)
 	conf := filepath.Join(work, "server.cfg")
-	if e = os.WriteFile(conf, []byte(config), 0600); e != nil {
+	if e = os.WriteFile(conf, companyGatewayConfig([]byte(config), gateway.backendPort, gateway.backendWebPort, fleet), 0600); e != nil {
 		return e
 	}
 	var out *tunnelLog
@@ -234,17 +244,27 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 		out = &tunnelLog{}
 		server.Stdout, server.Stderr = out, out
 		prepareCompanyHostProcess(server)
-		if e := server.Start(); e != nil { return e }
+		if e := server.Start(); e != nil {
+			return e
+		}
 		ownedStop, e := ownCompanyHostProcess(server)
-		if e != nil { _ = server.Process.Kill(); _ = server.Wait(); return e }
+		if e != nil {
+			_ = server.Process.Kill()
+			_ = server.Wait()
+			return e
+		}
 		stop = ownedStop
 		finished = make(chan error, 1)
 		serverExited = false
 		go func() { finished <- server.Wait() }()
 		return nil
 	}
-	if e = startServer(serverExe); e != nil { return e }
-	fallbackTried := false
+	gateway.releaseBackend()
+	if e = startServer(serverExe); e != nil {
+		return e
+	}
+	tunnelFailures, stopTunnel := startCompanyManagedTunnel(ctx, filepath.Dir(serverExe), gateway.webPort, out)
+	defer stopTunnel()
 	localClient := webClient()
 	defer localClient.CloseIdleConnections()
 	lastAck := time.Now()
@@ -259,6 +279,8 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case tunnelErr := <-tunnelFailures:
+			return tunnelErr
 		case <-finished:
 			serverExited = true
 			return fmt.Errorf("o servidor do mapa encerrou; a próxima entrada poderá criar uma nova sessão")
@@ -297,21 +319,9 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 				}
 				continue
 			}
-			if e = validStatus(s, m); e != nil {
-				if !automaticServerFallback(cfg.Server.Mode, fallbackTried, e) { return e }
-				compatible, fallbackErr := recommendedServer(dir)
-				if fallbackErr != nil { return fmt.Errorf("servidor compatível indisponível: %w", fallbackErr) }
-				log.Printf("Automatic server %s has no confirmed unrestricted-bus support; using bundled compatible server: %v", serverExe, e)
-				stop()
-				select {
-				case <-finished: serverExited = true
-				case <-time.After(5 * time.Second): return fmt.Errorf("servidor anterior não encerrou; nenhuma segunda sessão foi iniciada")
-				}
-				fallbackTried = true
-				if e = startServer(compatible); e != nil { return e }
-				start = time.Now()
-				nextRenew = start
-				continue
+			s, e = gateway.adaptStatus(s)
+			if e != nil {
+				return e
 			}
 			if !activeWorld(s.World) {
 				continue
@@ -333,7 +343,7 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 					lastAck = time.Now()
 					ready = true
 					onlineAddress = a
-					if e = announce(base); e != nil {
+					if e = announce(publicBase); e != nil {
 						return e
 					}
 				}

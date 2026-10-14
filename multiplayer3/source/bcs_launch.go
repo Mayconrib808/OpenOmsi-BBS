@@ -452,6 +452,10 @@ func peDePeSavedPosition(mapPath string, tx, ty int, lx, ly float64) (float64, f
 }
 
 func prepareBCSLaunch(args []string, root, adapter string) ([]string, error) {
+	fuel, err := peDePeSavedFuel(parsePeDePeNativeInvocation(args), root)
+	if err != nil {
+		return nil, err
+	}
 	out, err := peDePeFreshTripArgs(args, root)
 	if err != nil {
 		return nil, err
@@ -463,5 +467,5 @@ func prepareBCSLaunch(args []string, root, adapter string) ([]string, error) {
 	if shouldAddPeDePeAutoStart(parsePeDePeNativeInvocation(out)) {
 		out = append(out, "--autostart")
 	}
-	return out, nil
+	return peDePeFuelArgs(out, fuel, root)
 }

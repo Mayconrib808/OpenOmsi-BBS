@@ -71,6 +71,7 @@ func requestJSON(ctx context.Context, c *http.Client, method, address, token str
 		return e
 	}
 	r.Header.Set("Content-Type", "application/json")
+	r.Header.Set("User-Agent", "BBS-OpenOmsi-Multiplayer/"+version)
 	if token != "" {
 		r.Header.Set("Authorization", "Bearer "+token)
 	}

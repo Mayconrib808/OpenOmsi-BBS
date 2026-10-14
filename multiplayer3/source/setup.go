@@ -20,14 +20,14 @@ import (
 var setupPage string
 
 type setupView struct {
-	Version string
-	ErrorDetail                                                                                                string
-	BCSStatusKey, UpdateStatusKey                                                                              string
+	Version                                                                                                                string
+	ErrorDetail                                                                                                            string
+	BCSStatusKey, UpdateStatusKey                                                                                          string
 	Token, Lang, Stage, Root, Player, Game, Invite, Name, Zone, Offset, Mode, ClientMode, ServerMode, ServerVersion, Error string
-	UpdatePage                                                                                                 string
-	Adapter, Message, BCSStatus, UpdateStatus, UpdateVersion                                                   string
-	MultiplayerEnabled, ProgramDisabled                                                                        bool
-	Detected, AutomaticUpdates, UpdateAvailable, Launching, Preparing                                          bool
+	UpdatePage                                                                                                             string
+	Adapter, Message, BCSStatus, UpdateStatus, UpdateVersion                                                               string
+	MultiplayerEnabled, ProgramDisabled                                                                                    bool
+	Detected, AutomaticUpdates, UpdateAvailable, Launching, Preparing                                                      bool
 }
 
 func (v *setupView) refreshStatuses() {
@@ -159,7 +159,7 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		mu.Lock()
 		defer mu.Unlock()
-		if r.URL.Path != "/" && r.URL.Path != "/updates" {
+		if r.URL.Path != "/" && r.URL.Path != "/updates" && r.URL.Path != "/diagnostics" {
 			http.NotFound(w, r)
 			return
 		}
@@ -175,7 +175,16 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 				http.Error(w, tr("error"), 403)
 				return
 			}
-			if r.URL.Path == "/updates" {
+			if r.URL.Path == "/diagnostics" {
+				data, e := diagnosticZIP(dir, c)
+				if e != nil {
+					http.Error(w, friendlyError(e), 500)
+					return
+				}
+				w.Header().Set("Content-Type", "application/zip")
+				w.Header().Set("Content-Disposition", `attachment; filename="BBS-OpenOmsi-diagnostics.zip"`)
+				_, _ = w.Write(data)
+			} else if r.URL.Path == "/updates" {
 				view.refreshStatuses()
 				w.Header().Set("Content-Type", "application/json")
 				_ = json.NewEncoder(w).Encode(map[string]any{"message": view.UpdateStatus, "available": view.UpdateAvailable, "page": view.UpdatePage, "checking": checking, "version": view.UpdateVersion, "preparing": view.Preparing, "notice": view.Message, "bcs": view.BCSStatus, "detail": view.ErrorDetail, "error": view.Error})
@@ -453,15 +462,21 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		view.ClientMode = candidate.ClientMode
 		if candidate.ClientMode == "latest" {
 			candidate.Game = ""
-			if c.Game != "" && insideDirectory(filepath.Join(dir, "client"), c.Game) { candidate.Game = c.Game }
+			if c.Game != "" && insideDirectory(filepath.Join(dir, "client"), c.Game) {
+				candidate.Game = c.Game
+			}
 			view.Game = candidate.Game
 		}
 		view.ServerMode, view.ServerVersion = candidate.Server.Mode, candidate.Server.Version
 		view.Error = ""
 		var err error
 		candidate.ClientMode, err = normalizeClientMode(candidate, dir)
-		if err == nil && candidate.ClientMode == "manual" && candidate.Game == "" { err = fmt.Errorf("informe o caminho do openomsi.exe para o cliente manual") }
-		if err == nil { candidate.Server, err = normalizeServer(candidate.Server) }
+		if err == nil && candidate.ClientMode == "manual" && candidate.Game == "" {
+			err = fmt.Errorf("informe o caminho do openomsi.exe para o cliente manual")
+		}
+		if err == nil {
+			candidate.Server, err = normalizeServer(candidate.Server)
+		}
 		if err == nil {
 			err = validateConfiguredInstall(candidate, dir)
 		}

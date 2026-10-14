@@ -84,7 +84,7 @@ func TestReadinessUsesActiveWorldAndChecksFreeBuses(t *testing.T) {
 	if activeWorld(nil) || activeWorld([]byte("null")) || !activeWorld([]byte(`{"tiles":10}`)) {
 		t.Fatal("world readiness is wrong")
 	}
-	s := serverStatus{Map: "maps/grundorf/global.cfg", Version: "0.2.20-bbs-free2", Protocol: 6, Free: true, Vehicles: []byte(`""`)}
+	s := serverStatus{Map: "maps/grundorf/global.cfg", Version: "0.2.50", Protocol: 7, Free: true, Vehicles: []byte(`""`)}
 	if e := validStatus(s, s.Map); e != nil {
 		t.Fatal(e)
 	}
@@ -97,7 +97,7 @@ func TestReadinessUsesActiveWorldAndChecksFreeBuses(t *testing.T) {
 func TestServerStatusWorkspaceVersionIsNotReleaseVersion(t *testing.T) {
 	// Native server::info_of uses CARGO_PKG_VERSION, not OPENOMSI_VERSION.
 	var s serverStatus
-	if e := json.Unmarshal([]byte(`{"map":"maps/grundorf/global.cfg","version":"0.1.0 (dbcfb6e 2026-10-08 23:34)","protocol":6,"free_player_vehicles":true,"vehicles":"","world":{"tiles":10}}`), &s); e != nil {
+	if e := json.Unmarshal([]byte(`{"map":"maps/grundorf/global.cfg","version":"0.1.0 (dbcfb6e 2026-10-08 23:34)","protocol":7,"free_player_vehicles":true,"vehicles":"","world":{"tiles":10}}`), &s); e != nil {
 		t.Fatal(e)
 	}
 	if e := validStatus(s, s.Map); e != nil {
@@ -107,7 +107,7 @@ func TestServerStatusWorkspaceVersionIsNotReleaseVersion(t *testing.T) {
 	if validStatus(s, s.Map) == nil {
 		t.Fatal("incompatible wire protocol accepted")
 	}
-	s.Protocol, s.Free = 6, false
+	s.Protocol, s.Free = 7, false
 	if validStatus(s, s.Map) == nil {
 		t.Fatal("restricted buses accepted")
 	}

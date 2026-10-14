@@ -2,7 +2,7 @@ name: Source checks
 
 on:
   push:
-    branches-ignore: [multiplayer-3-preview]
+    branches-ignore: [multiplayer-3-preview, "release/3.*"]
   pull_request:
   workflow_dispatch:
 
@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   native-server:
+    if: ${{ !startsWith(github.head_ref, 'release/3.') }}
     runs-on: windows-latest
     timeout-minutes: 90
     steps:

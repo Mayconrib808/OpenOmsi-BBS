@@ -222,7 +222,9 @@ type nativeProcess struct {
 
 func (p *nativeProcess) Wait() error {
 	err := p.Cmd.Wait()
-	if p.gameLog != nil { _ = p.gameLog.Close() }
+	if p.gameLog != nil {
+		_ = p.gameLog.Close()
+	}
 	if p.stopDriver != nil {
 		close(p.stopDriver)
 		<-p.driverStopped
@@ -265,9 +267,13 @@ func launchNative(cfg localConfig, args []string, dir string) (*nativeProcess, e
 	var bcsLog *os.File
 	if bcsLaunchOutput != nil {
 		path, e := bcsGameLogPath()
-		if e != nil { return nil, e }
+		if e != nil {
+			return nil, e
+		}
 		bcsLog, e = openBCSGameLog(path)
-		if e != nil { return nil, fmt.Errorf("%s: %w", tr("errorbcsgamelog"), e) }
+		if e != nil {
+			return nil, fmt.Errorf("%s: %w", tr("errorbcsgamelog"), e)
+		}
 		log.Printf("BCS game log prepared: %s", path)
 		// BCS GUI launches may have an invalid inherited stdout handle. The
 		// actual game output must still reach both disk logs in that case.
@@ -275,7 +281,9 @@ func launchNative(cfg localConfig, args []string, dir string) (*nativeProcess, e
 		cmd.Stdout, cmd.Stderr = out, out
 	}
 	if e := cmd.Start(); e != nil {
-		if bcsLog != nil { _ = bcsLog.Close() }
+		if bcsLog != nil {
+			_ = bcsLog.Close()
+		}
 		return nil, e
 	}
 	process := &nativeProcess{Cmd: cmd, gameLog: bcsLog}
@@ -328,7 +336,6 @@ func replaceOption(args []string, flag, value string) []string {
 	}
 	return out
 }
-
 
 func withoutLANArguments(args []string) []string {
 	var out []string

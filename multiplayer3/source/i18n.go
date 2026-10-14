@@ -44,21 +44,21 @@ func saveLanguage(dir, v string) error {
 }
 
 var translations = map[string][3]string{
-"errorbcsgamelog": {"Não foi possível abrir o game.log necessário para o BCS", "Could not open the game.log required by BCS", "Die für BCS erforderliche game.log konnte nicht geöffnet werden"},
-"errorreadyplugin": {"Não foi possível preparar o aviso de carregamento para o BCS", "Could not prepare the BCS loading signal", "Das Ladesignal für BCS konnte nicht vorbereitet werden"},
-"client": {"Cliente openOMSI", "openOMSI client", "openOMSI-Client"},
-"clientautomatic": {"Atualizar automaticamente", "Update automatically", "Automatisch aktualisieren"},
-"clientmanual": {"Manual — usar meu executável", "Manual — use my executable", "Manuell — eigene Datei verwenden"},
-"companyclock": {"Horário da empresa (obrigatório)", "Company clock (required)", "Firmenzeit (erforderlich)"},
-"clockinstructions": {"No BCS, abra Empresa → Definições e consulte “Mudança de horário”. Informe o valor da sua empresa abaixo.", "In BCS, open Company → Settings and find “Time shift”. Enter your company's value below.", "Öffne in BCS Firma → Einstellungen und suche die Zeitverschiebung. Trage unten den Wert deiner Firma ein."},
-"clockexample": {"Exemplo das definições da empresa no BCS", "Example from BCS company settings", "Beispiel aus den BCS-Firmeneinstellungen"},
-"bcsclocklabel": {"Mudança de horário:", "Time shift:", "Zeitverschiebung:"},
-"hours": {"Horas", "Hours", "Stunden"},
-"clockexamplehint": {"Neste exemplo, informe -8. Sua empresa pode ter outro valor: confira antes de salvar.", "In this example, enter -8. Your company may use a different value: check before saving.", "In diesem Beispiel: -8. Deine Firma kann einen anderen Wert haben; prüfe ihn vor dem Speichern."},
-"clockplaceholder": {"Preencha o valor do BCS", "Enter the BCS value", "BCS-Wert eingeben"},
-"timezonehint": {"Relógio usado como referência no BCS, por exemplo Europe/Berlin. A mudança de horário será aplicada sobre ele.", "The reference clock used by BCS, for example Europe/Berlin. The time shift is applied to this clock.", "Referenzuhr von BCS, zum Beispiel Europe/Berlin. Die Zeitverschiebung wird darauf angewendet."},
-	"title":    {productName, productName, productName},
-	"continue": {"Continuar", "Continue", "Weiter"}, "save": {"Salvar e continuar", "Save and continue", "Speichern und fortfahren"},
+	"errorbcsgamelog":   {"Não foi possível abrir o game.log necessário para o BCS", "Could not open the game.log required by BCS", "Die für BCS erforderliche game.log konnte nicht geöffnet werden"},
+	"errorreadyplugin":  {"Não foi possível preparar o aviso de carregamento para o BCS", "Could not prepare the BCS loading signal", "Das Ladesignal für BCS konnte nicht vorbereitet werden"},
+	"client":            {"Cliente openOMSI", "openOMSI client", "openOMSI-Client"},
+	"clientautomatic":   {"Atualizar automaticamente", "Update automatically", "Automatisch aktualisieren"},
+	"clientmanual":      {"Manual — usar meu executável", "Manual — use my executable", "Manuell — eigene Datei verwenden"},
+	"companyclock":      {"Horário da empresa (obrigatório)", "Company clock (required)", "Firmenzeit (erforderlich)"},
+	"clockinstructions": {"No BCS, abra Empresa → Definições e consulte “Mudança de horário”. Informe o valor da sua empresa abaixo.", "In BCS, open Company → Settings and find “Time shift”. Enter your company's value below.", "Öffne in BCS Firma → Einstellungen und suche die Zeitverschiebung. Trage unten den Wert deiner Firma ein."},
+	"clockexample":      {"Exemplo das definições da empresa no BCS", "Example from BCS company settings", "Beispiel aus den BCS-Firmeneinstellungen"},
+	"bcsclocklabel":     {"Mudança de horário:", "Time shift:", "Zeitverschiebung:"},
+	"hours":             {"Horas", "Hours", "Stunden"},
+	"clockexamplehint":  {"Neste exemplo, informe -8. Sua empresa pode ter outro valor: confira antes de salvar.", "In this example, enter -8. Your company may use a different value: check before saving.", "In diesem Beispiel: -8. Deine Firma kann einen anderen Wert haben; prüfe ihn vor dem Speichern."},
+	"clockplaceholder":  {"Preencha o valor do BCS", "Enter the BCS value", "BCS-Wert eingeben"},
+	"timezonehint":      {"Relógio usado como referência no BCS, por exemplo Europe/Berlin. A mudança de horário será aplicada sobre ele.", "The reference clock used by BCS, for example Europe/Berlin. The time shift is applied to this clock.", "Referenzuhr von BCS, zum Beispiel Europe/Berlin. Die Zeitverschiebung wird darauf angewendet."},
+	"title":             {productName, productName, productName},
+	"continue":          {"Continuar", "Continue", "Weiter"}, "save": {"Salvar e continuar", "Save and continue", "Speichern und fortfahren"},
 	"intro": {"Configure uma vez. Nas próximas viagens, a abertura continua automaticamente.", "Set up once. Future trips launch automatically.", "Einmal einrichten. Weitere Fahrten starten automatisch."},
 	"root":  {"Pasta do OMSI 2", "OMSI 2 folder", "OMSI-2-Ordner"}, "detected": {"OMSI 2 detectado automaticamente", "OMSI 2 detected automatically", "OMSI 2 automatisch erkannt"},
 	"player": {"Nome do jogador", "Player name", "Spielername"}, "join": {"Entrar em uma empresa existente", "Join an existing company", "Einer bestehenden Firma beitreten"},
@@ -178,7 +178,7 @@ func friendlyError(e error) string {
 	for _, c := range []struct {
 		parts []string
 		key   string
-	}{{[]string{"ônibus livres", "restringe ônibus", "protocolo 6"}, "errorversion"}, {[]string{"convite", "unknown company"}, "errorinvite"}, {[]string{"horário", "clock", "timezone"}, "errorclock"}, {[]string{"download", "sha-256", "cache", "zip"}, "errordownload"}, {[]string{"nome", "informe seu nome"}, "errorplayer"}, {[]string{"criador", "chave"}, "errorowner"}, {[]string{"network", "serviço", "connection", "diretório"}, "errornetwork"}, {[]string{"arquivo", "caminho", "pasta", "permission", "access is denied"}, "errorfiles"}, {[]string{"sem salvar"}, "errorclosed"}} {
+	}{{[]string{"ônibus livres", "restringe ônibus", "protocolo 7"}, "errorversion"}, {[]string{"convite", "unknown company"}, "errorinvite"}, {[]string{"horário", "clock", "timezone"}, "errorclock"}, {[]string{"download", "sha-256", "cache", "zip"}, "errordownload"}, {[]string{"nome", "informe seu nome"}, "errorplayer"}, {[]string{"criador", "chave"}, "errorowner"}, {[]string{"network", "serviço", "connection", "diretório"}, "errornetwork"}, {[]string{"arquivo", "caminho", "pasta", "permission", "access is denied"}, "errorfiles"}, {[]string{"sem salvar"}, "errorclosed"}} {
 		for _, part := range c.parts {
 			if strings.Contains(s, part) {
 				return tr(c.key)
@@ -216,4 +216,13 @@ func init() {
 
 func init() {
 	translations["error"] = [3]string{"Não foi possível continuar. Abra Ver detalhes do erro abaixo.", "Could not continue. Open View error details below.", "Vorgang fehlgeschlagen. Unten Fehlerdetails anzeigen öffnen."}
+}
+
+func init() {
+	translations["previewwarning"] = [3]string{"Candidata 3.0: BCS 5.0.2.0 e openOMSI 0.2.48+. Valide uma viagem completa com dois jogadores antes do lançamento definitivo.", "3.0 release candidate: BCS 5.0.2.0 and openOMSI 0.2.48+. Validate a complete two-player trip before the final release.", "3.0-Release-Kandidat: BCS 5.0.2.0 und openOMSI 0.2.48+. Vor der endgültigen Veröffentlichung eine vollständige Fahrt mit zwei Spielern prüfen."}
+	translations["serverhint"] = [3]string{"O servidor usa protocolo 7. Novas sessões podem baixar a versão oficial; a opção Recomendada usa a 0.2.50 incluída. Cada mapa tem sua própria sessão e seu próprio túnel.", "The server uses protocol 7. New sessions can download the official release; Recommended uses the bundled 0.2.50. Each map has its own session and tunnel.", "Der Server nutzt Protokoll 7. Neue Sitzungen können die offizielle Version laden; Empfohlen nutzt die enthaltene 0.2.50. Jede Karte hat ihre eigene Sitzung und ihren eigenen Tunnel."}
+	translations["errorversion"] = [3]string{"Cliente e servidor precisam usar protocolo 7 (openOMSI 0.2.48 ou superior). A 0.2.47 não foi publicada oficialmente. No Setup, use cliente automático e servidor Recomendado 0.2.50, ou versões manuais compatíveis.", "Client and server need protocol 7 (openOMSI 0.2.48 or later). 0.2.47 was not officially released. In Setup use the automatic client and Recommended 0.2.50 server, or compatible manual versions.", "Client und Server benötigen Protokoll 7 (openOMSI ab 0.2.48). 0.2.47 wurde nicht offiziell veröffentlicht. Automatischen Client und empfohlenen Server 0.2.50 oder kompatible manuelle Versionen wählen."}
+	translations["diagnostics"] = [3]string{"Diagnóstico e suporte", "Diagnostics and support", "Diagnose und Support"}
+	translations["diagnosticsdownload"] = [3]string{"Coletar logs", "Collect logs", "Protokolle sammeln"}
+	translations["diagnosticshint"] = [3]string{"Gera um ZIP local com os logs do programa. Revise antes de compartilhar. Nada é enviado automaticamente. Discord: .zmaycon. (com os dois pontos).", "Creates a local ZIP of program logs. Review before sharing. Nothing is uploaded automatically. Discord: .zmaycon. (include both dots).", "Erstellt eine lokale ZIP mit Programmprotokollen. Vor dem Teilen prüfen. Kein automatischer Upload. Discord: .zmaycon. (mit beiden Punkten)."}
 }
