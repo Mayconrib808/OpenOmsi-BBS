@@ -36,10 +36,16 @@ jobs:
         run: |
           python - <<'PY'
           import os, subprocess, sys
+          from pathlib import Path
           sys.path.insert(0,'scripts')
           import build_bridge_update as b
-          env=dict(os.environ,GO111MODULE='off',CGO_ENABLED='0',GOOS='windows',GOARCH='386',GO386='sse2',GOTOOLCHAIN='local')
-          subprocess.run(['go','test','-count=1',*b.UPDATER_SOURCES,'bridge_update_windows_test.go'],cwd='source',env=env,check=True)
+          payload=Path('source/bridge_update_payload.zip')
+          payload.write_bytes(b'test-placeholder')
+          try:
+              env=dict(os.environ,GO111MODULE='off',CGO_ENABLED='0',GOOS='windows',GOARCH='386',GO386='sse2',GOTOOLCHAIN='local')
+              subprocess.run(['go','test','-count=1',*b.UPDATER_SOURCES,'bridge_update_windows_test.go'],cwd='source',env=env,check=True)
+          finally:
+              payload.unlink(missing_ok=True)
           PY
       - name: Build source-backed update components
         shell: bash
