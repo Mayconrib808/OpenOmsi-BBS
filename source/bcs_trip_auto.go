@@ -18,6 +18,15 @@ type bcsNextTripPreparation struct {
 	Changed bool
 }
 
+// 2.1.9 keeps the previously validated BCS build working while adding the
+// official 5.0.2.0 build. Both builds contain the same original bbs/f.class,
+// so they use the same narrow logger delta.
+const bcsPreviousInspectedJarSHA = "b624b07f436eaa67aee51ea41340529b8f6a6d1d0d29d4c9c199c61d0ca3bbe0"
+
+func supportedBCSJarSHA(sha string) bool {
+	return sha == bcsInspectedJarSHA || sha == bcsPreviousInspectedJarSHA
+}
+
 // Resolve only the BCS belonging to the configured OMSI installation. Never
 // ask a player to select a JAR or scan unrelated downloads/installations.
 func installedBCSJar(root string) (string, error) {
@@ -154,6 +163,18 @@ func prepareBCSNextTrip(c Config, checkClosed func(string) error) (bcsNextTripPr
 	if err != nil {
 		return state, err
 	}
-	state.Changed, err = patchBCSJar(path, bcsInspectedJarSHA, logger)
+	// If our logger is already present, do not reject the JAR merely because
+	// replacing one entry necessarily changed the whole-archive SHA.
+	if bytes.Equal(original, logger) {
+		return state, nil
+	}
+	jarSHA, err := bcsJarSHA(path)
+	if err != nil {
+		return state, err
+	}
+	if !supportedBCSJarSHA(jarSHA) {
+		return state, fmt.Errorf("a comunicação desta versão do BCS ainda não foi validada")
+	}
+	state.Changed, err = patchBCSJar(path, jarSHA, logger)
 	return state, err
 }
