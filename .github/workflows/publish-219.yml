@@ -1,0 +1,103 @@
+name: Publish OpenOMSI BCS Bridge 2.1.9
+
+on:
+  push:
+    branches: ['release/2.1.9-bcs-5.0.2.0']
+    paths: ['.github/workflows/publish-219.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-openomsi-bcs-2.1.9
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+
+      # Reuse the native server that already passed the long protocol/server
+      # regression build in Source checks #216. 2.1.9 does not change it.
+      - name: Reuse tested native server from 2.1.9 candidate
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: BBS-free-bus-native-server
+          path: build/native-server
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: Mayconrib808/OpenOmsi-BBS
+          run-id: '38644903247'
+
+      - name: Build source-backed 2.1.9 package
+        shell: bash
+        run: >-
+          python scripts/build.py
+          --native-server build/native-server
+          --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev
+          --update-sequence 2026101402
+
+      - name: Build cumulative automatic updater
+        shell: bash
+        run: |
+          python scripts/build_update_components.py \
+            --output build/update-components-219 \
+            --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev \
+            --update-sequence 2026101402
+          python scripts/build_bridge_update.py \
+            --package build/update-components-219 \
+            --output build/update-219/OpenOmsi_BBS_2.1.9_Atualizacao.zip \
+            --components build/update-219/components
+
+      - name: Record release hashes
+        shell: pwsh
+        run: |
+          $zip='dist/OpenOmsi.+.BBS.2.1.9.zip'
+          $updater='build/update-219/Atualizar-Bridge.exe'
+          if (-not (Test-Path -LiteralPath $zip)) { throw 'Full 2.1.9 ZIP was not built' }
+          if (-not (Test-Path -LiteralPath $updater)) { throw '2.1.9 updater was not built' }
+          $zipHash=(Get-FileHash -Algorithm SHA256 -LiteralPath $zip).Hash.ToLowerInvariant()
+          $updaterHash=(Get-FileHash -Algorithm SHA256 -LiteralPath $updater).Hash.ToLowerInvariant()
+          $updaterSize=(Get-Item -LiteralPath $updater).Length
+          "Full ZIP SHA-256: $zipHash" | Tee-Object -FilePath build/update-219/RELEASE-HASHES.txt
+          "Updater SHA-256: $updaterHash" | Tee-Object -FilePath build/update-219/RELEASE-HASHES.txt -Append
+          "Updater size: $updaterSize" | Tee-Object -FilePath build/update-219/RELEASE-HASHES.txt -Append
+
+      - name: Upload updater for signed automatic-update publication
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Bridge-2.1.9
+          path: |
+            build/update-219/Atualizar-Bridge.exe
+            build/update-219/OpenOmsi_BBS_2.1.9_Atualizacao.zip
+            build/update-219/RELEASE-HASHES.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub release v2.1.9
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if gh release view v2.1.9 >/dev/null 2>&1; then
+            echo 'v2.1.9 already exists; refusing to overwrite an official release.' >&2
+            exit 1
+          fi
+          gh release create v2.1.9 \
+            'dist/OpenOmsi.+.BBS.2.1.9.zip' \
+            'dist/OpenOmsi.+.BBS.2.1.9.zip.sha256' \
+            'build/update-219/OpenOmsi_BBS_2.1.9_Atualizacao.zip' \
+            'build/update-219/Atualizar-Bridge.exe' \
+            'build/update-219/RELEASE-HASHES.txt' \
+            --target "$GITHUB_SHA" \
+            --title 'OpenOMSI + BBS 2.1.9' \
+            --notes-file docs/releases/v2.1.9.md
