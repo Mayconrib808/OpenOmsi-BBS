@@ -1,4 +1,4 @@
-# BBS+OpenOmsi Multiplayer 3.0.3-rc.3
+# BBS+OpenOmsi Multiplayer 3.0.3
 
 The public candidate uses the unmodified official openOMSI 0.2.50 server and protocol-7 gateway/tunnel behavior ported from 2.1.8. Player fuel restoration is ported from 2.1.7. BCS 5.0.2.0 next-trip commands and acknowledgments are native; no vendor JAR patch is used.
 

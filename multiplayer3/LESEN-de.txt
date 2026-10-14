@@ -2,7 +2,7 @@
 
 Fahre deine Fahrten aus dem **Busbetrieb-Simulator (BBS/BCS)** im **Multiplayer von openOMSI**. BBS wählt und bewertet die Fahrt; openOMSI simuliert die gemeinsame Welt. Fahrer auf derselben Karte können den Bussen der anderen begegnen.
 
-**3.0.3-rc.3 ist ein Release-Kandidat.** Vor der endgültigen WebDisk-Veröffentlichung eine vollständige Fahrt mit zwei PCs prüfen.
+**3.0.3 ist ein Release-Kandidat.** Vor der endgültigen WebDisk-Veröffentlichung eine vollständige Fahrt mit zwei PCs prüfen.
 
 ## Voraussetzungen und Einrichtung
 

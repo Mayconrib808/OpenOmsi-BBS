@@ -1,4 +1,4 @@
-# BBS+OpenOmsi Multiplayer 3.0.3-rc.3
+# BBS+OpenOmsi Multiplayer 3.0.3
 
 Bring BCS 5.0.2.0 trips into openOMSI multiplayer, with automatic company/map sessions.
 

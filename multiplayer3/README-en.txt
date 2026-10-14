@@ -2,7 +2,7 @@
 
 Drive your **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)** trips in **openOMSI multiplayer**. BCS selects and evaluates the trip; openOMSI simulates the shared world. Drivers on the same map can encounter each other's buses.
 
-**3.0.3-rc.3 is a release candidate.** Complete a real two-PC trip before treating it as the final WebDisk release.
+**3.0.3 is a release candidate.** Complete a real two-PC trip before treating it as the final WebDisk release.
 
 ## Requirements and setup
 

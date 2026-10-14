@@ -2,7 +2,7 @@
 
 Leve suas viagens do **Bus Company Simulator / Busbetrieb-Simulator (BCS/BBS)** para o **multiplayer do openOMSI**. O BCS escolhe a viagem e recebe os dados da condução; o openOMSI simula o mundo compartilhado. Jogadores no mesmo mapa podem encontrar os ônibus uns dos outros.
 
-A primeira candidata pública é **3.0.3-rc.3**. A numeração continua depois dos testes 3.0.2-dev.13. A candidata precisa de uma viagem completa com dois computadores antes de ser apresentada como lançamento definitivo no WebDisk.
+A candidata pública é **3.0.3**. O número sem sufixo mantém a compatibilidade com a verificação de atualização dos testes antigos 3.0.2-dev.13; o canal continua marcado como candidata. A candidata precisa de uma viagem completa com dois computadores antes de ser apresentada como lançamento definitivo no WebDisk.
 
 ## Requisitos
 

@@ -6,9 +6,9 @@
 
 **Nutze den Multiplayer von openOMSI für deine Busbetrieb-Simulator-Fahrten.** BBS/BCS wählt die Fahrt und erhält die Fahrdaten. openOMSI simuliert die gemeinsame Welt, sodass Fahrer auf derselben Karte einander begegnen können.
 
-> **Release-Kandidat: 3.0.3-rc.3.** Dieser Kandidat nutzt BBS 5.0.2.0 und openOMSI mit Protokoll 7. Enthalten ist der offizielle Server 0.2.50; offizieller Client ab 0.2.48. 0.2.47 wurde nicht offiziell veröffentlicht. Eine vollständige Fahrt mit zwei PCs ist noch die abschließende Spielprüfung.
+> **Release-Kandidat: 3.0.3.** Dieser Kandidat nutzt BBS 5.0.2.0 und openOMSI mit Protokoll 7. Enthalten ist der offizielle Server 0.2.50; offizieller Client ab 0.2.48. 0.2.47 wurde nicht offiziell veröffentlicht. Eine vollständige Fahrt mit zwei PCs ist noch die abschließende Spielprüfung.
 
-**[Vollständige Windows-ZIP herunterladen](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.3)** · [SHA-256 / source / release notes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3-rc.3)
+**[Vollständige Windows-ZIP herunterladen](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3)** · [SHA-256 / source / release notes](https://github.com/Mayconrib808/OpenOmsi-BBS/releases/tag/v3.0.3)
 
 ## Schnellstart
 
