@@ -34,6 +34,8 @@ def prepare(source):
     commit = run(['git', 'rev-parse', 'HEAD'], source, capture=True).strip()
     if commit != PIN['upstream_commit']:
         raise ValueError('Upstream tag identity changed')
+    # Persist LF policy for git apply; Windows runners default to autocrlf=true.
+    run(['git', 'config', 'core.autocrlf', 'false'], source)
     patch = DATA / 'openomsi-0.2.50-dlss.patch'
     if sha(patch) != PIN['patch_sha256']:
         raise ValueError('DLSS patch identity differs from the manifest')
