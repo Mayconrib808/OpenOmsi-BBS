@@ -30,6 +30,25 @@ func writeSetupAtomic(path string, b []byte) error {
 }
 
 func verifyPackage(dir string) (int, error) {
+	return verifyPackageWithRepairableBinaries(dir, nil)
+}
+
+// The automatic updater carries its replacement executables inside the signed,
+// SHA-256-verified installer. A stale or locally damaged executable that is
+// about to be replaced must not make recovery impossible. Everything outside
+// that exact replacement set remains under the normal strict integrity check.
+func verifyPackageForUpdate(dir string, payload map[string][]byte) (int, error) {
+	repairable := map[string]bool{}
+	for name := range payload {
+		if !bridgeUpdateBinaryAllowed(name) {
+			return 0, fmt.Errorf("unsupported update component: %s", name)
+		}
+		repairable[strings.ToLower(name)] = true
+	}
+	return verifyPackageWithRepairableBinaries(dir, repairable)
+}
+
+func verifyPackageWithRepairableBinaries(dir string, repairable map[string]bool) (int, error) {
 	patches, e := packagePatchHashes(dir)
 	if e != nil {
 		return 0, e
@@ -101,7 +120,7 @@ func verifyPackage(dir string) (int, error) {
 		if e != nil {
 			return count, e
 		}
-		if !bytes.Equal(h.Sum(nil), expected) {
+		if !bytes.Equal(h.Sum(nil), expected) && !repairable[strings.ToLower(rel)] {
 			return count, fmt.Errorf("SHA256 mismatch: %s", rel)
 		}
 		count++
@@ -171,15 +190,17 @@ func packagePatchHashes(dir string) (map[string][]byte, error) {
 // Only human-readable documentation is optional. Executables, scripts, runtime
 // configuration and integrity/control manifests retain their existing checks.
 func packageOptionalDocumentation(rel string) bool {
- p := strings.ToLower(rel)
- name := strings.ToLower(filepath.Base(filepath.FromSlash(rel)))
- if !strings.Contains(p, "/") {
-  return ((name == "leia-me.txt" || strings.HasPrefix(name, "leia-me-")) && strings.HasSuffix(name, ".txt")) ||
-   ((name == "readme.md" || strings.HasPrefix(name, "readme.")) && strings.HasSuffix(name, ".md")) || name == "tutorial.html"
- }
- if strings.HasPrefix(p, "docs/") {
-  if strings.Contains(name, "sha256") || strings.HasPrefix(name, "patch-") || name == "package_files.txt" { return false }
-  return strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".txt")
- }
- return false
+	p := strings.ToLower(rel)
+	name := strings.ToLower(filepath.Base(filepath.FromSlash(rel)))
+	if !strings.Contains(p, "/") {
+		return ((name == "leia-me.txt" || strings.HasPrefix(name, "leia-me-")) && strings.HasSuffix(name, ".txt")) ||
+			((name == "readme.md" || strings.HasPrefix(name, "readme.")) && strings.HasSuffix(name, ".md")) || name == "tutorial.html"
+	}
+	if strings.HasPrefix(p, "docs/") {
+		if strings.Contains(name, "sha256") || strings.HasPrefix(name, "patch-") || name == "package_files.txt" {
+			return false
+		}
+		return strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".txt")
+	}
+	return false
 }
