@@ -61,14 +61,14 @@ func bcsPatchChooseJar() string {
 }
 
 func main() {
-	if bcsPatchMessage("Feche completamente o BCS e o openOMSI antes de continuar.\n\nEste ajuste faz o BCS registrar no log a próxima viagem que você selecionou. O adaptador instalado poderá então atualizar a tabela.\n\nVocê selecionará o busbetrieb-simulator.jar da instalação do BCS. Será criado um backup do original.\n\nContinuar?", 0x24) != 6 {
+	if bcsPatchMessage("Feche completamente o BCS e o openOMSI antes de continuar.\n\nEste ajuste faz o BCS registrar no log a próxima viagem que você selecionou. O adaptador instalado poderá então atualizar a tabela.\n\nVocê selecionará o busbetrieb-simulator.jar da instalação do BCS. Será criado um backup do original sem sobrescrever backups existentes de outras versões.\n\nContinuar?", 0x24) != 6 {
 		return
 	}
 	path := bcsPatchChooseJar()
 	if path == "" {
 		return
 	}
-	if bcsPatchMessage("Aplicar o ajuste neste arquivo?\n\n"+path+"\n\nSomente o logger será atualizado. O JAR precisa ser exatamente a versão analisada; outras versões serão preservadas.\n\nBackup: "+path+".antes-proxima-viagem.bak", 0x24) != 6 {
+	if bcsPatchMessage("Aplicar o ajuste neste arquivo?\n\n"+path+"\n\nSomente o logger será atualizado. O JAR precisa ser exatamente a versão analisada; outras versões serão preservadas.\n\nO backup será mantido ao lado do JAR; se já existir um backup de outro build, será usado um nome específico para o build atual.", 0x24) != 6 {
 		return
 	}
 	changed, e := patchBCSJar(path, strings.TrimSpace(bcsTripOriginalSHA), bcsTripLogger)
