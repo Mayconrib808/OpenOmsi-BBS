@@ -85,8 +85,11 @@ func (g *setupGUI) updateCommand() {
 		if err = checkUpdateHostClosed(g.dir); err != nil {
 			return guiResult{err: err}
 		}
-		if _, err = verifyPackage(g.dir); err != nil {
-			return guiResult{err: err}
+		// Integrity drift in the old installation is a reason to repair it, not
+		// a reason to deny the signed updater. Keep it in the log for diagnosis
+		// but let the SHA-256/signature-verified update continue.
+		if _, integrityErr := verifyPackage(g.dir); integrityErr != nil {
+			logSetup(g.dir, "update-integrity-warning", integrityErr)
 		}
 		cache, err := os.UserCacheDir()
 		if err != nil {
