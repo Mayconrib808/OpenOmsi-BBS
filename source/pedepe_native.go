@@ -20,10 +20,10 @@ import (
 // (notably openOMSI --autostart for a real scheduled BBS trip) and adding the
 // company multiplayer join when required.
 type pedepeNativeInvocation struct {
-	Root, Map, Bus, Date, Clock, Weather string
-	Situation, Line, Tour, Trip          string
-	HasSchedule, HasAutoStart            bool
-	HasLANJoin, Server, Probe            bool
+	Root, Map, Bus, Date, Clock, Weather  string
+	Situation, Line, Tour, Trip           string
+	HasSchedule, HasAutoStart             bool
+	HasLANJoin, HasLANHost, Server, Probe bool
 }
 
 type pedepeSituationMetadata struct {
@@ -349,6 +349,7 @@ func parsePeDePeNativeInvocation(args []string) pedepeNativeInvocation {
 	in.HasSchedule = pedepeHasArg(args, "--schedule")
 	in.HasAutoStart = pedepeHasArg(args, "--autostart")
 	in.HasLANJoin = pedepeHasArg(args, "--lan-join")
+	in.HasLANHost = pedepeHasArg(args, "--lan-host")
 	in.Server = pedepeHasArg(args, "--server")
 	in.Probe = pedepeHasArg(args, "--help") || pedepeHasArg(args, "-h") || pedepeHasArg(args, "--version") || pedepeHasArg(args, "-V")
 	return in
@@ -523,9 +524,9 @@ func shouldAddPeDePeAutoStart(in pedepeNativeInvocation) bool {
 
 // A direct native launch has --map/--time. PeDePe's current beta instead sends
 // --situation plus the complete schedule identity; both are valid company-trip
-// forms. Probes, server mode and a future native --lan-join always stay untouched.
+// forms. Networking explicitly selected in BCS 5.0.3.0 stays authoritative.
 func shouldInjectPeDePeMultiplayer(in pedepeNativeInvocation, c Config) bool {
-	if !c.Multiplayer || in.Probe || in.Server || in.HasLANJoin {
+	if !c.Multiplayer || in.Probe || in.Server || in.HasLANJoin || in.HasLANHost {
 		return false
 	}
 	if strings.TrimSpace(in.Map) != "" && strings.TrimSpace(in.Clock) != "" && (strings.TrimSpace(in.Bus) != "" || in.HasSchedule) {

@@ -134,6 +134,9 @@ func TestBCSSupportedVendorBuilds(t *testing.T) {
 	if !supportedBCSJarSHA(bcsPreviousInspectedJarSHA) {
 		t.Fatal("previous BCS vendor build rejected")
 	}
+	if !supportedBCSJarSHA(bcs503InspectedJarSHA) {
+		t.Fatal("BCS 5.0.3.0 vendor build rejected")
+	}
 	if supportedBCSJarSHA("unknown") {
 		t.Fatal("unknown BCS vendor build accepted")
 	}

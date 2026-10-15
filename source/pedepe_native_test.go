@@ -473,7 +473,7 @@ func TestPeDePeNativeInjectionStepsAsideForNativeNetworkingAndProbes(t *testing.
 	if !shouldInjectPeDePeMultiplayer(parsePeDePeNativeInvocation(base), c) {
 		t.Fatal("complete PeDePe trip should receive company multiplayer")
 	}
-	for _, extra := range [][]string{{"--lan-join", "wss://native.example"}, {"--version"}, {"--server", "server.cfg"}} {
+	for _, extra := range [][]string{{"--lan-join", "wss://native.example"}, {"--lan-join=OMSI-TEST"}, {"--lan-host", "0"}, {"--lan-host=0"}, {"--version"}, {"--server", "server.cfg"}} {
 		args := append(append([]string(nil), base...), extra...)
 		if shouldInjectPeDePeMultiplayer(parsePeDePeNativeInvocation(args), c) {
 			t.Fatalf("adapter must step aside for %v", extra)

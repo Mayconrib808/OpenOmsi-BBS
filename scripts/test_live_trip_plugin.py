@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the actual Lua companion against the documented 0.2.29/0.2.30 API shape.
+"""Exercise the actual Lua companion against the documented API through 0.3.0.
 
 Requires lupa; no simulator or commercial map content is used.
 """
@@ -10,6 +10,7 @@ SCRIPT = (Path(__file__).resolve().parents[1] / "source/live_trip_plugin.lua").r
 BOOT = r'''
 local callback
 command, status, messages, sends, starts, saves, handlers, logs = nil, nil, {}, {}, 0, 0, {}, {}
+auto_sign, sign_writes, sign_accepts, sign_applies = true, 0, true, true
 lan_active, bus_file, map_path = false, "Vehicles/Test/bus.bus", "/OMSI/maps/Test/global.cfg"
 rows = {
   {trip=1, station=1, name="A", departure=14700},
@@ -21,7 +22,7 @@ duty, destination_index = {line="1", tour="1", trip=1, departure=14700, terminus
 function take(line, tour, trip)
   starts=starts+1
   duty={line=line, tour=tour, trip=trip, departure=16500, terminus="A", trip_name="return"}
-  destination_index=1
+  if auto_sign then destination_index=1 end
 end
 omsi = {
  on=function(event, fn)
@@ -33,13 +34,18 @@ omsi = {
  speed=function() return 0 end,
  command=function(s) assert(s=="save"); saves=saves+1; return true end,
  map={info=function() return {path=map_path} end},
- game={version=function() return "0.2.29" end},
+ game={version=function() return "0.3.0" end},
  files={read=function() return command and "json" or nil end,write=function(_,_) return true end},
  json={decode=function() return command end,encode=function(t) status=t; return "json" end},
  duty={get=function() return duty end,start=function(l,t,n,stop) assert(stop==1);take(l,t,n);return true end},
  timetable={stops=function() return rows end},
  bus={file=function() return bus_file end,
       destination=function() return destination_index==1 and "A" or "B",destination_index end,
+      set_destination=function(index)
+        sign_writes=sign_writes+1
+        if sign_accepts and sign_applies then destination_index=index end
+        return sign_accepts
+      end,
       destinations=function() return {{index=1,name="A"},{index=2,name="B"}} end},
  lan={active=function() return lan_active end,me=function() return 2,"Test",false end,
       send=function(id,text) assert(id==1);table.insert(sends,text);return true end}
@@ -58,10 +64,10 @@ function prepare()
 end
 '''
 
-def runtime():
+def runtime(language="en"):
     lua = LuaRuntime(unpack_returned_tuples=True)
     lua.execute(BOOT)
-    lua.execute(SCRIPT.replace("__BRIDGE_TOKEN__", "0123456789abcdef"))
+    lua.execute(SCRIPT.replace("__BRIDGE_TOKEN__", "0123456789abcdef").replace("__BRIDGE_LANGUAGE__", language))
     return lua
 
 lua = runtime()
@@ -148,4 +154,67 @@ lua.execute('prepare();command.id="1003_5678abcd";command.map="/OMSI/maps/Other/
 
 lua = runtime()
 lua.execute('prepare();step(6);command.phase="cancel";step(1);command.phase="apply";step(8);assert(status.phase=="error" and starts==0)')
-print("Lua companion: registered events, Carrão 4315/SAB01 HTTP-202/ack ordering, local and multiplayer handoffs, actual timetable/destination confirmation, timeout, rejection and cancellation checks passed")
+# Native programming has a grace period: do not interfere with an IBIS that
+# finishes naturally. Already-correct signs must never be rewritten.
+lua = runtime()
+lua.execute('prepare();step(6);command.phase="apply";step(20);assert(status.phase=="applied" and sign_writes==0)')
+lua = runtime()
+lua.execute('auto_sign=false;prepare();step(6);command.phase="apply";step(8);assert(status.phase=="applying" and sign_writes==0);destination_index=1;step(1);assert(status.phase=="applied" and sign_writes==0)')
+
+# A unique HOF match can be corrected once the native timetable is confirmed.
+# Even a successful setter must be verified by a subsequent display reading.
+lua = runtime()
+lua.execute('''
+auto_sign=false;prepare();step(6);command.phase="apply";step(13)
+assert(sign_writes==1 and destination_index==1 and status.phase=="applying" and not status.sign_ok)
+step(1);assert(status.phase=="applied" and status.sign_ok and status.sign_attempts==1)
+step(100);assert(sign_writes==1 and #messages==1 and starts==1)
+''')
+
+# Acceptance is not display confirmation: bound retries and report a separate
+# unverified state, keeping the confirmed timetable available to BCS.
+lua = runtime()
+lua.execute('''
+auto_sign=false;sign_applies=false;prepare();step(6);command.phase="apply";step(65)
+assert(status.phase=="applied_unverified" and not status.sign_ok and sign_writes==2)
+assert(status.trip==2 and status.destination_index==2 and status.expected_destination_index==1)
+step(80);assert(sign_writes==2 and #messages==1)
+destination_index=1;step(1);assert(status.phase=="applied" and status.sign_ok and #messages==2)
+step(80);assert(sign_writes==2 and #messages==2 and starts==1)
+''')
+
+for unavailable in (
+    'omsi.bus.destinations=function() return {{index=2,name="B"}} end',
+    'omsi.bus.destinations=function() return {{index=1,name="A"},{index=3,name="A"}} end',
+    'omsi.bus.destinations=function() return {{index=0,name="A"}} end',
+    'omsi.bus.set_destination=nil',
+):
+    lua = runtime()
+    lua.execute('auto_sign=false;' + unavailable + ';prepare();step(6);command.phase="apply";step(65);assert(status.phase=="applied_unverified" and not status.sign_ok and sign_writes==0)')
+
+# A rejection or Lua exception cannot turn into a false confirmation or crash
+# the companion. Corrections remain bounded and the warning is visible.
+for setter in ('sign_accepts=false', 'omsi.bus.set_destination=function() sign_writes=sign_writes+1;error("unsupported") end'):
+    lua = runtime()
+    lua.execute('auto_sign=false;' + setter + ';prepare();step(6);command.phase="apply";step(65);assert(status.phase=="applied_unverified" and not status.sign_ok and sign_writes==2 and #messages==1)')
+
+lua = runtime()
+lua.execute('auto_sign=false;prepare();step(6);command.phase="apply";step(2);omsi.speed=function() return 20 end;step(65);assert(status.phase=="applied_unverified" and sign_writes==0)')
+lua = runtime()
+lua.execute('auto_sign=false;lan_active=true;prepare();step(6);command.phase="apply";step(1);emit("lan_message",1,"ready");step(9);take("130 & N30","Mo-Fr 9",2);step(20);assert(sign_writes==0 and not status.host_ack);emit("lan_message",1,"done 1002_1234abcd");step(13);assert(sign_writes==1);step(1);assert(status.phase=="applied" and status.sign_ok)')
+
+# Cancellation/vehicle changes stop corrections, even if the old bus later
+# reports the requested destination. A new selection gets fresh retry state.
+lua = runtime()
+lua.execute('auto_sign=false;sign_applies=false;prepare();step(6);command.phase="apply";step(13);command.phase="cancel";step(1);destination_index=1;step(90);assert(status.phase=="error" and sign_writes==1)')
+lua = runtime()
+lua.execute('auto_sign=false;prepare();step(6);command.phase="apply";step(2);bus_file="Vehicles/Other/bus.bus";step(90);assert(status.phase=="error" and sign_writes==0)')
+lua = runtime()
+lua.execute('auto_sign=false;sign_applies=false;prepare();step(6);command.phase="apply";step(65);prepare();command.id="1003_5678abcd";step(6);assert(status.phase=="prepared" and status.sign_attempts==0 and not status.sign_ok)')
+
+for language, phrase in (("pt", "destino não foi confirmado"), ("en", "destination is unconfirmed"), ("de", "Ziel aber nicht bestätigt")):
+    lua = runtime(language)
+    lua.execute('auto_sign=false;sign_applies=false;prepare();step(6);command.phase="apply";step(65)')
+    assert phrase in lua.globals().messages[1], language
+
+print("Lua companion: native acknowledgments, HOF confirmation/correction, bounded retries, ambiguous/missing HOF, cancellation, BCS recording continuity and PT/EN/DE warnings passed")

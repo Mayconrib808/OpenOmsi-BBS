@@ -37,7 +37,7 @@ func registeredBridgeUpdateTarget(r registryAPI) (string, Config, error) {
 		if found != "" && !samePath(found, dir) {
 			return "", config, fmt.Errorf("há registros de instalações diferentes da Bridge; nada foi alterado")
 		}
-		if !fileExists(configPath(dir)) || !fileExists(filepath.Join(dir, "Setup.exe")) {
+		if !fileExists(configPath(dir)) {
 			return "", config, fmt.Errorf("a instalação registrada da Bridge está incompleta")
 		}
 		c := readConfig(configPath(dir))
@@ -147,8 +147,20 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 		files[name] = data
 	}
 	files["docs/PATCH-PLAYER-SHA256.txt"] = automaticPlayerManifest(payload)
+	// The cumulative installer carries the complete seven-file runtime. Its
+	// own checksums are the new runtime inventory, even if an older package
+	// lacked a component or its old manifest is missing/damaged. Source files,
+	// documentation and user settings are not part of this binary update.
+	completeRuntime := len(payload) == 7 // all names already passed the fixed allowlist
+	if completeRuntime {
+		files["docs/SHA256.txt"] = automaticPlayerManifest(payload)
+	}
 	if host, e := os.ReadFile(filepath.Join(dir, "docs", "PATCH-HOST-SHA256.txt")); e == nil {
-		files["docs/PATCH-HOST-SHA256.txt"] = updatedHostManifestForPayload(host, payload)
+		if completeRuntime {
+			files["docs/PATCH-HOST-SHA256.txt"] = automaticPlayerManifest(payload)
+		} else {
+			files["docs/PATCH-HOST-SHA256.txt"] = updatedHostManifestForPayload(host, payload)
+		}
 	} else if !os.IsNotExist(e) {
 		return state, e
 	}
@@ -157,6 +169,21 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	var order []string
 	for name := range files {
 		path := filepath.Join(dir, filepath.FromSlash(name))
+		// Recovery can recreate subdirectories but must not follow a linked
+		// subdirectory out of the selected installation. The package root may
+		// itself be an equivalent Steam/junction path.
+		for parent := filepath.Dir(path); parent != filepath.Clean(dir); parent = filepath.Dir(parent) {
+			st, e := os.Lstat(parent)
+			if os.IsNotExist(e) {
+				continue
+			}
+			if e != nil {
+				return state, e
+			}
+			if !st.IsDir() || st.Mode()&os.ModeSymlink != 0 {
+				return state, fmt.Errorf("a subpasta de atualização não é um diretório local: %s", parent)
+			}
+		}
 		if st, e := os.Lstat(path); e == nil && !st.Mode().IsRegular() {
 			return state, fmt.Errorf("componente não é arquivo regular: %s", name)
 		}

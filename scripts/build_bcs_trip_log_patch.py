@@ -58,8 +58,15 @@ def main():
     p.add_argument('--keep-test-dir', type=Path)
     p.add_argument('--emit-auto-delta', type=Path, help='Regenerate the source-only automatic Setup delta.')
     args = p.parse_args()
-    inspected_hash = (ROOT/'source/bcs_trip_log_patch.sha256').read_text().strip()
-    if hashlib.sha256(args.jar.read_bytes()).hexdigest() != inspected_hash:
+    args.output = args.output.resolve()
+    args.jar = args.jar.resolve()
+    inspected_hash = hashlib.sha256(args.jar.read_bytes()).hexdigest()
+    inspected_builds = {
+        (ROOT/'source/bcs_trip_log_patch.sha256').read_text().strip(): 'I',
+        'bfbf51cbb9033b130ecd4bebd41e1d04b926d8ef6c578737f1363a3146b196c6': 'I',
+        '22d01c3f84ef48266293c49aca082c9792855c00379ae28e5318b11e1ed34555': 'J',
+    }
+    if inspected_hash not in inspected_builds:
         raise SystemExit('The supplied JAR is not the exact inspected BCS build.')
     work = args.keep_test_dir or Path(tempfile.mkdtemp(prefix='bbs-log-observer-'))
     work.mkdir(parents=True, exist_ok=True)
@@ -99,10 +106,19 @@ public class ObserverCheck {
  }
 }''',
     }
+    state_class = inspected_builds[inspected_hash]
+    if state_class != 'I':
+        fixtures = {n.replace('system/I.java', 'system/'+state_class+'.java'):
+                    t.replace('system.I', 'system.'+state_class).replace('public class I {', 'public class '+state_class+' {')
+                    for n, t in fixtures.items()}
     for n, t in fixtures.items():
         path=work/n; path.parent.mkdir(parents=True,exist_ok=True); path.write_text(t)
     classes=work/'classes'; classes.mkdir(exist_ok=True)
     template=ROOT/'scripts/bcs_next_trip/ObserverTemplate.java'
+    if state_class != 'I':
+        local_template=work/'ObserverTemplate.java'
+        local_template.write_text(template.read_text().replace('system.I', 'system.'+state_class))
+        template=local_template
     run(JAVA,'-m','jdk.compiler/com.sun.tools.javac.Main','--release','8','-d',str(classes),
         *[str(work/n) for n in fixtures],str(template))
     instrumenter=ROOT/'scripts/bcs_next_trip/ApplyObserver.java'
@@ -114,6 +130,8 @@ public class ObserverCheck {
     patched=ROOT/'source/bcs_trip_log_patch.bin'
     run(JAVA,*ASM_EXPORTS,'-cp',str(classes),'ApplyObserver',str(original),
         str(classes/'bridge/ObserverTemplate.class'),str(patched))
+    if state_class == 'J' and hashlib.sha256(patched.read_bytes()).hexdigest() != '1307d92fbdd23a87891f095efabf3abadc59a8e7b48d74f8903c87decbdf2107':
+        raise SystemExit('BCS 5.0.3.0 generated observer differs from the inspected runtime payload.')
     target=classes/'bbs/f.class'; target.parent.mkdir(exist_ok=True); target.write_bytes(patched.read_bytes())
     result=subprocess.run([JAVA,'-Xverify:all','-cp',str(classes),'ObserverCheck'],
         check=True,capture_output=True,text=True)

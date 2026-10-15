@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build a self-contained update for an already configured Bridge installation.
 
-Only Setup and PeDePeAdapter are replaced. The original vendor JAR stays local:
+The cumulative package replaces the seven Bridge executables. The vendor JAR stays local:
 the source contains a checksum-guarded delta for our observational log method.
 """
 import argparse
@@ -79,7 +79,20 @@ def main():
             subprocess.run([args.go,'build','-trimpath','-buildvcs=false','-ldflags=-s -w -H=windowsgui','-o',str(updater),*UPDATER_SOURCES],cwd=SOURCE,env=env,check=True)
         finally:
             payload.unlink(missing_ok=True)
-        instructions = '\ufeffOpenOMSI BCS Bridge — atualização automática da próxima viagem\r\n\r\n1. Feche BCS, OMSI, openOMSI e o Setup.\r\n2. Execute Atualizar-Bridge.exe e permita a atualização no Windows.\r\n3. Quando aparecer "Bridge atualizada", abra o BCS normalmente.\r\n\r\nVocê pode executar o atualizador da pasta Downloads: ele encontra a Bridge pela pasta PeDePeAdapter já salva no BCS.\r\nNão escolha JAR, não mude pastas no BCS e não refaça o perfil da empresa.\r\n\r\nDestinado aos jogadores que já usam o PeDePeAdapter no BCS. Não precisa de ativação adicional pelo Setup.\r\nInclui a atualização 2.1.2 da Bridge e 2.1.2-host.1 do host. Feche também o HostAgent antes de instalar.\r\nO ajustamento de comunicação do BCS é aplicado automaticamente e mantém backup do original.\r\nO atualizador recusa versões do BCS que ainda não foram analisadas.\r\nApós uma atualização oficial do BCS, o Setup pode reaplicar o ajuste se a versão ainda for compatível.\r\n\r\nTestes locais de comunicação, integridade e atualização aprovados.\r\nA troca completa de viagem ainda precisa ser confirmada no BCS/openOMSI em Windows.\r\n'
+        instructions = f'''OpenOMSI BCS Bridge {build.VERSION}
+
+Português
+1. Feche BCS, openOMSI, Setup, HostAgent e CompanyHost.
+2. Execute Atualizar-Bridge.exe. Você pode executá-lo da pasta Downloads.
+3. Abra o BCS normalmente após a confirmação.
+Atualização cumulativa: não exige instalar a 2.1.8 ou 2.1.9 primeiro. Inclui o hotfix de recuperação e a confirmação/correção do letreiro na Próxima viagem. Preserva a empresa, convite, caminhos e preferências; não substitui o jogo nem o servidor.
+
+English
+Close BCS, openOMSI, Setup, HostAgent and CompanyHost. Run Atualizar-Bridge.exe, including from Downloads, then reopen BCS. This cumulative update does not require 2.1.8 or 2.1.9 first. Includes recovery and next-trip destination verification/correction. Your company, invitation, paths, preferences and game/server files are preserved.
+
+Deutsch
+BBS, openOMSI, Setup, HostAgent und CompanyHost schließen. Atualizar-Bridge.exe starten, auch aus Downloads, danach BBS wieder öffnen. Kumulatives Update: 2.1.8 oder 2.1.9 sind vorher nicht nötig. Enthält Wiederherstellung und Zielanzeige-Prüfung/Korrektur bei Nächste Fahrt. Firma, Einladung, Pfade, Einstellungen sowie Spiel/Server bleiben erhalten.
+'''
         with zipfile.ZipFile(args.output,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
             z.write(updater,'Atualizar-Bridge.exe')
             z.writestr('LEIA-ME.txt',instructions.replace('atualização 2.1.2 da Bridge','atualização '+build.VERSION+' da Bridge').encode('utf-8'))

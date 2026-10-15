@@ -223,6 +223,22 @@ func TestLiveTripGatewayAcceptsOnlyQueuedNativeAdmin202(t *testing.T) {
 }
 
 func TestLiveTripMonitorStableSelectionAndConfirmedHandoff(t *testing.T) {
+	for _, tc := range []struct {
+		name, phase      string
+		signOK, accepted bool
+	}{
+		{"confirmed destination", "applied", true, true},
+		{"unconfirmed sign keeps BCS recording", "applied_unverified", false, true},
+		{"false confirmation is rejected", "applied", false, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			testLiveTripMonitorHandoff(t, tc.phase, tc.signOK, tc.accepted)
+		})
+	}
+}
+
+func testLiveTripMonitorHandoff(t *testing.T, appliedPhase string, signOK, accepted bool) {
+	t.Helper()
 	root := t.TempDir()
 	logPath := filepath.Join(root, "log.txt")
 	base := liveTestBlock("1001", "130 & N30", "Mo-Fr 9")
@@ -253,7 +269,10 @@ func TestLiveTripMonitorStableSelectionAndConfirmedHandoff(t *testing.T) {
 		t.Fatal("fresh selection not prepared")
 	}
 	writeStatus := func(phase string) {
-		s := liveTripStatus{Token: m.token, ID: m.command.ID, Phase: phase, Map: m.command.Map, Bus: in.Bus, Line: "454", Tour: "03", Trip: 2, SelectedTrip: 2, Departure: 14700, SignOK: true, Destination: "B"}
+		s := liveTripStatus{Token: m.token, ID: m.command.ID, Phase: phase, Map: m.command.Map, Bus: in.Bus, Line: "454", Tour: "03", Trip: 2, SelectedTrip: 2, Departure: 14700, SignOK: signOK, Destination: "B"}
+		if phase == "applied_unverified" {
+			s.Error = "Timetable confirmed; destination unconfirmed"
+		}
 		data, _ := json.Marshal(s)
 		_ = os.WriteFile(filepath.Join(m.dataDir, "status.json"), data, 0600)
 	}
@@ -263,8 +282,14 @@ func TestLiveTripMonitorStableSelectionAndConfirmedHandoff(t *testing.T) {
 	if m.command.Phase != "apply" || !driver.EvaluationFrozen {
 		t.Fatal("applied before saved baseline was stable")
 	}
-	writeStatus("applied")
+	writeStatus(appliedPhase)
 	m.poll(now.Add(5*time.Second), driver)
+	if !accepted {
+		if m.current.ID != "1001" || !driver.EvaluationFrozen || m.pending != nil {
+			t.Fatal("false destination confirmation changed the BCS handoff")
+		}
+		return
+	}
 	if m.current.ID != "1002" || m.pending != nil || driver.EvaluationFrozen {
 		t.Fatal("confirmed handoff failed")
 	}

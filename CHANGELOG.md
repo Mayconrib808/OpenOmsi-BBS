@@ -99,6 +99,13 @@
 
 # Changelog
 
+## 2.1.9.1 — 15 October 2026
+
+- Verify the next-trip destination from the actual HOF index, with bounded correction of a unique destination while stopped and PT/EN/DE feedback. Keep BCS recording active when the destination cannot be verified; never label that warning as confirmed.
+- Preserve the 2.1.9 recovery hotfix and support cumulative seven-program upgrades from older/incomplete 2.1 installations, rebuilding the runtime inventory while retaining company, invitation, settings and server files.
+- Support the inspected BCS 5.0.3.0 JAR and its renamed next-trip observer owner; retain previous validated builds. Respect BCS-native hosting/joining without injecting a company join over it.
+- Full release notes: `docs/releases/v2.1.9.1.md`.
+
 ## 2.0.2-dev.4
 
 - Native Host Agent panel with map discovery, JSON import, bulk fleets and independent per-map server settings.

@@ -94,7 +94,9 @@ func bridgeUpdateTargetAtAdapter(folder, expectedRoot string) (string, Config, e
 		return "", empty, errNoNativeUpdateTarget
 	}
 	dir := filepath.Dir(folder)
-	if !fileExists(filepath.Join(folder, "openomsi.exe")) || !fileExists(filepath.Join(dir, "Setup.exe")) || !fileExists(configPath(dir)) {
+	// The saved native selection plus the matching OMSI root identify this
+	// installation. Missing Setup/adapter binaries are recoverable components.
+	if !fileExists(configPath(dir)) {
 		return "", empty, fmt.Errorf("o BCS aponta para uma pasta da Bridge incompleta")
 	}
 	c := readConfig(configPath(dir))

@@ -106,7 +106,8 @@ func setupCurrentState(dir string, c Config, r registryAPI) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	prepared := fmt.Sprintf("%x", sha256.Sum256(logger)) == bcsAutoLoggerSHA
+	hash := fmt.Sprintf("%x", sha256.Sum256(logger))
+	prepared := hash == bcsAutoLoggerSHA || hash == bcs503AutoLoggerSHA
 	return setupNativeActivationState(c, prepared), nil
 }
 func setupNativeActivationState(c Config, prepared bool) string {

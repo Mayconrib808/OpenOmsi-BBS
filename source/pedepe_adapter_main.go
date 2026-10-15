@@ -128,8 +128,8 @@ func main() {
 		peDePeAdapterLog(logPath, fmt.Sprintf("company multiplayer: %s / %s / %s", plan.CompanyID, plan.Session.ID, plan.Session.ServerURL))
 	} else if cfg.Multiplayer {
 		in := parsePeDePeNativeInvocation(args)
-		if in.HasLANJoin {
-			peDePeAdapterLog(logPath, "incoming launch already contains --lan-join; native/future BBS multiplayer kept unchanged")
+		if in.HasLANJoin || in.HasLANHost {
+			peDePeAdapterLog(logPath, "incoming launch already selects native BCS multiplayer; company join was not added")
 		} else {
 			peDePeAdapterLog(logPath, "launch is not a complete PeDePe trip; forwarding without company multiplayer")
 		}

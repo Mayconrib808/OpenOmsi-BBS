@@ -18,13 +18,14 @@ type bcsNextTripPreparation struct {
 	Changed bool
 }
 
-// 2.1.9 keeps the previously validated BCS build working while adding the
-// official 5.0.2.0 build. Both builds contain the same original bbs/f.class,
-// so they use the same narrow logger delta.
+// Keep previous inspected builds while accepting 5.0.3.0. The logger itself is
+// unchanged, but its added observer must use the renamed Spieldaten owner.
 const bcsPreviousInspectedJarSHA = "b624b07f436eaa67aee51ea41340529b8f6a6d1d0d29d4c9c199c61d0ca3bbe0"
+const bcs503InspectedJarSHA = "22d01c3f84ef48266293c49aca082c9792855c00379ae28e5318b11e1ed34555"
+const bcs503AutoLoggerSHA = "1307d92fbdd23a87891f095efabf3abadc59a8e7b48d74f8903c87decbdf2107"
 
 func supportedBCSJarSHA(sha string) bool {
-	return sha == bcsInspectedJarSHA || sha == bcsPreviousInspectedJarSHA
+	return sha == bcsInspectedJarSHA || sha == bcsPreviousInspectedJarSHA || sha == bcs503InspectedJarSHA
 }
 
 // Resolve only the BCS belonging to the configured OMSI installation. Never
@@ -94,7 +95,7 @@ func bcsLoggerBytes(path string) ([]byte, error) {
 // a vendor class/JAR. Both input and reconstructed output have exact hashes.
 func automaticBCSLogger(original []byte) ([]byte, error) {
 	hash := fmt.Sprintf("%x", sha256.Sum256(original))
-	if hash == bcsAutoLoggerSHA || hash == bcsPreviousLoggerSHA {
+	if hash == bcsAutoLoggerSHA || hash == bcsPreviousLoggerSHA || hash == bcs503AutoLoggerSHA {
 		return original, nil
 	}
 	if hash != bcsOriginalLoggerSHA {
@@ -144,6 +145,26 @@ func automaticBCSLogger(original []byte) ([]byte, error) {
 	return result, nil
 }
 
+func automaticBCSLoggerForJar(original []byte, jarSHA string) ([]byte, error) {
+	logger, err := automaticBCSLogger(original)
+	if err != nil || jarSHA != bcs503InspectedJarSHA || bytes.Equal(logger, original) {
+		return logger, err
+	}
+	// This exact constant-pool entry belongs to our injected observer, not the
+	// vendor's unchanged logger. 5.0.3.0 moved Spieldaten from system.I to J;
+	// method names/descriptors and the logger ABI remain unchanged. Verify the
+	// complete result, reproduced by build_bcs_trip_log_patch.py with Java.
+	old := []byte("\x01\x00\x08system/I")
+	if bytes.Count(logger, old) != 1 {
+		return nil, fmt.Errorf("a referência da comunicação do BCS não confere")
+	}
+	logger = bytes.Replace(logger, old, []byte("\x01\x00\x08system/J"), 1)
+	if fmt.Sprintf("%x", sha256.Sum256(logger)) != bcs503AutoLoggerSHA {
+		return nil, fmt.Errorf("a integridade da comunicação do BCS 5.0.3.0 não confere")
+	}
+	return logger, nil
+}
+
 func prepareBCSNextTrip(c Config, checkClosed func(string) error) (bcsNextTripPreparation, error) {
 	path, err := installedBCSJar(c.Root)
 	state := bcsNextTripPreparation{Path: path}
@@ -159,7 +180,11 @@ func prepareBCSNextTrip(c Config, checkClosed func(string) error) (bcsNextTripPr
 	if err != nil {
 		return state, err
 	}
-	logger, err := automaticBCSLogger(original)
+	jarSHA, err := bcsJarSHA(path)
+	if err != nil {
+		return state, err
+	}
+	logger, err := automaticBCSLoggerForJar(original, jarSHA)
 	if err != nil {
 		return state, err
 	}
@@ -167,10 +192,6 @@ func prepareBCSNextTrip(c Config, checkClosed func(string) error) (bcsNextTripPr
 	// replacing one entry necessarily changed the whole-archive SHA.
 	if bytes.Equal(original, logger) {
 		return state, nil
-	}
-	jarSHA, err := bcsJarSHA(path)
-	if err != nil {
-		return state, err
 	}
 	if !supportedBCSJarSHA(jarSHA) {
 		return state, fmt.Errorf("a comunicação desta versão do BCS ainda não foi validada")

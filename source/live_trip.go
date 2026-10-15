@@ -349,7 +349,11 @@ func (m *liveTripMonitor) poll(now time.Time, driver *driverSync) {
 			}
 			return
 		}
-		if s.Phase != "applied" || m.command.Phase != "apply" {
+		if (s.Phase != "applied" && s.Phase != "applied_unverified") || m.command.Phase != "apply" {
+			return
+		}
+		if s.Phase == "applied" && !s.SignOK {
+			m.fail("the game reported a confirmed trip without confirming its destination")
 			return
 		}
 		if s.Trip <= 0 || s.Trip != s.SelectedTrip || !strings.EqualFold(s.Line, t.Line) || !strings.EqualFold(s.Tour, t.Tour) || liveDepartureMinute(s.Departure) != m.command.Minute {
@@ -422,7 +426,9 @@ func (m *liveTripMonitor) poll(now time.Time, driver *driverSync) {
 		return
 	}
 	m.pending = &t
-	m.deadline = now.Add(35 * time.Second)
+	// Native dispatch can take 20 seconds, followed by up to 15 seconds of
+	// destination verification. Include preparation and slow frames as well.
+	m.deadline = now.Add(60 * time.Second)
 	if e = m.writeCommand("prepare"); e != nil {
 		m.fail(e.Error())
 		return

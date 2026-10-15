@@ -242,7 +242,7 @@ func TestAutomaticUpdateNativeReadsLastLaunchFromLargeUnicodeLog(t *testing.T) {
 	}
 }
 
-func TestAutomaticUpdateRejectsUnsupportedBCSWithoutChangingBridge(t *testing.T) {
+func TestAutomaticUpdateRepairsBridgeWithoutChangingUnsupportedBCS(t *testing.T) {
 	dir, c, _ := automaticUpdateFixture(t, true)
 	jar := filepath.Join(c.Root, "Busbetrieb-Simulator", "busbetrieb-simulator.jar")
 	os.MkdirAll(filepath.Dir(jar), 0755)
@@ -252,13 +252,14 @@ func TestAutomaticUpdateRejectsUnsupportedBCSWithoutChangingBridge(t *testing.T)
 	entry.Write([]byte("unknown vendor class"))
 	z.Close()
 	f.Close()
-	before, _ := os.ReadFile(filepath.Join(dir, "Setup.exe"))
+	beforeJar, _ := os.ReadFile(jar)
 	config, _ := os.ReadFile(configPath(dir))
 	_, err := installAutomaticBridgeUpdate(dir, c, map[string][]byte{"Setup.exe": []byte("MZ new setup"), "PeDePeAdapter/openomsi.exe": []byte("MZ new adapter")}, nil)
 	after, _ := os.ReadFile(filepath.Join(dir, "Setup.exe"))
 	current, _ := os.ReadFile(configPath(dir))
-	if err == nil || !bytes.Equal(before, after) || !bytes.Equal(config, current) {
-		t.Fatal("unsupported BCS changed installation", err)
+	afterJar, _ := os.ReadFile(jar)
+	if err != nil || string(after) != "MZ new setup" || !bytes.Equal(config, current) || !bytes.Equal(beforeJar, afterJar) {
+		t.Fatal("unsupported BCS blocked recovery or was modified", err)
 	}
 	if _, err := verifyPackage(dir); err != nil {
 		t.Fatal(err)
@@ -292,7 +293,11 @@ func TestAutomaticUpdateRealBCSBackupIdempotencyAndHostManifest(t *testing.T) {
 				t.Fatal("original backup not preserved", err)
 			}
 			logger, err := bcsLoggerBytes(jar)
-			if err != nil || fmt.Sprintf("%x", sha256.Sum256(logger)) != bcsAutoLoggerSHA {
+			wantLoggerSHA := bcsAutoLoggerSHA
+			if fmt.Sprintf("%x", sha256.Sum256(data)) == bcs503InspectedJarSHA {
+				wantLoggerSHA = bcs503AutoLoggerSHA
+			}
+			if err != nil || fmt.Sprintf("%x", sha256.Sum256(logger)) != wantLoggerSHA {
 				t.Fatal("wrong observer", err)
 			}
 			if _, err = verifyPackage(dir); err != nil {
@@ -311,7 +316,7 @@ func TestAutomaticUpdateRealBCSBackupIdempotencyAndHostManifest(t *testing.T) {
 	}
 }
 
-func TestAutomaticUpdateRollsBackBridgeWhenCompleteVendorHashDiffers(t *testing.T) {
+func TestAutomaticUpdatePreservesUnknownVendorHashWhileRepairingBridge(t *testing.T) {
 	source := os.Getenv("BRIDGE_BCS_TEST_JAR")
 	if source == "" {
 		t.Skip("exact local vendor fixture not available in public CI")
@@ -324,13 +329,12 @@ func TestAutomaticUpdateRollsBackBridgeWhenCompleteVendorHashDiffers(t *testing.
 		t.Fatal(err)
 	}
 	os.WriteFile(jar, append(data, []byte("modified archive")...), 0644)
-	before, _ := os.ReadFile(filepath.Join(dir, "Setup.exe"))
-	host, _ := os.ReadFile(filepath.Join(dir, "docs", "PATCH-HOST-SHA256.txt"))
+	beforeJar, _ := os.ReadFile(jar)
 	_, err = installAutomaticBridgeUpdate(dir, c, map[string][]byte{"Setup.exe": []byte("MZ new setup"), "PeDePeAdapter/openomsi.exe": []byte("MZ new adapter")}, nil)
 	after, _ := os.ReadFile(filepath.Join(dir, "Setup.exe"))
-	currentHost, _ := os.ReadFile(filepath.Join(dir, "docs", "PATCH-HOST-SHA256.txt"))
-	if err == nil || !bytes.Equal(before, after) || !bytes.Equal(host, currentHost) {
-		t.Fatal("failed vendor update left partial Bridge", err)
+	afterJar, _ := os.ReadFile(jar)
+	if err != nil || string(after) != "MZ new setup" || !bytes.Equal(beforeJar, afterJar) {
+		t.Fatal("unknown vendor hash blocked recovery or was modified", err)
 	}
 	if _, err = verifyPackage(dir); err != nil {
 		t.Fatal(err)
@@ -470,5 +474,108 @@ func TestAutomaticUpdateHandoffOptions(t *testing.T) {
 		if _, e := parseBridgeUpdateOptions(args); e == nil {
 			t.Fatal("unsafe options accepted", args)
 		}
+	}
+}
+
+func TestCumulativeUpdateRepairsOlderAndIncompleteInstallations(t *testing.T) {
+	payload := map[string][]byte{}
+	for _, name := range []string{"Setup.exe", "HostAgent.exe", "CompanyHost.exe", "PeDePeAdapter/openomsi.exe", "app/OpenOMSI_BCS_Bridge.exe", "app/compat/Omsi.exe", "app/compat/omsi-plugin-host32.exe"} {
+		payload[name] = []byte("MZ 2.1.9.1 " + name)
+	}
+	for _, condition := range []string{"older inventory", "stale binaries", "missing adapter", "missing manifest", "conflicting old patches", "changed documentation"} {
+		t.Run(condition, func(t *testing.T) {
+			dir, c, _ := automaticUpdateFixture(t, true)
+			preserved := map[string][]byte{
+				configPath(dir):                                       []byte{},
+				filepath.Join(dir, "company.json"):                    []byte("company invitation and maps"),
+				filepath.Join(dir, "server.cfg"):                      []byte("existing server settings"),
+				filepath.Join(dir, "app", "plugins", "dashboard.lua"): []byte("custom dashboard"),
+			}
+			delete(preserved, configPath(dir))
+			configBefore, e := os.ReadFile(configPath(dir))
+			if e != nil {
+				t.Fatal(e)
+			}
+			for path, data := range preserved {
+				if e := os.MkdirAll(filepath.Dir(path), 0755); e != nil {
+					t.Fatal(e)
+				}
+				if e := os.WriteFile(path, data, 0644); e != nil {
+					t.Fatal(e)
+				}
+			}
+			preserved[configPath(dir)] = configBefore
+			switch condition {
+			case "stale binaries":
+				os.WriteFile(filepath.Join(dir, "Setup.exe"), []byte("MZ damaged old setup"), 0644)
+				os.WriteFile(filepath.Join(dir, "HostAgent.exe"), []byte("MZ damaged old host"), 0644)
+			case "missing adapter":
+				os.RemoveAll(filepath.Join(dir, "PeDePeAdapter"))
+				os.Remove(filepath.Join(dir, "Setup.exe"))
+			case "missing manifest":
+				os.RemoveAll(filepath.Join(dir, "docs"))
+			case "conflicting old patches":
+				os.WriteFile(filepath.Join(dir, "docs", "PATCH-HOST-SHA256.txt"), []byte("old incomplete patch"), 0644)
+				os.WriteFile(filepath.Join(dir, "docs", "PATCH-PLAYER-SHA256.txt"), []byte("different old patch"), 0644)
+			case "changed documentation":
+				os.WriteFile(filepath.Join(dir, "LEIA-ME.txt"), []byte("company notes"), 0644)
+				preserved[filepath.Join(dir, "LEIA-ME.txt")] = []byte("company notes")
+			}
+			for attempt := 0; attempt < 2; attempt++ {
+				if _, e := installAutomaticBridgeUpdate(dir, c, payload, nil); e != nil {
+					t.Fatal(e)
+				}
+				if count, e := verifyPackage(dir); e != nil || count != 7 {
+					t.Fatalf("updated runtime still depends on old package files: %d %v", count, e)
+				}
+				for name, expected := range payload {
+					actual, e := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+					if e != nil || !bytes.Equal(actual, expected) {
+						t.Fatal("component not restored", name, e)
+					}
+				}
+				for path, expected := range preserved {
+					actual, e := os.ReadFile(path)
+					if e != nil || !bytes.Equal(actual, expected) {
+						t.Fatal("user file changed", path, e)
+					}
+				}
+			}
+		})
+	}
+}
+
+func TestRecoveryDiscoveryDoesNotRequireMissingUpdateBinaries(t *testing.T) {
+	dir, c, r := automaticUpdateFixture(t, false)
+	os.Remove(filepath.Join(dir, "Setup.exe"))
+	os.RemoveAll(filepath.Join(dir, "PeDePeAdapter"))
+	got, cfg, e := bridgeUpdateTargetAtAdapter(filepath.Join(dir, "PeDePeAdapter"), c.Root)
+	if e != nil || got != dir || cfg.CompanyID != c.CompanyID {
+		t.Fatal(got, cfg, e)
+	}
+	got, cfg, e = registeredBridgeUpdateTarget(r)
+	if e != nil || got != dir || cfg.CompanyID != c.CompanyID {
+		t.Fatal(got, cfg, e)
+	}
+}
+
+func TestRecoveryUpdateNeverWritesThroughLinkedSubdirectory(t *testing.T) {
+	dir, c, _ := automaticUpdateFixture(t, false)
+	outside := t.TempDir()
+	os.RemoveAll(filepath.Join(dir, "PeDePeAdapter"))
+	if e := os.Symlink(outside, filepath.Join(dir, "PeDePeAdapter")); e != nil {
+		t.Skip("symlinks unavailable", e)
+	}
+	before, _ := os.ReadFile(filepath.Join(dir, "Setup.exe"))
+	_, e := installAutomaticBridgeUpdate(dir, c, map[string][]byte{"Setup.exe": []byte("MZ new"), "PeDePeAdapter/openomsi.exe": []byte("MZ new adapter")}, nil)
+	if e == nil {
+		t.Fatal("linked update subdirectory was accepted")
+	}
+	if _, e := os.Stat(filepath.Join(outside, "openomsi.exe")); !os.IsNotExist(e) {
+		t.Fatal("wrote outside the installation", e)
+	}
+	after, _ := os.ReadFile(filepath.Join(dir, "Setup.exe"))
+	if !bytes.Equal(before, after) {
+		t.Fatal("preflight failure changed Setup")
 	}
 }
