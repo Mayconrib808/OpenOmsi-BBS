@@ -6,7 +6,7 @@ Requires lupa; no simulator or commercial map content is used.
 from pathlib import Path
 from lupa import LuaRuntime
 
-SCRIPT = (Path(__file__).resolve().parents[1] / "source/live_trip_plugin.lua").read_text()
+SCRIPT = (Path(__file__).resolve().parents[1] / "source/live_trip_plugin.lua").read_text(encoding="utf-8")
 BOOT = r'''
 local callback
 command, status, messages, sends, starts, saves, handlers, logs = nil, nil, {}, {}, 0, 0, {}, {}
