@@ -13,6 +13,11 @@ import (
 )
 
 func writeSetupAtomic(path string, b []byte) error {
+	// Recovery updates are allowed to recreate missing package subdirectories.
+	// The destination name itself still comes from the updater's fixed allowlist.
+	if e := os.MkdirAll(filepath.Dir(path), 0755); e != nil {
+		return e
+	}
 	f, e := os.CreateTemp(filepath.Dir(path), ".bridge-setup-*.tmp")
 	if e != nil {
 		return e
@@ -34,9 +39,9 @@ func verifyPackage(dir string) (int, error) {
 }
 
 // The automatic updater carries its replacement executables inside the signed,
-// SHA-256-verified installer. A stale or locally damaged executable that is
+// SHA-256-verified installer. A stale, damaged OR MISSING executable that is
 // about to be replaced must not make recovery impossible. Everything outside
-// that exact replacement set remains under the normal strict integrity check.
+// that exact replacement set remains under the normal integrity check.
 func verifyPackageForUpdate(dir string, payload map[string][]byte) (int, error) {
 	repairable := map[string]bool{}
 	for name := range payload {
@@ -93,6 +98,11 @@ func verifyPackageWithRepairableBinaries(dir string, repairable map[string]bool)
 		}
 		st, e := os.Lstat(path)
 		if e != nil {
+			// A signed updater may restore a component it explicitly carries.
+			if os.IsNotExist(e) && repairable[strings.ToLower(rel)] {
+				count++
+				continue
+			}
 			return count, e
 		}
 		if !st.Mode().IsRegular() {
