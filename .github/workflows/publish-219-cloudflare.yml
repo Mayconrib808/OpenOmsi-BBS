@@ -1,5 +1,5 @@
 name: Publish 2.1.9 automatic update to Cloudflare
-# recovery-first revision 2026101404
+# recovery-first revision 2026101404 signed
 
 on:
   push:
