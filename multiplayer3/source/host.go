@@ -219,6 +219,9 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 	base := gateway.backendWeb
 	publicBase := fmt.Sprintf("http://127.0.0.1:%d", gateway.webPort)
 	secret := randomID() + randomID()
+	gateway.mu.Lock()
+	gateway.adminPassword = secret
+	gateway.mu.Unlock()
 	civil, e := companyNow(l.Clock, time.Now())
 	if e != nil {
 		return e
@@ -281,9 +284,17 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 	stage := ""
 	lastDetail := ""
 	setStage := func(key, detail string) {
-		if ready { return }
+		if ready {
+			return
+		}
 		lastDetail = detail
-		if stage != key { stage = key; progress(tr(key)); if detail != "" { log.Print(detail) } }
+		if stage != key {
+			stage = key
+			progress(tr(key))
+			if detail != "" {
+				log.Print(detail)
+			}
+		}
 	}
 
 	idle := hostIdle{Started: start}
@@ -349,13 +360,19 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 			if e = syncClock(ctx, localClient, base, secret, target); e != nil {
 				return e
 			}
-			if !ready && !clockAligned(s.Time, target) { setStage("hoststageclock", fmt.Sprintf("server clock=%s", s.Time)) }
+			if !ready && !clockAligned(s.Time, target) {
+				setStage("hoststageclock", fmt.Sprintf("server clock=%s", s.Time))
+			}
 			if !ready && clockAligned(s.Time, target) {
 				a := out.get()
 				var checkErr error
-				if a == "" { setStage("hoststagetunnel", "local map and clock are ready; tunnel address not announced") } else {
+				if a == "" {
+					setStage("hoststagetunnel", "local map and clock are ready; tunnel address not announced")
+				} else {
 					checkErr = checkSession(ctx, c, a, m)
-					if checkErr != nil { setStage("hoststagepublic", checkErr.Error()) }
+					if checkErr != nil {
+						setStage("hoststagepublic", checkErr.Error())
+					}
 				}
 				if a != "" && checkErr == nil {
 					_, e = renew(ctx, c, cfg.Invitation, m, l.Token, "online", a)

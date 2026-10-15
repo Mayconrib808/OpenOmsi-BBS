@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const version = "3.0.5"
+const version = "3.0.6"
 
 // Inherited BCS stdout is optional and can be invalid for GUI launches.
 // Scheduled game output is also written directly to the game.log that BCS reads.
@@ -214,7 +214,7 @@ func run(ctx context.Context, dir string, args []string) error {
 		return e
 	}
 	if !readPreferences(dir).MultiplayerEnabled {
-		cmd, e := launchNative(cfg, withoutLANArguments(args), dir)
+		cmd, e := launchBCSNative(ctx, cfg, withoutLANArguments(args), dir)
 		if e != nil {
 			return e
 		}
@@ -248,7 +248,7 @@ func run(ctx context.Context, dir string, args []string) error {
 			mirrorCtx, mirrorCancel := context.WithCancel(ctx)
 			defer mirrorCancel()
 			go mirrorPlugin(mirrorCtx, cfg, dir)
-			game, e := launchNative(cfg, nativeArguments(args, address, cfg.Player), dir)
+			game, e := launchBCSNative(ctx, cfg, nativeArguments(args, address, cfg.Player), dir)
 			if e != nil {
 				return e
 			}
@@ -262,7 +262,7 @@ func run(ctx context.Context, dir string, args []string) error {
 			mirrorCtx, mirrorCancel := context.WithCancel(ctx)
 			defer mirrorCancel()
 			go mirrorPlugin(mirrorCtx, cfg, dir)
-			cmd, e := launchNative(cfg, nativeArguments(args, l.Address, cfg.Player), dir)
+			cmd, e := launchBCSNative(ctx, cfg, nativeArguments(args, l.Address, cfg.Player), dir)
 			if e != nil {
 				return e
 			}

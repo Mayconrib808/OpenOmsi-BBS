@@ -160,7 +160,8 @@ func peDePeSituationTime(lines []string, start int) (string, string, bool) {
 	if e1 != nil || e2 != nil || e3 != nil || e4 != nil || e5 != nil || year < 1970 || year > 9999 || dayOfYear < 1 || dayOfYear > 366 || hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second >= 60 {
 		return "", "", false
 	}
-	day := time.Date(year, time.January, 1, 0, 0, 0, 0, time.Local).AddDate(0, 0, dayOfYear-1)
+	// The saved day is a civil map date, independent of the PC's DST rules.
+	day := time.Date(year, time.January, 1, 0, 0, 0, 0, time.UTC).AddDate(0, 0, dayOfYear-1)
 	if day.Year() != year {
 		return "", "", false
 	}

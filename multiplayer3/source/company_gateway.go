@@ -196,6 +196,9 @@ func (p *companyGatewayPeer) send(packet []byte) error {
 		return net.ErrClosed
 	}
 	p.lastAt.Store(time.Now().UnixNano())
+	if handled, err := p.liveTripRequest(packet); handled || err != nil {
+		return err
+	}
 	p.g.mu.Lock()
 	data, err := p.g.incoming(p, packet)
 	p.g.mu.Unlock()

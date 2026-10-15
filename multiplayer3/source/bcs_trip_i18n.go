@@ -1,0 +1,13 @@
+package main
+
+func init() {
+	translations["bcstripselection"] = [3]string{"Não foi possível ler a viagem atual do BCS. Inicie a viagem novamente pelo BCS.", "Could not read the current BCS trip. Start the trip again through BCS.", "Die aktuelle BBS-Fahrt konnte nicht gelesen werden. Fahrt über BBS erneut starten."}
+	translations["bcstripnotfound"] = [3]string{"A partida e o sentido escolhidos no BCS não foram encontrados na tabela carregada pelo openOMSI. Consulte o diagnóstico no Setup.", "The BCS departure and direction were not found in the timetable loaded by openOMSI. Check Setup diagnostics.", "Abfahrt und Richtung aus BBS wurden im geladenen openOMSI-Fahrplan nicht gefunden. Diagnose im Setup prüfen."}
+	translations["bcstripambiguous"] = [3]string{"Há mais de uma viagem com os mesmos dados do BCS. A partida não foi confirmada. Consulte o diagnóstico no Setup.", "More than one trip matches the BCS selection. The departure was not confirmed. Check Setup diagnostics.", "Mehrere Fahrten entsprechen der BBS-Auswahl. Die Abfahrt wurde nicht bestätigt. Diagnose im Setup prüfen."}
+	translations["bcstriphost"] = [3]string{"O host precisa desta atualização para confirmar a tabela da viagem. Atualize o host e tente novamente.", "The host needs this update to confirm the trip timetable. Update the host and try again.", "Der Host benötigt dieses Update zur Fahrplanbestätigung. Host aktualisieren und erneut versuchen."}
+	translations["bcstripdispatch"] = [3]string{"O servidor não confirmou a tabela solicitada pelo BCS. Consulte o diagnóstico no Setup.", "The server did not confirm the BCS timetable request. Check Setup diagnostics.", "Der Server hat den BBS-Fahrplan nicht bestätigt. Diagnose im Setup prüfen."}
+	translations["bcstriptimeout"] = [3]string{"O tempo para confirmar a tabela do BCS expirou. Consulte o diagnóstico no Setup.", "BCS timetable confirmation timed out. Check Setup diagnostics.", "Die BBS-Fahrplanbestätigung hat das Zeitlimit erreicht. Diagnose im Setup prüfen."}
+	translations["bcstripvehicle"] = [3]string{"O mapa ou ônibus carregado difere da viagem escolhida no BCS.", "The loaded map or bus differs from the BCS selection.", "Geladene Karte oder Bus weichen von der BBS-Auswahl ab."}
+	translations["bcstripnamelimit"] = [3]string{"O nome da linha ou turno excede o limite de mensagens do multiplayer do openOMSI.", "The line or tour name exceeds the openOMSI multiplayer message limit.", "Linien- oder Umlaufname überschreitet das Nachrichtenlimit des openOMSI-Multiplayers."}
+	translations["bcstripunconfirmed"] = [3]string{"O jogo encerrou antes de confirmar a tabela escolhida no BCS.", "The game exited before confirming the BCS timetable.", "Das Spiel wurde vor der Bestätigung des BBS-Fahrplans beendet."}
+}

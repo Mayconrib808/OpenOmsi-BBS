@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -218,10 +219,22 @@ type nativeProcess struct {
 	stopDriver    chan struct{}
 	driverStopped chan struct{}
 	gameLog       *os.File
+	tripGuard     *bcsTripGuard
 }
 
 func (p *nativeProcess) Wait() error {
 	err := p.Cmd.Wait()
+	if p.tripGuard != nil {
+		close(p.tripGuard.stop)
+		<-p.tripGuard.done
+		defer p.tripGuard.cleanup()
+		if p.tripGuard.failure != nil {
+			err = p.tripGuard.failure
+		}
+		if err == nil && !p.tripGuard.confirmed.Load() {
+			err = tripSelectionError{tr("bcstripunconfirmed")}
+		}
+	}
 	if p.gameLog != nil {
 		_ = p.gameLog.Close()
 	}
@@ -233,6 +246,10 @@ func (p *nativeProcess) Wait() error {
 }
 
 func launchNative(cfg localConfig, args []string, dir string) (*nativeProcess, error) {
+	return launchNativeProtected(cfg, args, dir, nil)
+}
+
+func launchNativeProtected(cfg localConfig, args []string, dir string, guard *bcsTripGuard) (*nativeProcess, error) {
 	env := nativeEnvironment(os.Environ(), contentFolder(cfg), false)
 	in := parsePeDePeNativeInvocation(args)
 	if in.HasSchedule && !in.Probe && !in.Server {
@@ -248,6 +265,11 @@ func launchNative(cfg localConfig, args []string, dir string) (*nativeProcess, e
 	}
 	if e := forwardPlugin(cfg, dir); e != nil {
 		return nil, fmt.Errorf("não foi possível encaminhar o plugin nativo BCS: %w", e)
+	}
+	if guard != nil {
+		if e := writeAtomic(filepath.Join(contentFolder(cfg), "Plugins", bcsReadyPluginName), []byte("-- BCS readiness is owned by the per-launch timetable verifier.\n"), 0600); e != nil {
+			return nil, e
+		}
 	}
 	var driver *driverSync
 	if in.HasSchedule && in.Line != "" && in.Tour != "" && in.Trip != "" && !in.Probe && !in.Server {
@@ -277,7 +299,12 @@ func launchNative(cfg localConfig, args []string, dir string) (*nativeProcess, e
 		log.Printf("BCS game log prepared: %s", path)
 		// BCS GUI launches may have an invalid inherited stdout handle. The
 		// actual game output must still reach both disk logs in that case.
-		out := gameLogOutput(os.Stdout, bcsLog, bcsLaunchOutput)
+		var out io.Writer
+		if guard != nil {
+			out = gameLogOutput(os.Stdout, &bcsTripLoadingLog{output: gameLogOutput(bcsLog, bcsLaunchOutput)})
+		} else {
+			out = gameLogOutput(os.Stdout, bcsLog, bcsLaunchOutput)
+		}
 		cmd.Stdout, cmd.Stderr = out, out
 	}
 	if e := cmd.Start(); e != nil {
@@ -286,7 +313,7 @@ func launchNative(cfg localConfig, args []string, dir string) (*nativeProcess, e
 		}
 		return nil, e
 	}
-	process := &nativeProcess{Cmd: cmd, gameLog: bcsLog}
+	process := &nativeProcess{Cmd: cmd, gameLog: bcsLog, tripGuard: guard}
 	if driver != nil {
 		process.stopDriver = make(chan struct{})
 		process.driverStopped = make(chan struct{})
@@ -296,6 +323,9 @@ func launchNative(cfg localConfig, args []string, dir string) (*nativeProcess, e
 			defer tick.Stop()
 			lastError := ""
 			poll := func() {
+				if guard != nil && !guard.confirmed.Load() {
+					return
+				}
 				changed, e := driver.poll()
 				if e != nil {
 					if e.Error() != lastError {
