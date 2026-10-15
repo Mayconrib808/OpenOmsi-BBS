@@ -89,7 +89,7 @@ func main() {
 		peDePeAdapterFail(logPath, cfg.Language, "BBS fresh-trip conversion: "+err.Error())
 		os.Exit(6)
 	}
-	launchArgs := peDePeForwardArgs(freshArgs, plan)
+	launchArgs := peDePeForwardArgs(freshArgs, plan, cfg.AutoStart)
 	adapterExecutable, err := os.Executable()
 	if err != nil {
 		peDePeAdapterFail(logPath, cfg.Language, "BBS adapter path: "+err.Error())
@@ -121,6 +121,7 @@ func main() {
 		}
 	}
 	peDePeAdapterLog(logPath, "adapter revision=native-live-next-trip-4-fuel outgoing argv="+fmt.Sprintf("%q", launchArgs))
+	peDePeAdapterLog(logPath, fmt.Sprintf("automatic bus startup=%t; initial manual preparation when disabled", cfg.AutoStart))
 	if fuel, e := peDePeSavedFuel(parsePeDePeNativeInvocation(args), cfg.Root); e == nil && fuel != nil {
 		peDePeAdapterLog(logPath, fmt.Sprintf("BCS initial fuel: bus=%s variable=%s litres=%.6f; requested once by native --setvar at spawn", fuel.Bus, fuel.Field, fuel.Litres))
 	}

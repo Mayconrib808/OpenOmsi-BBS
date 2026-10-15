@@ -626,9 +626,21 @@ func peDePeCompanyPlan(ctx context.Context, c Config, packageDir string, args []
 	return nil, fmt.Errorf("%s", strings.Join(parts, "; "))
 }
 
-func peDePeForwardArgs(original []string, plan *MultiplayerPlan) []string {
+func peDePeForwardArgs(original []string, plan *MultiplayerPlan, autoStart bool) []string {
 	out := append([]string(nil), original...)
-	if shouldAddPeDePeAutoStart(parsePeDePeNativeInvocation(original)) {
+	in := parsePeDePeNativeInvocation(original)
+	if !autoStart && !in.Probe && !in.Server {
+		// A saved manual-start preference also takes precedence if a later
+		// BCS build explicitly requests auto-start. Leave probes/server mode
+		// alone, and preserve all trip, fuel, damage and networking arguments.
+		out = out[:0]
+		for _, arg := range original {
+			if arg != "--autostart" && !strings.HasPrefix(arg, "--autostart=") {
+				out = append(out, arg)
+			}
+		}
+	}
+	if autoStart && shouldAddPeDePeAutoStart(in) {
 		out = append(out, "--autostart")
 	}
 	if plan != nil {

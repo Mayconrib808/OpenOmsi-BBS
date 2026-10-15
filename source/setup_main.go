@@ -99,6 +99,11 @@ func (u *setupUI) configure(c Config) (Config, error) {
 			}
 		}
 	}
+	var autoStartErr error
+	c.AutoStart, autoStartErr = u.busAutoStart(c.AutoStart)
+	if autoStartErr != nil {
+		return c, autoStartErr
+	}
 	u.say("\nConfira a configuração:", "\nReview the configuration:", "\nPrüfe die Einstellungen:")
 	fmt.Printf("OMSI: %s\nopenOMSI: %s\n", c.Root, c.OpenOMSI)
 	if host, e := pluginHostPath(c); e == nil {

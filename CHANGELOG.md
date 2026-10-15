@@ -99,6 +99,13 @@
 
 # Changelog
 
+## 2.1.9.3 — 15 October 2026
+
+- Adds Start the bus automatically in Setup (PT/EN/DE), enabled by default and independent of company multiplayer. Uncheck it for manual startup and initial IBIS preparation; the BCS timetable remains loaded.
+- The native PeDePe adapter now honors the saved autostart preference, including explicitly requested auto-start in vendor arguments. Keeps probes/server arguments, fuel/damage, positioning, trip identity and native/company multiplayer choices intact. The legacy launch uses the same saved preference.
+- Retains the choice across language changes, package moves and cumulative upgrades. Includes all 2.1.9.2 directory-recovery, destination and BCS 5.0.3.0 changes.
+- Full release notes: `docs/releases/v2.1.9.3.md`.
+
 ## 2.1.9.2 — 15 October 2026
 
 - Discovery/profile requests and cold-server polling recover from temporary network failures and HTTP 408/429/500/502/503/504 for up to 30 seconds per request, within the existing startup deadline. Cancellation, offline/disabled/error states and permanent failures remain immediate.

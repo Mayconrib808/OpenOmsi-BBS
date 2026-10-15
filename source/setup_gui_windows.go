@@ -50,6 +50,7 @@ const (
 	guiIDLanguage    = 113
 	guiIDUpdates     = 114
 	guiIDAutoUpdates = 115
+	guiIDAutoStart   = 116
 )
 
 type guiPoint struct{ X, Y int32 }
@@ -124,6 +125,7 @@ type setupGUI struct {
 	cancel                                                                       context.CancelFunc
 	busy, smoke, smokeCompleted                                                  bool
 	updateButton, updateStatus, automaticUpdates                                 uintptr
+	autoStart                                                                    uintptr
 	autoCheckUpdates                                                             bool
 	updateResults                                                                chan setupUpdateResult
 	updateChecking                                                               bool
@@ -225,6 +227,11 @@ func (g *setupGUI) populate() {
 		checked = 1
 	}
 	guiUser.NewProc("SendMessageW").Call(g.multiplayer, guiBMSetCheck, checked, 0)
+	checked = 0
+	if g.config.AutoStart {
+		checked = 1
+	}
+	guiUser.NewProc("SendMessageW").Call(g.autoStart, guiBMSetCheck, checked, 0)
 	guiUser.NewProc("SendMessageW").Call(g.language, 0x014E, uintptr(setupLanguageIndex(g.config.Language)), 0)
 	g.applyLanguage()
 }
@@ -260,8 +267,14 @@ func (g *setupGUI) createControls() {
 	g.translatedLabel("player", 34, 403, 880, 25)
 	g.player = g.edit(g.config.PlayerName, 34, 430, 420, 204)
 	guiUser.NewProc("SendMessageW").Call(g.player, 0x00C5, 32, 0)
-	g.guide = g.label("", 34, 474, 890, 28)
+	g.guide = g.label("", 34, 468, 420, 42)
 	guiUser.NewProc("SendMessageW").Call(g.guide, guiWMSetFont, g.smallFont, 1)
+	g.autoStart = g.control("BUTTON", g.text("autostart"), 480, 464, 444, 26, guiWSTabStop|guiBMAutoCheck, guiIDAutoStart)
+	g.translations = append(g.translations, guiTranslation{g.autoStart, "autostart"})
+	g.controls = append(g.controls, g.autoStart)
+	syscall.NewLazyDLL("uxtheme.dll").NewProc("SetWindowTheme").Call(g.autoStart, uintptr(unsafe.Pointer(winPtr(""))), uintptr(unsafe.Pointer(winPtr(""))))
+	hint := g.translatedLabel("autostart_hint", 480, 492, 444, 18)
+	guiUser.NewProc("SendMessageW").Call(hint, guiWMSetFont, g.smallFont, 1)
 	g.translatedButton("save", 34, 514, 260, 46, guiIDSave)
 	g.translatedButton("deactivate", 310, 514, 194, 46, guiIDDeactivate)
 	g.translatedButton("status", 520, 514, 194, 46, guiIDStatus)
@@ -352,9 +365,17 @@ func (g *setupGUI) finish() {
 		g.smokeCompleted = true
 	}
 }
-func (g *setupGUI) saveAndActivate() {
+func (g *setupGUI) formConfig() (Config, error) {
 	checked, _, _ := guiUser.NewProc("SendMessageW").Call(g.multiplayer, guiBMGetCheck, 0, 0)
 	c, err := setupFormConfig(g.config, guiText(g.root), guiText(g.executable), guiText(g.player), checked == 1)
+	if err == nil {
+		checked, _, _ = guiUser.NewProc("SendMessageW").Call(g.autoStart, guiBMGetCheck, 0, 0)
+		c.AutoStart = checked == 1
+	}
+	return c, err
+}
+func (g *setupGUI) saveAndActivate() {
+	c, err := g.formConfig()
 	if err != nil {
 		guiMessageBox(g.window, err.Error(), 0x10)
 		return
@@ -685,19 +706,26 @@ func runSetupGUI(dir string, smoke bool) error {
 	}
 	g.autoCheckUpdates = readSetupAutomaticUpdates(g.dir)
 	g.createControls()
-	if g.language == 0 || g.multiplayer == 0 || g.root == 0 || g.executable == 0 || g.profile == 0 || g.player == 0 || g.status == 0 {
+	if g.language == 0 || g.multiplayer == 0 || g.autoStart == 0 || g.root == 0 || g.executable == 0 || g.profile == 0 || g.player == 0 || g.status == 0 {
 		guiUser.NewProc("DestroyWindow").Call(g.window)
 		return fmt.Errorf("Falha ao criar os campos da interface.")
 	}
 	if smoke {
 		guiSetText(g.root, `C:\Smoke\OMSI 2`)
+		guiSetText(g.executable, `C:\Smoke\openomsi.exe`)
 		guiSetText(g.player, "SmokeTest")
+		guiUser.NewProc("SendMessageW").Call(g.autoStart, guiBMSetCheck, 0, 0)
 		for i, lang := range setupLanguages {
 			guiUser.NewProc("SendMessageW").Call(g.language, 0x014E, uintptr(i), 0)
 			g.command(guiIDLanguage)
 			if g.config.Language != lang || guiText(g.root) != `C:\Smoke\OMSI 2` || guiText(g.player) != "SmokeTest" {
 				guiUser.NewProc("DestroyWindow").Call(g.window)
 				return fmt.Errorf("GUI language switch lost the form")
+			}
+			form, err := g.formConfig()
+			if err != nil || form.AutoStart {
+				guiUser.NewProc("DestroyWindow").Call(g.window)
+				return fmt.Errorf("GUI language switch lost manual startup preference: %v", err)
 			}
 			for _, item := range g.translations {
 				if guiText(item.window) != setupText(lang, item.key) {
@@ -723,6 +751,15 @@ func runSetupGUI(dir string, smoke bool) error {
 					guiUser.NewProc("DestroyWindow").Call(g.window)
 					return fmt.Errorf("GUI multiplayer field state incorrect")
 				}
+			}
+		}
+		for _, checked := range []uintptr{1, 0, 1} {
+			guiUser.NewProc("SendMessageW").Call(g.autoStart, guiBMSetCheck, checked, 0)
+			form, err := g.formConfig()
+			enabled, _, _ := guiUser.NewProc("IsWindowEnabled").Call(g.autoStart)
+			if err != nil || form.AutoStart != (checked == 1) || enabled == 0 {
+				guiUser.NewProc("DestroyWindow").Call(g.window)
+				return fmt.Errorf("GUI bus startup preference does not follow its checkbox independently of multiplayer: %v", err)
 			}
 		}
 		g.results <- guiResult{status: "GUI languages, optional multiplayer and branding smoke completed."}

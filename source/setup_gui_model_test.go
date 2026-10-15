@@ -1,11 +1,56 @@
 package main
 
 import (
+	"bufio"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestBusStartupPreferenceSurvivesMovedPackage(t *testing.T) {
+	for _, automatic := range []bool{true, false} {
+		t.Setenv("LOCALAPPDATA", t.TempDir())
+		previous := defaultConfig()
+		previous.AutoStart = automatic
+		previous.CompanyID = "saved-company"
+		c, err := setupFormConfig(previous, t.TempDir(), filepath.Join(t.TempDir(), "openomsi.exe"), "", false)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := saveInstalledConfig(t.TempDir(), c); err != nil {
+			t.Fatal(err)
+		}
+		got := readInstalledConfig(t.TempDir())
+		if got.AutoStart != automatic || got.CompanyID != previous.CompanyID {
+			t.Fatal("a moved/upgraded package lost startup preference", got)
+		}
+	}
+	old := filepath.Join(t.TempDir(), "old.ini")
+	if err := os.WriteFile(old, []byte("traffic=30\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if !readConfig(old).AutoStart {
+		t.Fatal("older installations must retain automatic startup by default")
+	}
+}
+
+func TestBusStartupCLIChoiceKeepsSavedDefaultInEveryLanguage(t *testing.T) {
+	for _, language := range setupLanguages {
+		for _, previous := range []bool{true, false} {
+			for _, input := range []struct {
+				text string
+				want bool
+			}{{"\n", previous}, {"s\n", true}, {"yes\n", true}, {"ja\n", true}, {"n\n", false}, {"não\n", false}, {"nein\n", false}} {
+				u := setupUI{input: bufio.NewScanner(strings.NewReader(input.text)), lang: language}
+				got, err := u.busAutoStart(previous)
+				if err != nil || got != input.want {
+					t.Fatal(language, previous, input.text, got, err)
+				}
+			}
+		}
+	}
+}
 
 func TestSetupFormPreservesOtherSettingsAndAcceptsExecutableFolder(t *testing.T) {
 	root := t.TempDir()

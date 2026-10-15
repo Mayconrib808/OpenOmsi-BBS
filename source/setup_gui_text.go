@@ -15,6 +15,8 @@ func setupLanguageIndex(lang string) int {
 }
 
 var setupStrings = map[string][3]string{
+	"autostart":            {"Ligar o ônibus automaticamente", "Start the bus automatically", "Bus automatisch starten"},
+	"autostart_hint":       {"Desmarcado: partida e IBIS manuais.", "Unchecked: start bus and set up IBIS manually.", "Ohne Häkchen: Bus und IBIS selbst vorbereiten."},
 	"updates_automatic":    {"Buscar atualizações ao abrir", "Check for updates on startup", "Beim Öffnen nach Updates suchen"},
 	"updates_manual_only":  {"Verificação automática desativada.", "Automatic checking disabled.", "Automatische Prüfung deaktiviert."},
 	"updates_check":        {"Buscar atualizações", "Check for updates", "Nach Updates suchen"},

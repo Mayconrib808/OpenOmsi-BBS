@@ -384,7 +384,7 @@ func TestPeDePeCurrentSituationLaunchGetsAutostartWithoutRewritingVendorArgs(t *
 	if !shouldAddPeDePeAutoStart(in) {
 		t.Fatal("scheduled PeDePe BBS trip should restore legacy --autostart/IBIS behaviour")
 	}
-	got := peDePeForwardArgs(original, nil)
+	got := peDePeForwardArgs(original, nil, true)
 	if !reflect.DeepEqual(got[:len(original)], original) {
 		t.Fatalf("PeDePe vendor arguments changed: got %#v want prefix %#v", got, original)
 	}
@@ -457,12 +457,45 @@ func TestPeDePeSituationClockIsFallbackWhenTripIsNotAClock(t *testing.T) {
 
 func TestPeDePeAutoStartIsNeverDuplicatedOrAddedToProbe(t *testing.T) {
 	already := []string{"--schedule", "--line", "10", "--tour", "1", "--autostart"}
-	if got := peDePeForwardArgs(already, nil); !reflect.DeepEqual(got, already) {
+	if got := peDePeForwardArgs(already, nil, true); !reflect.DeepEqual(got, already) {
 		t.Fatalf("duplicated or rewrote --autostart: %#v", got)
 	}
 	probe := []string{"--version", "--schedule", "--line", "10", "--tour", "1"}
-	if got := peDePeForwardArgs(probe, nil); !reflect.DeepEqual(got, probe) {
+	if got := peDePeForwardArgs(probe, nil, true); !reflect.DeepEqual(got, probe) {
 		t.Fatalf("probe must remain transparent: %#v", got)
+	}
+}
+
+func TestPeDePeManualStartKeepsBCSTripAndCompanyConnection(t *testing.T) {
+	original := []string{"--map", "maps/Test/global.cfg", "--bus", "Vehicles/Test/bus.bus", "--date", "2026-10-15", "--time", "12:00", "--schedule", "--line", "130", "--tour", "1", "--trip", "2", "--hof", "Test", "--driver", "bbs.odr", "--setvar", "fuel=123,damage=1", "--keep-time"}
+	plan := &MultiplayerPlan{PlayerName: "Maycon", Session: CompanySession{ServerURL: "https://company.example/session"}}
+	for _, extra := range [][]string{nil, {"--autostart"}, {"--autostart=true"}} {
+		input := append(append([]string(nil), original...), extra...)
+		for _, company := range []*MultiplayerPlan{nil, plan} {
+			got := peDePeForwardArgs(input, company, false)
+			want := append([]string(nil), original...)
+			if company != nil {
+				want = append(want, "--lan-join", plan.Session.ServerURL, "--lan-name", plan.PlayerName)
+			}
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("manual startup changed the selected trip/fuel/networking: %#v", got)
+			}
+			if !reflect.DeepEqual(input, append(append([]string(nil), original...), extra...)) {
+				t.Fatal("forwarding mutated vendor arguments")
+			}
+		}
+	}
+	for _, network := range [][]string{{"--lan-host", "0"}, {"--lan-join", "OMSI-TEST"}} {
+		input := append(append([]string(nil), original...), network...)
+		if got := peDePeForwardArgs(input, nil, false); !reflect.DeepEqual(got, input) {
+			t.Fatal("manual startup changed native networking", got)
+		}
+	}
+	for _, mode := range []string{"--version", "--server"} {
+		input := []string{mode, "--autostart"}
+		if got := peDePeForwardArgs(input, nil, false); !reflect.DeepEqual(got, input) {
+			t.Fatal("manual startup rewrote probe/server arguments", got)
+		}
 	}
 }
 
@@ -484,7 +517,7 @@ func TestPeDePeNativeInjectionStepsAsideForNativeNetworkingAndProbes(t *testing.
 func TestPeDePeForwardArgsDoesNotRewriteVendorArguments(t *testing.T) {
 	original := []string{"--map", "map", "--unknown-future-option", "value", "--driver", "driver.odr"}
 	plan := &MultiplayerPlan{PlayerName: "Maycon", Session: CompanySession{ServerURL: "https://company.example/session"}}
-	got := peDePeForwardArgs(original, plan)
+	got := peDePeForwardArgs(original, plan, true)
 	wantPrefix := original
 	if !reflect.DeepEqual(got[:len(wantPrefix)], wantPrefix) {
 		t.Fatalf("PeDePe arguments changed: got %#v want prefix %#v", got, wantPrefix)
@@ -544,7 +577,7 @@ func TestPeDePeFreshSituationStartsDutyInsteadOfResuming(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	got := peDePeForwardArgs(fresh, nil)
+	got := peDePeForwardArgs(fresh, nil, true)
 	if pedepeHasArg(got, "--situation") {
 		t.Fatal("saved resume still suppresses IBIS initialization")
 	}
@@ -560,6 +593,10 @@ func TestPeDePeFreshSituationStartsDutyInsteadOfResuming(t *testing.T) {
 	if !pedepeHasArg(got, "--autostart") {
 		t.Fatal("fresh duty needs autostart")
 	}
+	manual := peDePeForwardArgs(fresh, nil, false)
+	if pedepeHasArg(manual, "--situation") || pedepeHasArg(manual, "--autostart") || !pedepeHasArg(manual, "--schedule") {
+		t.Fatal("manual startup must keep a fresh BCS timetable without resuming an old running bus", manual)
+	}
 	if fuel, ok := pedepeArgValue(got, "--setvar"); !ok || fuel != "engine_tank_content=231" {
 		t.Fatalf("BCS initial fuel was not passed to native spawn: %q", fuel)
 	}
@@ -574,7 +611,7 @@ func TestPeDePeFreshSituationStartsDutyInsteadOfResuming(t *testing.T) {
 	if string(after) != saved {
 		t.Fatal("BBS situation was modified")
 	}
-	again := peDePeForwardArgs(got, nil)
+	again := peDePeForwardArgs(got, nil, true)
 	if !reflect.DeepEqual(got, again) {
 		t.Fatal("autostart duplicated")
 	}
