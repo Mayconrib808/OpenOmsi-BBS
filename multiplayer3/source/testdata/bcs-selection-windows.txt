@@ -1,0 +1,4 @@
+Schicht ID: 4974938
+INFO 15.10.2026 08:22:16:989  Tour: 00:38:00 - 00:56:00 (Linie: 130 & N30)
+Nervenklinik - U Rathaus Spandau (Umlauf: Mo-Fr 3)
+INFO 15.10.2026 08:22:16:989  Startpunkt: Spandau Nervenklinik

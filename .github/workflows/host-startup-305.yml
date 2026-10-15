@@ -1,4 +1,4 @@
-name: Validate BCS trip selection 3.0.6 candidate
+name: Validate Windows BCS log handling 3.0.7 candidate
 on:
   push:
     branches: [codex/host-startup-305]
@@ -74,7 +74,7 @@ jobs:
       - name: Build reviewable candidate without publishing the update feed
         run: |
           gofmt -w multiplayer3/source/{main,host,host_agent,process_windows,process_windows_test,diagnostics,host_startup_i18n,host_startup_test}.go
-          python3 multiplayer3/scripts/build_preview.py --sequence 2026101502 --source-commit "$GITHUB_SHA" --output host-startup-build
+          python3 multiplayer3/scripts/build_preview.py --sequence 2026101503 --source-commit "$GITHUB_SHA" --output host-startup-build
       - uses: actions/upload-artifact@v4
         with:
           name: host-startup-305-candidate

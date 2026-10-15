@@ -47,9 +47,32 @@ local function route_matches(trip,first,last)
   return key(first.name).." - "..key(last.name)==wanted or
     key(first.name).." - "..key(trip.terminus)==wanted
 end
+local function selection_diagnostics(d)
+  -- Preserve the actual API evidence in the exported logs before cleanup.
+  -- Limit the snapshot to twelve trips, preferring the selected departure.
+  omsi.log("BCS expected selection: "..omsi.json.encode({Line=expected.Line,Tour=expected.Tour,
+    DepartureMinute=expected.Start,ArrivalMinute=expected.End,Route=expected.Route,StartPoint=expected.StartPoint}))
+  omsi.log("BCS loaded duty: "..omsi.json.encode(d or {}))
+  local trips=omsi.duty.trips() or {}
+  local shown=0
+  for priority=1,2 do
+    for _,trip in ipairs(trips) do
+      local same=minute(trip.departure)==expected.Start%1440
+      if shown<12 and ((priority==1 and same) or (priority==2 and not same)) then
+        local first,last=endpoints(trip.number)
+        omsi.log("BCS resolved trip: "..omsi.json.encode({Trip=trip.number,Name=trip.name,
+          Departure=trip.departure,Arrival=trip.arrival,Terminus=trip.terminus,
+          FirstStop=first and first.name,LastStop=last and last.name}))
+        shown=shown+1
+      end
+    end
+  end
+end
 local function choose()
   local d=omsi.duty.get()
-  if not d or key(d.line)~=key(expected.Line) or key(d.tour)~=key(expected.Tour) then return nil,"notfound" end
+  if not d or key(d.line)~=key(expected.Line) or key(d.tour)~=key(expected.Tour) then
+    selection_diagnostics(d);return nil,"notfound"
+  end
   local count,result=0,nil
   for _,trip in ipairs(omsi.duty.trips() or {}) do
     if minute(trip.departure)==expected.Start%1440 then
@@ -62,8 +85,8 @@ local function choose()
       end
     end
   end
-  if count==0 then return nil,"notfound" end
-  if count>1 then return nil,"ambiguous" end
+  if count==0 then selection_diagnostics(d);return nil,"notfound" end
+  if count>1 then selection_diagnostics(d);return nil,"ambiguous" end
   return result
 end
 local function matches()

@@ -48,6 +48,80 @@ func TestBCSSelectionUsesLatestCompleteShiftAndRealDeparture(t *testing.T) {
 	}
 }
 
+func TestBCSSelectionWindowsCRLFDoesNotLeakTourIntoRoute(t *testing.T) {
+	for _, ending := range []string{"\n", "\r\n", " \t\r\n"} {
+		in := selectionInvocation()
+		in.Line, in.Tour = "Linie NE1", "2. Fr. - So + Feiertag"
+		text := strings.ReplaceAll(selectionFixture, "130 & N30", in.Line)
+		text = strings.ReplaceAll(text, "Mo-Fr 3", in.Tour)
+		text = strings.ReplaceAll(text, "Nervenklinik - U Rathaus Spandau", "Lutherplatz / Betriebshof - Zielhaltestelle")
+		text = strings.ReplaceAll(text, "\n", ending)
+		s, err := parseBCSTripSelection(text, in)
+		if err != nil || s.Route != "Lutherplatz / Betriebshof - Zielhaltestelle" || s.Terminus != "Zielhaltestelle" {
+			t.Fatalf("line ending %q: selection=%+v err=%v", ending, s, err)
+		}
+	}
+}
+
+// The Lua tests execute these generated companions, exercising the complete
+// path from the Windows BCS log through Go decoding and payload generation.
+func TestBCSWindowsLogToLua(t *testing.T) {
+	fixture, err := os.ReadFile("testdata/bcs-selection-windows.txt")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(fixture, []byte("\r\n")) {
+		t.Fatal("Windows log fixture lost CRLF line endings")
+	}
+	for _, encoding := range []string{"utf8", "utf16le", "utf16be", "mixed"} {
+		t.Run(encoding, func(t *testing.T) {
+			data := fixture
+			if encoding == "mixed" {
+				data = []byte(strings.Replace(string(data), "\r\n", "\n", 2))
+			} else if encoding != "utf8" {
+				var order binary.ByteOrder = binary.LittleEndian
+				bom := []byte{0xff, 0xfe}
+				if encoding == "utf16be" {
+					order, bom = binary.BigEndian, []byte{0xfe, 0xff}
+				}
+				u := utf16.Encode([]rune(string(fixture)))
+				data = make([]byte, 2+len(u)*2)
+				copy(data, bom)
+				for i, v := range u {
+					order.PutUint16(data[2+i*2:], v)
+				}
+			}
+			base := t.TempDir()
+			root, client := filepath.Join(base, "OMSI 2"), filepath.Join(base, "client")
+			logDir := filepath.Join(root, "Busbetrieb-Simulator")
+			if err := os.MkdirAll(logDir, 0700); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(logDir, "log.txt"), data, 0600); err != nil {
+				t.Fatal(err)
+			}
+			args := []string{"--schedule", "--line", "130 & N30", "--tour", "Mo-Fr 3", "--trip", "4", "--map", "maps/Any layout/global.cfg", "--bus", "Vehicles/Private/model.bus"}
+			g, _, err := prepareBCSTripGuard(localConfig{Root: root, Game: filepath.Join(client, "openomsi.exe")}, args, base)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer g.cleanup()
+			if g.selection.Route != "Nervenklinik - U Rathaus Spandau" || g.selection.Start != 38 || g.selection.End != 56 {
+				t.Fatal(g.selection)
+			}
+			if out := os.Getenv("BBS_TRIP_LUA_FIXTURE_DIR"); out != "" {
+				script, err := os.ReadFile(g.plugin)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(out, encoding+".lua"), script, 0600); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 func TestBCSSelectionLogHandlesUTF16AndBoundedTail(t *testing.T) {
 	text := strings.Repeat("older log line\n", 200000) + selectionFixture
 	for _, wide := range []bool{false, true} {

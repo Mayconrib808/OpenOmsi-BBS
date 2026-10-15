@@ -71,9 +71,12 @@ func parseBCSTripSelection(text string, in pedepeNativeInvocation) (bcsTripSelec
 		if i := strings.Index(line, "Startpunkt:"); i >= 0 {
 			s.StartPoint = strings.TrimSpace(line[i+len("Startpunkt:"):])
 		}
-		if m := bcsRunPattern.FindStringSubmatch(line); len(m) > 0 {
-			s.Tour = strings.TrimSpace(m[1])
-			route := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), m[0]))
+		if m := bcsRunPattern.FindStringSubmatchIndex(line); len(m) > 0 {
+			s.Tour = strings.TrimSpace(line[m[2]:m[3]])
+			// Slice the same unmodified line that was matched. Trimming it
+			// before removing a suffix loses CRLF/trailing spaces from m[0]
+			// and leaves the complete Umlauf annotation inside the route.
+			route := strings.TrimSpace(line[:m[0]])
 			s.Route = route
 			if i := strings.Index(route, " - "); i >= 0 {
 				s.Origin = strings.TrimSpace(route[:i])
@@ -212,7 +215,7 @@ func prepareBCSTripGuard(cfg localConfig, args []string, dir string) (*bcsTripGu
 	if !pedepeHasArg(out, "--whole-tour") {
 		out = append(out, "--whole-tour")
 	}
-	log.Printf("BCS selected duty: line=%q tour=%q departure=%02d:%02d route=%q -> %q; original trip=%q", selection.Line, selection.Tour, selection.Start/60, selection.Start%60, selection.Origin, selection.Terminus, in.Trip)
+	log.Printf("BCS selected duty: line=%q tour=%q departure=%02d:%02d arrival=%02d:%02d route=%q startpoint=%q; original trip=%q", selection.Line, selection.Tour, selection.Start/60, selection.Start%60, selection.End/60, selection.End%60, selection.Route, selection.StartPoint, in.Trip)
 	return g, out, nil
 }
 

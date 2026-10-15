@@ -1,5 +1,10 @@
 """Run the shipped Lua companion against the public openOMSI API contract."""
 from pathlib import Path
+import json
+import os
+import re
+import subprocess
+import tempfile
 from lupa import LuaRuntime
 
 SCRIPT=(Path(__file__).resolve().parents[1]/"source/bcs_trip_guard.lua").read_text(encoding="utf-8").replace("__BCS_SELECTION_JSON__",'"selection"')
@@ -99,3 +104,36 @@ lua=runtime('expected.Map="maps/Another map/global.cfg"')
 lua.execute('tick()')
 check('status.State=="error" and status.Error=="vehicle" and #sends==0',lua)
 print("PASS: loaded map/bus identity checked")
+
+# Generate the real per-launch Lua through the Go log reader, using the
+# sanitized selection block from the supplied Windows BCS log. Do not replace
+# its payload with a separate hand-written expectation as the unit mocks do.
+source=Path(__file__).resolve().parents[1]/"source"
+with tempfile.TemporaryDirectory(prefix="bbs-log-to-lua-") as folder:
+    env=dict(os.environ,BBS_TRIP_LUA_FIXTURE_DIR=folder)
+    subprocess.run(["go","test","-run","^TestBCSWindowsLogToLua$","-count=1"],
+                   cwd=source,env=env,check=True)
+    scripts=sorted(Path(folder).glob("*.lua"))
+    assert len(scripts)==4
+    for path in scripts:
+        script=path.read_text(encoding="utf-8")
+        payload=re.search(r"^local expected = omsi.json.decode\((.*)\)$",script,re.M)
+        selection=json.loads(json.loads(payload[1]))
+        assert selection["Route"]=="Nervenklinik - U Rathaus Spandau"
+        lua=LuaRuntime(unpack_returned_tuples=True)
+        lua.execute(BOOT)
+        lua.globals().expected=lua.table_from(selection)
+        lua.globals().omsi.json.decode=lambda text:lua.table_from(json.loads(text))
+        lua.execute('apply(1)')
+        lua.execute(script)
+        lua.execute('tick();emit(1,"ready");for i=1,22 do tick() end;apply(5);tick()')
+        check('status.State~="ready"',lua)
+        lua.execute('emit(1,"done "..expected.ID);tick()')
+        check('status.State=="ready" and status.Trip==5 and status.Departure==2280',lua)
+        print(f"PASS: Windows BCS log -> Go selection -> generated Lua -> native acknowledgment ({path.stem})")
+
+lua=runtime('expected.Route="unmatched route";for i=6,100 do trips[i]=trips[5] end')
+lua.execute('tick()')
+check('status.State=="error" and status.Error=="notfound" and #sends==0',lua)
+check('#logs==15 and logs[1]:find("BCS expected selection",1,true)~=nil and logs[3]:find("BCS resolved trip",1,true)~=nil',lua)
+print("PASS: failed selection preserves expected and resolved duty evidence, capped at twelve trips")
