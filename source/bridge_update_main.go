@@ -65,8 +65,19 @@ func main() {
 	var dir string
 	var c Config
 	if opts.target != "" {
-		c = readInstalledConfig(opts.target)
-		dir, c, err = bridgeUpdateTargetAtAdapter(filepath.Join(opts.target, "PeDePeAdapter"), c.Root)
+		// When Setup hands the updater its own directory, that directory is the
+		// recovery target. Do not demand that the old installation is already
+		// complete: missing adapter/config/binaries are exactly what an updater
+		// must be able to repair.
+		dir = filepath.Clean(opts.target)
+		if !filepath.IsAbs(dir) || filepath.Dir(dir) == dir {
+			err = fmt.Errorf("pasta de atualização inválida")
+		} else {
+			c = readInstalledConfig(dir)
+			if !filepath.IsAbs(c.Root) && filepath.IsAbs(saved.Root) {
+				c.Root = filepath.Clean(saved.Root)
+			}
+		}
 	} else {
 		dir, c, err = automaticBridgeUpdateTarget(newWindowsRegistry(), saved.Root, steamRootsForBridgeUpdate())
 	}
@@ -120,9 +131,9 @@ func main() {
 		return
 	}
 	automaticUpdateMessage(localText(c.Language,
-		"Bridge atualizada!\r\n\r\nAbra o BCS e jogue normalmente. A comunicação da próxima viagem foi preparada automaticamente.\r\n\r\nSuas pastas, perfil da empresa e servidor foram preservados.",
-		"Bridge updated!\r\n\r\nOpen BCS and play normally. Next-trip communication was prepared automatically.\r\n\r\nYour paths, company profile and server were preserved.",
-		"Bridge aktualisiert!\r\n\r\nBBS öffnen und normal spielen. Die Kommunikation für die nächste Fahrt wurde automatisch vorbereitet.\r\n\r\nPfade, Firmenprofil und Server bleiben erhalten."), false)
+		"Bridge atualizada!\r\n\r\nAbra o Setup/BCS e jogue normalmente. Se alguma configuração antiga estava faltando, o Setup pode recriá-la sem desfazer a atualização.\r\n\r\nSuas pastas, perfil da empresa e servidor foram preservados quando disponíveis.",
+		"Bridge updated!\r\n\r\nOpen Setup/BCS and play normally. If an old setting was missing, Setup can recreate it without undoing the update.\r\n\r\nYour paths, company profile and server were preserved when available.",
+		"Bridge aktualisiert!\r\n\r\nSetup/BBS öffnen und normal spielen. Fehlende alte Einstellungen können im Setup neu erstellt werden, ohne das Update rückgängig zu machen.\r\n\r\nPfade, Firmenprofil und Server bleiben erhalten, soweit vorhanden."), false)
 }
 
 func automaticUpdateElevationArguments() string {
