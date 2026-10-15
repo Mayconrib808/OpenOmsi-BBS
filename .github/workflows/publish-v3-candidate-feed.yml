@@ -1,7 +1,7 @@
-name: Publish signed 3.0.3 candidate feed
+name: Publish 3.0.4 candidate feed
 on:
   push:
-    branches: [updates/3.0.3-candidate]
+    branches: [updates/3.0.4-candidate]
     paths: [cloudflare-updates-v3/preview-v2.json, .github/workflows/publish-v3-candidate-feed.yml]
   workflow_dispatch:
 permissions:
@@ -33,12 +33,17 @@ jobs:
           python3 - <<'PY'
           import urllib.request,json,base64,pathlib
           origin='https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev'
-          headers={'User-Agent':'BBS-OpenOmsi-Multiplayer/3.0.3'}
-          for name in ['preview.json','preview-v2.json']:
-              request=urllib.request.Request(origin+'/'+name,headers=headers)
-              with urllib.request.urlopen(request,timeout=30) as response: envelope=json.load(response)
-              assert envelope==json.loads(pathlib.Path('cloudflare-updates-v3',name).read_text())
-              release=json.loads(base64.b64decode(envelope['payload']))
-              assert release['version']=='3.0.3' and release['sequence']==2026101403
-          print('Live 3.x feed serves verified 3.0.3 metadata for both old and current preview clients')
+          headers={'User-Agent':'BBS-OpenOmsi-Multiplayer/3.0.4'}
+          request=urllib.request.Request(origin+'/preview-v2.json',headers=headers)
+          with urllib.request.urlopen(request,timeout=30) as response: current=json.load(response)
+          assert current==json.loads(pathlib.Path('cloudflare-updates-v3/preview-v2.json').read_text())
+          release=json.loads(base64.b64decode(current['payload']))
+          assert release['version']=='3.0.4' and release['sequence']==2026101404
+
+          request=urllib.request.Request(origin+'/preview.json',headers=headers)
+          with urllib.request.urlopen(request,timeout=30) as response: legacy=json.load(response)
+          assert legacy==json.loads(pathlib.Path('cloudflare-updates-v3/preview.json').read_text())
+          old=json.loads(base64.b64decode(legacy['payload']))
+          assert old['version']=='3.0.3' and old['sequence']==2026101403
+          print('Live 3.x feed serves anchored 3.0.4 metadata; legacy signed 3.0.3 fallback remains intact')
           PY
