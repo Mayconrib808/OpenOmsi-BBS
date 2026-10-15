@@ -1,4 +1,5 @@
 {
-  "candidate_run_id": 38782604310,
-  "artifact_name": "Bridge-2.1.9.2"
+  "candidate_run_id": 38785026907,
+  "artifact_name": "Bridge-2.1.9.3",
+  "candidate_commit": "801fd3e111eebd1b273a2e993f09c60b97d0935b"
 }
