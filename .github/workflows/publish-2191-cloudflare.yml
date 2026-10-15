@@ -48,4 +48,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
       - name: Verify published signature and installer bytes
-        run: node update-service/publication.mjs verify-live
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if node update-service/publication.mjs verify-live; then exit 0; fi
+            if test "$attempt" -lt 6; then sleep 5; fi
+          done
+          exit 1
