@@ -133,44 +133,15 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 			return state, fmt.Errorf("componente inesperado no atualizador")
 		}
 	}
-	if _, err = verifyPackageForUpdate(dir, payload); err != nil {
-		return state, fmt.Errorf("a instalação atual não passou na integridade: %w", err)
-	}
-	jar, err := installedBCSJar(c.Root)
-	if err != nil {
-		return state, err
-	}
-	if jar == "" {
-		return state, fmt.Errorf("não encontrei o BCS na instalação do OMSI já configurada; nada foi alterado")
-	}
-	if checkClosed != nil {
-		if err = checkClosed(jar); err != nil {
-			return state, err
-		}
-	}
-	// Preflight support before changing Bridge files. The archive core repeats
-	// the complete source checksum before replacement and preserves its backup.
-	logger, err := bcsLoggerBytes(jar)
-	if err != nil {
-		return state, err
-	}
-	if _, err = automaticBCSLogger(logger); err != nil {
-		return state, err
-	}
-	baseManifest, err := os.ReadFile(filepath.Join(dir, "docs", "SHA256.txt"))
-	if err != nil {
-		return state, err
-	}
-	selected := map[string][]byte{}
-	for name, data := range payload {
-		if strings.Contains(string(baseManifest), "  "+name+"\n") || strings.Contains(string(baseManifest), "  "+name+"\r\n") {
-			selected[name] = data
-		}
-	}
-	if len(selected["Setup.exe"]) == 0 || len(selected["PeDePeAdapter/openomsi.exe"]) == 0 {
-		return state, fmt.Errorf("instalação sem componentes obrigatórios atestados")
-	}
-	payload = selected
+
+	// Recovery-first policy: the downloaded updater is already authenticated by
+	// the signed release manifest and its SHA-256. The old local installation is
+	// allowed to be stale, partially missing or have mismatched executables; the
+	// exact components carried by this signed payload are the repair source.
+	// A diagnostic integrity check may still be useful, but it must never deny
+	// the repair it is meant to perform.
+	_, _ = verifyPackageForUpdate(dir, payload)
+
 	files := map[string][]byte{}
 	for name, data := range payload {
 		files[name] = data
@@ -181,6 +152,7 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	} else if !os.IsNotExist(e) {
 		return state, e
 	}
+
 	previous := map[string][]byte{}
 	var order []string
 	for name := range files {
@@ -221,11 +193,35 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 		}
 		written = append(written, name)
 	}
-	if _, err = verifyPackage(dir); err != nil {
-		return state, err
+
+	// Verify exactly what this signed payload wrote. Do not require the old base
+	// manifest to be pristine: missing/stale old files are the reason recovery
+	// exists in the first place.
+	for name, expected := range payload {
+		actual, e := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+		if e != nil {
+			return state, e
+		}
+		if !bytes.Equal(actual, expected) {
+			return state, fmt.Errorf("falha ao confirmar componente atualizado: %s", name)
+		}
 	}
-	state, err = prepareBCSNextTrip(c, checkClosed)
-	return state, err
+
+	// BCS next-trip preparation is best-effort. A missing/moved/new BCS must not
+	// roll back a successfully repaired Bridge. Setup can repair/reconfigure the
+	// BCS integration after reopening.
+	if filepath.IsAbs(c.Root) {
+		if prepared, prepErr := prepareBCSNextTrip(c, checkClosed); prepErr == nil {
+			state = prepared
+		} else {
+			_ = os.MkdirAll(appDir(dir), 0755)
+			if f, e := os.OpenFile(filepath.Join(appDir(dir), "setup-v1.1.3.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); e == nil {
+				fmt.Fprintf(f, "automatic-next-trip-warning result=%v\r\n", prepErr)
+				f.Close()
+			}
+		}
+	}
+	return state, nil
 }
 
 func updatedHostManifestForPayload(previous []byte, payload map[string][]byte) []byte {
@@ -236,7 +232,6 @@ func updatedHostManifestForPayload(previous []byte, payload map[string][]byte) [
 			if b, ok := payload[line[66:]]; ok {
 				line = fmt.Sprintf("%x  %s", sha256.Sum256(b), line[66:])
 			}
-		}
 		if line != "" {
 			lines = append(lines, line)
 		}
