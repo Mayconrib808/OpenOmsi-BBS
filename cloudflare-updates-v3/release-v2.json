@@ -2,16 +2,16 @@
   "product": "bbs-openomsi-multiplayer",
   "channel": "preview",
   "schema": 1,
-  "sequence": 2026101403,
-  "version": "3.0.3",
+  "sequence": 2026101404,
+  "version": "3.0.4",
   "notes": {
-    "pt": "Candidata 3.0 para BCS 5.0.2.0 e multiplayer openOMSI com protocolo 7. Servidor oficial 0.2.50, próxima viagem nativa, combustível e logs. Mantém empresa e preferências. A viagem completa com dois PCs ainda precisa de validação.",
-    "en": "3.0 candidate for BCS 5.0.2.0 and protocol-7 openOMSI multiplayer. Official 0.2.50 server, native next trip, fuel and diagnostics. Company and preferences are retained. Complete two-PC gameplay still needs validation.",
-    "de": "3.0-Kandidat für BBS 5.0.2.0 und openOMSI-Multiplayer mit Protokoll 7. Offizieller Server 0.2.50, native nächste Fahrt, Kraftstoff und Diagnose. Firma und Einstellungen bleiben erhalten. Vollständige Fahrt mit zwei PCs noch prüfen."
+    "pt": "Hotfix candidato 3.0.4: corrige a atualização do auxiliar BCS que podia parar com ‘arquivo diferente; preservado’ e simplifica o horário da empresa. Agora basta copiar exatamente a ‘Mudança de horário’ mostrada no BCS, por exemplo -8; o relógio de referência fica automático. Empresa e preferências são mantidas.",
+    "en": "3.0.4 hotfix candidate: fixes BCS helper upgrades that could stop with a preserved-different-file error and simplifies company clock setup. Copy the exact BCS ‘Time shift’ value, for example -8; the reference clock is now automatic. Company and preferences are retained.",
+    "de": "Hotfix-Kandidat 3.0.4: behebt BCS-Hilfsprogramm-Updates, die wegen einer abweichenden Datei stoppen konnten, und vereinfacht die Firmenzeit. Übernimm genau die BBS-Zeitverschiebung, z. B. -8; die Referenzuhr wird automatisch verwaltet. Firma und Einstellungen bleiben erhalten."
   },
   "installer": {
-    "url": "https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev/packages/c5fc1ccd8407682c3ec4511e2cf95707e33ca76a71c51a798986899b14f894e0.exe",
-    "sha256": "c5fc1ccd8407682c3ec4511e2cf95707e33ca76a71c51a798986899b14f894e0",
-    "size": 19682304
+    "url": "https://openomsi-bbs-updates-v3.maycongamesmaximo.workers.dev/packages/6f25f9165cc9107ba8a129e8099c8a4c9be27f90fafad98edfd82accb7be1ed2.exe",
+    "sha256": "6f25f9165cc9107ba8a129e8099c8a4c9be27f90fafad98edfd82accb7be1ed2",
+    "size": 19689984
   }
 }
