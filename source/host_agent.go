@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const hostAgentVersion = "2.1.8-host.1"
+const hostAgentVersion = bridgeVersion
 
 type hostAgentMap struct {
 	state      companyDirectoryState
@@ -267,7 +267,7 @@ func runHostAgent(ctx context.Context, config hostAgentConfig, dir string, outpu
 		}
 		a.mu.Lock()
 		if cycleErr != nil {
-			a.directoryError = cycleErr.Error()
+			a.directoryError = companyDirectoryErrorText(cycleErr, config.Language)
 		} else {
 			a.directoryError = ""
 		}

@@ -291,7 +291,15 @@ func loadCompanyProfile(ctx context.Context, source, baseDir string, client *htt
 	source = strings.Trim(strings.TrimSpace(source), `"`)
 	if strings.Contains(source, "://") {
 		if _, err = companyWebURL(source, true); err == nil {
-			b, err = companyReadHTTP(ctx, client, source, companyProfileLimit)
+			if strings.HasSuffix(source, "/profile") && validateCompanyDirectoryURL(strings.TrimSuffix(source, "/profile")) == nil {
+				var raw json.RawMessage
+				err = retryCompanyDirectoryRequest(ctx, func(attempt context.Context) error {
+					return companyDirectoryHTTP(attempt, client, http.MethodGet, source, "", nil, &raw)
+				})
+				b = raw
+			} else {
+				b, err = companyReadHTTP(ctx, client, source, companyProfileLimit)
+			}
 		}
 	} else {
 		if !filepath.IsAbs(source) {

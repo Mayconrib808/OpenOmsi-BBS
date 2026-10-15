@@ -81,7 +81,7 @@ func main() {
 		peDePeAdapterFail(logPath, cfg.Language, localText(cfg.Language,
 			"O multiplayer da empresa não ficou pronto. A viagem não será aberta como single-player para evitar um registro incorreto no BBS.\n",
 			"Company multiplayer is not ready. The trip will not be opened as single-player to avoid an incorrect BBS record.\n",
-			"Der Firmen-Multiplayer ist nicht bereit. Die Fahrt wird nicht als Einzelspieler gestartet, damit BBS keinen falschen Datensatz speichert.\n")+err.Error())
+			"Der Firmen-Multiplayer ist nicht bereit. Die Fahrt wird nicht als Einzelspieler gestartet, damit BBS keinen falschen Datensatz speichert.\n")+companyDirectoryErrorText(err, cfg.Language))
 		os.Exit(3)
 	}
 	freshArgs, err := peDePeFreshTripArgs(weatherArgs, cfg.Root)

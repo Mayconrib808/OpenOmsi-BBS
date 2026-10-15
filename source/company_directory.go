@@ -6,9 +6,12 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strings"
 	"time"
@@ -40,6 +43,85 @@ type companyDirectoryDemand struct {
 	Weather   string `json:"weather,omitempty"`
 }
 
+// Only discovery's idempotent reads/wake may retry. Authentication failures,
+// redirects, invalid profiles and changed company identities remain failures.
+type companyDirectoryRequestError struct {
+	status int
+	cause  error
+}
+
+func (e *companyDirectoryRequestError) Error() string { return companyDirectoryErrorText(e, "pt") }
+func (e *companyDirectoryRequestError) Unwrap() error { return e.cause }
+
+func companyDirectoryErrorText(err error, language string) string {
+	var e *companyDirectoryRequestError
+	if !errors.As(err, &e) {
+		return err.Error()
+	}
+	if e.status != 0 {
+		return fmt.Sprintf(localText(language, "Diretório da empresa: HTTP %d", "Company directory: HTTP %d", "Firmenverzeichnis: HTTP %d"), e.status)
+	}
+	detail := e.cause.Error()
+	return localText(language, "Não foi possível consultar o diretório da empresa: ", "Could not contact the company directory: ", "Das Firmenverzeichnis konnte nicht erreicht werden: ") + detail
+}
+
+func companyDirectoryTransportError(err error) error {
+	// url.Error includes the invitation URL. Keep its actual network reason,
+	// while excluding the room code and any authorization from shared logs/UI.
+	var e *url.Error
+	if errors.As(err, &e) {
+		err = e.Err
+	}
+	return &companyDirectoryRequestError{cause: err}
+}
+
+func retryableCompanyDirectoryError(err error) bool {
+	var e *companyDirectoryRequestError
+	if !errors.As(err, &e) {
+		return false
+	}
+	switch e.status {
+	case 408, 429, 500, 502, 503, 504:
+		return true
+	}
+	var network net.Error
+	return e.status == 0 && !errors.Is(e.cause, context.Canceled) &&
+		(errors.As(e.cause, &network) || errors.Is(e.cause, io.EOF) || errors.Is(e.cause, io.ErrUnexpectedEOF))
+}
+
+func retryCompanyDirectoryRequest(ctx context.Context, request func(context.Context) error) error {
+	return retryCompanyDirectoryRequestWithin(ctx, 30*time.Second, 2*time.Second, request)
+}
+
+func retryCompanyDirectoryRequestWithin(parent context.Context, budget, interval time.Duration, request func(context.Context) error) error {
+	ctx, cancel := context.WithTimeout(parent, budget)
+	defer cancel()
+	for {
+		if err := parent.Err(); err != nil {
+			return err
+		}
+		err := request(ctx)
+		if err == nil || !retryableCompanyDirectoryError(err) {
+			return err
+		}
+		// Keep the last real cause when the grace period expires. The caller's
+		// cancellation takes priority; it must never wait through another retry.
+		if parent.Err() != nil {
+			return parent.Err()
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			if parent.Err() != nil {
+				return parent.Err()
+			}
+			return err
+		case <-timer.C:
+		}
+	}
+}
+
 func companyDirectoryHTTP(ctx context.Context, client *http.Client, method, address, key string, body any, result any) error {
 	var data []byte
 	var err error
@@ -54,6 +136,8 @@ func companyDirectoryHTTP(ctx context.Context, client *http.Client, method, addr
 		return err
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "OpenOmsi-BBS/"+bridgeVersion)
 	req.Header.Set("Cache-Control", "no-cache")
 	if key != "" {
 		req.Header.Set("Authorization", "Bearer "+key)
@@ -62,15 +146,18 @@ func companyDirectoryHTTP(ctx context.Context, client *http.Client, method, addr
 	copyClient.CheckRedirect = func(*http.Request, []*http.Request) error { return fmt.Errorf("directory redirects are not supported") }
 	resp, err := copyClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("não foi possível consultar o diretório da empresa")
+		return companyDirectoryTransportError(err)
 	}
 	defer resp.Body.Close()
 	data, err = io.ReadAll(io.LimitReader(resp.Body, companyProfileLimit+1))
-	if err != nil || len(data) > companyProfileLimit {
+	if err != nil {
+		return companyDirectoryTransportError(err)
+	}
+	if len(data) > companyProfileLimit {
 		return fmt.Errorf("invalid directory response")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("diretório da empresa: HTTP %d", resp.StatusCode)
+		return &companyDirectoryRequestError{status: resp.StatusCode}
 	}
 	if result == nil {
 		return nil
@@ -101,7 +188,9 @@ func waitCompanyDirectorySession(ctx context.Context, client *http.Client, profi
 		demand.Weather = weather[0]
 	}
 	wake := func() error {
-		return companyDirectoryHTTP(ctx, client, http.MethodPost, profile.DirectoryURL+"/wake", "", demand, &reply)
+		return retryCompanyDirectoryRequest(ctx, func(attempt context.Context) error {
+			return companyDirectoryHTTP(attempt, client, http.MethodPost, profile.DirectoryURL+"/wake", "", demand, &reply)
+		})
 	}
 	if err := wake(); err != nil {
 		return CompanySession{}, err
@@ -123,7 +212,12 @@ func waitCompanyDirectorySession(ctx context.Context, client *http.Client, profi
 			return CompanySession{}, fmt.Errorf("Servidor da empresa: %s", reply.Session.Error)
 		}
 		if reply.Session.State == "online" {
-			p, err := refreshCompanyDirectoryProfile(ctx, client, profile)
+			var p CompanyProfile
+			err := retryCompanyDirectoryRequest(ctx, func(attempt context.Context) error {
+				var err error
+				p, err = refreshCompanyDirectoryProfile(attempt, client, profile)
+				return err
+			})
 			if err != nil {
 				return CompanySession{}, err
 			}
@@ -144,7 +238,9 @@ func waitCompanyDirectorySession(ctx context.Context, client *http.Client, profi
 				err = wake()
 				lastWake = time.Now()
 			} else {
-				err = companyDirectoryHTTP(ctx, client, http.MethodGet, profile.DirectoryURL+"/sessions/"+id, "", nil, &reply)
+				err = retryCompanyDirectoryRequest(ctx, func(attempt context.Context) error {
+					return companyDirectoryHTTP(attempt, client, http.MethodGet, profile.DirectoryURL+"/sessions/"+id, "", nil, &reply)
+				})
 			}
 			if err != nil {
 				return CompanySession{}, err

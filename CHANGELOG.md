@@ -99,6 +99,13 @@
 
 # Changelog
 
+## 2.1.9.2 — 15 October 2026
+
+- Discovery/profile requests and cold-server polling recover from temporary network failures and HTTP 408/429/500/502/503/504 for up to 30 seconds per request, within the existing startup deadline. Cancellation, offline/disabled/error states and permanent failures remain immediate.
+- Retains the real network reason without including the invitation URL; directory errors are translated PT/EN/DE in the adapter, Setup and host panel.
+- Preserves published-address/identity checks and all 2.1.9.1 destination, BCS 5.0.3.0 and cumulative recovery changes. HostAgent displays the actual Bridge version.
+- Full release notes: `docs/releases/v2.1.9.2.md`.
+
 ## 2.1.9.1 — 15 October 2026
 
 - Verify the next-trip destination from the actual HOF index, with bounded correction of a unique destination while stopped and PT/EN/DE feedback. Keep BCS recording active when the destination cannot be verified; never label that warning as confirmed.

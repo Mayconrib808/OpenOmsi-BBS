@@ -358,7 +358,7 @@ func main() {
 		}
 		if e != nil {
 			u.say("A operação não foi concluída:", "The operation was not completed:", "Der Vorgang wurde nicht abgeschlossen:")
-			fmt.Println(e)
+			fmt.Println(companyDirectoryErrorText(e, u.lang))
 		}
 	}
 }

@@ -327,8 +327,9 @@ func (g *setupGUI) finish() {
 	g.busyState(false)
 	if result.err != nil {
 		logSetup(g.dir, "graphical-setup", result.err)
-		guiSetText(g.status, g.text("failed")+result.err.Error())
-		guiMessageBox(g.window, result.err.Error(), 0x10)
+		detail := companyDirectoryErrorText(result.err, g.config.Language)
+		guiSetText(g.status, g.text("failed")+detail)
+		guiMessageBox(g.window, detail, 0x10)
 		return
 	}
 	if result.config.Root != "" {
