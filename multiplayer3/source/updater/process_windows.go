@@ -11,9 +11,10 @@ import (
 )
 
 func waitForSetup(pid int) error {
-	if pid <= 0 {
-		return fmt.Errorf("start this updater from Setup.exe")
-	}
+	// A direct double click has no parent Setup to wait for. The selected
+	// installation is still validated by apply before any file is replaced.
+	if pid == 0 { return nil }
+	if pid < 0 { return fmt.Errorf("invalid setup process ID") }
 	h, err := syscall.OpenProcess(0x00100000, false, uint32(pid))
 	if err != nil {
 		if err == syscall.Errno(87) {

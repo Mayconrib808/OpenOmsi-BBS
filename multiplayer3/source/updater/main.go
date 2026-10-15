@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -225,7 +226,12 @@ func main() {
 	target := flag.String("target", "", "installation folder")
 	pid := flag.Int("pid", 0, "setup process")
 	flag.Parse()
-	err := waitForSetup(*pid)
+	exe, err := os.Executable()
+	if err == nil {
+		*target, err = updateTarget(*target, exe, chooseUpdateTarget)
+	}
+	if errors.Is(err, errUpdateCancelled) { return }
+	if err == nil { err = waitForSetup(*pid) }
 	if err == nil {
 		_, err = apply(*target, payload)
 	}
