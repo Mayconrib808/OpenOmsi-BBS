@@ -42,6 +42,11 @@ func (p *companyGatewayPeer) liveTripRequest(packet []byte) (bool, error) {
 			message := ""
 			if parts[3] == "duty-ok "+v[1] {
 				message = "done " + v[0]
+				p.g.mu.Lock()
+				if p.liveRequest == request && p.livePlugin == plugin {
+					p.liveCompleted = true
+				}
+				p.g.mu.Unlock()
 			}
 			if strings.HasPrefix(parts[3], "duty-no ") {
 				message = "no " + v[0] + " Native client rejected the duty"
@@ -92,11 +97,15 @@ func (p *companyGatewayPeer) liveTripRequest(packet []byte) (bool, error) {
 		p.g.mu.Unlock()
 		return true, reply("no " + words[3] + " Request identity conflict")
 	}
+	if p.liveRequest == request && p.livePlugin == words[1] && p.liveCompleted {
+		p.g.mu.Unlock()
+		return true, reply("done " + words[3])
+	}
 	if time.Since(p.liveRequestAt) < 2*time.Second {
 		p.g.mu.Unlock()
 		return true, nil
 	}
-	p.liveRequest, p.liveRequestAt = request, time.Now()
+	p.liveRequest, p.liveRequestAt, p.liveCompleted = request, time.Now(), false
 	p.livePlugin = words[1]
 	p.g.mu.Unlock()
 	ctx, cancel := context.WithTimeout(p.g.ctx, 2*time.Second)

@@ -34,6 +34,7 @@ type companyGatewayPeer struct {
 	liveRequest   string
 	livePlugin    string
 	liveRequestAt time.Time
+	liveCompleted bool
 	closeOnce     sync.Once
 }
 type companyGateway struct {

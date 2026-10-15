@@ -82,6 +82,9 @@ func TestNativeDutyDispatchRequiresOwnedPlayerAndActualClientAck(t *testing.T) {
 	if got := string(gatewayReadUDP(t, client)); got != "CMD|1|2|plugin "+plugin+" done "+id {
 		t.Fatal(got)
 	}
+	request(2,"take "+id+" 130%20&%20N30 Mo-Fr%203 4 1")
+	if got:=string(gatewayReadUDP(t,client));got!="CMD|1|2|plugin "+plugin+" done "+id {t.Fatal(got)}
+	select {case body:=<-requests:t.Fatal("duplicate request reset an already confirmed trip",body);default:}
 	request(2, "take "+id+" 130%20&%20N30 Mo-Fr%203 3 1")
 	if got := string(gatewayReadUDP(t, client)); !strings.Contains(got, "Request identity conflict") {
 		t.Fatal(got)
