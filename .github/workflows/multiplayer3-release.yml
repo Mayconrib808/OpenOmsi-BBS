@@ -2,7 +2,7 @@ name: Test and publish 3.0 candidate
 on:
   workflow_dispatch:
   push:
-    branches: ["release/3.0.3-rc.1", main]
+    branches: ["release/3.0.4-rc.1", main]
   pull_request:
     paths: ["multiplayer3/**", "docs/*3*", ".github/workflows/multiplayer3-release.yml"]
 permissions:
@@ -47,7 +47,7 @@ jobs:
       - name: Recover the already published verified native runtime
         run: python multiplayer3/scripts/recover_preview_server.py
       - name: Build isolated 3.x complete package and updater
-        run: python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --source-commit ${{ github.sha }} --sequence 2026101403
+        run: python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --source-commit ${{ github.sha }} --sequence 2026101404
       - name: Scan the exact candidate package and binaries
         shell: pwsh
         run: |
