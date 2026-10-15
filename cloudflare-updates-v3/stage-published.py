@@ -9,11 +9,12 @@ anchor=json.loads((root/'preview-v2.json').read_text())
 assert base64.b64decode(anchor['payload'],validate=True)==payload
 assert len(anchor['source_commit'])==40
 expected=json.loads((root/'distribution.json').read_text())
-assert release['version']==expected['version']=='3.0.3'
+assert release['version']==expected['version']=='3.0.4'
+assert release['sequence']==2026101404
 assert release['product']=='bbs-openomsi-multiplayer'
 base='https://github.com/Mayconrib808/OpenOmsi-BBS/releases/download/v'+release['version']+'/'
 def fetch(name,sha,size):
- request=urllib.request.Request(base+name,headers={'User-Agent':'BBS-OpenOmsi-Multiplayer-Publisher/3.0.3'})
+ request=urllib.request.Request(base+name,headers={'User-Agent':'BBS-OpenOmsi-Multiplayer-Publisher/3.0.4'})
  with urllib.request.urlopen(request,timeout=120) as response:data=response.read(size+1)
  assert len(data)==size and hashlib.sha256(data).hexdigest()==sha,'Published artifact hash mismatch: '+name
  return data
@@ -29,4 +30,4 @@ parts=[]
 for index,offset in enumerate(range(0,len(full),12*1024*1024)):
  name='full.part'+str(index);(downloads/name).write_bytes(full[offset:offset+12*1024*1024]);parts.append('/downloads/'+name)
 (public/'downloads.json').write_text(json.dumps(dict(expected,parts=parts)))
-print('Staged exact published 3.0.3 candidate and verified updater for the independent 3.x channel')
+print('Staged exact published 3.0.4 candidate and verified updater for the independent 3.x channel')
