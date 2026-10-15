@@ -40,6 +40,35 @@ type helperOwnership struct {
 	SHA256 string `json:"sha256"`
 }
 
+func preserveUnknownPluginHost(dir, hash string, data []byte) error {
+	backupDir := filepath.Join(configDirectory(dir), "helper-backups")
+	if err := os.MkdirAll(backupDir, 0700); err != nil {
+		return err
+	}
+	backup := filepath.Join(backupDir, hash+".bak")
+	if _, err := os.Stat(backup); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	f, err := os.OpenFile(backup, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(data)
+	if err == nil {
+		err = f.Sync()
+	}
+	closeErr := f.Close()
+	if err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		_ = os.Remove(backup)
+	}
+	return err
+}
+
 // bbs.dll looks for its own bbs.start beside the host executable, independent
 // of the working directory. Only our source-backed helper is placed there.
 // The BCS-owned marker, DLL, JAR and original Omsi.exe are never written.
@@ -62,18 +91,24 @@ func preparePluginHost(cfg localConfig, dir string) (string, error) {
 		_ = json.Unmarshal(state, &ownership)
 	}
 	if s, err := os.Lstat(target); err == nil {
+		// Never follow a directory, symlink, junction or another abnormal object.
+		// The regular file at this exact bridge-owned name, however, is safe to
+		// migrate even if its hash came from a build we did not pre-register.
 		if !s.Mode().IsRegular() {
-			return "", fmt.Errorf("arquivo de auxiliar BCS diferente; preservado")
+			return "", fmt.Errorf("o caminho do auxiliar BCS não é um arquivo comum; preservado")
 		}
 		old, err := readSmallFile(target, 8<<20)
 		if err != nil {
 			return "", err
 		}
 		oldHash := fmt.Sprintf("%x", sha256.Sum256(old))
-		if oldHash != hash && !previousPluginHosts[oldHash] && !(samePath(ownership.Path, target) && ownership.SHA256 == oldHash) {
-			return "", fmt.Errorf("arquivo de auxiliar BCS diferente; preservado")
-		}
 		if oldHash != hash {
+			knownOwned := previousPluginHosts[oldHash] || (samePath(ownership.Path, target) && ownership.SHA256 == oldHash)
+			if !knownOwned {
+				if err = preserveUnknownPluginHost(dir, oldHash, old); err != nil {
+					return "", fmt.Errorf("não foi possível preservar o auxiliar BCS anterior: %w", err)
+				}
+			}
 			if err = writeAtomic(target, b, s.Mode().Perm()); err != nil {
 				return "", err
 			}
