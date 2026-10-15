@@ -1,11 +1,19 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+func TestHostStartupFailureShowsItsActualStage(t *testing.T) {
+	err := hostStartupError{"Server start: waiting for local server response"}
+	if got := friendlyError(fmt.Errorf("wrapper: %w", err)); got != err.Error() {
+		t.Fatalf("startup detail was replaced by a generic error: %s", got)
+	}
+}
 
 func TestDiagnosticsKeepsNewestEvidenceFromLargeHostLog(t *testing.T) {
 	dir := t.TempDir()

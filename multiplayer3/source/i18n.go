@@ -156,6 +156,8 @@ func friendlyError(e error) string {
 	if e == nil {
 		return ""
 	}
+	var startup hostStartupError
+	if errors.As(e, &startup) { return startup.Error() }
 	s := strings.ToLower(e.Error())
 	if strings.Contains(s, "bcs running") {
 		return tr("errorbcsbusy")

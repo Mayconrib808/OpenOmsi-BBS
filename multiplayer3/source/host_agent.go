@@ -26,6 +26,9 @@ type hostAnnouncement struct {
 	Stage string `json:",omitempty"`
 }
 
+type hostStartupError struct { message string }
+func (e hostStartupError) Error() string { return e.message }
+
 func hostPaths(dir, key string) (request, ready string) {
 	folder := filepath.Join(dir, "logs", "host-sessions")
 	return filepath.Join(folder, "host-"+key+".json"), filepath.Join(folder, "ready-"+key+".json")
@@ -83,7 +86,7 @@ func startHostAgent(ctx context.Context, cfg localConfig, dir, m string, l lease
 		case <-ctx.Done():
 			return "", ctx.Err()
 		case <-deadline.C:
-			return "", fmt.Errorf(tr("hoststartuptimeout"), lastStage)
+			return "", hostStartupError{fmt.Sprintf(tr("hoststartuptimeout"), lastStage)}
 		case <-tick.C:
 			b, e := readSmallFile(readyPath, 16<<10)
 			if e != nil {
@@ -95,7 +98,7 @@ func startHostAgent(ctx context.Context, cfg localConfig, dir, m string, l lease
 			}
 			if a.Stage != "" { lastStage = a.Stage }
 			if a.State == "failed" {
-				return "", fmt.Errorf("servidor do mapa: %s", a.Error)
+				return "", hostStartupError{fmt.Sprintf("%s: %s", tr("hoststartuperror"), a.Error)}
 			}
 			if a.State == "online" && localHostAddress(a.Address) {
 				return a.Address, nil
