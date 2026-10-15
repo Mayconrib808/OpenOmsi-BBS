@@ -21,7 +21,10 @@ type hostRequest struct {
 	Map    string      `json:"map"`
 	Lease  lease       `json:"lease"`
 }
-type hostAnnouncement struct{ Key, Map, State, Address, Error string }
+type hostAnnouncement struct {
+	Key, Map, State, Address, Error string
+	Stage string `json:",omitempty"`
+}
 
 func hostPaths(dir, key string) (request, ready string) {
 	folder := filepath.Join(dir, "logs", "host-sessions")
@@ -55,6 +58,12 @@ func startHostAgent(ctx context.Context, cfg localConfig, dir, m string, l lease
 		return "", e
 	}
 	cmd := exec.Command(exe, "--host-session", requestPath)
+	// A GUI/detached process has no usable console. Give it persistent inherited
+	// handles as well, so even a failure before runHostAgent opens its log survives.
+	capture, e := os.OpenFile(hostLogPath(dir, m), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if e != nil { return "", e }
+	defer capture.Close()
+	cmd.Stdout, cmd.Stderr = capture, capture
 	detachHostAgent(cmd)
 	if e = cmd.Start(); e != nil {
 		_ = os.Remove(requestPath)
@@ -64,6 +73,7 @@ func startHostAgent(ctx context.Context, cfg localConfig, dir, m string, l lease
 	if e = cmd.Process.Release(); e != nil {
 		return "", e
 	}
+	lastStage := tr("hoststageagent")
 	deadline := time.NewTimer(15 * time.Minute)
 	defer deadline.Stop()
 	tick := time.NewTicker(250 * time.Millisecond)
@@ -73,7 +83,7 @@ func startHostAgent(ctx context.Context, cfg localConfig, dir, m string, l lease
 		case <-ctx.Done():
 			return "", ctx.Err()
 		case <-deadline.C:
-			return "", fmt.Errorf("o servidor não ficou pronto em 15 minutos")
+			return "", fmt.Errorf(tr("hoststartuptimeout"), lastStage)
 		case <-tick.C:
 			b, e := readSmallFile(readyPath, 16<<10)
 			if e != nil {
@@ -83,6 +93,7 @@ func startHostAgent(ctx context.Context, cfg localConfig, dir, m string, l lease
 			if json.Unmarshal(b, &a) != nil || a.Key != key || a.Map != m {
 				continue
 			}
+			if a.Stage != "" { lastStage = a.Stage }
 			if a.State == "failed" {
 				return "", fmt.Errorf("servidor do mapa: %s", a.Error)
 			}
@@ -128,18 +139,24 @@ func runHostAgent(ctx context.Context, dir, path string) (result error) {
 	if _, e = invitation(request.Config.Invitation); e != nil {
 		return e
 	}
-	f, e := os.OpenFile(filepath.Join(dir, "logs", "host-"+mapID(m)+".log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-	if e == nil {
-		defer f.Close()
-		log.SetOutput(f)
-	}
+	f, e := os.OpenFile(hostLogPath(dir, m), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
+	if e != nil { return e }
+	defer f.Close()
+	log.SetOutput(f)
+	os.Stdout, os.Stderr = f, f
+	log.Printf("host agent %s: map=%s", version, m)
 	announce := func(state, address, message string) error {
 		b, _ := json.Marshal(hostAnnouncement{Key: request.Key, Map: m, State: state, Address: address, Error: message})
 		return writeAtomic(ready, b, 0600)
 	}
 	client := webClient()
 	defer client.CloseIdleConnections()
-	e = superviseHost(ctx, request.Config, dir, m, request.Lease, client, func(address string) error { return announce("online", address, "") })
+	progress := func(stage string) {
+		log.Printf("host startup: %s", stage)
+		b, _ := json.Marshal(hostAnnouncement{Key: request.Key, Map: m, State: "starting", Stage: stage})
+		_ = writeAtomic(ready, b, 0600)
+	}
+	e = superviseHost(ctx, request.Config, dir, m, request.Lease, client, func(address string) error { return announce("online", address, "") }, progress)
 	if e != nil {
 		log.Print(e)
 		_ = announce("failed", "", e.Error())
@@ -147,4 +164,8 @@ func runHostAgent(ctx context.Context, dir, path string) (result error) {
 		_ = announce("closed", "", "")
 	}
 	return e
+}
+
+func hostLogPath(dir, m string) string {
+	return filepath.Join(dir, "logs", "host-"+mapID(m)+".log")
 }

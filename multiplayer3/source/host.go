@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"net"
 	"net/http"
@@ -174,7 +175,7 @@ func clockAligned(raw string, t time.Time) bool {
 	d := math.Abs(float64(h*3600+m*60) + s - float64(t.Hour()*3600+t.Minute()*60+t.Second()))
 	return math.Min(d, 86400-d) <= 90
 }
-func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease, c *http.Client, announce func(string) error) error {
+func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease, c *http.Client, announce func(string) error, progress func(string)) error {
 	// Release only after terminating the owned dedicated process and its tunnel.
 	var stop func()
 	var finished chan error
@@ -191,10 +192,12 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 		}
 		release(c, cfg.Invitation, m, l.Token)
 	}()
+	progress(tr("hoststageruntime"))
 	serverExe, e := prepareOwnedServer(ctx, c, cfg, dir, m, l)
 	if e != nil {
 		return e
 	}
+	progress(tr("hoststagefleet"))
 	work, e := os.MkdirTemp("", "openomsi-mp3-")
 	if e != nil {
 		return e
@@ -244,6 +247,7 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 		out = &tunnelLog{}
 		server.Stdout, server.Stderr = out, out
 		prepareCompanyHostProcess(server)
+		progress(tr("hoststageprocess"))
 		if e := server.Start(); e != nil {
 			return e
 		}
@@ -253,6 +257,7 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 			_ = server.Wait()
 			return e
 		}
+		log.Printf("native server started: pid=%d executable=%s", server.Process.Pid, exe)
 		stop = ownedStop
 		finished = make(chan error, 1)
 		serverExited = false
@@ -263,6 +268,7 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 	if e = startServer(serverExe); e != nil {
 		return e
 	}
+	progress(tr("hoststageloading"))
 	tunnelFailures, stopTunnel := startCompanyManagedTunnel(ctx, filepath.Dir(serverExe), gateway.webPort, out)
 	defer stopTunnel()
 	localClient := webClient()
@@ -272,6 +278,14 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 	start := lastAck
 	onlineAddress := ""
 	ready := false
+	stage := ""
+	lastDetail := ""
+	setStage := func(key, detail string) {
+		if ready { return }
+		lastDetail = detail
+		if stage != key { stage = key; progress(tr(key)); if detail != "" { log.Print(detail) } }
+	}
+
 	idle := hostIdle{Started: start}
 	tick := time.NewTicker(2 * time.Second)
 	defer tick.Stop()
@@ -281,16 +295,16 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 			return ctx.Err()
 		case tunnelErr := <-tunnelFailures:
 			return tunnelErr
-		case <-finished:
+		case processErr := <-finished:
 			serverExited = true
-			return fmt.Errorf("o servidor do mapa encerrou; a próxima entrada poderá criar uma nova sessão")
+			return fmt.Errorf(tr("hostprocessended"), processErr)
 		case <-tick.C:
 			now := time.Now()
 			if now.Sub(lastAck) >= 35*time.Second {
 				return fmt.Errorf("a conexão com o diretório foi perdida; o servidor local foi encerrado para evitar dois hosts")
 			}
 			if !ready && now.Sub(start) > 15*time.Minute {
-				return fmt.Errorf("o mapa ou o túnel não ficou pronto em 15 minutos")
+				return fmt.Errorf("%s: %s (%s)", tr("hoststartuperror"), tr(stage), lastDetail)
 			}
 			if !now.Before(nextRenew) {
 				state := "starting"
@@ -317,6 +331,7 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 				if time.Since(start) > 15*time.Minute {
 					return fmt.Errorf("o servidor não abriu em 15 minutos")
 				}
+				setStage("hoststagelocal", e.Error())
 				continue
 			}
 			s, e = gateway.adaptStatus(s)
@@ -324,6 +339,7 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 				return e
 			}
 			if !activeWorld(s.World) {
+				setStage("hoststageworld", "local /status available; world=null")
 				continue
 			}
 			target, e := companyNow(l.Clock, time.Now())
@@ -333,9 +349,15 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 			if e = syncClock(ctx, localClient, base, secret, target); e != nil {
 				return e
 			}
+			if !ready && !clockAligned(s.Time, target) { setStage("hoststageclock", fmt.Sprintf("server clock=%s", s.Time)) }
 			if !ready && clockAligned(s.Time, target) {
 				a := out.get()
-				if a != "" && checkSession(ctx, c, a, m) == nil {
+				var checkErr error
+				if a == "" { setStage("hoststagetunnel", "local map and clock are ready; tunnel address not announced") } else {
+					checkErr = checkSession(ctx, c, a, m)
+					if checkErr != nil { setStage("hoststagepublic", checkErr.Error()) }
+				}
+				if a != "" && checkErr == nil {
 					_, e = renew(ctx, c, cfg.Invitation, m, l.Token, "online", a)
 					if e != nil {
 						continue

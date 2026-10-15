@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -45,7 +46,7 @@ func diagnosticZIP(dir string, cfg localConfig) ([]byte, error) {
 		if name != "setup.log" && name != "multiplayer.log" && name != "update-error.txt" && !(strings.HasPrefix(name, "host-") && strings.HasSuffix(name, ".log")) {
 			continue
 		}
-		b, e := readSmallFile(filepath.Join(dir, "logs", name), 2<<20)
+		b, e := readDiagnosticTail(filepath.Join(dir, "logs", name), 2<<20)
 		if e != nil {
 			continue
 		}
@@ -61,4 +62,18 @@ func diagnosticZIP(dir string, cfg localConfig) ([]byte, error) {
 		return nil, err
 	}
 	return data.Bytes(), nil
+}
+
+// Native server output can exceed the export cap. Preserve its newest evidence
+// instead of silently dropping the entire log once it becomes large.
+func readDiagnosticTail(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil { return nil, err }
+	defer f.Close()
+	st, err := f.Stat()
+	if err != nil { return nil, err }
+	if st.Size() > limit {
+		if _, err = f.Seek(st.Size()-limit, io.SeekStart); err != nil { return nil, err }
+	}
+	return io.ReadAll(io.LimitReader(f, limit))
 }

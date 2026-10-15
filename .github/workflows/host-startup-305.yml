@@ -1,0 +1,75 @@
+name: Validate Windows host startup 3.0.5 candidate
+on:
+  push:
+    branches: [codex/host-startup-305]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Fetch verified official openOMSI 0.3.0 server
+        shell: python
+        run: |
+          import hashlib,io,os,urllib.request,zipfile
+          from pathlib import Path
+          url='https://github.com/openOMSI-org/openOMSI/releases/download/v0.3.0/openOMSI-0.3.0-server-windows-x64.zip'
+          data=urllib.request.urlopen(url,timeout=120).read()
+          assert hashlib.sha256(data).hexdigest()=='c7776fafae57f41fb991da395c37baf5a1ec19736fb69109f7b944a3350e1729'
+          dest=Path(os.environ['RUNNER_TEMP'])/'official-server-030'
+          dest.mkdir()
+          with zipfile.ZipFile(io.BytesIO(data)) as z:
+              for n in z.namelist():
+                  p=Path(n)
+                  if p.name and not n.endswith('/'):
+                      (dest/p.name).write_bytes(z.read(n))
+          exe=dest/'openomsi.exe'
+          assert hashlib.sha256(exe.read_bytes()).hexdigest()=='95df5dc44c0452100c0c28b06fbaade366c1caf7de76ec3d73b767aef41b2b90'
+          with open(os.environ['GITHUB_ENV'],'a',encoding='utf-8') as f: f.write('OPENOMSI_TEST_EXE='+str(exe)+'\n')
+      - name: Windows integration, process lifetime and official 0.3.0 loader
+        working-directory: multiplayer3/source
+        run: go test -v -timeout 240s ./...
+  linux:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Race checks and integration regressions
+        working-directory: multiplayer3/source
+        run: go test -race -timeout 180s ./...
+  build:
+    needs: [windows, linux]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Build reviewable candidate without publishing the update feed
+        run: |
+          gofmt -w multiplayer3/source/{main,host,host_agent,process_windows,process_windows_test,diagnostics,host_startup_i18n,host_startup_test}.go
+          python3 multiplayer3/scripts/build_preview.py --sequence 2026101501 --source-commit "$GITHUB_SHA" --output host-startup-build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: host-startup-305-candidate
+          path: host-startup-build/
+          retention-days: 7
+          compression-level: 0

@@ -22,7 +22,12 @@ func prepareCompanyHostProcess(child *exec.Cmd) {
 	if child.SysProcAttr == nil {
 		child.SysProcAttr = &syscall.SysProcAttr{}
 	}
-	child.SysProcAttr.CreationFlags |= 0x00000200 | 0x00000004
+	// The native server has tunnel=0 and cloudflared has --no-autoupdate:
+	// neither is allowed to spawn the other. Start normally, then attach the
+	// process to its lifetime job before the supervisor starts the next child.
+	// Never guess a primary thread from an unordered system-wide snapshot.
+	child.SysProcAttr.CreationFlags |= 0x00000200 | 0x08000000
+	child.SysProcAttr.HideWindow = true
 }
 
 func ownCompanyHostProcess(child *exec.Cmd) (func(), error) {
@@ -60,51 +65,7 @@ func ownCompanyHostProcess(child *exec.Cmd) (func(), error) {
 		closeJob()
 		return nil, fmt.Errorf("cannot assign owned child process: %w", err)
 	}
-	// The primary thread was created suspended. Assign the job before it can
-	// start cloudflared, then resume that thread through documented Win32 APIs.
-	if err := resumeCompanyHostProcess(uint32(child.Process.Pid)); err != nil {
-		closeJob()
-		return nil, err
-	}
 	var once sync.Once
 	return func() { once.Do(closeJob) }, nil
 }
 
-type companyHostThreadEntry struct {
-	Size, Usage, ThreadID, OwnerPID uint32
-	BasePriority, DeltaPriority     int32
-	Flags                           uint32
-}
-
-func resumeCompanyHostProcess(pid uint32) error {
-	kernel := syscall.NewLazyDLL("kernel32.dll")
-	snapshotProc := kernel.NewProc("CreateToolhelp32Snapshot")
-	first := kernel.NewProc("Thread32First")
-	next := kernel.NewProc("Thread32Next")
-	open := kernel.NewProc("OpenThread")
-	resume := kernel.NewProc("ResumeThread")
-	snapshot, _, err := snapshotProc.Call(0x00000004, 0)
-	if snapshot == ^uintptr(0) {
-		return fmt.Errorf("cannot inspect suspended server thread: %w", err)
-	}
-	defer syscall.CloseHandle(syscall.Handle(snapshot))
-	entry := companyHostThreadEntry{Size: uint32(unsafe.Sizeof(companyHostThreadEntry{}))}
-	ok, _, _ := first.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
-	for ok != 0 {
-		if entry.OwnerPID == pid {
-			thread, _, err := open.Call(0x0002, 0, uintptr(entry.ThreadID))
-			if thread == 0 {
-				return fmt.Errorf("cannot open suspended server thread: %w", err)
-			}
-			count, _, err := resume.Call(thread)
-			_ = syscall.CloseHandle(syscall.Handle(thread))
-			if uint32(count) == 0xffffffff {
-				return fmt.Errorf("cannot resume dedicated server: %w", err)
-			}
-			return nil
-		}
-		entry.Size = uint32(unsafe.Sizeof(companyHostThreadEntry{}))
-		ok, _, _ = next.Call(snapshot, uintptr(unsafe.Pointer(&entry)))
-	}
-	return fmt.Errorf("dedicated server's suspended thread was not found")
-}
