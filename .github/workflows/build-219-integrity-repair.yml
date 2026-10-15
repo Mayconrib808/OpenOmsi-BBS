@@ -1,4 +1,4 @@
-name: Build 2.1.9 integrity-repair updater
+name: Build 2.1.9 recovery-first updater
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
           go-version: '1.23.2'
           cache: false
 
-      - name: Regression test signed repair preflight
+      - name: Regression test recovery preflight
         shell: bash
         run: |
           cat > source/package_integrity_repair_temp_test.go <<'EOF'
@@ -38,7 +38,7 @@ jobs:
               "testing"
           )
 
-          func TestSignedUpdaterCanRepairCoveredBinaryMismatch(t *testing.T) {
+          func TestSignedUpdaterCanRepairCoveredMismatchAndMissingBinary(t *testing.T) {
               dir := t.TempDir()
               files := map[string][]byte{
                   "Setup.exe": []byte("MZ setup"),
@@ -52,22 +52,37 @@ jobs:
               if err := os.WriteFile(filepath.Join(dir, "CompanyHost.exe"), []byte("MZ stale official host"), 0644); err != nil {
                   t.Fatal(err)
               }
+              if err := os.Remove(filepath.Join(dir, "PeDePeAdapter", "openomsi.exe")); err != nil {
+                  t.Fatal(err)
+              }
               payload := map[string][]byte{
                   "Setup.exe": []byte("MZ new setup"),
                   "CompanyHost.exe": []byte("MZ new company"),
                   "PeDePeAdapter/openomsi.exe": []byte("MZ new adapter"),
               }
               if _, err := verifyPackageForUpdate(dir, payload); err != nil {
-                  t.Fatal("covered executable mismatch was not repairable", err)
+                  t.Fatal("signed repair was blocked by a covered mismatch/missing file", err)
               }
               if _, err := verifyPackage(dir); err == nil {
-                  t.Fatal("normal integrity check accepted the mismatch")
+                  t.Fatal("normal integrity check unexpectedly accepted damaged package")
               }
               if err := os.WriteFile(filepath.Join(dir, "app", "OpenOMSI_BCS_Bridge.exe"), []byte("MZ unrelated tamper"), 0644); err != nil {
                   t.Fatal(err)
               }
               if _, err := verifyPackageForUpdate(dir, payload); err == nil {
                   t.Fatal("uncovered executable mismatch was accepted")
+              }
+          }
+
+          func TestRecoveryWriterRecreatesMissingDirectories(t *testing.T) {
+              dir := t.TempDir()
+              target := filepath.Join(dir, "PeDePeAdapter", "openomsi.exe")
+              if err := writeSetupAtomic(target, []byte("MZ repaired")); err != nil {
+                  t.Fatal(err)
+              }
+              got, err := os.ReadFile(target)
+              if err != nil || string(got) != "MZ repaired" {
+                  t.Fatalf("recovery writer did not recreate adapter: %q %v", got, err)
               }
           }
           EOF
@@ -77,17 +92,17 @@ jobs:
           import build
           files=[*build.TEST_COMMON,'process_windows.go','company_host_process_windows.go','openomsi_probe_windows.go',*build.TEST_FILES,'company_host_process_windows_test.go','package_integrity_repair_temp_test.go']
           env=dict(os.environ,GO111MODULE='off',CGO_ENABLED='0',GOTOOLCHAIN='local')
-          subprocess.run(['go','test','-count=1','-run','^TestSignedUpdaterCanRepairCoveredBinaryMismatch$',*files],cwd='source',env=env,check=True)
+          subprocess.run(['go','test','-count=1','-run','^Test(SignedUpdaterCanRepairCoveredMismatchAndMissingBinary|RecoveryWriterRecreatesMissingDirectories)$',*files],cwd='source',env=env,check=True)
           PY
           rm source/package_integrity_repair_temp_test.go
 
-      - name: Build corrected 2.1.9 update components
+      - name: Build recovery-first 2.1.9 update components
         shell: bash
         run: >-
           python scripts/build_update_components.py
           --output build/update-components-219-repair
           --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev
-          --update-sequence 2026101403
+          --update-sequence 2026101404
 
       - name: Build corrected cumulative updater
         shell: bash
@@ -109,7 +124,7 @@ jobs:
           "size=$s" | Out-File -Append -FilePath $env:GITHUB_OUTPUT
           "Updater SHA-256: $h" | Set-Content build/update-219-repair/RELEASE-HASHES.txt
           "Updater size: $s" | Add-Content build/update-219-repair/RELEASE-HASHES.txt
-          Write-Host "Corrected updater SHA256 $h size $s"
+          Write-Host "Recovery updater SHA256 $h size $s"
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
