@@ -94,6 +94,7 @@ var translations = map[string][3]string{
 	"errorplayer":    {"Informe um nome de jogador válido.", "Enter a valid player name.", "Einen gültigen Spielernamen eingeben."},
 	"errorowner":     {"A chave do criador da sala não está disponível neste PC, ou há mapas ativos. Só o criador pode editar a sala com os mapas parados.", "The room creator's key is unavailable on this PC, or maps are active. Only the creator can edit the room with all maps stopped.", "Der Schlüssel des Raumerstellers fehlt auf diesem PC oder Karten sind aktiv. Nur der Ersteller kann den Raum ändern, wenn alle Karten gestoppt sind."},
 	"errorclosed":    {"A configuração foi fechada sem salvar. Inicie a viagem novamente para configurar.", "Setup was closed without saving. Start the trip again to set it up.", "Die Einrichtung wurde ohne Speichern geschlossen. Die Fahrt erneut starten, um sie einzurichten."},
+	"errorsetupexpired": {"O tempo da configuração expirou. Abra o Setup novamente antes de iniciar a viagem.", "The setup session expired. Open Setup again before starting the trip.", "Die Einrichtungszeit ist abgelaufen. Setup vor dem Fahrtbeginn erneut öffnen."},
 }
 
 func init() {
@@ -155,6 +156,9 @@ func tr(key string) string {
 func friendlyError(e error) string {
 	if e == nil {
 		return ""
+	}
+	if errors.Is(e, errSetupExpired) {
+		return tr("errorsetupexpired")
 	}
 	var startup hostStartupError
 	if errors.As(e, &startup) { return startup.Error() }

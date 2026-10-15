@@ -4,6 +4,7 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"html/template"
 	"net"
@@ -61,6 +62,9 @@ func newSetupView(c localConfig, dir, token string) setupView {
 	return setupView{Version: version, MultiplayerEnabled: prefs.MultiplayerEnabled, ProgramDisabled: prefs.ProgramDisabled, Token: token, Lang: language(), Stage: "setup", Root: root, Player: player, Game: game, Invite: c.Invitation, Zone: "", Offset: "", Mode: "join", ClientMode: clientMode, ServerMode: c.Server.Mode, ServerVersion: c.Server.Version, Detected: root != "" && root == detectRoot(dir), Adapter: adapterDirectory(dir), AutomaticUpdates: readPreferences(dir).AutomaticUpdates, BCSStatus: tr("bcsnotchecked"), UpdateStatus: tr("updatenotchecked"), BCSStatusKey: "bcsnotchecked", UpdateStatusKey: "updatenotchecked"}
 }
 func setup(dir string) error { return setupWithReason(dir, "") }
+
+var errSetupExpired = errors.New("setup session expired")
+
 func setupWithReason(dir, reason string) error {
 	return setupWithOptions(dir, reason, setupOptions{Open: openSetup, CheckClosed: checkBCSClosed, Launching: len(os.Args) > 1 && os.Args[1] != "--setup"})
 }
@@ -70,6 +74,7 @@ type setupOptions struct {
 	CheckClosed   func() error
 	Launching     bool
 	Stop          <-chan struct{}
+	Lifetime      time.Duration
 	CheckRelease  func(context.Context, *http.Client, string) (*bridgeRelease, error)
 	ResolveClient func(context.Context, string) (string, error)
 }
@@ -571,12 +576,33 @@ func setupWithOptions(dir, reason string, options setupOptions) error {
 		view.refreshStatuses()
 		go checkUpdate()
 	}
-	timer := time.AfterFunc(30*time.Minute, func() { _ = srv.Close() })
+	lifetime := options.Lifetime
+	if lifetime <= 0 {
+		lifetime = 30 * time.Minute
+	}
+	expired := false
+	timer := time.AfterFunc(lifetime, func() {
+		mu.Lock()
+		expired = true
+		mu.Unlock()
+		_ = srv.Close()
+	})
 	defer timer.Stop()
 	e = srv.Serve(listener)
 	mu.Lock()
 	ok := finished
+	timedOut := expired
+	savedConfig := c
 	mu.Unlock()
+	if e == http.ErrServerClosed && timedOut {
+		recordSetupError(dir, "setup_timeout", savedConfig, fmt.Errorf("session expired; launching=%t; completed=%t", options.Launching, ok))
+		// A manually opened Setup is independent of a trip. Expiring that
+		// settings window must not display a trip/configuration failure.
+		if ok || !options.Launching {
+			return nil
+		}
+		return errSetupExpired
+	}
 	if e == http.ErrServerClosed && ok {
 		return nil
 	}

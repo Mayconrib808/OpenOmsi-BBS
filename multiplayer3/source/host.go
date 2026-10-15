@@ -89,7 +89,7 @@ func checkSession(ctx context.Context, c *http.Client, address, m string) error 
 
 var tunnelPattern = regexp.MustCompile(`https://[a-z0-9-]+\.trycloudflare\.com`)
 
-func validTunnel(s string) bool { return tunnelPattern.FindString(s) == s }
+func validTunnel(s string) bool { return s != "" && tunnelPattern.FindString(s) == s }
 
 type tunnelLog struct {
 	mu      sync.Mutex
