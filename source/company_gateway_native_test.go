@@ -162,11 +162,18 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 		if ids[i] == 0 {
 			t.Fatal(fields)
 		}
-		if protocol == 7 && (len(fields) != 12 || len(fields[11]) != 32) {
+		welcomeFields := 12
+		if protocol == 14 {
+			welcomeFields = 13
+		}
+		if protocol >= 7 && (len(fields) != welcomeFields || len(fields[11]) != 32) {
 			t.Fatal("native rebind secret was lost", len(fields))
 		}
-		if protocol == 7 {
+		if protocol >= 7 {
 			secrets[i] = fields[11]
+		}
+		if protocol == 14 && fields[12] != fmt.Sprintf("%016x", i+1) {
+			t.Fatal("native client nonce was lost", fields[12])
 		}
 		info := fmt.Sprintf("INFO|%d|Driver%d|%s||810|Centro|12|2.5|0|00000000|810/Tour||", ids[i], i, buses[i])
 		_, _ = c.Write([]byte(info))
@@ -192,7 +199,7 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if protocol == 7 {
+	if protocol >= 7 {
 		// Reconnect from a new transport address after INFO settled the peer.
 		// The native host must challenge it and keep the ID only after proof.
 		back, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port})
@@ -219,10 +226,14 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 		proof := hex.EncodeToString(mac.Sum(nil)[:8])
 		_, _ = back.Write([]byte(hellos[0] + "|" + challenge + "|" + proof))
 		fields := strings.Split(string(readUntil(back, "WELCOME|")), "|")
-		if companyGatewayID(fields[2]) != ids[0] || len(fields) != 12 || fields[11] != secrets[0] {
+		welcomeFields := 12
+		if protocol == 14 {
+			welcomeFields = 13
+		}
+		if companyGatewayID(fields[2]) != ids[0] || len(fields) != welcomeFields || fields[11] != secrets[0] {
 			t.Fatal("native reconnect identity or secret changed")
 		}
-		t.Log("protocol 7 native challenge rejected a forged proof and accepted the correct proof through the gateway, preserving player ID and secret")
+		t.Logf("protocol %d native challenge rejected a forged proof and accepted the correct proof through the gateway, preserving player ID and secret", protocol)
 	}
 	if data, err := os.ReadFile(configPath); err != nil || string(data) != config {
 		t.Fatal("user config changed", err, string(data))

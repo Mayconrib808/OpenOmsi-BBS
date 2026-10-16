@@ -356,6 +356,11 @@ func (g *setupGUI) finish() {
 			return
 		}
 		guiUser.NewProc("DestroyWindow").Call(g.window)
+		// The child updater has started and verified its download. Finish this
+		// process now: closing only the window can leave COM/UI teardown alive
+		// long enough to block replacement of Setup.exe. All work has completed;
+		// Windows releases the remaining UI resources when this process exits.
+		os.Exit(0)
 		return
 	}
 	if result.openPath != "" {
@@ -634,6 +639,11 @@ func setupWindowProcedure(window uintptr, message uint32, wparam, lparam uintptr
 			return 0
 		}
 		guiUser.NewProc("DestroyWindow").Call(window)
+		if !g.smoke {
+			// An idle GUI closed by the user or updater must not leave an
+			// invisible Setup process holding its executable open.
+			os.Exit(0)
+		}
 		return 0
 	case guiWMDestroy:
 		if g.updateCancel != nil {

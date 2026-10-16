@@ -293,13 +293,12 @@ func TestAutomaticUpdateRealBCSBackupIdempotencyAndHostManifest(t *testing.T) {
 				t.Fatal("original backup not preserved", err)
 			}
 			logger, err := bcsLoggerBytes(jar)
-			wantLoggerSHA := bcsAutoLoggerSHA
-			if fmt.Sprintf("%x", sha256.Sum256(data)) == bcs503InspectedJarSHA {
-				wantLoggerSHA = bcs503AutoLoggerSHA
-			}
-			if err != nil || fmt.Sprintf("%x", sha256.Sum256(logger)) != wantLoggerSHA {
+			owner, ownerErr := bcsTripStateOwner(jar)
+			reference := append([]byte{1, byte(len(owner) >> 8), byte(len(owner))}, []byte(owner)...)
+			if err != nil || ownerErr != nil || !bcsLoggerInstalled(logger) || !bytes.Contains(logger, reference) {
 				t.Fatal("wrong observer", err)
 			}
+			t.Logf("observer follows installed state API %s", owner)
 			if _, err = verifyPackage(dir); err != nil {
 				t.Fatal(err)
 			}
@@ -316,7 +315,7 @@ func TestAutomaticUpdateRealBCSBackupIdempotencyAndHostManifest(t *testing.T) {
 	}
 }
 
-func TestAutomaticUpdatePreservesUnknownVendorHashWhileRepairingBridge(t *testing.T) {
+func TestAutomaticUpdateAcceptsArchiveResourceChanges(t *testing.T) {
 	source := os.Getenv("BRIDGE_BCS_TEST_JAR")
 	if source == "" {
 		t.Skip("exact local vendor fixture not available in public CI")
@@ -330,17 +329,17 @@ func TestAutomaticUpdatePreservesUnknownVendorHashWhileRepairingBridge(t *testin
 	}
 	os.WriteFile(jar, append(data, []byte("modified archive")...), 0644)
 	beforeJar, _ := os.ReadFile(jar)
-	_, err = installAutomaticBridgeUpdate(dir, c, map[string][]byte{"Setup.exe": []byte("MZ new setup"), "PeDePeAdapter/openomsi.exe": []byte("MZ new adapter")}, nil)
+	state, err := installAutomaticBridgeUpdate(dir, c, map[string][]byte{"Setup.exe": []byte("MZ new setup"), "PeDePeAdapter/openomsi.exe": []byte("MZ new adapter")}, nil)
 	after, _ := os.ReadFile(filepath.Join(dir, "Setup.exe"))
 	afterJar, _ := os.ReadFile(jar)
-	if err != nil || string(after) != "MZ new setup" || !bytes.Equal(beforeJar, afterJar) {
-		t.Fatal("unknown vendor hash blocked recovery or was modified", err)
+	if err != nil || string(after) != "MZ new setup" || !state.Changed || bytes.Equal(beforeJar, afterJar) {
+		t.Fatal("unrelated archive changes blocked communication preparation", state, err)
 	}
 	if _, err = verifyPackage(dir); err != nil {
 		t.Fatal(err)
 	}
-	if fileExists(jar + ".antes-proxima-viagem.bak") {
-		t.Fatal("backup created for unverified vendor archive")
+	if backup, err := os.ReadFile(jar + ".antes-proxima-viagem.bak"); err != nil || !bytes.Equal(backup, beforeJar) {
+		t.Fatal("the exact installed archive was not backed up", err)
 	}
 }
 

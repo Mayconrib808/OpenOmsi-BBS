@@ -24,12 +24,12 @@ REFERENCE_GO = "go1.23.2"
 VERSION = re.search(r'const bridgeVersion = "([^"]+)"', (SOURCE / "version.go").read_text()).group(1)
 PACKAGE_NAME = f"OpenOmsi.+.BBS.{VERSION}"
 TEST_COMMON = (
-    "bridge_update_options.go setup_updates.go main.go pedepe_native.go live_trip.go live_trip_vendor.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update.go bridge_update_native.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
+    "bridge_update_options.go bridge_update_setup.go setup_updates.go main.go pedepe_native.go live_trip.go live_trip_vendor.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update.go bridge_update_native.go log_text.go weather.go startup_ack.go timetable.go diagnostics.go launch_checks.go facade_memory.go launch_session.go session_transition.go openomsi_compatibility.go company_host_share.go setup_gui_model.go setup_gui_text.go "
     "driver.go driver_live.go session.go config.go plugin_host.go registry.go package_integrity.go setup_files.go "
     "paths.go version.go company.go company_content.go company_clock.go company_directory.go company_host.go company_host_population.go company_gateway.go company_gateway_live.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go host_config.go host_agent.go multiplayer.go setup_ui.go company_setup.go profile_store.go"
 ).split()
 TEST_FILES = (
-    "setup_updates_test.go driver_test.go live_trip_test.go bcs_trip_log_patch_test.go bridge_update_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
+    "setup_updates_test.go bridge_update_setup_test.go driver_test.go live_trip_test.go bcs_trip_log_patch_test.go bridge_update_test.go session_test.go setup_test.go diagnostics_test.go launch_session_test.go session_transition_test.go openomsi_compatibility_test.go company_host_share_test.go setup_gui_model_test.go weather_test.go startup_ack_test.go "
     "timetable_test.go timetable_endpoints_test.go regression_test.go pedepe_native_test.go "
     "launch_checks_test.go company_test.go company_content_test.go company_clock_test.go company_directory_test.go host_agent_test.go multiplayer_startup_test.go multiplayer_test.go multiplayer_clock_test.go company_host_test.go company_host_population_test.go company_gateway_test.go company_gateway_native_test.go profile_store_test.go"
 ).split()
@@ -41,7 +41,7 @@ PROGRAMS = {
         "company_host_main.go company_host.go company_host_population.go company_gateway.go company_gateway_live.go company_gateway_protocol.go company_gateway_ws.go company_host_tunnel.go company_host_share.go company_host_process_windows.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go openomsi_compatibility.go openomsi_probe_windows.go version.go"
     ).split(),
     "Setup.exe": (
-         "setup_main.go setup_updates.go setup_updates_windows.go update_process_windows.go setup_native_next_trip_windows.go bridge_update_handoff_windows.go bridge_update.go bridge_update_native.go package_integrity.go setup_files.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update_windows.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
+         "setup_main.go setup_updates.go setup_updates_windows.go update_process_windows.go setup_native_next_trip_windows.go bridge_update_handoff_windows.go bridge_update_setup.go bridge_update.go bridge_update_native.go package_integrity.go setup_files.go bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bridge_update_windows.go diagnostics.go setup_windows.go setup_gui_windows.go setup_gui_preview_windows.go setup_gui_model.go setup_gui_text.go openomsi_compatibility.go openomsi_probe_windows.go "
         "config.go plugin_host.go registry.go paths.go version.go company.go company_directory.go weather.go log_text.go company_content.go company_clock.go setup_ui.go company_setup.go profile_store.go"
     ).split(),
     "PeDePeAdapter/openomsi.exe": (
@@ -109,12 +109,12 @@ def assemble(stage: Path, host_hash: str) -> None:
         "PeDePeAdapter/openomsi.exe is a transparent drop-in for PeDePe's official OpenOMSI (Beta) path and only adds company multiplayer when needed.\n"
         "app/server is a modified dedicated openOMSI server built from the pinned upstream source and native/free-player-vehicles.patch.\n"
         "Its native/bbs-server.json counterpart in app/server records compiler, tested commit and file hashes.\n"
-        "HostAgent/CompanyHost also adapt official protocol-6 servers, including 0.2.23, without modifying those binaries.\n"
+        "HostAgent/CompanyHost adapt official protocol 6, 7 and 14 servers, including 0.3.33 and 0.3.34, without modifying those binaries.\n"
         "The adapter owns per-map UDP/WebSocket transports and tunnels; private player buses use the native stand-in.\n"
         "The plugin host includes Windows version/product/icon resources and retains normal Go symbols/build identity.\n"
         f"Plugin host SHA-256: {host_hash}\n"
         "The historical host with unresolved provenance is not bundled.\n"
-        "Integration uses executable capabilities and multiplayer protocol 6. Official 0.2.0 and 0.2.11 metadata are checked on Windows CI.\n"
+        "Integration uses executable capabilities and multiplayer protocol 6, 7 or 14. Clients and servers in a session must use the same protocol.\n"
         "Automated checks do not certify a real vendor-plugin session or trip evaluation.\n"
         "Live PeDePe native trip/evaluation, next-trip, vendor panel and two-player full-game validation are pending.\n"
         "See docs/VALIDATION.md and docs/TEST_ON_WINDOWS.md.\n",

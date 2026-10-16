@@ -80,23 +80,35 @@ func checkBCSClosedForUpdate(jar string) error {
 	return nil
 }
 
-func checkBridgeSetupClosedForUpdate(dir string) error {
+func bridgeSetupsRunningForUpdate(dir string) ([]uint32, error) {
 	snapshot, err := syscall.CreateToolhelp32Snapshot(syscall.TH32CS_SNAPPROCESS, 0)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer syscall.CloseHandle(snapshot)
 	var entry syscall.ProcessEntry32
 	entry.Size = uint32(unsafe.Sizeof(entry))
 	err = syscall.Process32First(snapshot, &entry)
+	var pids []uint32
 	for err == nil {
 		if strings.EqualFold(syscall.UTF16ToString(entry.ExeFile[:]), "Setup.exe") && sameExecutableForUpdate(processExecutableForUpdate(entry.ProcessID), filepath.Join(dir, "Setup.exe")) {
-			return fmt.Errorf("feche o Setup da Bridge antes de atualizar")
+			pids = append(pids, entry.ProcessID)
 		}
 		err = syscall.Process32Next(snapshot, &entry)
 	}
 	if err != syscall.Errno(18) {
+		return nil, err
+	}
+	return pids, nil
+}
+
+func checkBridgeSetupClosedForUpdate(dir string) error {
+	pids, err := bridgeSetupsRunningForUpdate(dir)
+	if err != nil {
 		return err
+	}
+	if len(pids) != 0 {
+		return errBridgeSetupStillOpen
 	}
 	return nil
 }

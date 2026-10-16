@@ -121,6 +121,18 @@ func main() {
 		return
 	}
 	if err != nil {
+		if errors.Is(err, errBridgeSetupStillOpen) {
+			err = fmt.Errorf("%s", localText(c.Language,
+				"O Setup desta instalação ainda está concluindo uma operação. Aguarde ou cancele essa operação e execute a atualização novamente.",
+				"This installation's Setup is still completing an operation. Wait or cancel that operation, then run the update again.",
+				"Das Setup dieser Installation führt noch einen Vorgang aus. Den Vorgang abwarten oder abbrechen und das Update erneut starten."))
+		}
+		if errors.Is(err, errBridgeSetupCloseFailed) {
+			err = fmt.Errorf("%s", localText(c.Language,
+				"Não foi possível solicitar o fechamento do Setup. Feche o Setup desta instalação e execute a atualização novamente.",
+				"Could not request Setup to close. Close this installation's Setup and run the update again.",
+				"Das Setup konnte nicht zum Schließen aufgefordert werden. Das Setup dieser Installation schließen und das Update erneut starten."))
+		}
 		automaticUpdateMessage(localText(c.Language, "Não foi possível concluir a atualização:\r\n", "Could not complete the update:\r\n", "Update fehlgeschlagen:\r\n")+strings.TrimSpace(err.Error()), true)
 		os.Exit(1)
 	}

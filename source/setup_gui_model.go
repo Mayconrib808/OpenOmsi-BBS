@@ -1,7 +1,7 @@
 package main
 
 import (
-	"crypto/sha256"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -104,17 +104,19 @@ func setupCurrentState(dir string, c Config, r registryAPI) (string, error) {
 	}
 	logger, err := bcsLoggerBytes(jar)
 	if err != nil {
+		if errors.Is(err, errBCSObserverUnavailable) {
+			return setupNativeActivationState(c, false), nil
+		}
 		return "", err
 	}
-	hash := fmt.Sprintf("%x", sha256.Sum256(logger))
-	prepared := hash == bcsAutoLoggerSHA || hash == bcs503AutoLoggerSHA
+	prepared := bcsLoggerInstalled(logger)
 	return setupNativeActivationState(c, prepared), nil
 }
 func setupNativeActivationState(c Config, prepared bool) string {
 	state := localText(c.Language,
-		"PeDePeAdapter selecionado no BCS. Use Salvar e ativar para preparar a próxima viagem.",
-		"PeDePeAdapter selected in BCS. Save and activate to prepare next-trip integration.",
-		"PeDePeAdapter im BBS ausgewählt. Speichern / aktivieren, um die nächste Fahrt vorzubereiten.")
+		"Ponte ativada via PeDePeAdapter. Abra o BCS normalmente.",
+		"Bridge active via PeDePeAdapter. Open BCS normally.",
+		"Bridge über PeDePeAdapter aktiviert. BBS normal öffnen.")
 	if prepared {
 		state = localText(c.Language,
 			"Ponte ativada via PeDePeAdapter. Próxima viagem preparada. Abra o BCS normalmente.",

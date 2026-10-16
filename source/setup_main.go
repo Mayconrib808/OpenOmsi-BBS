@@ -156,6 +156,9 @@ func adminAction(dir, action string) error {
 		}
 		nextTrip, e := prepareBCSNextTrip(c, checkBCSClosedForUpdate)
 		logSetup(dir, fmt.Sprintf("automatic-next-trip BCS=%s changed=%t", nextTrip.Path, nextTrip.Changed), e)
+		if nextTrip.Note != "" {
+			logSetup(dir, "automatic-next-trip "+nextTrip.Note, nil)
+		}
 		if e != nil {
 			return e
 		}

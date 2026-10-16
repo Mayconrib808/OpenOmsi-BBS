@@ -47,8 +47,8 @@ func bcsPatchBackupPath(path, expectedSHA string) (string, error) {
 	return "", err
 }
 
-// The SHA is the complete inspected vendor build, not a filename/version guess.
-// Preserve all other entries byte for byte and keep a recoverable original.
+// expectedSHA is a snapshot of this installed archive, not a BCS version gate.
+// Detect concurrent changes, preserve other entries and keep a recoverable copy.
 func patchBCSJar(path, expectedSHA string, logger []byte) (bool, error) {
 	if len(logger) == 0 {
 		return false, fmt.Errorf("payload de comunicação ausente")
@@ -85,7 +85,7 @@ func patchBCSJar(path, expectedSHA string, logger []byte) (bool, error) {
 	actual, e := bcsJarSHA(path)
 	if e != nil || actual != expectedSHA {
 		reader.Close()
-		return false, fmt.Errorf("este JAR é de outra versão ou foi modificado; nenhum arquivo foi alterado")
+		return false, fmt.Errorf("o JAR do BCS mudou durante a preparação; tente novamente com o BCS fechado")
 	}
 	tmp, e := os.CreateTemp(filepath.Dir(path), ".bcs-next-trip-*.tmp")
 	if e != nil {

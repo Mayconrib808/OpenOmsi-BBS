@@ -188,7 +188,7 @@ func TestSetupCurrentStateUsesNativeBCSSelectionAndPreparation(t *testing.T) {
 	os.WriteFile(settings, []byte(strings.Join(lines, "\r\n")), 0644)
 	r := &memoryRegistry{values: map[string]registryValue{}}
 	state, err := setupCurrentState(dir, c, r)
-	if err != nil || !strings.Contains(state, "Use Salvar e ativar") || strings.Contains(state, "Ponte ativada") {
+	if err != nil || !strings.HasPrefix(state, "Ponte ativada via PeDePeAdapter.") || strings.Contains(state, "Próxima viagem preparada") {
 		t.Fatalf("unprepared: %q %v", state, err)
 	}
 	if _, err = prepareBCSNextTrip(c, nil); err != nil {

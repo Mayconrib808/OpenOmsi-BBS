@@ -30,7 +30,7 @@ const multiplayerProtocol = 6
 // Profile metadata is a compatibility hint. Each running map uses the
 // protocol reported by its native server; packets are never translated.
 func supportedMultiplayerProtocol(protocol int) bool {
-	return protocol == 6 || protocol == 7
+	return protocol == 6 || protocol == 7 || protocol == 14
 }
 
 const multiplayerGameVersion = "0.2.11"
@@ -136,7 +136,7 @@ func validateCompanyProfile(p CompanyProfile) error {
 		return fmt.Errorf("invalid company identity or unsupported profile schema")
 	}
 	if !validOpenOMSIVersion(p.OpenOMSIVersion) || !supportedMultiplayerProtocol(p.Protocol) {
-		return fmt.Errorf("company profile requires a valid openOMSI release label and network protocol 6 or 7")
+		return fmt.Errorf("company profile requires a valid openOMSI release label and network protocol 6, 7 or 14")
 	}
 	if p.Clock != nil {
 		if err := validateCompanyClock(*p.Clock); err != nil {

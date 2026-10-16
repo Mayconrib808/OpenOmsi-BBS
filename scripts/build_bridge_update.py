@@ -2,7 +2,7 @@
 """Build a self-contained update for an already configured Bridge installation.
 
 The cumulative package replaces the seven Bridge executables. The vendor JAR stays local:
-the source contains a checksum-guarded delta for our observational log method.
+the source carries a locally reconstructed observer and discovers its state interface.
 """
 import argparse
 import hashlib
@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / 'source'
 
 UPDATER_SOURCES = (
-    'bridge_update_main.go update_process_windows.go bridge_update_options.go bridge_update_handoff_windows.go bridge_update.go bridge_update_native.go bridge_update_discovery_windows.go bridge_update_windows.go '
+    'bridge_update_main.go update_process_windows.go bridge_update_options.go bridge_update_setup.go bridge_update_handoff_windows.go bridge_update.go bridge_update_native.go bridge_update_discovery_windows.go bridge_update_windows.go '
     'bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go '
     'package_integrity.go setup_windows.go config.go plugin_host.go registry.go '
     'paths.go version.go company.go company_directory.go weather.go log_text.go '
@@ -85,13 +85,13 @@ Português
 1. Feche BCS, openOMSI, Setup, HostAgent e CompanyHost.
 2. Execute Atualizar-Bridge.exe. Você pode executá-lo da pasta Downloads.
 3. Abra o BCS normalmente após a confirmação.
-Atualização cumulativa: não exige instalar a 2.1.8 ou 2.1.9 primeiro. Inclui o hotfix de recuperação e a confirmação/correção do letreiro na Próxima viagem. Preserva a empresa, convite, caminhos e preferências; não substitui o jogo nem o servidor.
+Atualização cumulativa: não exige instalar a 2.1.8 ou 2.1.9 primeiro. Inclui as correções anteriores, remove o bloqueio por versão do BCS e aceita servidores 0.3.33 e 0.3.34. Jogadores e servidor precisam usar a mesma versão do openOMSI. Preserva a empresa, convite, caminhos e preferências; não substitui o jogo nem o servidor.
 
 English
-Close BCS, openOMSI, Setup, HostAgent and CompanyHost. Run Atualizar-Bridge.exe, including from Downloads, then reopen BCS. This cumulative update does not require 2.1.8 or 2.1.9 first. Includes recovery and next-trip destination verification/correction. Your company, invitation, paths, preferences and game/server files are preserved.
+Close BCS, openOMSI, Setup, HostAgent and CompanyHost. Run Atualizar-Bridge.exe, including from Downloads, then reopen BCS. An older Setup already stuck without a window may need to be closed once in Task Manager to install this fix. This cumulative update does not require 2.1.8 or 2.1.9 first. Includes previous fixes, removes the BCS version gate and supports servers 0.3.33 and 0.3.34. Players and server must use the same openOMSI version. Your company, invitation, paths, preferences and game/server files are preserved.
 
 Deutsch
-BBS, openOMSI, Setup, HostAgent und CompanyHost schließen. Atualizar-Bridge.exe starten, auch aus Downloads, danach BBS wieder öffnen. Kumulatives Update: 2.1.8 oder 2.1.9 sind vorher nicht nötig. Enthält Wiederherstellung und Zielanzeige-Prüfung/Korrektur bei Nächste Fahrt. Firma, Einladung, Pfade, Einstellungen sowie Spiel/Server bleiben erhalten.
+BBS, openOMSI, Setup, HostAgent und CompanyHost schließen. Atualizar-Bridge.exe starten, auch aus Downloads, danach BBS wieder öffnen. Ein altes, bereits unsichtbar hängendes Setup muss für diese erste Installation eventuell einmal im Task-Manager beendet werden. Kumulatives Update: 2.1.8 oder 2.1.9 sind vorher nicht nötig. Enthält bisherige Korrekturen, entfernt die BBS-Versionssperre und unterstützt Server 0.3.33/0.3.34. Spieler und Server benötigen dieselbe openOMSI-Version. Firma, Einladung, Pfade, Einstellungen sowie Spiel/Server bleiben erhalten.
 '''
         with zipfile.ZipFile(args.output,'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
             z.write(updater,'Atualizar-Bridge.exe')

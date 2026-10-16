@@ -64,6 +64,9 @@ func newGatewayProtocolFixture(t *testing.T, protocol int) *gatewayFixture {
 	if protocol == 7 {
 		f.version = "0.2.48 (42ebc79 2026-10-13 18:11)"
 	}
+	if protocol == 14 {
+		f.version = "0.3.34 (4deb94e 2026-10-16 20:40)"
+	}
 	web := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/status" || r.URL.Path == "/status.json" {
 			f.mu.Lock()
@@ -454,70 +457,73 @@ func TestCompanyGatewayManagedTunnelPublicationAndMapIsolation(t *testing.T) {
 // Protocol 7 adds a rebind secret and challenge/proof fields. The bridge owns
 // transport routing and bus substitution only; these native fields stay exact.
 func TestCompanyGatewayProtocol7TransportsAndReconnect(t *testing.T) {
-	for _, transport := range []string{"udp", "websocket"} {
-		t.Run(transport, func(t *testing.T) {
-			f := newGatewayProtocolFixture(t, 7)
-			var send func([]byte)
-			var read func() []byte
-			if transport == "udp" {
-				c := gatewayUDPClient(t, f.g)
-				send = func(b []byte) {
-					if _, e := c.Write(b); e != nil {
-						t.Fatal(e)
+	for _, protocol := range []int{7, 14} {
+		for _, transport := range []string{"udp", "websocket"} {
+			t.Run(fmt.Sprintf("protocol-%d/%s", protocol, transport), func(t *testing.T) {
+				f := newGatewayProtocolFixture(t, protocol)
+				var send func([]byte)
+				var read func() []byte
+				if transport == "udp" {
+					c := gatewayUDPClient(t, f.g)
+					send = func(b []byte) {
+						if _, e := c.Write(b); e != nil {
+							t.Fatal(e)
+						}
+					}
+					read = func() []byte { return gatewayReadUDP(t, c) }
+				} else {
+					c, r := gatewayWSClient(t, f.g)
+					send = func(b []byte) {
+						if _, e := c.Write(gatewayMaskedFrame(2, true, b)); e != nil {
+							t.Fatal(e)
+						}
+					}
+					read = func() []byte {
+						op, b := gatewayReadWS(t, r)
+						if op != 2 {
+							t.Fatal(op)
+						}
+						return b
 					}
 				}
-				read = func() []byte { return gatewayReadUDP(t, c) }
-			} else {
-				c, r := gatewayWSClient(t, f.g)
-				send = func(b []byte) {
-					if _, e := c.Write(gatewayMaskedFrame(2, true, b)); e != nil {
-						t.Fatal(e)
+				tail := "|maps/Test/global.cfg|2026-10-13|61200.5|Weather/#CAVOK.owt|0|1234567890abcdef|fedcba9876543210|1122334455667788"
+				hello := []byte(fmt.Sprintf("HELLO|%d|-|Alice|", protocol) + gatewayTestPrivate + tail)
+				send(hello)
+				if welcome := read(); !bytes.HasPrefix(welcome, []byte(fmt.Sprintf("WELCOME|%d|1|", protocol))) {
+					t.Fatal(string(welcome))
+				}
+				if got := <-f.packets; string(got) != fmt.Sprintf("HELLO|%d|-|Alice|", protocol)+f.g.mask+tail {
+					t.Fatal("reconnect proof changed", string(got))
+				}
+				for _, packet := range [][]byte{
+					[]byte("CHALLENGE|fedcba9876543210"),
+					[]byte(fmt.Sprintf("WELCOME|%d|1|abcdef123456|Host|map|date|time|weather|season|2|00112233445566778899aabbccddeeff", protocol)),
+					[]byte{0, 255, 7, 128, 25, 0, 46, 255},
+					append([]byte{0xea, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, []byte{0xeb, 14, 255, 0, 128}...),
+					[]byte("CMD|1|1|admin-challenge abc 00112233445566778899aabbccddeeff 600000"),
+				} {
+					send(packet)
+					if got := read(); !bytes.Equal(got, packet) {
+						t.Fatal("native authentication or binary packet changed", got)
+					}
+					if got := <-f.packets; !bytes.Equal(got, packet) {
+						t.Fatal(got)
 					}
 				}
-				read = func() []byte {
-					op, b := gatewayReadWS(t, r)
-					if op != 2 {
-						t.Fatal(op)
-					}
-					return b
+				info := []byte("INFO|1|Alice|" + gatewayTestPrivate + "|Paint|810|Centro|12|2.5|0|table|tour|abcd|figure.hum")
+				send(info)
+				if got := read(); !bytes.Equal(got, info) {
+					t.Fatal("private bus lost", string(got))
 				}
-			}
-			tail := "|maps/Test/global.cfg|2026-10-13|61200.5|Weather/#CAVOK.owt|0|1234567890abcdef|fedcba9876543210|1122334455667788"
-			hello := []byte("HELLO|7|-|Alice|" + gatewayTestPrivate + tail)
-			send(hello)
-			if welcome := read(); !bytes.HasPrefix(welcome, []byte("WELCOME|7|1|")) {
-				t.Fatal(string(welcome))
-			}
-			if got := <-f.packets; string(got) != "HELLO|7|-|Alice|"+f.g.mask+tail {
-				t.Fatal("reconnect proof changed", string(got))
-			}
-			for _, packet := range [][]byte{
-				[]byte("CHALLENGE|fedcba9876543210"),
-				[]byte("WELCOME|7|1|abcdef123456|Host|map|date|time|weather|season|2|00112233445566778899aabbccddeeff"),
-				[]byte{0, 255, 7, 128, 25, 0, 46, 255},
-				[]byte("CMD|1|1|admin-challenge abc 00112233445566778899aabbccddeeff 600000"),
-			} {
-				send(packet)
-				if got := read(); !bytes.Equal(got, packet) {
-					t.Fatal("native authentication or binary packet changed", got)
+				if got := <-f.packets; !bytes.Contains(got, []byte("|"+f.g.mask+"|")) {
+					t.Fatal(string(got))
 				}
-				if got := <-f.packets; !bytes.Equal(got, packet) {
-					t.Fatal(got)
+				send([]byte("INFO|2|Other|Vehicles/Other/bus.bus|"))
+				if got := read(); !bytes.HasPrefix(got, []byte(fmt.Sprintf("REJECT|%d|", protocol))) {
+					t.Fatal("wrong rejection protocol", string(got))
 				}
-			}
-			info := []byte("INFO|1|Alice|" + gatewayTestPrivate + "|Paint|810|Centro|12|2.5|0|table|tour|abcd|figure.hum")
-			send(info)
-			if got := read(); !bytes.Equal(got, info) {
-				t.Fatal("private bus lost", string(got))
-			}
-			if got := <-f.packets; !bytes.Contains(got, []byte("|"+f.g.mask+"|")) {
-				t.Fatal(string(got))
-			}
-			send([]byte("INFO|2|Other|Vehicles/Other/bus.bus|"))
-			if got := read(); !bytes.HasPrefix(got, []byte("REJECT|7|")) {
-				t.Fatal("wrong rejection protocol", string(got))
-			}
-		})
+			})
+		}
 	}
 }
 

@@ -3,6 +3,8 @@ package main
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/base64"
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
@@ -63,11 +65,11 @@ func TestBCSLogPatchPreservesBackupAndOtherEntries(t *testing.T) {
 	}
 }
 
-func TestBCSLogPatchRejectsUnknownBuild(t *testing.T) {
+func TestBCSLogPatchRejectsConcurrentArchiveChange(t *testing.T) {
 	p, _ := testBCSJar(t)
 	before, _ := os.ReadFile(p)
-	if _, e := patchBCSJar(p, "another vendor build", []byte("observer")); e == nil {
-		t.Fatal("unknown build accepted")
+	if _, e := patchBCSJar(p, "outdated snapshot", []byte("observer")); e == nil {
+		t.Fatal("concurrently changed archive accepted")
 	}
 	after, _ := os.ReadFile(p)
 	if !bytes.Equal(before, after) {
@@ -127,17 +129,59 @@ func TestBCSLogPatchRejectsConflictingBuildSpecificBackup(t *testing.T) {
 	}
 }
 
-func TestBCSSupportedVendorBuilds(t *testing.T) {
-	if !supportedBCSJarSHA(bcsInspectedJarSHA) {
-		t.Fatal("current BCS vendor build rejected")
+func TestBCSAutomaticUpdateAcceptsChangedCommunication(t *testing.T) {
+	for _, lang := range []string{"pt", "en", "de"} {
+		t.Run(lang, func(t *testing.T) {
+			jar, _ := testBCSJar(t)
+			before, _ := os.ReadFile(jar)
+			closed := false
+			state, err := prepareBCSNextTrip(Config{Root: filepath.Dir(jar), Language: lang}, func(path string) error { closed = path == jar; return nil })
+			if err != nil || !closed || state.Path != jar || state.Changed || state.Note != bcsObserverNativeNote(lang) {
+				t.Fatalf("BCS update blocked activation: %+v %v", state, err)
+			}
+			after, _ := os.ReadFile(jar)
+			if !bytes.Equal(before, after) {
+				t.Fatal("unrecognized logger was overwritten")
+			}
+		})
 	}
-	if !supportedBCSJarSHA(bcsPreviousInspectedJarSHA) {
-		t.Fatal("previous BCS vendor build rejected")
+}
+
+// Compiled from our synthetic system.J fixture with the four static methods
+// used by ObserverTemplate.java; contains no PeDePe code.
+const bcsStateClassFixture = "yv66vgAAADQAFwoAAgADBwAEDAAFAAYBABBqYXZhL2xhbmcvT2JqZWN0AQAGPGluaXQ+AQADKClWBQAAAAAAAAB7BwAKAQAIc3lzdGVtL0oBAARDb2RlAQAPTGluZU51bWJlclRhYmxlAQABaAEAAygpQgEAAUkBAAMoKUoBAAFpAQAHKClMci9uOwEAAWoBAAcoKUxyL0U7AQAKU291cmNlRmlsZQEABkouamF2YQAhAAkAAgAAAAAABQABAAUABgABAAsAAAAdAAEAAQAAAAUqtwABsQAAAAEADAAAAAYAAQAAAAIACQANAA4AAQALAAAAGgABAAAAAAACBawAAAABAAwAAAAGAAEAAAADAAkADwAQAAEACwAAABwAAgAAAAAABBQAB60AAAABAAwAAAAGAAEAAAAEAAkAEQASAAEACwAAABoAAQAAAAAAAgGwAAAAAQAMAAAABgABAAAABQAJABMAFAABAAsAAAAaAAEAAAAAAAIBsAAAAAEADAAAAAYAAQAAAAYAAQAVAAAAAgAW"
+
+func TestBCSStateOwnerFollowsInstalledInterfaceWithoutJarHash(t *testing.T) {
+	class, err := base64.StdEncoding.DecodeString(bcsStateClassFixture)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !supportedBCSJarSHA(bcs503InspectedJarSHA) {
-		t.Fatal("BCS 5.0.3.0 vendor build rejected")
+	for _, owner := range []string{"system/I", "system/J", "system/AnotherName"} {
+		t.Run(owner, func(t *testing.T) {
+			reference := append([]byte{0, byte(len(owner))}, []byte(owner)...)
+			data := bytes.Replace(class, []byte("\x00\x08system/J"), reference, 1)
+			jar := filepath.Join(t.TempDir(), "busbetrieb-simulator.jar")
+			var archive bytes.Buffer
+			z := zip.NewWriter(&archive)
+			w, _ := z.Create(owner + ".class")
+			w.Write(data)
+			w, _ = z.Create("unrelated/new-update.txt")
+			w.Write([]byte("resource changed by the automatic BCS update"))
+			z.Close()
+			os.WriteFile(jar, archive.Bytes(), 0600)
+			actual, err := bcsTripStateOwner(jar)
+			if err != nil || actual != owner {
+				t.Fatal(actual, err)
+			}
+		})
 	}
-	if supportedBCSJarSHA("unknown") {
-		t.Fatal("unknown BCS vendor build accepted")
+	// Every truncated prefix is invalid; malformed classes must never panic.
+	for i := 0; i < len(class)-10; i++ {
+		_, _ = bcsClassMethods(class[:i])
+	}
+	bad := append([]byte(nil), class...)
+	binary.BigEndian.PutUint16(bad[8:10], 65535)
+	if _, ok := bcsClassMethods(bad); ok {
+		t.Fatal("malformed constant pool accepted")
 	}
 }

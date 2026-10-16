@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,17 +17,13 @@ import (
 type bcsNextTripPreparation struct {
 	Path    string
 	Changed bool
+	Note    string
 }
 
-// Keep previous inspected builds while accepting 5.0.3.0. The logger itself is
-// unchanged, but its added observer must use the renamed Spieldaten owner.
-const bcsPreviousInspectedJarSHA = "b624b07f436eaa67aee51ea41340529b8f6a6d1d0d29d4c9c199c61d0ca3bbe0"
-const bcs503InspectedJarSHA = "22d01c3f84ef48266293c49aca082c9792855c00379ae28e5318b11e1ed34555"
+// These identify our generated observer, never an allowed BCS release/JAR.
 const bcs503AutoLoggerSHA = "1307d92fbdd23a87891f095efabf3abadc59a8e7b48d74f8903c87decbdf2107"
 
-func supportedBCSJarSHA(sha string) bool {
-	return sha == bcsInspectedJarSHA || sha == bcsPreviousInspectedJarSHA || sha == bcs503InspectedJarSHA
-}
+var errBCSObserverUnavailable = errors.New("BCS next-trip observer does not match the installed communication interface")
 
 // Resolve only the BCS belonging to the configured OMSI installation. Never
 // ask a player to select a JAR or scan unrelated downloads/installations.
@@ -88,18 +85,27 @@ func bcsLoggerBytes(path string) ([]byte, error) {
 		input.Close()
 		return data, err
 	}
-	return nil, fmt.Errorf("a comunicação desta versão do BCS ainda não foi validada")
+	return nil, errBCSObserverUnavailable
+}
+
+func bcsLoggerInstalled(logger []byte) bool {
+	hash := fmt.Sprintf("%x", sha256.Sum256(logger))
+	if hash == bcsAutoLoggerSHA || hash == bcsPreviousLoggerSHA || hash == bcs503AutoLoggerSHA {
+		return true
+	}
+	methods, ok := bcsClassMethods(logger)
+	return ok && methods["bridgeNextTripDetails(Ljava/lang/String;)Ljava/lang/String;"] && bytes.Contains(logger, []byte("[OpenOmsi-BBS next-trip log v1]"))
 }
 
 // The automatic Setup carries copy ranges and our added bytecode, rather than
 // a vendor class/JAR. Both input and reconstructed output have exact hashes.
 func automaticBCSLogger(original []byte) ([]byte, error) {
 	hash := fmt.Sprintf("%x", sha256.Sum256(original))
-	if hash == bcsAutoLoggerSHA || hash == bcsPreviousLoggerSHA || hash == bcs503AutoLoggerSHA {
+	if bcsLoggerInstalled(original) {
 		return original, nil
 	}
 	if hash != bcsOriginalLoggerSHA {
-		return nil, fmt.Errorf("a comunicação desta versão do BCS ainda não foi validada")
+		return nil, errBCSObserverUnavailable
 	}
 	delta, err := base64.StdEncoding.DecodeString(bcsAutoLoggerDelta)
 	if err != nil || len(delta) < 9 || string(delta[:9]) != "BCSDELTA1" {
@@ -145,24 +151,148 @@ func automaticBCSLogger(original []byte) ([]byte, error) {
 	return result, nil
 }
 
-func automaticBCSLoggerForJar(original []byte, jarSHA string) ([]byte, error) {
+func automaticBCSLoggerForJar(original []byte, jarPath string) ([]byte, error) {
 	logger, err := automaticBCSLogger(original)
-	if err != nil || jarSHA != bcs503InspectedJarSHA || bytes.Equal(logger, original) {
+	if err != nil || bytes.Equal(logger, original) {
 		return logger, err
 	}
-	// This exact constant-pool entry belongs to our injected observer, not the
-	// vendor's unchanged logger. 5.0.3.0 moved Spieldaten from system.I to J;
-	// method names/descriptors and the logger ABI remain unchanged. Verify the
-	// complete result, reproduced by build_bcs_trip_log_patch.py with Java.
+	owner, err := bcsTripStateOwner(jarPath)
+	if err != nil {
+		return nil, err
+	}
+	// Only the class reference added by our observer is rebound. Other JAR
+	// entries, timestamps and resource changes do not affect compatibility.
 	old := []byte("\x01\x00\x08system/I")
 	if bytes.Count(logger, old) != 1 {
 		return nil, fmt.Errorf("a referência da comunicação do BCS não confere")
 	}
-	logger = bytes.Replace(logger, old, []byte("\x01\x00\x08system/J"), 1)
-	if fmt.Sprintf("%x", sha256.Sum256(logger)) != bcs503AutoLoggerSHA {
-		return nil, fmt.Errorf("a integridade da comunicação do BCS 5.0.3.0 não confere")
-	}
+	reference := append([]byte{1, byte(len(owner) >> 8), byte(len(owner))}, []byte(owner)...)
+	logger = bytes.Replace(logger, old, reference, 1)
 	return logger, nil
+}
+
+// Read JVM method descriptors to locate the state API used by the observer.
+// Obfuscated class names can change in automatic BCS updates; a whole-JAR hash
+// or a version number cannot tell us which class actually owns that API.
+func bcsClassMethods(data []byte) (map[string]bool, bool) {
+	if len(data) < 10 || binary.BigEndian.Uint32(data) != 0xcafebabe {
+		return nil, false
+	}
+	position := 8
+	u2 := func() (uint16, bool) {
+		if position+2 > len(data) {
+			return 0, false
+		}
+		n := binary.BigEndian.Uint16(data[position:])
+		position += 2
+		return n, true
+	}
+	count, _ := u2()
+	pool := make([]string, int(count))
+	for i := 1; i < int(count); i++ {
+		if position >= len(data) {
+			return nil, false
+		}
+		tag := data[position]
+		position++
+		size := 0
+		switch tag {
+		case 1:
+			n, ok := u2()
+			if !ok || position+int(n) > len(data) {
+				return nil, false
+			}
+			pool[i] = string(data[position : position+int(n)])
+			size = int(n)
+		case 3, 4, 9, 10, 11, 12, 17, 18:
+			size = 4
+		case 5, 6:
+			size = 8
+			i++
+		case 7, 8, 16, 19, 20:
+			size = 2
+		case 15:
+			size = 3
+		default:
+			return nil, false
+		}
+		position += size
+		if position > len(data) {
+			return nil, false
+		}
+	}
+	position += 6 // access, this_class, super_class
+	interfaces, ok := u2()
+	if !ok {
+		return nil, false
+	}
+	position += int(interfaces) * 2
+	methods := map[string]bool{}
+	for section := 0; section < 2; section++ {
+		members, ok := u2()
+		if !ok {
+			return nil, false
+		}
+		for i := 0; i < int(members); i++ {
+			access, a := u2()
+			name, b := u2()
+			descriptor, c := u2()
+			attributes, d := u2()
+			if !a || !b || !c || !d || int(name) >= len(pool) || int(descriptor) >= len(pool) {
+				return nil, false
+			}
+			if section == 1 && access&0x0008 != 0 {
+				methods[pool[name]+pool[descriptor]] = true
+			}
+			for j := 0; j < int(attributes); j++ {
+				if position+6 > len(data) {
+					return nil, false
+				}
+				size := uint64(binary.BigEndian.Uint32(data[position+2:]))
+				position += 6
+				if size > uint64(len(data)-position) {
+					return nil, false
+				}
+				position += int(size)
+			}
+		}
+	}
+	return methods, true
+}
+
+func bcsTripStateOwner(path string) (string, error) {
+	r, err := zip.OpenReader(path)
+	if err != nil {
+		return "", err
+	}
+	defer r.Close()
+	owner := ""
+	for _, entry := range r.File {
+		if !strings.HasPrefix(entry.Name, "system/") || !strings.HasSuffix(entry.Name, ".class") || entry.UncompressedSize64 > 256<<10 {
+			continue
+		}
+		input, err := entry.Open()
+		if err != nil {
+			return "", err
+		}
+		data, err := io.ReadAll(io.LimitReader(input, (256<<10)+1))
+		input.Close()
+		if err != nil {
+			return "", err
+		}
+		methods, ok := bcsClassMethods(data)
+		if !ok || !methods["h()B"] || !methods["I()J"] || !methods["i()Lr/n;"] || !methods["j()Lr/E;"] {
+			continue
+		}
+		if owner != "" {
+			return "", errBCSObserverUnavailable
+		}
+		owner = strings.TrimSuffix(entry.Name, ".class")
+	}
+	if owner == "" {
+		return "", errBCSObserverUnavailable
+	}
+	return owner, nil
 }
 
 func prepareBCSNextTrip(c Config, checkClosed func(string) error) (bcsNextTripPreparation, error) {
@@ -178,14 +308,22 @@ func prepareBCSNextTrip(c Config, checkClosed func(string) error) (bcsNextTripPr
 	}
 	original, err := bcsLoggerBytes(path)
 	if err != nil {
+		if errors.Is(err, errBCSObserverUnavailable) {
+			state.Note = bcsObserverNativeNote(c.Language)
+			return state, nil
+		}
 		return state, err
 	}
 	jarSHA, err := bcsJarSHA(path)
 	if err != nil {
 		return state, err
 	}
-	logger, err := automaticBCSLoggerForJar(original, jarSHA)
+	logger, err := automaticBCSLoggerForJar(original, path)
 	if err != nil {
+		if errors.Is(err, errBCSObserverUnavailable) {
+			state.Note = bcsObserverNativeNote(c.Language)
+			return state, nil
+		}
 		return state, err
 	}
 	// If our logger is already present, do not reject the JAR merely because
@@ -193,9 +331,15 @@ func prepareBCSNextTrip(c Config, checkClosed func(string) error) (bcsNextTripPr
 	if bytes.Equal(original, logger) {
 		return state, nil
 	}
-	if !supportedBCSJarSHA(jarSHA) {
-		return state, fmt.Errorf("a comunicação desta versão do BCS ainda não foi validada")
-	}
+	// This snapshot detects concurrent writes only; every installed BCS release
+	// is accepted. Never compare this digest to a release/build allowlist.
 	state.Changed, err = patchBCSJar(path, jarSHA, logger)
 	return state, err
+}
+
+func bcsObserverNativeNote(lang string) string {
+	return localText(lang,
+		"BCS aceito. A integração nativa permanece ativa; a extensão de log da próxima viagem não foi aplicada à interface instalada.",
+		"BCS accepted. Native integration remains active; the next-trip logging extension was not applied to the installed interface.",
+		"BBS akzeptiert. Die native Integration bleibt aktiv; die Protokollerweiterung für die nächste Fahrt wurde nicht auf die installierte Schnittstelle angewendet.")
 }
