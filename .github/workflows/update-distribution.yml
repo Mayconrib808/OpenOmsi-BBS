@@ -1,7 +1,7 @@
 name: Deploy update distribution
 on:
   push:
-    branches: ['release/2.1.0']
+    branches: ['release/2.1.0', 'release/2.1.9.5']
     paths: ['update-service/**', '.github/workflows/update-distribution.yml']
   workflow_dispatch:
 permissions:
@@ -33,7 +33,10 @@ jobs:
           path: ${{ runner.temp }}/approved-update
       - name: Verify signed manifest and installer
         if: steps.publication.outputs.run_id != ''
-        run: node update-service/publication.mjs prepare "${{ runner.temp }}/approved-update/Atualizar-Bridge.exe"
+        run: |
+          mapfile -t installers < <(find "${{ runner.temp }}/approved-update" -type f -name 'Atualizar-Bridge.exe')
+          test "${#installers[@]}" -eq 1 || { echo '::error::Expected exactly one approved updater'; exit 1; }
+          node update-service/publication.mjs prepare "${installers[0]}"
       - name: Check existing Cloudflare credentials
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
