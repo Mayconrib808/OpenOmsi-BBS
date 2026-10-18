@@ -2,7 +2,7 @@
 # This disposable runner only strengthens protection: no allow rules, scan
 # exclusions, disabled antivirus or remediation of detections are requested.
 [CmdletBinding()]
-param([Parameter(Mandatory = $true)][string] $PackagePath)
+param([Parameter(Mandatory = $true)][string] $PackagePath, [switch] $UpdateOnly)
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
@@ -22,6 +22,10 @@ $executables = @('Setup.exe', 'HostAgent.exe', 'CompanyHost.exe', 'PeDePeAdapter
     'app/OpenOMSI_BCS_Bridge.exe', 'app/compat/Omsi.exe', 'app/compat/omsi-plugin-host32.exe', 'app/server/openomsi.exe',
     'app/server/steam_api64.dll', 'app/server/vcruntime140.dll',
     'app/server/vcruntime140_1.dll', 'app/server/msvcp140.dll')
+if ($UpdateOnly) {
+    $executables = @('Setup.exe', 'HostAgent.exe', 'CompanyHost.exe', 'PeDePeAdapter/openomsi.exe',
+        'app/OpenOMSI_BCS_Bridge.exe', 'app/compat/Omsi.exe', 'app/compat/omsi-plugin-host32.exe', 'Atualizar-Bridge.exe')
+}
 
 try {
     $source = (Resolve-Path -LiteralPath $PackagePath).Path

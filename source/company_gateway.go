@@ -332,6 +332,10 @@ func (g *companyGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		g.serveWS(w, r)
 		return
 	}
+	if r.URL.Path == "/tcp" {
+		g.serveUploadsDisabled(w, r)
+		return
+	}
 	path := r.URL.Path
 	if path != "/status" && path != "/status.json" && path != "/players" && path != "/players.json" && path != "/icon.png" {
 		http.NotFound(w, r)

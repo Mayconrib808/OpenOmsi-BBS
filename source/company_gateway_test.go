@@ -253,6 +253,10 @@ func TestCompanyGatewayStatusAndVersionUpdates(t *testing.T) {
 }
 
 func gatewayWSClient(t *testing.T, g *companyGateway) (net.Conn, *bufio.Reader) {
+	return gatewayWSPathClient(t, g, "/ws")
+}
+
+func gatewayWSPathClient(t *testing.T, g *companyGateway, path string) (net.Conn, *bufio.Reader) {
 	t.Helper()
 	c, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", g.webPort), time.Second)
 	if err != nil {
@@ -260,7 +264,7 @@ func gatewayWSClient(t *testing.T, g *companyGateway) (net.Conn, *bufio.Reader) 
 	}
 	t.Cleanup(func() { c.Close() })
 	_ = c.SetDeadline(time.Now().Add(3 * time.Second))
-	_, _ = fmt.Fprintf(c, "GET /ws HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive, Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n")
+	_, _ = fmt.Fprintf(c, "GET %s HTTP/1.1\r\nHost: localhost\r\nConnection: keep-alive, Upgrade\r\nUpgrade: websocket\r\nSec-WebSocket-Version: 13\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n\r\n", path)
 	r := bufio.NewReader(c)
 	response, err := http.ReadResponse(r, nil)
 	if err != nil {
@@ -344,6 +348,107 @@ func TestCompanyGatewayWebSocketFragmentsPingAndPrivateBus(t *testing.T) {
 	op, got = gatewayReadWS(t, r)
 	if op != 2 || !bytes.Equal(got, binaryState) {
 		t.Fatal("WebSocket binary packet changed", op, len(got))
+	}
+}
+
+func TestCompanyGatewayUploadRefusalUsesNativeStreamWithoutPlayerSlot(t *testing.T) {
+	for _, protocol := range []int{6, 7, 14} {
+		t.Run(fmt.Sprintf("protocol-%d", protocol), func(t *testing.T) {
+			f := newGatewayProtocolFixture(t, protocol)
+			// A mod stream must not reserve a gameplay place, even while all
+			// places are occupied or the game's world is still loading.
+			f.g.ready.Store(false)
+			f.g.mu.Lock()
+			f.g.limit = 0
+			f.g.mu.Unlock()
+			c, r := gatewayWSPathClient(t, f.g, "/tcp")
+			greeting := []byte("OMSIMODS/3 123456789abc " + strings.Repeat("ab", 32) + "\n")
+			// TCP chunks and WebSocket fragments are different boundaries.
+			_, _ = c.Write(gatewayMaskedFrame(2, true, greeting[:8]))
+			_, _ = c.Write(gatewayMaskedFrame(2, false, greeting[8:40]))
+			_, _ = c.Write(gatewayMaskedFrame(9, true, []byte("ping")))
+			op, data := gatewayReadWS(t, r)
+			if op != 10 || string(data) != "ping" {
+				t.Fatal("mod stream ping was lost", op, string(data))
+			}
+			_, _ = c.Write(gatewayMaskedFrame(0, true, greeting[40:]))
+			op, data = gatewayReadWS(t, r)
+			if op != 2 || string(data) != "ERR this server takes no uploads\n" {
+				t.Fatal("native uploader would see a connection failure instead of a refusal", op, string(data))
+			}
+			op, data = gatewayReadWS(t, r)
+			if op != 8 || !bytes.Equal(data, []byte{3, 232}) {
+				t.Fatal("mod stream did not close normally", op, data)
+			}
+			f.g.mu.Lock()
+			peers, buses := len(f.g.peers), len(f.g.buses)
+			f.g.limit = 256
+			f.g.mu.Unlock()
+			if peers != 0 || buses != 0 || f.g.nextPeer.Load() != 0 {
+				t.Fatal("mod stream used a gameplay identity", peers, buses)
+			}
+			select {
+			case packet := <-f.packets:
+				t.Fatal("file stream reached native game", packet)
+			default:
+			}
+			f.g.ready.Store(true)
+			player := gatewayUDPClient(t, f.g)
+			hello := []byte(strings.Replace(string(gatewayHello(gatewayTestPrivate)), "HELLO|6|", fmt.Sprintf("HELLO|%d|", protocol), 1))
+			_, _ = player.Write(hello)
+			if got := gatewayReadUDP(t, player); !bytes.HasPrefix(got, []byte(fmt.Sprintf("WELCOME|%d|", protocol))) {
+				t.Fatal("gameplay failed after upload refusal", string(got))
+			}
+		})
+	}
+}
+
+func TestCompanyGatewayUploadEndpointRejectsOtherRequests(t *testing.T) {
+	f := newGatewayProtocolFixture(t, 14)
+	for _, path := range []string{"/tcp", "/tcp?target=127.0.0.1", "/tcp/admin", "/admin/"} {
+		resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d%s", f.g.webPort, path))
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		want := http.StatusNotFound
+		if path == "/tcp" {
+			want = http.StatusBadRequest
+		}
+		if resp.StatusCode != want {
+			t.Fatal("request unexpectedly served", path, resp.StatusCode)
+		}
+	}
+	for _, data := range [][]byte{bytes.Repeat([]byte("x"), 257), []byte("GET /admin HTTP/1.1\n")} {
+		c, r := gatewayWSPathClient(t, f.g, "/tcp")
+		_, _ = c.Write(gatewayMaskedFrame(2, true, data))
+		if len(data) > 256 {
+			op, answer := gatewayReadWS(t, r)
+			if op != 8 || !bytes.Equal(answer, []byte{3, 241}) {
+				t.Fatal("oversized greeting was accepted", op, answer)
+			}
+		} else if _, err := r.ReadByte(); err == nil {
+			t.Fatal("non-mod request received a response")
+		}
+	}
+}
+
+func TestCompanyGatewayPrivateConfigurationDisablesFileTransfers(t *testing.T) {
+	input := []byte("name = Preserved\naccept_uploads = 1\nshare_maps = 1\n# share_maps = 1\n")
+	before := append([]byte(nil), input...)
+	for _, base := range [][]byte{input, []byte("name = Preserved\n")} {
+		cfg, err := parseCompanyHostConfig(companyGatewayConfig(base, 27015, 27025, []string{gatewayTestKnown}))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, setting := range []string{"accept_uploads = 0\n", "share_maps = 0\n", "name = Preserved\n"} {
+			if !bytes.Contains(cfg.Text, []byte(setting)) {
+				t.Fatal("private runtime configuration is missing", setting, string(cfg.Text))
+			}
+		}
+	}
+	if !bytes.Equal(input, before) {
+		t.Fatal("user configuration changed")
 	}
 }
 

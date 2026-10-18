@@ -116,6 +116,7 @@ func companyGatewayConfig(text []byte, udpPort, webPort int, fleet []string) []b
 	values := map[string]string{
 		"port": fmt.Sprint(udpPort), "web_port": fmt.Sprint(webPort), "tunnel": "0",
 		"vehicles": strings.Join(fleet, ";"), "free_player_vehicles": "0",
+		"accept_uploads": "0", "share_maps": "0",
 	}
 	lines := strings.Split(strings.ReplaceAll(string(bytes.TrimPrefix(text, []byte{0xef, 0xbb, 0xbf})), "\r\n", "\n"), "\n")
 	seen := map[string]bool{}
@@ -131,7 +132,7 @@ func companyGatewayConfig(text []byte, udpPort, webPort int, fleet []string) []b
 			seen[key] = true
 		}
 	}
-	for _, key := range []string{"port", "web_port", "tunnel", "vehicles", "free_player_vehicles"} {
+	for _, key := range []string{"port", "web_port", "tunnel", "vehicles", "free_player_vehicles", "accept_uploads", "share_maps"} {
 		if !seen[key] {
 			lines = append(lines, key+" = "+values[key])
 		}

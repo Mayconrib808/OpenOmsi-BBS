@@ -5,6 +5,7 @@ package main
 // serializes data and control writes. No game messages become text frames.
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha1"
 	"encoding/base64"
 	"encoding/binary"
@@ -33,11 +34,106 @@ func companyGatewayHeaderToken(value, want string) bool {
 	return false
 }
 
-func (g *companyGateway) serveWS(w http.ResponseWriter, r *http.Request) {
+func companyGatewayWebSocketKey(w http.ResponseWriter, r *http.Request) (string, bool) {
 	key := r.Header.Get("Sec-WebSocket-Key")
 	decoded, err := base64.StdEncoding.DecodeString(key)
 	if err != nil || len(decoded) != 16 || r.Header.Get("Sec-WebSocket-Version") != "13" || !companyGatewayHeaderToken(r.Header.Get("Upgrade"), "websocket") || !companyGatewayHeaderToken(r.Header.Get("Connection"), "upgrade") {
 		http.Error(w, "invalid WebSocket upgrade", http.StatusBadRequest)
+		return "", false
+	}
+	return key, true
+}
+
+func companyGatewayUpgrade(w http.ResponseWriter, key string) (*companyGatewayWS, error) {
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "WebSocket unavailable", http.StatusInternalServerError)
+		return nil, fmt.Errorf("WebSocket unavailable")
+	}
+	conn, rw, err := hijacker.Hijack()
+	if err != nil {
+		return nil, err
+	}
+	ws := &companyGatewayWS{conn: conn, r: rw.Reader, w: rw.Writer}
+	_ = conn.SetDeadline(time.Time{})
+	digest := sha1.Sum([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
+	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
+	_, err = fmt.Fprintf(rw, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", base64.StdEncoding.EncodeToString(digest[:]))
+	if err == nil {
+		err = rw.Flush()
+	}
+	if err != nil {
+		_ = conn.Close()
+		return nil, err
+	}
+	return ws, nil
+}
+
+// openOMSI 0.3.36+ also asks for uploads after its ordinary mod sharing was
+// disabled. Its /tcp transport carries a byte stream, not gameplay datagrams.
+// Answer the native greeting with the exact refusal its uploader recognises;
+// no files, native admin connection or player slot are opened for this request.
+func (g *companyGateway) serveUploadsDisabled(w http.ResponseWriter, r *http.Request) {
+	key, ok := companyGatewayWebSocketKey(w, r)
+	if !ok {
+		return
+	}
+	ws, err := companyGatewayUpgrade(w, key)
+	if err != nil {
+		return
+	}
+	defer ws.conn.Close()
+	_ = ws.conn.SetReadDeadline(time.Now().Add(4 * time.Second))
+	var greeting []byte
+	fragmenting := false
+	for {
+		op, final, data, err := ws.readFrame()
+		if err != nil {
+			return
+		}
+		switch op {
+		case 8:
+			_ = ws.write(8, data)
+			return
+		case 9:
+			if ws.write(10, data) != nil {
+				return
+			}
+			continue
+		case 10:
+			continue
+		case 2:
+			if fragmenting {
+				return
+			}
+			fragmenting = !final
+		case 0:
+			if !fragmenting {
+				return
+			}
+			fragmenting = !final
+		default:
+			return
+		}
+		if len(greeting)+len(data) > 256 {
+			_ = ws.write(8, []byte{3, 241})
+			return
+		}
+		greeting = append(greeting, data...)
+		if !fragmenting && bytes.IndexByte(greeting, '\n') >= 0 {
+			if bytes.HasPrefix(greeting, []byte("OMSIMODS/")) {
+				if ws.write(2, []byte("ERR this server takes no uploads\n")) == nil {
+					_ = ws.write(8, []byte{3, 232})
+				}
+			}
+			return
+		}
+	}
+}
+
+func (g *companyGateway) serveWS(w http.ResponseWriter, r *http.Request) {
+	key, ok := companyGatewayWebSocketKey(w, r)
+	if !ok {
 		return
 	}
 	// Each connection has its own loopback UDP address, like upstream WsGateway.
@@ -47,31 +143,19 @@ func (g *companyGateway) serveWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer p.close()
-	hijacker, ok := w.(http.Hijacker)
-	if !ok {
-		http.Error(w, "WebSocket unavailable", http.StatusInternalServerError)
-		return
-	}
-	conn, rw, err := hijacker.Hijack()
+	ws, err := companyGatewayUpgrade(w, key)
 	if err != nil {
 		return
 	}
-	ws := &companyGatewayWS{conn: conn, r: rw.Reader, w: rw.Writer}
 	p.mu.Lock()
 	if p.closed.Load() {
 		p.mu.Unlock()
-		_ = conn.Close()
+		_ = ws.conn.Close()
 		return
 	}
 	p.ws = ws
 	p.mu.Unlock()
-	_ = conn.SetDeadline(time.Time{})
-	digest := sha1.Sum([]byte(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"))
-	_ = conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
-	_, err = fmt.Fprintf(rw, "HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: %s\r\n\r\n", base64.StdEncoding.EncodeToString(digest[:]))
-	if err != nil || rw.Flush() != nil {
-		return
-	}
+	conn := ws.conn
 	var message []byte
 	fragmenting := false
 	for {
