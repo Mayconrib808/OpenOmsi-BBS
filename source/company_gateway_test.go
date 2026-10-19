@@ -283,8 +283,12 @@ func gatewayMaskedFrame(op byte, final bool, data []byte) []byte {
 	frame := []byte{first}
 	if len(data) < 126 {
 		frame = append(frame, 128|byte(len(data)))
-	} else {
+	} else if len(data) <= 65535 {
 		frame = append(frame, 128|126, byte(len(data)>>8), byte(len(data)))
+	} else {
+		var size [8]byte
+		binary.BigEndian.PutUint64(size[:], uint64(len(data)))
+		frame = append(append(frame, 128|127), size[:]...)
 	}
 	mask := []byte{21, 35, 7, 99}
 	frame = append(frame, mask...)
@@ -437,7 +441,7 @@ func TestCompanyGatewayPrivateConfigurationDisablesFileTransfers(t *testing.T) {
 	input := []byte("name = Preserved\naccept_uploads = 1\nshare_maps = 1\n# share_maps = 1\n")
 	before := append([]byte(nil), input...)
 	for _, base := range [][]byte{input, []byte("name = Preserved\n")} {
-		cfg, err := parseCompanyHostConfig(companyGatewayConfig(base, 27015, 27025, []string{gatewayTestKnown}))
+		cfg, err := parseCompanyHostConfig(companyGatewayConfig(base, 27015, 27025, []string{gatewayTestKnown}, false))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -511,7 +515,7 @@ func TestCompanyGatewayFleetIsModelsNotPlayerPermissions(t *testing.T) {
 	if _, _, _, err := companyGatewayFleet(t.TempDir(), nil, "test"); err == nil {
 		t.Fatal("missing local substitute silently ignored")
 	}
-	text := companyGatewayConfig([]byte("TUNNEL = 1\nport = 7\nport = 8\n# owner\nweather = rain\n"), 27050, 27051, f.g.fleet)
+	text := companyGatewayConfig([]byte("TUNNEL = 1\nport = 7\nport = 8\n# owner\nweather = rain\n"), 27050, 27051, f.g.fleet, false)
 	if strings.Contains(string(text), "TUNNEL = 1") || strings.Contains(string(text), "port = 7") || !strings.Contains(string(text), "weather = rain") || strings.Count(string(text), "port = 27050") != 2 {
 		t.Fatal(string(text))
 	}

@@ -19,10 +19,12 @@ import (
 )
 
 type companyGatewayWS struct {
-	conn net.Conn
-	r    *bufio.Reader
-	w    *bufio.Writer
-	mu   sync.Mutex
+	conn         net.Conn
+	r            *bufio.Reader
+	w            *bufio.Writer
+	mu           sync.Mutex
+	frameLimit   int
+	writeTimeout time.Duration
 }
 
 func companyGatewayHeaderToken(value, want string) bool {
@@ -231,7 +233,7 @@ func (ws *companyGatewayWS) readFrame() (byte, bool, []byte, error) {
 			return 0, false, nil, fmt.Errorf("noncanonical frame size")
 		}
 	}
-	if size > companyGatewayPacketLimit || (op >= 8 && (!final || size > 125)) {
+	if size > uint64(ws.limit()) || (op >= 8 && (!final || size > 125)) {
 		return 0, false, nil, fmt.Errorf("oversized or fragmented control frame")
 	}
 	var mask [4]byte
@@ -252,17 +254,25 @@ func (ws *companyGatewayWS) readFrame() (byte, bool, []byte, error) {
 }
 
 func (ws *companyGatewayWS) write(op byte, data []byte) error {
-	if len(data) > companyGatewayPacketLimit || (op >= 8 && len(data) > 125) {
+	if len(data) > ws.limit() || (op >= 8 && len(data) > 125) {
 		return fmt.Errorf("oversized WebSocket frame")
 	}
 	ws.mu.Lock()
 	defer ws.mu.Unlock()
-	_ = ws.conn.SetWriteDeadline(time.Now().Add(4 * time.Second))
+	timeout := ws.writeTimeout
+	if timeout == 0 {
+		timeout = 4 * time.Second
+	}
+	_ = ws.conn.SetWriteDeadline(time.Now().Add(timeout))
 	head := []byte{128 | op}
 	if len(data) < 126 {
 		head = append(head, byte(len(data)))
-	} else {
+	} else if len(data) <= 65535 {
 		head = append(head, 126, byte(len(data)>>8), byte(len(data)))
+	} else {
+		var size [8]byte
+		binary.BigEndian.PutUint64(size[:], uint64(len(data)))
+		head = append(append(head, 127), size[:]...)
 	}
 	if _, err := ws.w.Write(head); err != nil {
 		return err
@@ -271,4 +281,11 @@ func (ws *companyGatewayWS) write(op byte, data []byte) error {
 		return err
 	}
 	return ws.w.Flush()
+}
+
+func (ws *companyGatewayWS) limit() int {
+	if ws.frameLimit != 0 {
+		return ws.frameLimit
+	}
+	return companyGatewayPacketLimit
 }

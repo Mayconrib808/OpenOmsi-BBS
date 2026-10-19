@@ -178,7 +178,7 @@ func TestPeDePeNativeLuaTelemetryFollowsBBSIntoLaunchContent(t *testing.T) {
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("wrong active plugin root: %q", got)
 	}
-	companyEnv := multiplayerEnvironment(got, contentDir)
+	companyEnv := multiplayerEnvironment(got, contentDir, false)
 	if !strings.Contains(strings.Join(companyEnv, "\n"), "OMSI_CONTENT="+contentDir) {
 		t.Fatal("company multiplayer lost native telemetry plugin root")
 	}

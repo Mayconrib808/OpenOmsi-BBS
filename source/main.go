@@ -1055,7 +1055,7 @@ func main() {
 	cmd.Dir = cfg.Root
 	cmd.Env = pluginEnvironment(os.Environ(), host)
 	if multiplayer != nil {
-		cmd.Env = multiplayerEnvironment(cmd.Env, multiplayerContent)
+		cmd.Env = multiplayerEnvironment(cmd.Env, multiplayerContent, multiplayer.BusTransfers)
 	}
 	lf, er := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	var openOMSIOutputStart int64

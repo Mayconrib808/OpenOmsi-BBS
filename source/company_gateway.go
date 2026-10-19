@@ -46,6 +46,7 @@ type companyGateway struct {
 	http                        *http.Server
 	reserveUDP                  *net.UDPConn
 	reserveWeb                  net.Listener
+	reserveFiles                net.Listener
 	backendUDP                  *net.UDPAddr
 	backendWeb                  string
 	backendPort, backendWebPort int
@@ -53,6 +54,7 @@ type companyGateway struct {
 	releaseOnce                 sync.Once
 	closeOnce                   sync.Once
 	ready                       atomic.Bool
+	filesEnabled                atomic.Bool
 	protocol                    atomic.Int32
 	nextPeer                    atomic.Uint64
 	peers                       map[string]*companyGatewayPeer
@@ -65,11 +67,12 @@ type companyGateway struct {
 	wg                          sync.WaitGroup
 	limit                       int
 	adminPassword               string
+	fileStreams                 map[*companyGatewayWS]net.Conn
 }
 
 func newCompanyGateway(ctx context.Context, cfg companyHostConfig, session CompanySession, fleet []string, catalog map[string]string, mask string) (*companyGateway, error) {
 	child, cancel := context.WithCancel(ctx)
-	g := &companyGateway{ctx: child, cancel: cancel, peers: map[string]*companyGatewayPeer{}, buses: map[uint32]*companyGatewayBus{}, catalog: catalog, mask: mask, fleet: fleet, session: session, client: companyHostClient(), limit: 256}
+	g := &companyGateway{ctx: child, cancel: cancel, peers: map[string]*companyGatewayPeer{}, buses: map[uint32]*companyGatewayBus{}, fileStreams: map[*companyGatewayWS]net.Conn{}, catalog: catalog, mask: mask, fleet: fleet, session: session, client: companyHostClient(), limit: 256}
 	var err error
 	g.udp, err = net.ListenUDP("udp4", &net.UDPAddr{Port: cfg.Port})
 	if err != nil {
@@ -93,6 +96,11 @@ func newCompanyGateway(ctx context.Context, cfg companyHostConfig, session Compa
 	}
 	g.backendUDP = g.reserveUDP.LocalAddr().(*net.UDPAddr)
 	g.backendPort = g.backendUDP.Port
+	g.reserveFiles, err = net.Listen("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(g.backendPort)))
+	if err != nil {
+		g.Close()
+		return nil, err
+	}
 	g.backendWebPort = g.reserveWeb.Addr().(*net.TCPAddr).Port
 	g.backendWeb = "http://127.0.0.1:" + strconv.Itoa(g.backendWebPort)
 	g.port, g.webPort = g.udp.LocalAddr().(*net.UDPAddr).Port, g.web.Addr().(*net.TCPAddr).Port
@@ -111,6 +119,9 @@ func (g *companyGateway) releaseBackend() {
 		if g.reserveWeb != nil {
 			_ = g.reserveWeb.Close()
 		}
+		if g.reserveFiles != nil {
+			_ = g.reserveFiles.Close()
+		}
 	})
 }
 
@@ -121,6 +132,12 @@ func (g *companyGateway) Close() {
 		peers := make([]*companyGatewayPeer, 0, len(g.peers))
 		for _, p := range g.peers {
 			peers = append(peers, p)
+		}
+		for ws, upstream := range g.fileStreams {
+			_ = ws.conn.Close()
+			if upstream != nil {
+				_ = upstream.Close()
+			}
 		}
 		g.mu.Unlock()
 		g.cancel()
@@ -292,7 +309,11 @@ func (g *companyGateway) adaptStatus(status companyHostStatus) (companyHostStatu
 	} else if err := json.Unmarshal(status.Vehicles, &vehicles); err != nil {
 		return status, fmt.Errorf("o servidor oficial não informou seus modelos locais")
 	}
-	if !status.FreePlayerVehicles || len(vehicles) != 0 {
+	if g.filesEnabled.Load() {
+		if len(vehicles) != 0 {
+			return status, fmt.Errorf("native bus transfers require an unrestricted vehicle list")
+		}
+	} else if !status.FreePlayerVehicles || len(vehicles) != 0 {
 		want := map[string]bool{}
 		for _, s := range g.fleet {
 			want[companyGatewayBusKey(s)] = true
@@ -333,7 +354,11 @@ func (g *companyGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.URL.Path == "/tcp" {
-		g.serveUploadsDisabled(w, r)
+		if g.filesEnabled.Load() {
+			g.serveFiles(w, r)
+		} else {
+			g.serveUploadsDisabled(w, r)
+		}
 		return
 	}
 	path := r.URL.Path
@@ -374,6 +399,7 @@ func (g *companyGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 		raw["vehicles"] = json.RawMessage(`[]`)
 		raw["free_player_vehicles"] = json.RawMessage(`true`)
+		raw["bbs_bus_transfers"], _ = json.Marshal(g.filesEnabled.Load())
 		raw["bbs_vehicle_adapter"], _ = json.Marshal(fmt.Sprintf("protocol-%d", status.Protocol))
 		data, err = json.Marshal(raw)
 	} else if strings.HasPrefix(path, "/players") {

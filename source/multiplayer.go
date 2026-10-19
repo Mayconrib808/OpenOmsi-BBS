@@ -21,19 +21,21 @@ type MultiplayerPlan struct {
 	Session                            CompanySession
 	Trip                               MultiplayerTrip
 	Clock                              *CompanyClock
+	BusTransfers                       bool
 }
 
 type companyServerStatus struct {
-	Name       string          `json:"name"`
-	Map        string          `json:"map"`
-	Version    string          `json:"version"`
-	Protocol   int             `json:"protocol"`
-	Time       string          `json:"time"`
-	Players    int             `json:"players"`
-	MaxPlayers int             `json:"max_players"`
-	Password   bool            `json:"password"`
-	Vehicles   json.RawMessage `json:"vehicles"`
-	World      json.RawMessage `json:"world"`
+	Name         string          `json:"name"`
+	Map          string          `json:"map"`
+	Version      string          `json:"version"`
+	Protocol     int             `json:"protocol"`
+	Time         string          `json:"time"`
+	Players      int             `json:"players"`
+	MaxPlayers   int             `json:"max_players"`
+	Password     bool            `json:"password"`
+	Vehicles     json.RawMessage `json:"vehicles"`
+	World        json.RawMessage `json:"world"`
+	BusTransfers bool            `json:"bbs_bus_transfers"`
 }
 
 func multiplayerClock(s string) (float64, error) {
@@ -243,7 +245,7 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 		if session.Date == "company" {
 			clock = p.Clock
 		}
-		return &MultiplayerPlan{CompanyID: p.CompanyID, CompanyName: p.CompanyName, PlayerName: c.PlayerName, Session: session, Trip: trip, Clock: clock}, nil, nil
+		return &MultiplayerPlan{CompanyID: p.CompanyID, CompanyName: p.CompanyName, PlayerName: c.PlayerName, Session: session, Trip: trip, Clock: clock, BusTransfers: answers[i].status.BusTransfers}, nil, nil
 	}
 	return nil, unavailable, nil
 }
@@ -278,7 +280,7 @@ func multiplayerArguments(plan *MultiplayerPlan) []string {
 	return []string{"--lan-join", strings.TrimRight(plan.Session.ServerURL, "/"), "--lan-name", plan.PlayerName}
 }
 
-func multiplayerEnvironment(base []string, contentDir string) []string {
+func multiplayerEnvironment(base []string, contentDir string, transfers bool) []string {
 	var result []string
 	for _, entry := range base {
 		key, _, _ := strings.Cut(entry, "=")
@@ -286,7 +288,11 @@ func multiplayerEnvironment(base []string, contentDir string) []string {
 			result = append(result, entry)
 		}
 	}
-	return append(result, "OMSI_CONTENT="+contentDir, "OMSI_NO_LAN_MODS=1")
+	result = append(result, "OMSI_CONTENT="+contentDir)
+	if !transfers {
+		result = append(result, "OMSI_NO_LAN_MODS=1")
+	}
+	return result
 }
 
 var multiplayerWorldLine = regexp.MustCompile(`LAN: taking the host's world: (\d{4}-\d{2}-\d{2}) (\d{1,2}:\d{2}:\d{2}(?:\.\d+)?) weather `)

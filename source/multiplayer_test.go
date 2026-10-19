@@ -227,13 +227,34 @@ func TestServerStatusBodyIsBoundedAndDeadlineCancelsUnavailableRoom(t *testing.T
 
 func TestMultiplayerChildUsesVerifiedAssetsAndDisablesPeerDownloads(t *testing.T) {
 	base := []string{"PATH=kept", "OMSI_PLUGIN_HOST32=helper", "omsi_content=other", "OMSI_CONTENT_ZIP=unsafe.zip", "omsi_no_lan_mods=0"}
-	got := multiplayerEnvironment(base, "empty-content")
+	got := multiplayerEnvironment(base, "empty-content", false)
 	want := []string{"PATH=kept", "OMSI_PLUGIN_HOST32=helper", "OMSI_CONTENT=empty-content", "OMSI_NO_LAN_MODS=1"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal(got)
 	}
 	if base[2] != "omsi_content=other" {
 		t.Fatal("mutated parent's environment")
+	}
+}
+
+func TestMultiplayerNativeFileChannelIsNegotiatedWithHost(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprint(enabled), func(t *testing.T) {
+			c, p, trip, dir := companyFixture(t)
+			status := testCompanyStatus()
+			status["bbs_bus_transfers"] = enabled
+			server := companyStatusServer(t, status)
+			p.Sessions[0].ServerURL = server.URL
+			saveTestCompany(t, dir, p)
+			plan, problems, err := prepareMultiplayer(context.Background(), c, dir, trip, companyHTTPClient())
+			if err != nil || len(problems) != 0 || plan == nil || plan.BusTransfers != enabled {
+				t.Fatal(plan, problems, err)
+			}
+			env := strings.Join(multiplayerEnvironment([]string{"OMSI_CONTENT=old", "OMSI_NO_LAN_MODS=1", "OMSI_PLUGIN_HOST32=helper"}, "native-content", plan.BusTransfers), "\n")
+			if strings.Contains(env, "OMSI_NO_LAN_MODS=1") == enabled || !strings.Contains(env, "OMSI_CONTENT=native-content") || !strings.Contains(env, "OMSI_PLUGIN_HOST32=helper") {
+				t.Fatal("native file channel or BCS telemetry root lost", env)
+			}
+		})
 	}
 }
 

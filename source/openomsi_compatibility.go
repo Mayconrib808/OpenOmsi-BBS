@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -26,6 +27,29 @@ func validOpenOMSIVersion(version string) bool {
 
 type openOMSICompatibility struct {
 	Version string
+}
+
+// 0.3.38 completed the native content-addressed bus viewer. Older servers keep
+// the filename adapter and the recognised refusal; their wire protocol alone
+// cannot distinguish this capability (0.3.34 through 0.3.38 all use protocol 14).
+func openOMSIBusTransfers(version string) bool {
+	base := strings.Fields(version)
+	if len(base) == 0 || !validOpenOMSIVersion(version) {
+		return false
+	}
+	numbers := strings.Split(strings.FieldsFunc(base[0], func(r rune) bool { return r == '-' || r == '+' })[0], ".")
+	if len(numbers) != 3 {
+		return false
+	}
+	var v [3]int
+	for i, number := range numbers {
+		var err error
+		v[i], err = strconv.Atoi(number)
+		if err != nil {
+			return false
+		}
+	}
+	return v[0] > 0 || v[1] > 3 || (v[1] == 3 && v[2] >= 38)
 }
 
 var openOMSIHelpFlag = regexp.MustCompile(`(?m)^[ \t]+(?:-[A-Za-z], )?(--[a-z][a-z0-9-]*)(?:[ \t=]|$)`)
@@ -138,17 +162,23 @@ func openOMSIPluginHostOverride(path string) (bool, error) {
 
 // Official builds log their startup banner before Clap prints its version.
 // Select the exact metadata line; a log banner is not a CLI version response.
-func parseOpenOMSIVersionOutput(output string) (string,error) {
- label := ""
- for _,line := range strings.Split(output,"\n") {
-  name,value,ok:=strings.Cut(strings.TrimSpace(line)," ")
-  if !ok || !strings.EqualFold(name,"openomsi"){continue}
-  value=strings.TrimSpace(value)
-  if !validOpenOMSIVersion(value) || label!="" { return "",fmt.Errorf("openOMSI returned conflicting or invalid version metadata") }
-  label=value
- }
- if label=="" {return "",fmt.Errorf("openOMSI did not return a valid CLI version description")}
- return label,nil
+func parseOpenOMSIVersionOutput(output string) (string, error) {
+	label := ""
+	for _, line := range strings.Split(output, "\n") {
+		name, value, ok := strings.Cut(strings.TrimSpace(line), " ")
+		if !ok || !strings.EqualFold(name, "openomsi") {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if !validOpenOMSIVersion(value) || label != "" {
+			return "", fmt.Errorf("openOMSI returned conflicting or invalid version metadata")
+		}
+		label = value
+	}
+	if label == "" {
+		return "", fmt.Errorf("openOMSI did not return a valid CLI version description")
+	}
+	return label, nil
 }
 
 func checkOpenOMSICompatibility(executable string, dedicated, multiplayer bool) (openOMSICompatibility, error) {
@@ -172,7 +202,9 @@ func checkOpenOMSICompatibility(executable string, dedicated, multiplayer bool) 
 		return result, err
 	}
 	result.Version, err = parseOpenOMSIVersionOutput(version)
-	if err != nil { return result, err }
+	if err != nil {
+		return result, err
+	}
 	if !dedicated {
 		available, err := openOMSIPluginHostOverride(executable)
 		if err != nil {

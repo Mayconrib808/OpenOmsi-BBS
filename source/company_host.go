@@ -345,7 +345,7 @@ type companyHostMonitor struct {
 	lastGood               time.Time
 }
 
-func companyHostEnvironment(parent []string, contentDir string) []string {
+func companyHostEnvironment(parent []string, contentDir string, transfers bool) []string {
 	var result []string
 	for _, entry := range parent {
 		key, _, _ := strings.Cut(entry, "=")
@@ -353,7 +353,11 @@ func companyHostEnvironment(parent []string, contentDir string) []string {
 			result = append(result, entry)
 		}
 	}
-	return append(result, "OMSI_CONTENT="+contentDir, "OMSI_NO_LAN_MODS=1")
+	result = append(result, "OMSI_CONTENT="+contentDir)
+	if !transfers {
+		result = append(result, "OMSI_NO_LAN_MODS=1")
+	}
+	return result
 }
 
 // Status has only HH:MM. Unwrap it against the previously observed calendar,
@@ -420,6 +424,11 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 			return fmt.Errorf("required executable was not found: %s", path)
 		}
 	}
+	compatibility, err := checkOpenOMSICompatibility(options.Server, true, false)
+	if err != nil {
+		return err
+	}
+	transfers := openOMSIBusTransfers(compatibility.Version)
 	profile, err := loadCompanyProfile(ctx, options.Profile, ".", companyHostClient())
 	if err != nil {
 		return err
@@ -483,6 +492,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 		return err
 	}
 	defer gateway.Close()
+	gateway.filesEnabled.Store(transfers)
 	gateway.adminPassword = password
 	f, err := os.CreateTemp(filepath.Dir(options.Config), "company-host-*.cfg")
 	if err != nil {
@@ -490,7 +500,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	}
 	privateConfig := f.Name()
 	defer os.Remove(privateConfig)
-	_, writeErr := f.Write(companyGatewayConfig(renderCompanyHostConfig(cfg, session, fleet, civil, password), gateway.backendPort, gateway.backendWebPort, models))
+	_, writeErr := f.Write(companyGatewayConfig(renderCompanyHostConfig(cfg, session, fleet, civil, password), gateway.backendPort, gateway.backendWebPort, models, transfers))
 	closeErr := f.Close()
 	if writeErr != nil {
 		return writeErr
@@ -504,7 +514,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	}
 	defer os.RemoveAll(contentDir)
 	parentEnvironment := os.Environ()
-	childEnvironment := companyHostEnvironment(parentEnvironment, contentDir)
+	childEnvironment := companyHostEnvironment(parentEnvironment, contentDir, transfers)
 	if options.MaxPeople != 0 {
 		profile, err := prepareCompanyHostPopulation(parentEnvironment, options.Config, options.MaxPeople)
 		if err != nil {

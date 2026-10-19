@@ -37,7 +37,7 @@ func TestCompanyHostPopulationIsIndependentAcrossConcurrentProcesses(t *testing.
 				return
 			}
 			child := exec.Command(os.Args[0], "-test.run=^TestCompanyHostPopulationProcessFixture$")
-			child.Env = companyHostPopulationEnvironment(companyHostEnvironment(parent, "verified-content"), profile)
+			child.Env = companyHostPopulationEnvironment(companyHostEnvironment(parent, "verified-content", false), profile)
 			child.Env = append(child.Env, "OPENOMSI_POPULATION_FIXTURE="+item.budget, "OPENOMSI_POPULATION_EXPECTED_PROFILE="+profile)
 			if output, err := child.CombinedOutput(); err != nil {
 				t.Errorf("%s native settings lookup: %v: %s", item.mapID, err, output)

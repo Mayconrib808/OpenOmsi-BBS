@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -129,6 +130,7 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 	hellos := make([]string, 2)
 	secrets := make([]string, 2)
 	ids := make([]uint32, 2)
+	nativeSession := ""
 	buses := []string{"Vehicles/PrivateAlice/private.bus", "Vehicles/PrivateBob/another.bus"}
 	readUntil := func(c *net.UDPConn, prefix string) []byte {
 		_ = c.SetReadDeadline(time.Now().Add(4 * time.Second))
@@ -158,6 +160,7 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 		hellos[i] = hello
 		_, _ = c.Write([]byte(hello))
 		fields := strings.Split(string(readUntil(c, "WELCOME|")), "|")
+		nativeSession = fields[3]
 		ids[i] = companyGatewayID(fields[2])
 		if ids[i] == 0 {
 			t.Fatal(fields)
@@ -190,8 +193,8 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 	deadline := time.Now().Add(3 * time.Second)
 	for {
 		data, _ := os.ReadFile(logPath)
-		if strings.Contains(string(data), "showing a stand-in") {
-			t.Log("official binary loaded the map, accepted two absent private buses, kept their real filenames for peers, and used its built-in stand-in")
+		if strings.Contains(string(data), "showing a stand-in") || strings.Contains(string(data), "a box of its size stands for it") {
+			t.Log("official binary loaded the map, accepted two absent private buses, kept their real filenames for peers, and instantiated its fallback")
 			break
 		}
 		if time.Now().After(deadline) {
@@ -234,6 +237,19 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 			t.Fatal("native reconnect identity or secret changed")
 		}
 		t.Logf("protocol %d native challenge rejected a forged proof and accepted the correct proof through the gateway, preserving player ID and secret", protocol)
+	}
+	if openOMSIBusTransfers(os.Getenv("OPENOMSI_GATEWAY_TEST_VERSION")) {
+		python := os.Getenv("OPENOMSI_GATEWAY_TEST_PYTHON")
+		if python == "" {
+			t.Fatal("native bus transfer test requires the Python runtime harness")
+		}
+		cmd := exec.CommandContext(ctx, python, filepath.Join("..", "scripts", "test_company_bus_transfer.py"), session.ServerURL, nativeSession)
+		result, err := cmd.CombinedOutput()
+		if err != nil {
+			data, _ := os.ReadFile(logPath)
+			t.Fatal("official encrypted bus transfer failed", err, string(result), string(data))
+		}
+		t.Log(strings.TrimSpace(string(result)))
 	}
 	if data, err := os.ReadFile(configPath); err != nil || string(data) != config {
 		t.Fatal("user config changed", err, string(data))

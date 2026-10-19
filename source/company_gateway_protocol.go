@@ -112,11 +112,16 @@ func companyGatewayFleet(root string, preferred []string, token string) ([]strin
 	return paths, catalog, mask, nil
 }
 
-func companyGatewayConfig(text []byte, udpPort, webPort int, fleet []string) []byte {
+func companyGatewayConfig(text []byte, udpPort, webPort int, fleet []string, transfers bool) []byte {
 	values := map[string]string{
 		"port": fmt.Sprint(udpPort), "web_port": fmt.Sprint(webPort), "tunnel": "0",
 		"vehicles": strings.Join(fleet, ";"), "free_player_vehicles": "0",
 		"accept_uploads": "0", "share_maps": "0",
+	}
+	if transfers {
+		// A native whitelist also rejects uploads whose content differs from the
+		// server's copy. The completed viewer needs the original paths and files.
+		values["vehicles"], values["free_player_vehicles"], values["accept_uploads"] = "", "1", "1"
 	}
 	lines := strings.Split(strings.ReplaceAll(string(bytes.TrimPrefix(text, []byte{0xef, 0xbb, 0xbf})), "\r\n", "\n"), "\n")
 	seen := map[string]bool{}
@@ -188,10 +193,14 @@ func (g *companyGateway) incoming(p *companyGatewayPeer, packet []byte) ([]byte,
 		if key == "" {
 			return nil, fmt.Errorf("caminho de ônibus inválido")
 		}
-		if installed, ok := g.catalog[key]; ok {
-			parts[index] = installed
-		} else {
-			parts[index] = g.mask
+		// Native content fingerprints bind to the driver's real bus. Only the
+		// legacy server needs local filenames or the missing-bus sentinel.
+		if !g.filesEnabled.Load() {
+			if installed, ok := g.catalog[key]; ok {
+				parts[index] = installed
+			} else {
+				parts[index] = g.mask
+			}
 		}
 	}
 	p.bus = original

@@ -352,7 +352,7 @@ func TestCompanyHostMidnightCorrectionUsesSignedWorldSeconds(t *testing.T) {
 func TestCompanyHostEnvironmentIsolatesVerifiedContent(t *testing.T) {
 	parent := []string{"PATH=untouched", "omsi_content=old", "OMSI_CONTENT_ZIP=foreign.zip", "OMSI_NO_LAN_MODS=0", "OTHER=value"}
 	before := append([]string(nil), parent...)
-	env := companyHostEnvironment(parent, "private-empty")
+	env := companyHostEnvironment(parent, "private-empty", false)
 	text := strings.Join(env, "\n")
 	if !strings.Contains(text, "OMSI_CONTENT=private-empty") || !strings.Contains(text, "OMSI_NO_LAN_MODS=1") || strings.Contains(text, "foreign.zip") || strings.Contains(text, "omsi_content=old") {
 		t.Fatalf("unsafe server content environment: %q", text)

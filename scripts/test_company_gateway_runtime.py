@@ -35,9 +35,14 @@ ASSETS_0337 = {
     "posix": ("linux", "b038a760fc1300191d06632c2784abefc1a24e283f2e922ace1ed57213561dce"),
 }
 
+ASSETS_0338 = {
+    "nt": ("windows", "e83100353fef80871187bc0c8e6767d5d837312a73432e4f355b52b16e3ae4f9"),
+    "posix": ("linux", "f9bc98820582bd3861d70edb4252ef70da7e0d0a6a418076d95fa080f3f6ddd9"),
+}
+
 
 def download_server(destination: Path, version: str = VERSION) -> Path:
-    platform, expected = {"0.2.23": ASSETS, "0.2.48": ASSETS_048, "0.3.33": ASSETS_0333, "0.3.34": ASSETS_0334, "0.3.37": ASSETS_0337}[version][os.name]
+    platform, expected = {"0.2.23": ASSETS, "0.2.48": ASSETS_048, "0.3.33": ASSETS_0333, "0.3.34": ASSETS_0334, "0.3.37": ASSETS_0337, "0.3.38": ASSETS_0338}[version][os.name]
     asset = f"openOMSI-{version}-server-{platform}-x64.zip"
     destination.mkdir(parents=True, exist_ok=True)
     archive = destination / asset
@@ -67,7 +72,7 @@ def download_server(destination: Path, version: str = VERSION) -> Path:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--server", type=Path, help="Existing official executable for an offline runtime test.")
-    parser.add_argument("--version", choices=["0.2.23", "0.2.48", "0.3.33", "0.3.34", "0.3.37"], default=VERSION)
+    parser.add_argument("--version", choices=["0.2.23", "0.2.48", "0.3.33", "0.3.34", "0.3.37", "0.3.38"], default=VERSION)
     args = parser.parse_args()
     executable = args.server.resolve() if args.server else download_server(build.ROOT / "build" / "official-gateway-test" / args.version, args.version)
     go = shutil.which("go")
@@ -75,7 +80,9 @@ def main() -> None:
         parser.error("Go 1.23.2 must be on PATH")
     env = os.environ.copy()
     env.update(GO111MODULE="off", CGO_ENABLED="0", GOTOOLCHAIN="local", OPENOMSI_GATEWAY_TEST_SERVER=str(executable))
-    env["OPENOMSI_GATEWAY_TEST_PROTOCOL"] = {"0.2.23": "6", "0.2.48": "7", "0.3.33": "7", "0.3.34": "14", "0.3.37": "14"}[args.version]
+    env["OPENOMSI_GATEWAY_TEST_PROTOCOL"] = {"0.2.23": "6", "0.2.48": "7", "0.3.33": "7", "0.3.34": "14", "0.3.37": "14", "0.3.38": "14"}[args.version]
+    env["OPENOMSI_GATEWAY_TEST_VERSION"] = args.version
+    env["OPENOMSI_GATEWAY_TEST_PYTHON"] = __import__("sys").executable
     env.pop("GOOS", None)
     env.pop("GOARCH", None)
     platform = ["process_windows.go", "company_host_process_windows.go", "openomsi_probe_windows.go"] if os.name == "nt" else ["process_teststub_test.go", "company_host_process_other.go", "openomsi_probe_other.go"]
