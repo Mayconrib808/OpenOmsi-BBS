@@ -484,6 +484,10 @@ func TestCumulativeUpdateRepairsOlderAndIncompleteInstallations(t *testing.T) {
 	for _, condition := range []string{"older inventory", "stale binaries", "missing adapter", "missing manifest", "conflicting old patches", "changed documentation"} {
 		t.Run(condition, func(t *testing.T) {
 			dir, c, _ := automaticUpdateFixture(t, true)
+			c.AutoStart = false
+			if err := saveInstalledConfig(dir, c); err != nil {
+				t.Fatal(err)
+			}
 			preserved := map[string][]byte{
 				configPath(dir):                                       []byte{},
 				filepath.Join(dir, "company.json"):                    []byte("company invitation and maps"),
@@ -526,6 +530,9 @@ func TestCumulativeUpdateRepairsOlderAndIncompleteInstallations(t *testing.T) {
 				}
 				if count, e := verifyPackage(dir); e != nil || count != 7 {
 					t.Fatalf("updated runtime still depends on old package files: %d %v", count, e)
+				}
+				if readConfig(configPath(dir)).AutoStart {
+					t.Fatal("update re-enabled automatic engine startup")
 				}
 				for name, expected := range payload {
 					actual, e := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))

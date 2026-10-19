@@ -185,3 +185,93 @@ func TestBCSStateOwnerFollowsInstalledInterfaceWithoutJarHash(t *testing.T) {
 		t.Fatal("malformed constant pool accepted")
 	}
 }
+
+// The fixture is compiled from our synthetic logger in
+// scripts/test_bcs_next_trip_observer.py; it contains no vendor code.
+func observerV1Fixture(t *testing.T) []byte {
+	t.Helper()
+	text, err := os.ReadFile("testdata/bcs-observer-v1.class.base64")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data, err := base64.StdEncoding.DecodeString(string(bytes.TrimSpace(text)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return data
+}
+
+func TestBCSObserverHotfixOnlyRepairsOurGuardAndMarker(t *testing.T) {
+	before := observerV1Fixture(t)
+	fixed, err := repairBCSNextTripObserver(before)
+	if err != nil || bytes.Equal(fixed, before) || !bcsLoggerInstalled(fixed) {
+		t.Fatal("v1 observer was not upgraded", err)
+	}
+	start := 0
+	_, ok := inspectBCSClass(before, func(method string, offset, size int) {
+		if method == "bridgeNextTripDetails(Ljava/lang/String;)Ljava/lang/String;" {
+			start = offset
+		}
+	})
+	marker := bytes.Index(before, []byte(bcsObserverV1)) + len(bcsObserverV1) - 2
+	if !ok || len(fixed) != len(before) || !bytes.Equal(fixed[start+24:start+27], []byte{4, 0, 0}) {
+		t.Fatal("instruction offsets or constant-pool layout changed")
+	}
+	for i := range before {
+		if before[i] != fixed[i] && !(i >= start+24 && i < start+27) && i != marker {
+			t.Fatalf("changed data outside our helper guard/marker at %d", i)
+		}
+	}
+	again, err := repairBCSNextTripObserver(fixed)
+	if err != nil || !bytes.Equal(again, fixed) {
+		t.Fatal("second installation changed the observer", err)
+	}
+	bad := append([]byte(nil), before...)
+	bad[start+30] = 0 // A differently shaped helper is not a supported v1.
+	if _, err := repairBCSNextTripObserver(bad); err == nil {
+		t.Fatal("unrecognized helper was rewritten")
+	}
+	for i := range before {
+		_, _ = repairBCSNextTripObserver(before[:i])
+	}
+}
+
+func TestBCSObserverHotfixUpgradesAlreadyInstalledJarAndPreservesBackup(t *testing.T) {
+	logger := observerV1Fixture(t)
+	jar := filepath.Join(t.TempDir(), "busbetrieb-simulator.jar")
+	var data bytes.Buffer
+	z := zip.NewWriter(&data)
+	for _, entry := range []struct {
+		name string
+		data []byte
+	}{{bcsLoggerEntry, logger}, {"res/openomsi/bbs.lua", []byte("original telemetry")}, {"logic/unchanged.class", []byte("original trip logic")}} {
+		w, _ := z.Create(entry.name)
+		_, _ = w.Write(entry.data)
+	}
+	z.Close()
+	before := append([]byte(nil), data.Bytes()...)
+	os.WriteFile(jar, before, 0600)
+	state, err := prepareBCSNextTrip(Config{Root: filepath.Dir(jar)}, nil)
+	if err != nil || !state.Changed || state.Note != "" {
+		t.Fatal("installed v1 was incorrectly treated as current", state, err)
+	}
+	backup, err := os.ReadFile(jar + ".antes-proxima-viagem.bak")
+	if err != nil || !bytes.Equal(before, backup) {
+		t.Fatal("exact pre-hotfix archive was not preserved", err)
+	}
+	old, err := zip.OpenReader(jar + ".antes-proxima-viagem.bak")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer old.Close()
+	fixed, _ := bcsLoggerBytes(jar)
+	if err := verifyPatchedBCSJar(jar, old, fixed); err != nil {
+		t.Fatal("vendor entries changed", err)
+	}
+	after, _ := os.ReadFile(jar)
+	state, err = prepareBCSNextTrip(Config{Root: filepath.Dir(jar)}, nil)
+	repeated, _ := os.ReadFile(jar)
+	if err != nil || state.Changed || !bytes.Equal(after, repeated) {
+		t.Fatal("repeat installation changed the archive", state, err)
+	}
+}

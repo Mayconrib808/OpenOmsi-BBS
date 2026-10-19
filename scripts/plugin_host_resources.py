@@ -9,7 +9,7 @@ import setup_resources
 
 
 def version_numbers(version: str) -> tuple[int, int, int, int]:
-    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:\.|-dev\.)(\d+))?", version)
+    match = re.fullmatch(r"(\d+)\.(\d+)\.(\d+)(?:(?:\.|-dev\.)(\d+))?(?:-hotfix\.[1-9]\d*)?", version)
     if not match:
         raise ValueError("Unsupported helper version")
     numbers = tuple(int(n or 0) for n in match.groups())

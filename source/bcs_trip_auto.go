@@ -23,6 +23,9 @@ type bcsNextTripPreparation struct {
 // These identify our generated observer, never an allowed BCS release/JAR.
 const bcs503AutoLoggerSHA = "1307d92fbdd23a87891f095efabf3abadc59a8e7b48d74f8903c87decbdf2107"
 
+const bcsObserverV1 = "[OpenOmsi-BBS next-trip log v1]"
+const bcsObserverV2 = "[OpenOmsi-BBS next-trip log v2]"
+
 var errBCSObserverUnavailable = errors.New("BCS next-trip observer does not match the installed communication interface")
 
 // Resolve only the BCS belonging to the configured OMSI installation. Never
@@ -94,7 +97,8 @@ func bcsLoggerInstalled(logger []byte) bool {
 		return true
 	}
 	methods, ok := bcsClassMethods(logger)
-	return ok && methods["bridgeNextTripDetails(Ljava/lang/String;)Ljava/lang/String;"] && bytes.Contains(logger, []byte("[OpenOmsi-BBS next-trip log v1]"))
+	return ok && methods["bridgeNextTripDetails(Ljava/lang/String;)Ljava/lang/String;"] &&
+		(bytes.Contains(logger, []byte(bcsObserverV1)) || bytes.Contains(logger, []byte(bcsObserverV2)))
 }
 
 // The automatic Setup carries copy ranges and our added bytecode, rather than
@@ -153,8 +157,11 @@ func automaticBCSLogger(original []byte) ([]byte, error) {
 
 func automaticBCSLoggerForJar(original []byte, jarPath string) ([]byte, error) {
 	logger, err := automaticBCSLogger(original)
-	if err != nil || bytes.Equal(logger, original) {
-		return logger, err
+	if err != nil {
+		return nil, err
+	}
+	if bytes.Equal(logger, original) {
+		return repairBCSNextTripObserver(logger)
 	}
 	owner, err := bcsTripStateOwner(jarPath)
 	if err != nil {
@@ -168,13 +175,60 @@ func automaticBCSLoggerForJar(original []byte, jarPath string) ([]byte, error) {
 	}
 	reference := append([]byte{1, byte(len(owner) >> 8), byte(len(owner))}, []byte(owner)...)
 	logger = bytes.Replace(logger, old, reference, 1)
-	return logger, nil
+	return repairBCSNextTripObserver(logger)
+}
+
+// V1 consulted system.m.al() before observing an accepted continuation. That
+// obfuscated API is a vehicle-damage flag in newer BCS builds. The selection
+// event, multiplayer mode, shift, map and trip already establish what to log;
+// no simulator-state flag is needed for this read-only extension.
+// Upgrade only our helper's verified guard, retaining instruction addresses,
+// stack maps, the vendor logger and every other archive entry verbatim.
+func repairBCSNextTripObserver(logger []byte) ([]byte, error) {
+	if !bcsLoggerInstalled(logger) {
+		return nil, errBCSObserverUnavailable
+	}
+	if bytes.Contains(logger, []byte(bcsObserverV2)) {
+		return logger, nil
+	}
+	start, length, count := 0, 0, 0
+	_, ok := inspectBCSClass(logger, func(method string, offset, size int) {
+		if method == "bridgeNextTripDetails(Ljava/lang/String;)Ljava/lang/String;" {
+			start, length = offset, size
+			count++
+		}
+	})
+	if !ok || count != 1 || length < 59 || bytes.Count(logger, []byte(bcsObserverV1)) != 1 {
+		return nil, errBCSObserverUnavailable
+	}
+	guard := append([]byte(nil), logger[start+24:start+59]...)
+	for _, index := range []int{1, 2, 7, 8, 14, 15, 22, 23, 28, 29} {
+		guard[index] = 0 // JVM constant-pool references differ across BCS builds.
+	}
+	expected := []byte{
+		0xb8, 0, 0, 0x99, 0, 0x1e, // old boolean guard
+		0xb8, 0, 0, 0x05, 0xa0, 0, 0x17, // multiplayer mode == 2
+		0xb8, 0, 0, 0x09, 0x94, 0x9e, 0, 0x0f, // positive shift ID
+		0xb8, 0, 0, 0xc6, 0, 0x09, // selected map
+		0xb8, 0, 0, 0xc7, 0, 0x05, 0x2a, 0xb0, // selected trip, or original text
+	}
+	if !bytes.Equal(guard, expected) {
+		return nil, errBCSObserverUnavailable
+	}
+	fixed := append([]byte(nil), logger...)
+	copy(fixed[start+24:start+27], []byte{0x04, 0x00, 0x00}) // true, nop, nop
+	fixed = bytes.Replace(fixed, []byte(bcsObserverV1), []byte(bcsObserverV2), 1)
+	return fixed, nil
 }
 
 // Read JVM method descriptors to locate the state API used by the observer.
 // Obfuscated class names can change in automatic BCS updates; a whole-JAR hash
 // or a version number cannot tell us which class actually owns that API.
 func bcsClassMethods(data []byte) (map[string]bool, bool) {
+	return inspectBCSClass(data, nil)
+}
+
+func inspectBCSClass(data []byte, visitCode func(method string, offset, size int)) (map[string]bool, bool) {
 	if len(data) < 10 || binary.BigEndian.Uint32(data) != 0xcafebabe {
 		return nil, false
 	}
@@ -241,17 +295,30 @@ func bcsClassMethods(data []byte) (map[string]bool, bool) {
 			if !a || !b || !c || !d || int(name) >= len(pool) || int(descriptor) >= len(pool) {
 				return nil, false
 			}
+			method := ""
 			if section == 1 && access&0x0008 != 0 {
-				methods[pool[name]+pool[descriptor]] = true
+				method = pool[name] + pool[descriptor]
+				methods[method] = true
 			}
 			for j := 0; j < int(attributes); j++ {
 				if position+6 > len(data) {
 					return nil, false
 				}
+				attribute := binary.BigEndian.Uint16(data[position:])
 				size := uint64(binary.BigEndian.Uint32(data[position+2:]))
 				position += 6
-				if size > uint64(len(data)-position) {
+				if int(attribute) >= len(pool) || size > uint64(len(data)-position) {
 					return nil, false
+				}
+				if visitCode != nil && method != "" && pool[attribute] == "Code" {
+					if size < 8 {
+						return nil, false
+					}
+					codeSize := uint64(binary.BigEndian.Uint32(data[position+4:]))
+					if codeSize > size-8 {
+						return nil, false
+					}
+					visitCode(method, position+8, int(codeSize))
 				}
 				position += int(size)
 			}

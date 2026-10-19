@@ -1,9 +1,9 @@
-name: Build and validate Bridge 2.1.9.7
+name: Build and validate Bridge 2.1.9.7 hotfix
 
 on:
   push:
     branches: ['release/2.1.9.7']
-    paths: ['source/**', 'scripts/**', 'docs/releases/v2.1.9.7.md', '.github/workflows/release-2197.yml']
+    paths: ['source/**', 'scripts/**', 'docs/releases/v2.1.9.7*.md', '.github/workflows/release-2197.yml']
   workflow_dispatch:
 
 permissions:
@@ -33,6 +33,8 @@ jobs:
           python scripts/test_live_trip_plugin.py
           node --test relay/test/room.test.js
           node --test update-service/worker*.test.mjs
+      - name: Next-trip observer regression in a verifying JVM
+        run: python scripts/test_bcs_next_trip_observer.py
       - name: Official 0.3.38 server, private buses and authenticated reconnect
         run: python scripts/test_company_gateway_runtime.py --version 0.3.38
       - name: Previous 0.3.37 server remains compatible
@@ -51,14 +53,14 @@ jobs:
       - name: Build all update components and native GUI smoke checks
         shell: bash
         run: |
-          python scripts/build_update_components.py --output build/update-components --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev --update-sequence 2026101801
+          python scripts/build_update_components.py --output build/update-components --update-origin https://openomsi-bbs-updates.maycongamesmaximo.workers.dev --update-sequence 2026101802
           build/update-components/HostAgent.exe --gui-smoke
           python scripts/test_pluginhost_windows.py build/update-components/app/compat/omsi-plugin-host32.exe
           python scripts/test_facade_windows.py build/update-components/app/compat/Omsi.exe
       - name: Build cumulative updater
         run: >-
           python scripts/build_bridge_update.py --package build/update-components
-          --output build/update-2197/OpenOmsi_BBS_2.1.9.7_Atualizacao.zip
+          --output build/update-2197/OpenOmsi_BBS_2.1.9.7_Hotfix1_Atualizacao.zip
           --components build/update-2197/components
       - name: Record hashes
         shell: pwsh
@@ -108,16 +110,16 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Defender-2.1.9.7
+          name: Defender-2.1.9.7-hotfix.1
           path: ${{ runner.temp }}/openomsi-defender-report/*
           if-no-files-found: ignore
       - name: Upload tested update candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Bridge-2.1.9.7-update-candidate
+          name: Bridge-2.1.9.7-hotfix.1-update-candidate
           path: |
             build/update-2197/Atualizar-Bridge.exe
-            build/update-2197/OpenOmsi_BBS_2.1.9.7_Atualizacao.zip
+            build/update-2197/OpenOmsi_BBS_2.1.9.7_Hotfix1_Atualizacao.zip
             build/update-2197/RELEASE-HASHES.txt
           if-no-files-found: error
           retention-days: 30

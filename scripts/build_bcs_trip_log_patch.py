@@ -91,7 +91,7 @@ public class ObserverCheck {
    if(!s.equals(observer.invoke(null,s))) throw new AssertionError("unrelated log changed");
   if(observer.invoke(null,new Object[]{null})!=null) throw new AssertionError("null");
   system.m.nativeMode=false;
-  if(!event.equals(observer.invoke(null,event))) throw new AssertionError("legacy backend changed");
+  if(!((String)observer.invoke(null,event)).contains("Schicht ID: 4951233")) throw new AssertionError("continuation depends on an unrelated vehicle flag");
   system.m.nativeMode=true; system.I.trip=null;
   if(!event.equals(observer.invoke(null,event))) throw new AssertionError("incomplete selection");
   system.I.trip=new r.E(); system.I.shift=-1;
@@ -130,8 +130,8 @@ public class ObserverCheck {
     patched=ROOT/'source/bcs_trip_log_patch.bin'
     run(JAVA,*ASM_EXPORTS,'-cp',str(classes),'ApplyObserver',str(original),
         str(classes/'bridge/ObserverTemplate.class'),str(patched))
-    if state_class == 'J' and hashlib.sha256(patched.read_bytes()).hexdigest() != '1307d92fbdd23a87891f095efabf3abadc59a8e7b48d74f8903c87decbdf2107':
-        raise SystemExit('BCS 5.0.3.0 generated observer differs from the inspected runtime payload.')
+    # V2 intentionally differs from the historical v1 payload. Verify the
+    # generated helper in the JVM below; the input JAR remains hash-pinned.
     target=classes/'bbs/f.class'; target.parent.mkdir(exist_ok=True); target.write_bytes(patched.read_bytes())
     result=subprocess.run([JAVA,'-Xverify:all','-cp',str(classes),'ObserverCheck'],
         check=True,capture_output=True,text=True)
