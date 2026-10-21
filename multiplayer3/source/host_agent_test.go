@@ -34,3 +34,57 @@ func TestHostHandshakeAcceptsOnlyItsLocalListener(t *testing.T) {
 		}
 	}
 }
+
+func TestLargeMapStartupDoesNotTimeoutAfterFifteenMinutes(t *testing.T) {
+	start := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	idle := hostIdle{Started: start}
+	if hostStartupTimeout <= 25*time.Minute {
+		t.Fatal("startup timeout must accommodate 25-minute maps")
+	}
+	if idle.shouldStop(start.Add(25*time.Minute), 0) {
+		t.Fatal("large map was stopped while still loading")
+	}
+	if !idle.shouldStop(start.Add(hostStartupTimeout+time.Second), 0) {
+		t.Fatal("stalled server was never stopped")
+	}
+}
+
+func TestLargeMapReuseButMemoryEventuallyReleased(t *testing.T) {
+	start := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	ready := start.Add(25*time.Minute)
+	idle := hostIdle{Started: start, ReadyAt: ready}
+	if idle.shouldStop(ready, 1) {
+		t.Fatal("active player must keep loaded world")
+	}
+	if idle.shouldStop(ready.Add(5*time.Minute), 0) {
+		t.Fatal("long-loaded map should remain available for the next BCS trip")
+	}
+	if !idle.shouldStop(ready.Add(hostHeavyMapIdle+time.Second), 0) {
+		t.Fatal("empty heavy server must eventually release memory")
+	}
+}
+
+func TestSmallMapIsNotKeptInMemoryForTenMinutes(t *testing.T) {
+	start := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	ready := start.Add(30*time.Second)
+	idle := hostIdle{Started: start, ReadyAt: ready}
+	idle.shouldStop(ready, 1)
+	if idle.shouldStop(ready.Add(30*time.Second), 0) {
+		t.Fatal("short map lost its existing grace period")
+	}
+	if !idle.shouldStop(ready.Add(2*time.Minute), 0) {
+		t.Fatal("small empty server should not needlessly hold RAM")
+	}
+}
+
+func TestUnjoinedLoadedMapExpiresAfterShortGrace(t *testing.T) {
+	start := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+	ready := start.Add(25*time.Minute)
+	idle := hostIdle{Started: start, ReadyAt: ready}
+	if idle.shouldStop(ready.Add(time.Minute), 0) {
+		t.Fatal("players must have time to join a ready map")
+	}
+	if !idle.shouldStop(ready.Add(hostNeverJoinedIdle+time.Second), 0) {
+		t.Fatal("unjoined loaded map must release RAM")
+	}
+}

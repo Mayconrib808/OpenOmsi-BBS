@@ -30,6 +30,45 @@ jobs:
         working-directory: multiplayer3/source
       - run: node --test relay/test/multiplayer3.test.js relay/test/room.test.js
         working-directory: multiplayer3
+  test-zip:
+    needs: test
+    if: github.event_name == 'pull_request' && github.head_ref == 'perf/host-large-map-startup-20261021'
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Recover the verified unmodified OpenOMSI runtime
+        run: python multiplayer3/scripts/recover_preview_server.py
+      - name: Build installable 3.x package with tested host fixes
+        run: python multiplayer3/scripts/build_preview.py --server multiplayer3/server --output build-v3 --source-commit ${{ github.sha }} --sequence 2026102101
+      - name: Check package ZIP exists and integrity
+        shell: pwsh
+        run: |
+          $meta = Get-Content build-v3/BUILD-INFO.json | ConvertFrom-Json
+          $zip = "build-v3/BBS-OpenOmsi-Multiplayer-$($meta.version)-teste.zip"
+          if (-not (Test-Path $zip)) { throw "ZIP ausente" }
+          $archive = [IO.Compression.ZipFile]::OpenRead((Resolve-Path $zip))
+          try {
+            if (-not ($archive.Entries.FullName -contains 'Setup.exe')) { throw "Setup.exe ausente" }
+            if (-not ($archive.Entries.FullName -contains 'OpenOMSI-BBS/server/openomsi.exe')) { throw "Servidor oficial ausente" }
+          } finally {
+            $archive.Dispose()
+          }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bridge-3x-mapa-grande-pr16
+          path: |
+            build-v3/BBS-OpenOmsi-Multiplayer-*-teste.zip
+            build-v3/BBS-OpenOmsi-Multiplayer-*-teste.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
   release:
     needs: test
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/3.')

@@ -64,7 +64,7 @@ func startHostAgent(ctx context.Context, cfg localConfig, dir, m string, l lease
 	if e = cmd.Process.Release(); e != nil {
 		return "", e
 	}
-	deadline := time.NewTimer(15 * time.Minute)
+	deadline := time.NewTimer(hostStartupTimeout)
 	defer deadline.Stop()
 	tick := time.NewTicker(250 * time.Millisecond)
 	defer tick.Stop()
@@ -73,7 +73,7 @@ func startHostAgent(ctx context.Context, cfg localConfig, dir, m string, l lease
 		case <-ctx.Done():
 			return "", ctx.Err()
 		case <-deadline.C:
-			return "", fmt.Errorf("o servidor não ficou pronto em 15 minutos")
+			return "", fmt.Errorf("o servidor não ficou pronto em %s", hostStartupTimeout)
 		case <-tick.C:
 			b, e := readSmallFile(readyPath, 16<<10)
 			if e != nil {
