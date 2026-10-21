@@ -98,8 +98,8 @@ def prepare(directory: Path) -> None:
     ])
     patch_file(directory, "crates/omsi-app/src/offscreen/step.rs", [
         (
-            "        Ok(crate::frame_stages::run(&mut step, stages::OFFSCREEN_STEP)? == crate::frame_stages::Flow::Go)\\n",
-            "        let running = crate::frame_stages::run(&mut step, stages::OFFSCREEN_STEP)? == crate::frame_stages::Flow::Go;\\n        if running { self.stream_server_step(); }\\n        Ok(running)\\n",
+            "        Ok(crate::frame_stages::run(&mut step, stages::OFFSCREEN_STEP)? == crate::frame_stages::Flow::Go)\n",
+            "        let running = crate::frame_stages::run(&mut step, stages::OFFSCREEN_STEP)? == crate::frame_stages::Flow::Go;\n        if running { self.stream_server_step(); }\n        Ok(running)\n",
         ),
         (
             "    /// The cabin air, the tyres' spray and the roads' wetness, frame by frame as the window's\n",
