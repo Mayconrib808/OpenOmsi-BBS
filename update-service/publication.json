@@ -1,5 +1,7 @@
 {
-  "candidate_run_id": 39186624136,
-  "artifact_name": "Bridge-2.1.9.7-hotfix.1-update-candidate",
-  "candidate_commit": "accf0d6e09ce7f94c0be812caaab5571bf497211"
+  "candidate_run_id": 39687769873,
+  "artifact_name": "Bridge-2.1.9.8-update-candidate",
+  "candidate_commit": "d177ee060e48c61ce9398fcb4636d6d27b51a3f0",
+  "manual_package_sha256": "5dae61caff2ecff940111ad22c2ac2a7bac14d53e5139499f3525c07eb9c8651",
+  "installer_sha256": "7b026ea86b88acef6e18c2be6c8c4f198e954610ee5e23834f86ecdbfb7035e7"
 }
