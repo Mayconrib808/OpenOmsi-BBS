@@ -31,7 +31,7 @@ jobs:
           if ($h.ExitCode -ne 0) { throw "HostAgent smoke failed: $($h.ExitCode)" }
           $s = Start-Process -FilePath 'build/verified-2198/Setup.exe' -ArgumentList '--gui-smoke' -Wait -PassThru
           if ($s.ExitCode -ne 0) { throw "Setup smoke failed: $($s.ExitCode)" }
-          python scripts/test_pluginhost_windows.py build/verified-2198/app/compat/omsi-plugin-host32.exe
+          python scripts/test_pluginhost_windows.py build/verified-2198/app/compat/omsi-plugin-host32.exe --version 2.1.9.8
           if ($LASTEXITCODE -ne 0) { throw 'Plugin-host check failed' }
           python scripts/test_facade_windows.py build/verified-2198/app/compat/Omsi.exe
           if ($LASTEXITCODE -ne 0) { throw 'Facade check failed' }

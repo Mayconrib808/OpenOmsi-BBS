@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise the real PE32 host with an original synthetic stdcall DLL on Windows."""
 from __future__ import annotations
+import argparse
 import os
 from pathlib import Path
 import queue
@@ -69,8 +70,12 @@ def string(s: str) -> bytes:
 
 def main() -> None:
     if os.name != "nt": raise RuntimeError("Run the native test on Windows.")
-    built_host = Path(sys.argv[1]).resolve()
-    version = re.search(r'const bridgeVersion = "([^"]+)"', (ROOT / "source/version.go").read_text()).group(1)
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('host', type=Path)
+    parser.add_argument('--version', help='Expected version when validating an immutable prebuilt candidate.')
+    args = parser.parse_args()
+    built_host = args.host.resolve()
+    version = args.version or re.search(r'const bridgeVersion = "([^"]+)"', (ROOT / "source/version.go").read_text()).group(1)
     plugin_host_resources.verify_native_version(built_host, version)
     env = compiler_environment()
     with tempfile.TemporaryDirectory(prefix="bridge-native-") as temporary:
