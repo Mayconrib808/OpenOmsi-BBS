@@ -1,0 +1,16 @@
+{
+  "version": "2.1.9.8",
+  "sequence": 2026102101,
+  "size": 21862400,
+  "sha256": "7b026ea86b88acef6e18c2be6c8c4f198e954610ee5e23834f86ecdbfb7035e7",
+  "manual_package_sha256": "5dae61caff2ecff940111ad22c2ac2a7bac14d53e5139499f3525c07eb9c8651",
+  "components": {
+    "HostAgent.exe": "a483e435a23b9a74276fb045945ce58357ab5ea99f8759ddc2dddae41a41dba4",
+    "CompanyHost.exe": "3d57a4733cbfb8bec677c29d888de339a92ae43c161f9e48ccc9b7a97c7d6cb3",
+    "Setup.exe": "bb8603190bef8aa3f41dc0158149aea5bf647abbbd534e24d42994628e9045d5",
+    "PeDePeAdapter/openomsi.exe": "a4b341f7af27e51ebef8731214ae341e17a8a58739a08ff9c52ddef984ab2ff7",
+    "app/OpenOMSI_BCS_Bridge.exe": "242a0de85571728529807b997f6c022212521177ec60aa7dc9433f9f816abe83",
+    "app/compat/Omsi.exe": "e028405534e6545e5d4385c35d1a5e348174c8efbe030dbe6199e54393531320",
+    "app/compat/omsi-plugin-host32.exe": "8c39f41ef970c1ce198b8a97b504f29e9a766ae93b48488295b270d7652a25c0"
+  }
+}
