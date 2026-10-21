@@ -230,7 +230,7 @@ func run(ctx context.Context, dir string, args []string) error {
 	client := webClient()
 	defer client.CloseIdleConnections()
 	owner := randomID()
-	deadline := time.Now().Add(15 * time.Minute)
+	deadline := time.Now().Add(hostStartupTimeout)
 	for time.Now().Before(deadline) {
 		l, e := claim(ctx, client, cfg.Invitation, m, owner)
 		if e != nil {
@@ -274,5 +274,5 @@ func run(ctx context.Context, dir string, args []string) error {
 		case <-time.After(2 * time.Second):
 		}
 	}
-	return fmt.Errorf("o mapa não abriu em 15 minutos; confira multiplayer.log")
+	return fmt.Errorf("o mapa não abriu em %s; confira multiplayer.log", hostStartupTimeout)
 }
