@@ -37,6 +37,7 @@ def main():
     if manifest["native_version"]!="0.3.39-bbs-stream.1" or manifest["protocol"]!=14:
         raise ValueError("Wrong native server")
     files["app/server/BBS-DYNAMIC-SERVER.json"]=(DYNAMIC/"BBS-DYNAMIC-SERVER.json").read_bytes()
+    files["app/server/OpenOMSI-LICENSE.txt"]=(DYNAMIC/"OpenOMSI-LICENSE.txt").read_bytes()
     # Reuse the OFFICIAL signed-release support libraries; no Windows DLL is rebuilt.
     with urllib.request.urlopen(SERVER_URL,timeout=180) as res:
         upstream=res.read()
@@ -70,7 +71,8 @@ def main():
     with zipfile.ZipFile(OUTPUT,"w",zipfile.ZIP_DEFLATED,compresslevel=9) as z:
         for path,body in sorted(files.items()):
             z.writestr(path,body)
-        if z.testzip() is not None: raise ValueError("ZIP integrity failure")
+    with zipfile.ZipFile(OUTPUT,"r") as check:
+        if check.testzip() is not None: raise ValueError("ZIP integrity failure")
     (OUTPUT.with_suffix(OUTPUT.suffix+".sha256")).write_text(
         sha(OUTPUT.read_bytes())+"  "+OUTPUT.name+"\n",encoding="ascii")
     print("ZIP",OUTPUT,"bytes",OUTPUT.stat().st_size,"sha256",sha(OUTPUT.read_bytes()),flush=True)
