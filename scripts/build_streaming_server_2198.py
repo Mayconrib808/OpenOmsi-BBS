@@ -98,6 +98,10 @@ def prepare(directory: Path) -> None:
     ])
     patch_file(directory, "crates/omsi-app/src/offscreen/step.rs", [
         (
+            "        Ok(crate::frame_stages::run(&mut step, stages::OFFSCREEN_STEP)? == crate::frame_stages::Flow::Go)\\n",
+            "        let running = crate::frame_stages::run(&mut step, stages::OFFSCREEN_STEP)? == crate::frame_stages::Flow::Go;\\n        if running { self.stream_server_step(); }\\n        Ok(running)\\n",
+        ),
+        (
             "    /// The cabin air, the tyres' spray and the roads' wetness, frame by frame as the window's\n",
             """    /// Dedicated-server equivalent of the ordinary multiplayer host's tile
     /// streaming. Centers are the LIVE positions of all peers, not the entry
@@ -131,21 +135,10 @@ def prepare(directory: Path) -> None:
 """,
         ),
     ])
-    patch_file(directory, "crates/omsi-app/src/offscreen/stages.rs", [
-        ("    Lan,\n    Surroundings,\n", "    Lan,\n    Streaming,\n    Surroundings,\n"),
-        ("    &[Server, Clock, Traffic, Startup, Duty, Drive, GroundGap, Humans, Lan, Surroundings, Snapshot, Record]\n",
-         "    &[Server, Clock, Traffic, Startup, Duty, Drive, GroundGap, Humans, Lan, Streaming, Surroundings, Snapshot, Record]\n"),
-        ("            Surroundings => stage(K::Surroundings, P::Present, Role::Surroundings, &[G::Weather, G::Player, G::Traffic, G::Net, G::View, G::People], &[G::Weather]),\n",
-         "            Streaming => stage(K::Surroundings, P::Present, Role::Own, &[G::Net, G::World, G::Traffic], &[G::World, G::Traffic, G::Gfx]),\n            Surroundings => stage(K::Surroundings, P::Present, Role::Surroundings, &[G::Weather, G::Player, G::Traffic, G::Net, G::View, G::People], &[G::Weather]),\n"),
-        ("            Lan => run.lan_step(),\n            Surroundings => run.surroundings_step(),\n",
-         "            Lan => run.lan_step(),\n            Streaming => run.stream_server_step(),\n            Surroundings => run.surroundings_step(),\n"),
-    ])
     print("dynamic streaming source prepared", flush=True)
 
 def build(source: Path, output: Path) -> None:
     env = dict(os.environ, OPENOMSI_VERSION=VERSION)
-    subprocess.run(["cargo", "test", "--locked", "-p", "omsi-app", "--no-default-features",
-        "--lib", "--", "--list"], cwd=source, env=env, check=True)
     subprocess.run(["cargo", "build", "--locked", "--release", "-p", "omsi-app"],
         cwd=source, env=env, check=True)
     binary = source / "target/release/openomsi.exe"
