@@ -289,8 +289,8 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 			if now.Sub(lastAck) >= 35*time.Second {
 				return fmt.Errorf("a conexão com o diretório foi perdida; o servidor local foi encerrado para evitar dois hosts")
 			}
-			if !ready && now.Sub(start) > 15*time.Minute {
-				return fmt.Errorf("o mapa ou o túnel não ficou pronto em 15 minutos")
+			if !ready && now.Sub(start) > hostStartupTimeout {
+				return fmt.Errorf("o mapa ou o túnel não ficou pronto em %s", hostStartupTimeout)
 			}
 			if !now.Before(nextRenew) {
 				state := "starting"
@@ -314,8 +314,8 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 				if ready {
 					return fmt.Errorf("o servidor local não respondeu")
 				}
-				if time.Since(start) > 15*time.Minute {
-					return fmt.Errorf("o servidor não abriu em 15 minutos")
+				if time.Since(start) > hostStartupTimeout {
+					return fmt.Errorf("o servidor não abriu em %s", hostStartupTimeout)
 				}
 				continue
 			}
@@ -342,6 +342,7 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 					}
 					lastAck = time.Now()
 					ready = true
+					idle.ReadyAt = now
 					onlineAddress = a
 					if e = announce(publicBase); e != nil {
 						return e
@@ -364,9 +365,20 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 	}
 }
 
+// A full-map dedicated server may legitimately need over 15 minutes to open a
+// very large map. This timeout is an upper bound on a *stalled* startup, not
+// a promise that loading will become faster (that needs server-side streaming).
+const (
+	hostStartupTimeout = 45 * time.Minute
+	hostDefaultIdle = time.Minute
+	hostHeavyMapThreshold = 3 * time.Minute
+	hostHeavyMapIdle = 10 * time.Minute
+	hostNeverJoinedIdle = 5 * time.Minute
+)
+
 type hostIdle struct {
-	Started, LastActive time.Time
-	SeenPlayer          bool
+	Started, LastActive, ReadyAt time.Time
+	SeenPlayer bool
 }
 
 func (h *hostIdle) shouldStop(now time.Time, players int) bool {
@@ -376,7 +388,19 @@ func (h *hostIdle) shouldStop(now time.Time, players int) bool {
 		return false
 	}
 	if h.SeenPlayer {
-		return now.Sub(h.LastActive) > 60*time.Second
+		grace := hostDefaultIdle
+		// Reuse an already-loaded heavyweight map for successive BCS shifts.
+		// Give the memory back after ten empty minutes: keeping it forever
+		// would worsen the very RAM pressure this optimization targets.
+		if !h.ReadyAt.IsZero() && h.ReadyAt.Sub(h.Started) >= hostHeavyMapThreshold {
+			grace = hostHeavyMapIdle
+		}
+		return now.Sub(h.LastActive) > grace
 	}
-	return now.Sub(h.Started) > 15*time.Minute
+	if !h.ReadyAt.IsZero() {
+		// A session that never received a player must not hold several GB
+		// for the entire startup timeout once the map is already ready.
+		return now.Sub(h.ReadyAt) > hostNeverJoinedIdle
+	}
+	return now.Sub(h.Started) > hostStartupTimeout
 }
