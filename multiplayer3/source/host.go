@@ -191,10 +191,12 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 		}
 		release(c, cfg.Invitation, m, l.Token)
 	}()
+	preparationStarted := time.Now()
 	serverExe, e := prepareOwnedServer(ctx, c, cfg, dir, m, l)
 	if e != nil {
 		return e
 	}
+	log.Printf("host timing: native runtime ready in %s", time.Since(preparationStarted).Round(time.Second))
 	work, e := os.MkdirTemp("", "openomsi-mp3-")
 	if e != nil {
 		return e
@@ -204,10 +206,12 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 	if e != nil {
 		return e
 	}
+	fleetStarted := time.Now()
 	fleet, catalog, mask, e := companyGatewayFleet(cfg.Root, nil, randomID())
 	if e != nil {
 		return e
 	}
+	log.Printf("host timing: fleet catalog ready in %s", time.Since(fleetStarted).Round(time.Second))
 	gateway, e := newCompanyGateway(ctx, gatewayPorts{Port: udp, WebPort: tcp}, m, fleet, catalog, mask)
 	if e != nil {
 		return e
@@ -260,11 +264,13 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 		return nil
 	}
 	gateway.releaseBackend()
+	serverStarted := time.Now()
 	if e = startServer(serverExe); e != nil {
 		return e
 	}
 	tunnelFailures, stopTunnel := startCompanyManagedTunnel(ctx, filepath.Dir(serverExe), gateway.webPort, out)
 	defer stopTunnel()
+	log.Printf("host timing: process and tunnel requested in %s", time.Since(serverStarted).Round(time.Second))
 	localClient := webClient()
 	defer localClient.CloseIdleConnections()
 	lastAck := time.Now()
@@ -343,6 +349,7 @@ func superviseHost(ctx context.Context, cfg localConfig, dir, m string, l lease,
 					lastAck = time.Now()
 					ready = true
 					idle.ReadyAt = now
+					log.Printf("host timing: world ready after %s (total %s)", now.Sub(start).Round(time.Second), now.Sub(preparationStarted).Round(time.Second))
 					onlineAddress = a
 					if e = announce(publicBase); e != nil {
 						return e
