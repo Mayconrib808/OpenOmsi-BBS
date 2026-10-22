@@ -39,11 +39,23 @@ jobs:
         run: python scripts/verify_2198_candidate.py
       - name: Build complete Bridge 2.1.9.8 test ZIP without changing its executables
         run: python scripts/package_streaming_2198.py
-      - name: Scan exact test ZIP with Windows Defender
+      - name: Scan complete streaming ZIP and native binaries with Defender
         shell: pwsh
         run: |
-          ./scripts/scan_release_package.ps1 -PackagePath "build/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip"
-      - name: Upload installable validated Bridge candidate
+          $ErrorActionPreference='Stop'
+          $path=(Resolve-Path 'build/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip').Path
+          $dir=Join-Path $env:RUNNER_TEMP 'bridge-2198-streaming-scan'
+          Expand-Archive -LiteralPath $path -DestinationPath $dir -Force
+          $scanner=Join-Path ${env:ProgramFiles} 'Windows Defender/MpCmdRun.exe'
+          if (-not (Test-Path $scanner)) { throw 'Defender scanner unavailable' }
+          $targets=@($path)+@(Get-ChildItem $dir -Recurse -File | Where-Object { $_.Extension -in @('.exe','.dll') } | ForEach-Object FullName)
+          foreach ($target in $targets) {
+            & $scanner -Scan -ScanType 3 -File $target -DisableRemediation | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw ('Defender rejected ' + (Split-Path $target -Leaf)) }
+          }
+          Write-Host ('Defender scanned ZIP and ' + ($targets.Count - 1) + ' executable files without detections in runner environment.')
+      - name: Upload complete candidate with its integrity evidence
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: Bridge-2.1.9.8-Streaming-Experimental
