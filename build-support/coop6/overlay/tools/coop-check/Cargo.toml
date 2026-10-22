@@ -1,0 +1,17 @@
+[package]
+name = "openomsi-coop-regressions"
+version = "0.3.38"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+
+[workspace]
+
+[dependencies]
+glam = "0.30"
+omsi-sim = { path = "../../crates/omsi-sim" }
+omsi-vehicle = { path = "../../crates/omsi-vehicle" }
+omsi-geometry = { path = "../../crates/omsi-geometry" }
+omsi-model = { path = "../../crates/omsi-model" }
+omsi-o3d = { path = "../../crates/omsi-o3d" }
+omsi-cfg = { path = "../../crates/omsi-cfg" }

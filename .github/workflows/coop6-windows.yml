@@ -1,0 +1,85 @@
+name: Coop 6 Windows build and scan
+
+on:
+  push:
+    branches: ['codex/coop6-reviewed-build']
+    paths: ['build-support/coop6/**', '.github/workflows/coop6-windows.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      OPENOMSI_VERSION: 0.3.38-coop.6
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: support
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: 866c60de268f3fc8737287b8e2d13993c49b1f1f
+          path: game
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: coop6-windows-msvc
+          workspaces: |
+            game -> target
+            game/tools/coop-check -> target
+      - name: Prepare reviewed source
+        run: python support/build-support/coop6/prepare.py
+      - name: Cooperative regression tests
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo test --locked --manifest-path tools/coop-check/Cargo.toml 2>&1 | Tee-Object -FilePath ../out/regressions.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile Windows x64 executable
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo build --locked --release --target x86_64-pc-windows-msvc -p omsi-app --bin openomsi 2>&1 | Tee-Object -FilePath ../out/build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item target/x86_64-pc-windows-msvc/release/openomsi.exe ../out/openomsi.exe
+      - name: Package corresponding source
+        run: python support/build-support/coop6/prepare.py package
+      - name: Microsoft Defender scan
+        shell: pwsh
+        run: |
+          $report = [ordered]@{ status = 'unavailable'; scope = 'new executable, source ZIP and audio'; timestamp_utc = [DateTime]::UtcNow.ToString('o') }
+          try {
+            $status = Get-MpComputerStatus -ErrorAction Stop
+            $report.engine_version = $status.AMEngineVersion
+            $report.signature_version = $status.AntivirusSignatureVersion
+            $report.antivirus_enabled = $status.AntivirusEnabled
+            $platform = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+            $scanner = if ($platform) { $platform.FullName } else { "$env:ProgramFiles/Windows Defender/MpCmdRun.exe" }
+            if (Test-Path $scanner) {
+              & $scanner -SignatureUpdate 2>&1 | Out-File out/defender-update.log
+              $updated = Get-MpComputerStatus -ErrorAction Stop
+              $report.signature_version = $updated.AntivirusSignatureVersion
+              $report.engine_version = $updated.AMEngineVersion
+              & $scanner -Scan -ScanType 3 -File "$env:GITHUB_WORKSPACE/out" -DisableRemediation 2>&1 | Tee-Object -FilePath out/defender-scan.log
+              $report.exit_code = $LASTEXITCODE
+              $scanText = Get-Content out/defender-scan.log -Raw
+              if ($LASTEXITCODE -eq 0 -and $scanText -match 'found no threats|no threats found') { $report.status = 'passed' }
+              elseif ($LASTEXITCODE -ne 0) { $report.status = 'scan_error_or_detection' }
+              else { $report.status = 'review_log' }
+            }
+          } catch { $report.error = $_.Exception.Message }
+          $report | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 out/defender-report.json
+          if ($report.status -eq 'scan_error_or_detection') { throw 'Defender scan needs review; see attached report and log.' }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coop6-windows-reviewed
+          retention-days: 14
+          if-no-files-found: error
+          path: out/*
