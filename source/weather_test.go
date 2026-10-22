@@ -41,8 +41,12 @@ func TestWeatherSnapshotBoundToMapDateAndRecentStableFile(t *testing.T) {
 	if _, _, err = readBCSWeather(root, "maps/Sample/global.cfg", "2026-10-08", time.Now()); err == nil {
 		t.Fatal("previous day weather reused")
 	}
-	old := time.Now().Add(-time.Hour)
-	_ = os.Chtimes(situation+".owt", old, old)
+	// Keep the stale fixture beyond the configured startup window with a
+	// margin for Windows filesystem and clock timestamp precision.
+	old := time.Now().Add(-startupTimeout - time.Minute)
+	if err := os.Chtimes(situation+".owt", old, old); err != nil {
+		t.Fatal(err)
+	}
 	if _, _, err = readBCSWeather(root, "maps/Sample/global.cfg", "2026-10-07", time.Now()); err == nil {
 		t.Fatal("stale weather reused")
 	}
