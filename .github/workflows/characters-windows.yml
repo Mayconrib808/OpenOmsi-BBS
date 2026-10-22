@@ -27,6 +27,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: coop6-windows-msvc
+          cache-on-failure: true
           workspaces: |
             game -> target
             game/tools/coop-check -> target
@@ -45,7 +46,7 @@ jobs:
         working-directory: game
         shell: pwsh
         run: |
-          cargo test --locked -p omsi-lan --lib walking_without_a_bus_keeps_the_players_chosen_character 2>&1 | Tee-Object -FilePath ../out/on-foot-network-test.log
+          cargo test --locked --release --target x86_64-pc-windows-msvc -p omsi-lan --lib walking_without_a_bus_keeps_the_players_chosen_character 2>&1 | Tee-Object -FilePath ../out/on-foot-network-test.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build Windows executable
         working-directory: game
