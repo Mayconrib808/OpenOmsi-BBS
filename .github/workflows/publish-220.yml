@@ -1,0 +1,98 @@
+name: Publish signed Bridge 2.2.0 with Coop
+on:
+  push:
+    branches: ['release/2.2.0']
+    paths: ['update-service/assets/stable.json', 'update-service/publication.json', '.github/workflows/publish-220.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: openomsi-update-distribution
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: contains(github.event.head_commit.message, 'Publish signed 2.2.0') || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Resolve exact validated candidate
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),{execFileSync}=require('child_process'),p=require('./update-service/publication.json');
+          if(p.version!=='2.2.0'||p.sequence!==2026102201||!Number.isSafeInteger(p.candidate_run_id)||p.candidate_run_id<1||p.artifact_name!=='Bridge-2.2.0-update-candidate'||!/^[a-f0-9]{40}$/.test(p.candidate_commit))throw Error('Invalid 2.2.0 candidate');
+          const r=JSON.parse(execFileSync('gh',['api',`repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${p.candidate_run_id}`],{encoding:'utf8'}));
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.head_branch!=='release/2.2.0'||r.path!=='.github/workflows/release-220.yml')throw Error('The exact Windows candidate did not pass');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`run_id=${p.candidate_run_id}\ncommit=${p.candidate_commit}\n`);
+          NODE
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0-update-candidate
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: approved-update
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0-Setup-e-Coop
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: approved-full
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0-Windows-evidence
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: approved-evidence
+      - name: Verify publisher signature, installer and all Coop parts
+        run: node update-service/publication.mjs prepare approved-update/Atualizar-Bridge.exe approved-update/coop-assets
+      - name: Verify exact full package
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),{createHash}=require('crypto'),p=require('./update-service/publication.json'),r=require('./approved-update/build-report.json');
+          const bytes=fs.readFileSync('approved-full/OpenOmsi_BBS_2.2.0_Setup_e_Coop.zip');
+          const hash=createHash('sha256').update(bytes).digest('hex');
+          if(hash!==p.full_package_sha256||hash!==r.full_package_sha256||r.updater_sha256!==p.installer_sha256||r.version!=='2.2.0'||r.sequence!==2026102201)throw Error('Package differs from reviewed candidate');
+          const read=p=>JSON.parse(fs.readFileSync(p,'utf8').replace(/^\uFEFF/,''));
+          const scan=read('approved-evidence/defender-220.json'),native=read('approved-evidence/windows-native.json');
+          if(scan.status!=='passed'||!scan.archive_scanning_enabled||scan.files.length!==2||!scan.files.every(f=>f.passed&&f.exit_code===0))throw Error('Exact-file Defender evidence did not pass');
+          for(const [name,want] of [['Atualizar-Bridge.exe',p.installer_sha256],['OpenOmsi_BBS_2.2.0_Setup_e_Coop.zip',hash]]) if(scan.files.find(f=>f.name===name)?.sha256!==want)throw Error('Defender evidence is for different bytes');
+          if(native.setup_gui!=='passed'||native.bundled_coop_button!=='passed'||native.updater_progress!=='passed')throw Error('Native interface checks did not pass');
+          NODE
+          python -m zipfile -c VALIDACAO-2.2.0.zip approved-evidence
+      - name: Distribution regression checks
+        run: node --test update-service/worker*.test.mjs
+      - name: Deploy update manifest, installer and Coop together
+        working-directory: update-service
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
+      - name: Verify public manifest and every downloadable byte
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if node update-service/publication.mjs verify-live; then exit 0; fi
+            if test "$attempt" -lt 6; then sleep 5; fi
+          done
+          exit 1
+      - name: Publish versioned download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_COMMIT: ${{ steps.candidate.outputs.commit }}
+        run: |
+          if gh release view v2.2.0 >/dev/null 2>&1; then
+            gh release download v2.2.0 --pattern Atualizar-Bridge.exe --dir existing-release
+            cmp approved-update/Atualizar-Bridge.exe existing-release/Atualizar-Bridge.exe
+            exit 0
+          fi
+          gh release create v2.2.0 \
+            approved-full/*.zip approved-full/*.zip.sha256 \
+            approved-update/Atualizar-Bridge.exe approved-update/build-report.json VALIDACAO-2.2.0.zip \
+            --target "$CANDIDATE_COMMIT" --latest=false \
+            --title 'OpenOmsi BBS 2.2.0 + Coop 0.3.38' --notes-file docs/releases/v2.2.0.md

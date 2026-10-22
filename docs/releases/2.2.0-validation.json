@@ -1,0 +1,18 @@
+{
+  "version": "2.2.0",
+  "sequence": 2026102201,
+  "candidate_run_id": 39711784500,
+  "artifact_name": "Bridge-2.2.0-update-candidate",
+  "candidate_commit": "45fd12694d318b135f4bddfd7c9ca5b7ca272b67",
+  "installer_sha256": "67741c25f265d829b310cdaedff1f625725eeddbdce9fa977181bcbcd88220db",
+  "full_package_sha256": "d85aa6a5f6234714d025f90914c1300ae175d89e79ea7875b727760fbb43d5a5",
+  "coop_archive_sha256": "78da217b753f664f3c56c70875c5bd3ceb213a22d805140a69bbd3e42940c081",
+  "windows_native_checks": "passed",
+  "bundled_coop_button": "passed",
+  "defender_exact_files": "passed",
+  "defender_engine": "1.1.26090.9",
+  "defender_signatures": "1.461.143.0",
+  "coop_files_verified": 45,
+  "original_publisher_identity_preserved": true,
+  "gameplay_two_players_tested": false
+}
