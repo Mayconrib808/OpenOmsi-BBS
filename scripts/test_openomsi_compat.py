@@ -109,7 +109,8 @@ def extract_release(archive: Path, target: Path) -> Path:
 def build_probe(go: str, target: Path) -> Path:
     sources = target / "probe"
     sources.mkdir()
-    for name in ("openomsi_compatibility.go", "openomsi_probe_windows.go"):
+    probe_sources = ("openomsi_compatibility.go", "openomsi_probe_windows.go", "config.go", "paths.go", "version.go")
+    for name in probe_sources:
         shutil.copy2(SOURCE / name, sources / name)
     (sources / "main.go").write_text(
         '''package main
@@ -126,7 +127,7 @@ func main() {
     executable = sources / "compatibility-probe.exe"
     env = os.environ.copy()
     env.update(GO111MODULE="off", GOOS="windows", GOARCH="amd64", CGO_ENABLED="0")
-    subprocess.run([go, "build", "-o", str(executable), "main.go", "openomsi_compatibility.go", "openomsi_probe_windows.go"],
+    subprocess.run([go, "build", "-o", str(executable), "main.go", *probe_sources],
                    cwd=sources, env=env, check=True, timeout=90)
     return executable
 
