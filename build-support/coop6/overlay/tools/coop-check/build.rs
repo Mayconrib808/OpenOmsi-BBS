@@ -1,6 +1,6 @@
 fn read(path: &str) -> String {
     println!("cargo:rerun-if-changed={path}");
-    std::fs::read_to_string(path).unwrap()
+    std::fs::read_to_string(path).unwrap().replace("\r\n", "\n")
 }
 fn between<'a>(text: &'a str, from: &str, to: &str) -> &'a str {
     let start = text.find(from).unwrap();

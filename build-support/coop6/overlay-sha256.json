@@ -37,7 +37,7 @@
   "tools/coop-check/Cargo.lock": "4bfe7a816eaf1f6b82b8a737cce94daedb2c93bb6535cd90099ed8b7ca0498d5",
   "tools/coop-check/Cargo.toml": "c6ff08f5127aba5781a017ac207c317493ddbe85191912d78e7900da0653f0db",
   "tools/coop-check/README.md": "bc3bd8856b577c3400448054b1650efc0b786a0732345b32d5f9dd5c9929f81c",
-  "tools/coop-check/build.rs": "123fe2db1ec197c34ffa102fc4dfa2a3e3b967a5b9772c1c49dbdcfd6d5951a8",
+  "tools/coop-check/build.rs": "8ac9fd56401baf829c9b7fab88cf55022cac915c966759d0d3cf4ba72f9c27ca",
   "tools/coop-check/src/lib.rs": "e9d5a39bca0671df91fb3c0f94ef8e8efd20af595c63c98e38678e88e126cb3a",
   "tools/coop-check/src/pointer_pipeline.rs": "3178e96aae76d88d8861e92f7845966579f8ffa5a43124e2ddee1f2bafa8648a"
 }
