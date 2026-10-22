@@ -1,137 +1,29 @@
-OpenOmsi - BBS 2.0.5-dev.4 — por Mayconrib808
+OpenOmsi BBS 2.2.0.2 + OpenOmsi Coop 0.3.38 (Coop 8)
 
-NESTA 2.0.5-dev.4 (TESTE)
-O HostAgent adapta servidores oficiais com protocolo multiplayer 6,
-incluindo a 0.2.23, mantendo os ônibus privados livres. Não modifica o EXE
-oficial nem exige recompilar a bridge para cada atualização compatível.
-Para atualizar: Parar agente, extrair o ZIP oficial do servidor Windows,
-Procurar > selecionar o openomsi.exe dessa pasta, Salvar e iniciar agente.
-Deixe os outros arquivos do ZIP do servidor junto dele na pasta extraída.
-Se só mudou a pasta de lugar, selecione o EXE no novo endereço e salve.
-Mapas, portas, relógio, Cloudflare, chave e JSON dos jogadores são mantidos.
-Os túneis e conexões são separados por mapa. O agente baixa a ferramenta
-oficial de túnel na primeira utilização e confere o SHA-256 publicado.
-A correção da espera do servidor automático da dev.3 continua presente.
-O servidor incluído continua 0.2.20-bbs-free2, sem recompilação Rust.
+1. Extraia o ZIP inteiro em uma pasta. Não execute os programas dentro do ZIP.
+2. Abra Setup.exe, selecione a pasta do OMSI 2 e clique em Usar Coop incluído.
+3. Confira suas opções e clique em Salvar e ativar. Depois abra o BCS normalmente.
 
-CORREÇÕES DA 2.0.4 MANTIDAS
-Hotfix da 2.0.3 para corrigir a identificação de viagens quando BCS e OMSI
-usam nomes diferentes para rota/destino. Também corrige rotas do BCS com
-pontos intermediários separados por " - ".
+O jogo está em OpenOmsi Coop 0.3.38/programa/openomsi.exe. A pasta inclui as
+DLLs, o áudio da catraca, as licenças e o código-fonte correspondente.
+O ABRIR-COOPERATIVO.exe dentro dessa pasta também abre o jogo diretamente.
 
-TIMETABLE / IDENTIFICAÇÃO DE VIAGEM
-- HafenCity: aceita com segurança perfis [station_typ2] quando o BCS adiciona
-  qualificadores como "(Terminus 109)" ao destino.
-- Ruhrau V2: linha + Umlauf + horário exato podem identificar uma única viagem
-  mesmo quando o nome textual do TTP não é igual à rota mostrada pelo BCS.
-- Exemplo corrigido: Linie 184 / 4. Mo. - Fr. (DB/Solo) / 22:59 seleciona
-  "184 - Bergische Kaserne" para a rota BCS
-  "Heidhausen Bf. - Altendorf - Friedrich-Ebert-Platz".
-- O fallback só é usado quando não há endpoints físicos que contradigam o BCS.
-  Se duas viagens tiverem o mesmo horário exato, a bridge continua bloqueando
-  como ambíguo em vez de escolher no chute.
+ESTA E UMA COMPILACAO LOCAL AINDA NAO PUBLICADA NO BUSCAR ATUALIZACOES.
+Para instalar esta versao, abra o Setup.exe DESTE PACOTE, selecione
+a pasta correta do OMSI 2, use Usar Coop incluido e Salvar e ativar.
+Nao use Buscar atualizacoes ate o feed 2.2.0.2 estar oficialmente no ar. As configurações existentes
+são mantidas. Para trocar o jogo selecionado, use Usar Coop incluído e Salvar e ativar.
+A primeira atualização baixa aproximadamente 61 MB adicionais da Coop e mostra
+o progresso. Feche o jogo, BCS, Setup antigo e os programas do host quando solicitado.
 
-ANTIVÍRUS / DEFENDER
-O auxiliar omsi-plugin-host32.exe inclui nome do produto, autor, versão,
-descrição e ícone do projeto nas propriedades do Windows, mantendo os símbolos
-e a identificação normal da compilação Go. O Setup reconhece auxiliares das
-versões anteriores e restaura o arquivo anterior caso a ativação falhe.
-A publicação exige análise do ZIP e dos executáveis pelo Microsoft Defender,
-além das verificações de integridade. Isso reduz a chance de falso positivo,
-mas não garante o mesmo resultado em todo PC. Veja docs/ANTIVIRUS.md.
+Jogadores e servidor de uma sessão precisam usar o mesmo protocolo. A Coop 8
+usa protocolo 14. O servidor já configurado na empresa continua sendo usado.
+O pacote não contém o OMSI 2, o BCS, mapas, ônibus ou outros produtos pagos.
 
-MULTIPLAYER — ÔNIBUS LIVRES
-Ônibus dos jogadores podem ser privados ou não existir no PC do host sem
-impedir a entrada na sessão. A lista de substitutos do host é opcional e pode
-ficar vazia; ela serve somente para melhorar a representação local.
-O servidor incluído vem em app/server e o HostAgent o seleciona
-automaticamente por padrão. Uma escolha externa salva passa a ser respeitada.
-O servidor incluído não usa uma lista de ônibus autorizados para
-expulsar jogadores e não transfere arquivos privados.
-Cada jogador precisa do mapa e do ônibus que ele próprio dirige.
+Validação: testes automatizados de integração, interface nativa do Setup e
+inicialização do executável no Windows. Uma sessão completa com dois jogadores
+e avaliação de viagem no BCS ainda precisa de validação dentro do jogo.
 
-RECURSOS MANTIDOS
-- Servidor automático por demanda e perfil online da empresa.
-- Relógio da empresa e clima compartilhado da sessão.
-- Próxima viagem: aguarda a nova seleção por até 15 minutos.
-- Painel BCS com reconhecimento UTF-8/UTF-16 e respostas rápidas.
-- Auxiliar de 32 bits sem janela de CMD.
-- Multiplayer permissivo para arquivos extras/hashes conforme as regras atuais.
-
-COMEÇAR
-1. Tenha OMSI 2, BCS/BBS e OpenOMSI para Windows instalados, além do mapa
-   e do seu próprio ônibus.
-2. Feche os jogos e extraia TODO o ZIP 2.0.5-dev.4 em uma pasta fixa.
-3. Abra Setup.exe e escolha a pasta do OMSI original e o openomsi.exe.
-4. Para multiplayer, marque "Ativar multiplayer da empresa", selecione o
-   perfil JSON ou cole o link HTTPS fornecido pelo administrador e digite
-   seu nome no multiplayer.
-5. Clique em "Salvar e ativar" e aceite a permissão do Windows.
-6. No BCS, deixe "Iniciar o OMSI mais depressa" desmarcado. No OpenOMSI,
-   desative a sincronização com o relógio real.
-7. Inicie a viagem normalmente pelo BCS.
-
-SERVIDOR DA EMPRESA
-Setup > Empresa / servidor abre HostAgent.exe. Configure os mapas, ou importe
-seu JSON atual. A lista de substitutos pode ficar vazia. O agente abre o mapa
-solicitado pelos jogadores e mantém o relógio da empresa sincronizado.
-O PC do host deve ficar ligado com o agente ativo. A URL fixa do diretório
-online precisa ser configurada uma vez; veja docs/AUTO_HOST.md e relay/.
-
-NO PONTO FINAL
-F9 -> aguarde pelo menos 2 segundos -> finalize no BCS com o OpenOMSI aberto.
-Para usar Próxima viagem, escolha a nova viagem no BCS e aguarde a bridge
-preparar a nova sessão.
-
-ATUALIZAR
-Feche os jogos e o HostAgent antigo, extraia o pacote 2.0.5-dev.4 inteiro, abra o
-novo Setup.exe, confira os dados recuperados e clique em "Salvar e ativar".
-Não troque somente um EXE isolado, pois o pacote inclui componentes que devem
-ser atualizados em conjunto.
-
-COMPATIBILIDADE E VALIDAÇÃO
-A referência de jogo observada é OpenOMSI 0.2.0 + BCS/BBS 5.0.0.1. A bridge
-também verifica os recursos necessários das versões compatíveis e usa o
-protocolo multiplayer esperado. O servidor incluído é derivado do openOMSI
-0.2.20 e não é uma versão oficial do projeto openOMSI.
-O teste automatizado do servidor oficial 0.2.23 usa um mapa sintético e dois
-ônibus privados ausentes. Uma mudança futura de protocolo ou de interfaces
-pode exigir uma atualização da integração; não há bloqueio por número de versão.
-
-Uma viagem real em Carrão City, linha N407, já confirmou ingresso no servidor,
-chat, passageiros compartilhados e conclusão com avaliação no BCS. O teste
-com dois jogadores, visualização de todos os modelos e diferenças de addons
-ainda deve ser validado em uso real.
-
-A penalidade específica por furar sinal vermelho ainda não está disponível.
-Os contadores reais de colisões e condução continuam sendo transferidos.
-Veja docs/TRAFFIC_PENALTIES.md e docs/VALIDATION.md.
-
-O PACOTE
-Inclui Setup.exe, CompanyHost.exe, HostAgent.exe, bridge, fachada de
-compatibilidade, auxiliar de 32 bits, servidor da bridge, código-fonte,
-licenças, créditos e documentação. Não precisa instalar Go ou Python para
-jogar. Jogos, mapas, ônibus, addons e a DLL original do BBS são instalados
-separadamente.
-
-PROJETO INDEPENDENTE
-Sem vínculo, aprovação ou suporte oficial da PeDePe, openOMSI Project,
-MR-Software, Aerosoft ou Valve. Código próprio: MIT. Os avisos de terceiros
-acompanham o pacote.
-
-Executáveis, JARs e DLLs proprietários originais não recebem patches.
-A bridge grava Drivers/bbs.odr, arquivos próprios e um redirecionamento de
-inicialização no Registro do Windows. Leia NOTICE_FOR_PEDEPE.md e
-docs/RUNTIME_EFFECTS.md.
-
-NOTAS DA VERSÃO
-docs/releases/v2.0.5-dev.4.md
-
-TUTORIAL
-Abra TUTORIAL.html para o guia offline em português, inglês e alemão.
-O passo a passo do jogador também está em docs/GUIA_JOGADOR.md.
-
-SUPORTE
-Discord: .zmaycon. (com os pontos nas duas pontas).
-Repositório: https://github.com/Mayconrib808/OpenOmsi-BBS
-Releases: https://github.com/Mayconrib808/OpenOmsi-BBS/releases
+Personagem / skin: Alt > Cooperativo > Escolher personagem / skin.
+Motorista e trocador podem escolher um .hum instalado na pasta Humans.
+A escolha fica salva. Entre sem ônibus usando Start on foot na preparação da viagem do lobby.

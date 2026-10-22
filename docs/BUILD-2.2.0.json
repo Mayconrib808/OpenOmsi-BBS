@@ -1,0 +1,38 @@
+{
+  "version": "2.2.0",
+  "go": "go1.23.2",
+  "target": "windows/386",
+  "source_base": "865de091f47afffd0f87d45fc178d662c46c1a90",
+  "original_2_1_9_8_updater_sha256": "7b026ea86b88acef6e18c2be6c8c4f198e954610ee5e23834f86ecdbfb7035e7",
+  "input_updater_sha256": "7b026ea86b88acef6e18c2be6c8c4f198e954610ee5e23834f86ecdbfb7035e7",
+  "rebuilt": [
+    "Setup.exe",
+    "PeDePeAdapter/openomsi.exe",
+    "app/OpenOMSI_BCS_Bridge.exe"
+  ],
+  "preserved_unchanged": [
+    "CompanyHost.exe",
+    "HostAgent.exe",
+    "app/compat/Omsi.exe",
+    "app/compat/omsi-plugin-host32.exe"
+  ],
+  "components_sha256": {
+    "HostAgent.exe": "a483e435a23b9a74276fb045945ce58357ab5ea99f8759ddc2dddae41a41dba4",
+    "CompanyHost.exe": "3d57a4733cbfb8bec677c29d888de339a92ae43c161f9e48ccc9b7a97c7d6cb3",
+    "Setup.exe": "593065b489904554bb70bc7ed735b5cf7becfb75a3a9c634c18af11d60d7536a",
+    "PeDePeAdapter/openomsi.exe": "26bac1b3e1205014f47e74ba2407e29c60dc3ba05f432e40923bae9138c71422",
+    "app/OpenOMSI_BCS_Bridge.exe": "9703bc8fc91e7c95e7bcf43c2244a270ade6aec9ff0646300f5b3b85ac20fcf9",
+    "app/compat/Omsi.exe": "e028405534e6545e5d4385c35d1a5e348174c8efbe030dbe6199e54393531320",
+    "app/compat/omsi-plugin-host32.exe": "8c39f41ef970c1ce198b8a97b504f29e9a766ae93b48488295b270d7652a25c0"
+  },
+  "updater_sha256": "67741c25f265d829b310cdaedff1f625725eeddbdce9fa977181bcbcd88220db",
+  "windows_gameplay_tested": false,
+  "sequence": 2026102201,
+  "coop_archive_sha256": "78da217b753f664f3c56c70875c5bd3ceb213a22d805140a69bbd3e42940c081",
+  "coop_files": 45,
+  "coop_folder": "OpenOmsi Coop 0.3.38",
+  "coop_protocol": 14,
+  "existing_server_replaced": false,
+  "setup_bundled_selection": true,
+  "installer_size": 24196608
+}
