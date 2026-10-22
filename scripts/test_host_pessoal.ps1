@@ -55,9 +55,9 @@ try {
     $passed.Add('detects_existing_installation_instead_of_downloaded_pack')
 
     foreach($protocol in @(6,7,15)) {
-        $f=Fixture $protocol $false; $host=Snapshot $f.Data; $serverBefore=(Get-FileHash $f.Server).Hash
+        $f=Fixture $protocol $false; $hostSnapshot=Snapshot $f.Data; $serverBefore=(Get-FileHash $f.Server).Hash
         Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
-        Assert-Snapshot $host
+        Assert-Snapshot $hostSnapshot
         Assert-True ((Get-FileHash $f.Server).Hash -eq $serverBefore) 'Existing native server overwritten'
         $passed.Add('protocol_'+$protocol+'_configuration_and_server_preserved')
     }
@@ -71,9 +71,9 @@ try {
     Assert-True ((Get-FileHash $f.Server).Hash -eq $oldNative -and (Get-FileHash $hd.server).Hash -eq $oldNative) 'Native dynamic binary changed'
     Assert-True ($cd.Config -eq 'F:\Original\server.cfg' -and $cd.Keep.n -eq 3) 'Existing server configuration changed'
     $passed.Add('existing_personal_dynamic_p14_keeps_exact_native_and_companyhost_configuration')
-    $f=Fixture 14 $true; $host=Snapshot $f.Data
+    $f=Fixture 14 $true; $hostSnapshot=Snapshot $f.Data
     Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
-    Assert-Snapshot $host; $passed.Add('explicit_custom_p14_server_preserved')
+    Assert-Snapshot $hostSnapshot; $passed.Add('explicit_custom_p14_server_preserved')
 
     $f=Fixture 15 $true
     $startup=Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs/Startup/OpenOmsi-BBS-Host.cmd'
