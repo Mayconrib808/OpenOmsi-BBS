@@ -331,7 +331,7 @@ func TestPeDePeRestoresBCSWeatherForClientAndNewMultiplayerSession(t *testing.T)
 		t.Fatal("explicit vendor weather replaced", got, source, err)
 	}
 	natural := append(append([]string(nil), base...), "--weather", "natural")
-	old := time.Now().Add(-time.Hour)
+	old := time.Now().Add(-startupTimeout - time.Minute)
 	if err := os.Chtimes(situation+".owt", old, old); err != nil {
 		t.Fatal(err)
 	}
