@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "zip_sha256": "78da217b753f664f3c56c70875c5bd3ceb213a22d805140a69bbd3e42940c081",
+  "archive_scanning_previously_disabled": true,
+  "timestamp_utc": "2026-10-22T01:48:19.0907403Z",
+  "archive_scanning_disabled": false,
+  "engine_version": "1.1.26100.4",
+  "signature_version": "1.461.143.0",
+  "antivirus_enabled": true,
+  "direct_exit_code": 0,
+  "scope": "exact archive file"
+}

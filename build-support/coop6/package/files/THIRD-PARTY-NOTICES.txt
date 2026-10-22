@@ -1,0 +1,43 @@
+This is an unofficial experimental derivative of openOMSI v0.3.38, cooperative revision coop.4.1.
+Upstream: https://github.com/openOMSI-org/openOMSI
+Base commit: 866c60de268f3fc8737287b8e2d13993c49b1f1f
+License: AGPL-3.0-only. Corresponding modified source and build notes are in source/.
+
+The support programs and DLLs in programa/ are unmodified files from the official
+openOMSI-0.3.38-windows-x64.zip, except programa/openomsi.exe (cooperative build) and steam_api64.dll
+(the unmodified matching steamworks-sys redistributable described below). The MinGW runtime DLLs described below were added.
+The official archive's LICENSE, LICENSE-ANGLE.txt and README.md are preserved in
+programa/. The release archive and individual file digests are in PACKAGE-INFO.json.
+Official release: https://github.com/openOMSI-org/openOMSI/releases/tag/v0.3.38
+
+The official support programs openomsi-launcher.exe and openomsi-launcher-app.exe
+are distributed unchanged; the included complete source tree contains their
+corresponding source at the pinned upstream tag. The portable entry point
+ABRIR-COOPERATIVO.exe is built from source/portable-launcher/start-coop.c and the
+resources in that directory, under AGPL-3.0-only. It is not an upstream release.
+
+steam_api64.dll is an unmodified Valve Steam API redistributable taken from
+Noxime/steamworks-rs tag v0.13.0, steamworks-sys/lib/steam/redistributable_bin/
+win64/steam_api64.dll, matching the pinned steamworks-sys 0.13.0 dependency.
+Valve retains ownership and its applicable redistribution terms; the Rust
+binding's MIT/Apache licenses do not apply to the Steam SDK files. Provenance
+and exact hashes are recorded in source/STEAM-RUNTIME-PROVENANCE.json.
+Preserve upstream's asset, Steam and dependency notices in the source archive.
+An original OMSI 2 installation remains required. No commercial maps, vehicles
+or other proprietary OMSI game content are supplied by this package.
+
+libEGL.dll and libGLESv2.dll are the upstream release's unmodified ANGLE runtime.
+Its included redistribution notice is preserved as programa/LICENSE-ANGLE.txt.
+dxcompiler.dll, dxil.dll, msvcp140.dll, vcruntime140.dll and vcruntime140_1.dll are
+also preserved unchanged from that official Windows release. Their ownership
+and redistribution terms remain those of their respective upstream suppliers.
+
+The GNU Windows runtime files libstdc++-6.dll, libgcc_s_seh-1.dll and
+libwinpthread-1.dll come from the Ubuntu-distributed MinGW-w64 GCC 13 toolchain.
+Their package copyright/license documents are provided in licenses/, including
+the GCC Runtime Library Exception where applicable. Only debugging information
+was removed from those runtime DLLs. The Steam redistributable was not modified.
+Source projects: https://gcc.gnu.org/ and https://www.mingw-w64.org/.
+
+Rust dependencies retain the versions pinned by the included Cargo.lock. Their
+source repositories and license declarations remain those of upstream.
