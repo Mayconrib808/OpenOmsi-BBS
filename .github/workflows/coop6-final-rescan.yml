@@ -1,0 +1,70 @@
+name: Coop 6 final archive scan
+
+on:
+  push:
+    branches: ['codex/coop6-reviewed-build']
+    paths: ['.github/workflows/coop6-final-rescan.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  scan:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: coop6-complete-verified
+          path: input
+          run-id: 39707316359
+          github-token: ${{ github.token }}
+      - name: Verify and scan exact delivered archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force results | Out-Null
+          $scanDir = Join-Path $env:USERPROFILE 'Documents\Coop6Verification'
+          New-Item -ItemType Directory -Force $scanDir | Out-Null
+          $zip = Join-Path $scanDir 'Coop_6_Windows_x64.zip'
+          Copy-Item input/Coop_6_Windows_x64.zip $zip
+          $hash = (Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne '78da217b753f664f3c56c70875c5bd3ceb213a22d805140a69bbd3e42940c081') { throw 'Archive hash mismatch.' }
+          $preferences = Get-MpPreference
+          $report = [ordered]@{ status = 'pending'; zip_sha256 = $hash; archive_scanning_previously_disabled = $preferences.DisableArchiveScanning; timestamp_utc = [DateTime]::UtcNow.ToString('o') }
+          Set-MpPreference -DisableArchiveScanning $false
+          $preferences = Get-MpPreference
+          $report.archive_scanning_disabled = $preferences.DisableArchiveScanning
+          if ($preferences.DisableArchiveScanning) { throw 'Archive scanning could not be enabled.' }
+          $platform = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+          $scanner = if ($platform) { $platform.FullName } else { "$env:ProgramFiles/Windows Defender/MpCmdRun.exe" }
+          & $scanner -SignatureUpdate 2>&1 | Out-File results/signature-update.log
+          $status = Get-MpComputerStatus
+          $report.engine_version = $status.AMEngineVersion
+          $report.signature_version = $status.AntivirusSignatureVersion
+          $report.antivirus_enabled = $status.AntivirusEnabled
+          & $scanner -Scan -ScanType 3 -File $zip -DisableRemediation 2>&1 | Tee-Object -FilePath results/direct-archive-scan.log
+          $report.direct_exit_code = $LASTEXITCODE
+          $direct = Get-Content results/direct-archive-scan.log -Raw
+          if ($LASTEXITCODE -eq 0 -and $direct -match 'found no threats|no threats found' -and $direct -notmatch 'skipped') {
+            $report.status = 'passed'
+            $report.scope = 'exact archive file'
+          } else {
+            & $scanner -Scan -ScanType 3 -File $scanDir -DisableRemediation 2>&1 | Tee-Object -FilePath results/archive-directory-scan.log
+            $report.directory_exit_code = $LASTEXITCODE
+            $directory = Get-Content results/archive-directory-scan.log -Raw
+            if ($LASTEXITCODE -eq 0 -and $directory -match 'found no threats|no threats found' -and $directory -notmatch 'skipped') {
+              $report.status = 'passed'
+              $report.scope = 'directory containing only exact archive; archive scanning explicitly enabled'
+            } else { $report.status = 'requires_review' }
+          }
+          $report | ConvertTo-Json -Depth 5 | Set-Content -Encoding utf8 results/defender-exact-archive.json
+          if ($report.status -ne 'passed') { throw 'Exact archive scan needs review.' }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coop6-exact-archive-scan
+          retention-days: 14
+          path: results/*
