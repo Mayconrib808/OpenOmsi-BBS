@@ -1,0 +1,10 @@
+{
+  "version": "2.2.0.2",
+  "sequence": 2026102203,
+  "candidate_run_id": 39863166328,
+  "candidate_commit": "359ae98b578512ea061a224b46ad1e40c49c0f69",
+  "installer_sha256": "6f94debd72eed7867a1e6fe49c49590897f364d64d7c54c13c70639cad805d95",
+  "installer_size": 24199168,
+  "full_package_sha256": "1769b49f20260c52ce7191ccf306d40bede94926ccff314a0b71e00072a380d8",
+  "coop_archive_sha256": "58e6f36c5cea37321b6b44510428c0734250d2c388ad56ab7a773c396e748a0b"
+}

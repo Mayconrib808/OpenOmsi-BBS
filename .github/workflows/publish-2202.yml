@@ -1,0 +1,85 @@
+name: Publish signed Bridge 2.2.0.2 with Coop 8
+on:
+  push:
+    branches: ['release/2.2.0.2']
+    paths: ['build-support/bridge2202/stable.json', 'build-support/bridge2202/publication.json', '.github/workflows/publish-2202.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: openomsi-update-distribution
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Check exact approved native Windows candidate
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),{execFileSync}=require('child_process'),p=require('./build-support/bridge2202/publication.json');
+          if(p.version!=='2.2.0.2'||p.sequence!==2026102203||!Number.isSafeInteger(p.candidate_run_id)||!/^[a-f0-9]{40}$/.test(p.candidate_commit))throw Error('Invalid release request');
+          const r=JSON.parse(execFileSync('gh',['api',`repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${p.candidate_run_id}`],{encoding:'utf8'}));
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2202.yml'||r.head_branch!=='release/2.2.0.2')throw Error('Exact native Windows candidate did not pass');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,`run_id=${p.candidate_run_id}\n`);
+          NODE
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.2-update-candidate
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: approved-candidate
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.2-Setup-e-Coop8
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: approved-full
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.2-Windows-evidence
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: approved-evidence
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.1-approved-publication
+          run-id: 39795944956
+          github-token: ${{ github.token }}
+          path: approved-previous
+      - name: Check signature, exact bytes, source pins and native evidence
+        run: node build-support/bridge2202/publication.mjs prepare
+      - name: Distribution regression checks
+        run: node --test update-service/worker*.test.mjs
+      - name: Publish signed manifest, updater and Coop 8 together
+        working-directory: distribution
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
+      - name: Verify live manifest and every immutable download
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if node build-support/bridge2202/publication.mjs verify-live; then exit 0; fi
+            if test "$attempt" -lt 6; then sleep 5; fi
+          done
+          exit 1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.2-live-publication
+          path: |
+            build-support/bridge2202/publication.json
+            build-support/bridge2202/stable.json
+            approved-candidate/build-report.json
+            approved-candidate/coop-0.3.38-coop.8.json
+            approved-candidate/coop_bundle_manifest.go
+            approved-evidence/**
+          retention-days: 30
+          if-no-files-found: error
