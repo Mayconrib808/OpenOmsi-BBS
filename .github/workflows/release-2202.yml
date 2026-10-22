@@ -1,0 +1,89 @@
+name: Build and validate Bridge 2.2.0.2 with Coop 8
+on:
+  push:
+    branches: ['release/2.2.0.2']
+    paths: ['build-support/bridge2202/request.json', '.github/workflows/release-2202.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Check exact native game and baseline publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $p=Get-Content build-support/bridge2202/request.json -Raw | ConvertFrom-Json
+          if ($p.version -ne '2.2.0.2' -or $p.sequence -ne 2026102203) {throw 'Invalid release request.'}
+          $game=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$($p.game_run_id)" | ConvertFrom-Json
+          if ($game.status -ne 'completed' -or $game.conclusion -ne 'success' -or $game.head_sha -ne $p.game_commit -or $game.path -ne '.github/workflows/characters-windows.yml') {throw 'The exact native game candidate did not pass.'}
+          $prior=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$($p.baseline_publication_run)" | ConvertFrom-Json
+          if ($prior.status -ne 'completed' -or $prior.conclusion -ne 'success' -or $prior.head_sha -ne '1735db4370e7fb5bd2bf56692456a3265662d415') {throw 'The exact previous publication did not pass.'}
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.1-approved-publication
+          run-id: 39795944956
+          github-token: ${{ github.token }}
+          path: approved-previous
+      - uses: actions/download-artifact@v8
+        with:
+          name: bridge-2202-coop8-windows
+          run-id: 39860206858
+          github-token: ${{ github.token }}
+          path: approved-game
+      - name: Prepare complete Coop 8 and pin every downloadable byte
+        run: python scripts/prepare_coop8.py --previous-coop approved-previous/Coop7.zip --new-build approved-game --game-run 39860206858 --game-commit f932be74db8d7ef18885c7311946a0ac9b91072e --output build/Coop8.zip
+      - name: Build updater and full package with native Go tests
+        run: python scripts/build_2202.py --coop build/Coop8.zip --baseline-update approved-previous/assets/packages/c734faca3808127012892b6045a1995c03ecda8abf3cf7242b13a3034449662d.exe
+      - name: Native Setup, updater and actual game compatibility checks
+        run: python scripts/verify_2202_windows.py
+      - name: Scan exact updater and full package with Microsoft Defender
+        shell: pwsh
+        run: scripts/scan_2202.ps1
+      - name: Stage source manifest and native evidence
+        shell: pwsh
+        run: |
+          Copy-Item source/coop_bundle_manifest.go build/release-2202/
+          Copy-Item docs/releases/coop-0.3.38-coop.8.json build/release-2202/
+          Copy-Item build/Coop8.zip build/release-2202/
+          Get-Content build/release-2202/build-report.json
+          python -c "import json; from pathlib import Path; print('BRIDGE2202_SOURCE_RECORD='+json.dumps({name:Path(name).read_bytes().decode('utf-8') for name in ['source/coop_bundle_manifest.go','docs/releases/coop-0.3.38-coop.8.json']}))"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Bridge-2.2.0.2-Windows-evidence
+          path: build/release-2202/evidence/**
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.2-update-candidate
+          path: |
+            build/release-2202/Atualizar-Bridge.exe
+            build/release-2202/build-report.json
+            build/release-2202/coop_bundle_manifest.go
+            build/release-2202/coop-0.3.38-coop.8.json
+            build/release-2202/Coop8.zip
+            build/release-2202/coop-assets/**
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.2-Setup-e-Coop8
+          path: |
+            build/release-2202/OpenOmsi_BBS_2.2.0.2_Setup_e_Coop8.zip
+            build/release-2202/OpenOmsi_BBS_2.2.0.2_Setup_e_Coop8.zip.sha256
+          if-no-files-found: error
+          retention-days: 30

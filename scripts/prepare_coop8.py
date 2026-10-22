@@ -102,7 +102,7 @@ def main():
     if len(parts)!=4:raise ValueError('Unexpected distribution size')
     args.output.parent.mkdir(parents=True,exist_ok=True);args.output.write_bytes(archive)
     (ROOT/'docs/releases/coop-0.3.38-coop.8.json').write_bytes(dump(spec))
-    (ROOT/'source/coop_bundle_manifest.go').write_text(go_manifest(spec),encoding='utf-8')
+    (ROOT/'source/coop_bundle_manifest.go').write_text(go_manifest(spec),encoding='utf-8',newline='\n')
     print(json.dumps({'archive_sha256':sha(archive),'size':len(archive),'files':len(files),'parts':len(parts)}))
 
 if __name__=='__main__':main()

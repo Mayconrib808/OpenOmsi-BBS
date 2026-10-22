@@ -1,0 +1,9 @@
+{
+  "version": "2.2.0.2",
+  "sequence": 2026102203,
+  "game_run_id": 39860206858,
+  "game_commit": "f932be74db8d7ef18885c7311946a0ac9b91072e",
+  "game_artifact": "bridge-2202-coop8-windows",
+  "baseline_publication_run": 39795944956,
+  "baseline_publication_artifact": "Bridge-2.2.0.1-approved-publication"
+}
