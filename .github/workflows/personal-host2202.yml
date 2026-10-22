@@ -1,0 +1,89 @@
+name: Build and verify personal host 2.2.0.2
+on:
+  push:
+    branches: ['personal/2.2.0.2-host']
+    paths: ['scripts/*host*2202*', 'scripts/atualizar_host_pessoal.ps1', 'scripts/test_host_pessoal.ps1', 'scripts/recompilar_host.py', 'build-support/host-personal2202/**', '.github/workflows/personal-host2202.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Check original dynamic server validation
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $r=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/39698116557" | ConvertFrom-Json
+          if($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '0f2754dc5526429662f49a42bfe615b69e13a923'){throw 'Original native host was not approved.'}
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.1.9.8-Streaming-Experimental
+          run-id: 39698116557
+          github-token: ${{ github.token }}
+          path: previous-dynamic
+      - name: Test host protocols and build actual two native host components
+        run: python scripts/build_host_personal2202.py --baseline previous-dynamic/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip
+      - name: Actual installation and rollback on Windows PowerShell 5.1
+        shell: powershell
+        run: scripts/test_host_pessoal.ps1 -Package build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon -Baseline build/host-personal2202/baseline
+      - name: Actual installation and rollback on PowerShell 7
+        shell: pwsh
+        run: scripts/test_host_pessoal.ps1 -Package build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon -Baseline build/host-personal2202/baseline
+      - name: Defender scan actual native payload
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Set-MpPreference -DisableArchiveScanning $false
+          $scan=Join-Path $env:USERPROFILE 'Documents/HostPersonal2202Scan'
+          Copy-Item build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon $scan -Recurse
+          $scanner=(Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if(-not $scanner){$scanner="$env:ProgramFiles/Windows Defender/MpCmdRun.exe"}
+          & $scanner -SignatureUpdate 2>&1 | Out-File build/host-personal2202/defender-update.log
+          & $scanner -Scan -ScanType 3 -File $scan -DisableRemediation 2>&1 | Tee-Object -FilePath build/host-personal2202/defender-native.log
+          $code=$LASTEXITCODE
+          $text=Get-Content build/host-personal2202/defender-native.log -Raw
+          if($code -ne 0 -or $text -notmatch 'found no threats|no threats found' -or $text -match 'skipped'){throw 'Native payload Defender verification did not pass.'}
+          @{status='passed';archive_scanning_enabled=(-not (Get-MpPreference).DisableArchiveScanning);exit_code=$code;sha256=@(Get-ChildItem $scan -Recurse -File | Where-Object {$_.Extension -in @('.exe','.dll')} | ForEach-Object {@{name=$_.FullName.Substring($scan.Length+1);sha256=(Get-FileHash $_.FullName).Hash.ToLowerInvariant()}})} | ConvertTo-Json -Depth 8 | Set-Content build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon/validation/defender.json
+      - name: Build complete private ZIP with successful evidence
+        run: python scripts/build_host_personal2202.py --baseline previous-dynamic/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip --finalize
+      - name: Scan exact final ZIP
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip=Get-Item build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon.zip
+          $path=Join-Path $env:USERPROFILE ('Documents/'+$zip.Name)
+          Copy-Item $zip.FullName $path
+          $scanner=(Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          if(-not $scanner){$scanner="$env:ProgramFiles/Windows Defender/MpCmdRun.exe"}
+          & $scanner -Scan -ScanType 3 -File $path -DisableRemediation 2>&1 | Tee-Object -FilePath build/host-personal2202/defender-final-zip.log
+          $code=$LASTEXITCODE; $text=Get-Content build/host-personal2202/defender-final-zip.log -Raw
+          if($code -ne 0 -or $text -notmatch 'found no threats|no threats found' -or $text -match 'skipped'){throw 'Exact final ZIP Defender verification did not pass.'}
+          Write-Host ('HOST2202_ZIP_DEFENDER_PASSED sha256='+(Get-FileHash $path).Hash.ToLowerInvariant())
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Host-2.2.0.2-personal-validation
+          path: |
+            build/host-personal2202/*.log
+            build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon/validation/**
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.2-Host-Particular-Maycon
+          path: |
+            build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon.zip
+            build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon.zip.sha256
+          if-no-files-found: error
+          retention-days: 30

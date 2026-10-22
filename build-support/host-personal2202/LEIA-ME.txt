@@ -1,0 +1,34 @@
+HOST PARTICULAR 2.2.0.2 - MAYCON
+
+1. Feche HostAgent, CompanyHost, Setup e o servidor/OpenOMSI desta instalacao.
+2. Extraia este ZIP inteiro em qualquer pasta.
+3. Abra ATUALIZAR-MEU-HOST.cmd.
+   Ele procura a instalacao que voce ja usa. Se aparecer a selecao de pasta,
+   escolha a pasta da Bridge onde ficam Setup.exe e HostAgent.exe.
+4. Ao concluir, abra/inicie o HostAgent instalado na sua pasta habitual.
+
+O pacote recompila HostAgent e CompanyHost como 2.2.0.2 a partir das fontes
+atuais. Mantem suporte aos protocolos 6, 7, 14 e 15 e inclui o mesmo servidor
+dinamico P14 0.3.39-bbs-stream.1 da edicao pessoal anterior, com runtimes.
+
+Sua Bridge, Setup, adaptador BCS e jogo/Coop atuais ficam como estao.
+As skins do Coop 8, troca de motorista e demais mudancas do jogo continuam
+dependendo da versao do jogo que voce ja instalou; este ZIP atualiza o host.
+Empresa, convite/link, mapas, METAR, passageiros, horario, portas, limites,
+preferencias e arquivos extras sao preservados.
+
+Para o host dinamico P14 existente, o instalador usa uma pasta propria dentro
+da Bridge: app/server-dinamico-p14. O caminho fica salvo no HostAgent.
+Servidores personalizados e perfis de protocolo 15 continuam selecionados;
+o servidor P14 incluso nao substitui nem converte um servidor P15.
+Cada partida continua exigindo jogo e servidor no mesmo protocolo.
+
+O instalador confere os arquivos, guarda backup dos componentes/configuracoes
+alterados e reverte a operacao se uma substituicao falhar. O caminho do backup
+aparece na tela: LOCALAPPDATA/OpenOmsi-BBS/Personal-Host-2.2.0.2/Backups.
+Hosts desconhecidos/mais novos sao mantidos e a atualizacao para antes de
+substituir arquivos. Rodar o mesmo pacote novamente preserva as preferencias.
+
+Esta edicao e particular e nao muda o Buscar atualizacoes publico.
+Testes e fontes acompanham o ZIP. O servidor dinamico continua experimental:
+uma viagem real com BCS e dois jogadores precisa ser validada no jogo.
