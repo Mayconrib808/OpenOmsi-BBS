@@ -1,0 +1,66 @@
+name: Build Bridge 2.1.9.8 dynamic host candidate
+
+on:
+  push:
+    branches: ['work/2.1.9.8-dynamic-server']
+    paths:
+      - 'scripts/build_streaming_server_2198.py'
+      - 'scripts/package_streaming_2198.py'
+      - '.github/workflows/bridge-2198-streaming.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bbs-2198-streaming-native
+  cancel-in-progress: false
+
+jobs:
+  candidate:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - name: Inspect build toolchain
+        shell: pwsh
+        run: |
+          rustc --version
+          cargo --version
+          python --version
+      - name: Compile OpenOMSI 0.3.39 native streaming dedicated host
+        run: python scripts/build_streaming_server_2198.py --source build/native-stream-source --output build/dynamic-server
+      - name: Validate original Bridge 2.1.9.8 installer and seven components
+        run: python scripts/verify_2198_candidate.py
+      - name: Build complete Bridge 2.1.9.8 test ZIP without changing its executables
+        run: python scripts/package_streaming_2198.py
+      - name: Scan complete streaming ZIP and native binaries with Defender
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $path=(Resolve-Path 'build/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip').Path
+          $dir=Join-Path $env:RUNNER_TEMP 'bridge-2198-streaming-scan'
+          Expand-Archive -LiteralPath $path -DestinationPath $dir -Force
+          $scanner=Join-Path ${env:ProgramFiles} 'Windows Defender/MpCmdRun.exe'
+          if (-not (Test-Path $scanner)) { throw 'Defender scanner unavailable' }
+          $targets=@($path)+@(Get-ChildItem $dir -Recurse -File | Where-Object { $_.Extension -in @('.exe','.dll') } | ForEach-Object FullName)
+          foreach ($target in $targets) {
+            & $scanner -Scan -ScanType 3 -File $target -DisableRemediation | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw ('Defender rejected ' + (Split-Path $target -Leaf)) }
+          }
+          Write-Host ('Defender scanned ZIP and ' + ($targets.Count - 1) + ' executable files without detections in runner environment.')
+      - name: Upload complete candidate with its integrity evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Bridge-2.1.9.8-Streaming-Experimental
+          path: |
+            build/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip
+            build/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
