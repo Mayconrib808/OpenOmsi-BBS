@@ -1,0 +1,35 @@
+{
+  "version": "0.3.38-coop.6",
+  "base_version": "0.3.38-coop.5",
+  "target": "x86_64-pc-windows-msvc",
+  "protocol": 14,
+  "coop_protocol": "COOP1",
+  "entrypoint": "ABRIR-COOPERATIVO.exe",
+  "game": "programa/openomsi.exe",
+  "upstream_commit": "866c60de268f3fc8737287b8e2d13993c49b1f1f",
+  "support_binary_sha256": {
+    "ABRIR-COOPERATIVO.exe": "7230d3a2399933645608c5d85ec6cc7b978fb9e067b4bf90c3fa8b72915a5676",
+    "programa/dxcompiler.dll": "0689e2fee0a1c9df8662a59680469f24e2a3ad7ce6bbbcc9284f7a83172bfc59",
+    "programa/dxil.dll": "64be2368211d257a038a7d4ea6bb3e24c878eb8d588c7b8414fccf759b69c2ac",
+    "programa/libEGL.dll": "8c349c357be712b136ab3dc6ab28f4c2c2c50a095c03039cff389251628727ac",
+    "programa/libGLESv2.dll": "c31f0b650c923a7f04a437b59831b5caeb6307ceeda604ead305176c6b131f43",
+    "programa/msvcp140.dll": "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca",
+    "programa/openomsi-launcher-app.exe": "a9104447b84dfc6e4146c0cf590b0a774cb97537083052c2f6a7a2d223443f29",
+    "programa/openomsi-launcher.exe": "c11d5d98808e79dd36d861aeb3e7aca4e30b8f368862f18126ee641526633fbc",
+    "programa/steam_api64.dll": "eb17909a76668cf9ae0b92a618a34a50f6c73d3a6787cb4dd8ce36a8b10bfb75",
+    "programa/vcruntime140.dll": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7",
+    "programa/vcruntime140_1.dll": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e"
+  },
+  "unverified": [
+    "Windows graphical startup with OMSI content",
+    "two-player in-game session",
+    "Bridge integration with user settings"
+  ],
+  "runtime_scripts_added": false,
+  "antivirus_exclusions_added": false,
+  "privileged_installation_required": false,
+  "audio": "programa/assets/sounds/coop_turnstile_coin.wav",
+  "base_package": "OpenOMSI_Coop_0.3.38_coop.5_Completo_Windows_x64.zip",
+  "base_package_sha256": "4a809fcecf09cd516d31ae7123aebb39b19d10662a66c930f86549f4f02206e5",
+  "build_commit": "ac7fd77a788b3f00646d3a45351612a9b3b95772"
+}

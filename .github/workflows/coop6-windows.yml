@@ -3,7 +3,7 @@ name: Coop 6 Windows build and scan
 on:
   push:
     branches: ['codex/coop6-reviewed-build']
-    paths: ['build-support/coop6/**', '.github/workflows/coop6-windows.yml']
+    paths: ['build-support/coop6/overlay/**', 'build-support/coop6/prepare.py', 'build-support/coop6/overlay-sha256.json', 'build-support/coop6/coop_turnstile_coin.wav.b64']
   workflow_dispatch:
 
 permissions:

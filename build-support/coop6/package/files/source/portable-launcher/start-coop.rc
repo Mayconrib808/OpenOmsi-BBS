@@ -1,0 +1,29 @@
+#include <windows.h>
+1 ICON "openomsi.ico"
+1 RT_MANIFEST "start-coop.manifest"
+1 VERSIONINFO
+FILEVERSION 0,3,38,2
+PRODUCTVERSION 0,3,38,2
+FILEFLAGSMASK 0x3fL
+FILEFLAGS 0x0L
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "FileDescription", "OpenOMSI Cooperative Portable Launcher (unofficial)\0"
+            VALUE "FileVersion", "0.3.38-coop.2\0"
+            VALUE "InternalName", "ABRIR-COOPERATIVO\0"
+            VALUE "OriginalFilename", "ABRIR-COOPERATIVO.exe\0"
+            VALUE "ProductName", "OpenOMSI Cooperative (unofficial)\0"
+            VALUE "ProductVersion", "0.3.38-coop.2\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END

@@ -1,0 +1,59 @@
+name: Coop 6 complete package verification
+
+on:
+  push:
+    branches: ['codex/coop6-reviewed-build']
+    paths: ['build-support/coop6/package/**', '.github/workflows/coop6-package.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v7
+      - name: Wait for reviewed executable
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python build-support/coop6/package/make_complete.py wait
+      - uses: actions/download-artifact@v8
+        with:
+          name: coop6-windows-reviewed
+          path: build-output
+          run-id: 39705231489
+          github-token: ${{ github.token }}
+      - name: Assemble verified runtime files
+        run: python build-support/coop6/package/make_complete.py assemble
+      - name: Windows executable startup check
+        shell: pwsh
+        env:
+          OMSI_NO_UPDATE: '1'
+          OMSI_NO_GUARD: '1'
+        run: |
+          $root = "$env:GITHUB_WORKSPACE/final/OpenOMSI_Coop_0.3.38_coop.6_Portatil"
+          $process = Start-Process -FilePath "$root/programa/openomsi.exe" -ArgumentList '--self-test' -WorkingDirectory "$root/programa" -RedirectStandardOutput "$root/validation/windows-self-test.stdout.log" -RedirectStandardError "$root/validation/windows-self-test.stderr.log" -PassThru
+          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Windows startup self-test timed out.' }
+          if ($process.ExitCode -ne 0) { throw "Windows startup self-test failed: $($process.ExitCode)" }
+          @{ check = 'Windows native loader and built-in --self-test'; passed = $true; exit_code = $process.ExitCode; limitations = 'No graphical session or two-player gameplay tested.' } | ConvertTo-Json | Set-Content -Encoding utf8 "$root/validation/windows-startup.json"
+      - name: Scan package files with Microsoft Defender
+        run: ./build-support/coop6/package/scan.ps1 files
+      - name: Create complete portable ZIP
+        run: python build-support/coop6/package/make_complete.py zip
+      - name: Scan final ZIP with Microsoft Defender
+        run: ./build-support/coop6/package/scan.ps1 zip
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coop6-complete-verified
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            final/Coop_6_Windows_x64.zip
+            final/Coop_6_Windows_x64.sha256
+            final/defender-final.json
+            final/defender-final.log
+            final/OpenOMSI_Coop_0.3.38_coop.6_Portatil/validation/*

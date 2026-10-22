@@ -1,0 +1,47 @@
+OpenOMSI 0.3.38-coop.6 — Windows x64
+Modificação cooperativa experimental, não oficial. Protocolo de rede 14 / COOP1.
+
+COMO ABRIR
+1. Extraia o ZIP inteiro para uma pasta nova.
+2. Abra ABRIR-COOPERATIVO.exe na pasta principal.
+3. Se for solicitado, selecione a pasta do OMSI 2 com seus mapas e ônibus.
+
+Este pacote inclui o executável da Coop 6 compilado. Não precisa compilar código
+nem executar instalador. O jogo comercial, seus mapas e ônibus são necessários.
+
+MOTORISTA E COBRADOR
+Os dois jogadores usam este mesmo pacote e entram na mesma sessão multiplayer.
+O amigo embarca como passageiro; o motorista abre Alt > Cooperativo e autoriza
+o cobrador. O cobrador fecha o painel para clicar na caixa e nos controles reais.
+O suporte a cada botão depende dos scripts e da geometria do ônibus.
+
+CÂMERAS F1 E F2
+Em Alt > Cooperativo há botões separados para as câmeras F1 do motorista/caixa
+e para as câmeras F2 dos passageiros. F1 exige autorização de cobrador no ônibus
+do amigo. Escolha uma câmera, ajuste a posição e salve para aquele modelo.
+O mouse usa a câmera exibida para escolher bilhetes, troco e controles.
+Os rótulos F1/F2 no painel identificam os bancos de câmeras do ônibus.
+
+SINAL DE FECHAMENTO
+O cobrador autorizado pode usar o botão de bater na roleta para avisar o
+motorista. O WAV com a gravação real está em:
+  programa/assets/sounds/coop_turnstile_coin.wav
+O botão envia o aviso; o motorista continua responsável por fechar as portas.
+O áudio extra é suprimido quando a configuração de sons do modelo identifica
+um sinal nativo de fechamento. Mods com nomes diferentes precisam de teste.
+
+VERIFICAÇÃO
+Os resultados de compilação, testes, auditoria das DLLs e eventual análise do
+Defender estão em validation/ e source/BUILD-INFO.json. Testes automáticos não
+substituem uma partida Windows com seus ônibus e com os dois jogadores.
+O resultado de uma análise vale para os arquivos, mecanismo e definições
+registrados no relatório. Não significa garantia contra alertas futuros.
+
+Use ABRIR-COOPERATIVO.exe para preservar esta compilação durante a abertura.
+O jogo usa as configurações, logs e caches habituais do perfil Windows.
+Para abrir pela Bridge, ela precisa apontar para este executável cooperativo.
+
+FONTES E LICENÇAS
+O código correspondente está em source/openomsi-coop6-source.zip.
+As fontes do abridor estão em source/portable-launcher/.
+Projeto e modificações: AGPL-3.0-only. Avisos de dependências acompanham o pacote.
