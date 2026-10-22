@@ -75,6 +75,13 @@ try {
     Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
     Assert-Snapshot $host; $passed.Add('explicit_custom_p14_server_preserved')
 
+    $f=Fixture 15 $true
+    $startup=Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs/Startup/OpenOmsi-BBS-Host.cmd'
+    Put-File $startup 'custom startup command with saved arguments and custom --config'
+    $startupHash=(Get-FileHash $startup).Hash
+    Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
+    Assert-True ((Get-FileHash $startup).Hash -eq $startupHash) 'Existing startup arguments changed'
+    $passed.Add('existing_windows_startup_arguments_preserved_byte_for_byte')
     $f=Fixture; Put-File (Join-Path $f.Data 'HostAgent.local.json') '{bad-json'; $snap=Snapshot $f.Root
     $failed=$false; try { Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch } catch {$failed=$true}
     Assert-True $failed 'Malformed settings accepted'; Assert-Snapshot $snap; $passed.Add('malformed_settings_abort_before_any_write')

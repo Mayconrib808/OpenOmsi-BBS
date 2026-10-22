@@ -400,7 +400,7 @@ function Invoke-HostOnlyInstaller {
         $quotedConfig = '"' + $hostPath.Replace('%','%%') + '"'
         $startupText = '@echo off' + [Environment]::NewLine + 'start "" /b ' + $quotedAgent + ' --background --config ' + $quotedConfig + [Environment]::NewLine
         $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes($startupText)
-        Add-InstallFile $plan '' $startupPath (Get-ByteHash $bytes) $bytes
+        if (-not [IO.File]::Exists($startupPath)) { Add-InstallFile $plan '' $startupPath (Get-ByteHash $bytes) $bytes }
     }
     Add-InstallFile $plan $manifestPath (Join-Path $destinationRoot 'docs/HOST-PESSOAL-2.2.0.2.json') ((Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash)
     $receipt = [PSCustomObject]@{ version='2.2.0.2'; edition='host-pessoal.1'; installation=$destinationRoot; dynamic_server=$server; host_dynamic_selected=$hostActivated; company_dynamic_selected=$companyActivated; player_files_updated=$false }
