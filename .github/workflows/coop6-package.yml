@@ -29,16 +29,10 @@ jobs:
       - name: Assemble verified runtime files
         run: python build-support/coop6/package/make_complete.py assemble
       - name: Windows executable startup check
-        shell: pwsh
         env:
           OMSI_NO_UPDATE: '1'
           OMSI_NO_GUARD: '1'
-        run: |
-          $root = "$env:GITHUB_WORKSPACE/final/OpenOMSI_Coop_0.3.38_coop.6_Portatil"
-          $process = Start-Process -FilePath "$root/programa/openomsi.exe" -ArgumentList '--self-test' -WorkingDirectory "$root/programa" -RedirectStandardOutput "$root/validation/windows-self-test.stdout.log" -RedirectStandardError "$root/validation/windows-self-test.stderr.log" -PassThru
-          if (-not $process.WaitForExit(30000)) { $process.Kill(); throw 'Windows startup self-test timed out.' }
-          if ($process.ExitCode -ne 0) { throw "Windows startup self-test failed: $($process.ExitCode)" }
-          @{ check = 'Windows native loader and built-in --self-test'; passed = $true; exit_code = $process.ExitCode; limitations = 'No graphical session or two-player gameplay tested.' } | ConvertTo-Json | Set-Content -Encoding utf8 "$root/validation/windows-startup.json"
+        run: python build-support/coop6/package/make_complete.py selftest
       - name: Scan package files with Microsoft Defender
         run: ./build-support/coop6/package/scan.ps1 files
       - name: Create complete portable ZIP

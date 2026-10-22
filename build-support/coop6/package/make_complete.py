@@ -1,7 +1,6 @@
 from pathlib import Path
 import base64
 import hashlib
-import importlib.util
 import json
 import os
 import re
@@ -57,6 +56,7 @@ if mode == 'wait':
 elif mode == 'assemble':
     FINAL.mkdir(exist_ok=True)
     PACKAGE.mkdir(exist_ok=True)
+    (PACKAGE / 'validation').mkdir(exist_ok=True)
     for name, expected in json.loads((BUILT / 'build-sha256.json').read_text(encoding='utf-8-sig')).items():
         if sha((BUILT / name).read_bytes()) != expected:
             raise RuntimeError(f'Build artifact hash mismatch: {name}')
@@ -122,6 +122,19 @@ elif mode == 'assemble':
     info['omitted_unused_legacy_dlls'] = ['libgcc_s_seh-1.dll', 'libstdc++-6.dll', 'libwinpthread-1.dll']
     write_json(PACKAGE / 'source/BUILD-INFO.json', info)
     print('Assembled complete Coop 6 with verified official runtime files.')
+elif mode == 'selftest':
+    result = subprocess.run([str(PACKAGE / 'programa/openomsi.exe'), '--self-test'], cwd=PACKAGE / 'programa', capture_output=True, timeout=30)
+    (PACKAGE / 'validation/windows-self-test.stdout.log').write_bytes(result.stdout)
+    (PACKAGE / 'validation/windows-self-test.stderr.log').write_bytes(result.stderr)
+    write_json(PACKAGE / 'validation/windows-startup.json', {
+        'check': 'Windows native loader and built-in --self-test',
+        'passed': result.returncode == 0,
+        'exit_code': result.returncode,
+        'limitations': 'No graphical session or two-player gameplay tested.',
+    })
+    if result.returncode:
+        raise RuntimeError(f'Windows startup self-test failed: {result.returncode}')
+    print('Windows native loader and built-in startup self-test passed.')
 elif mode == 'zip':
     info_path = PACKAGE / 'source/BUILD-INFO.json'
     info = json.loads(info_path.read_text())
