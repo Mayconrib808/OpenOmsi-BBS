@@ -38,7 +38,7 @@ func peDePeAdapterFail(logPath, language, message string) {
 }
 
 func peDePeRealExecutable(c Config, packageDir string) (string, error) {
-	real := filepath.Clean(strings.TrimSpace(c.OpenOMSI))
+	real := resolveOpenOMSIExecutable(strings.TrimSpace(c.OpenOMSI))
 	if !filepath.IsAbs(real) || !strings.EqualFold(filepath.Base(real), "openomsi.exe") || !fileExists(real) {
 		return "", fmt.Errorf("%s", localText(c.Language,
 			"Configure o caminho do openOMSI real no Setup.exe da 2.1.0 antes de selecionar o adaptador no BBS.",
@@ -249,6 +249,7 @@ func main() {
 			}
 		}
 	}()
+	prepareOpenOMSICommand(cmd, real)
 	err = cmd.Run()
 	close(stopDriver)
 	<-driverStopped

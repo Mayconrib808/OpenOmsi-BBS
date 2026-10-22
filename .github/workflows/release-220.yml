@@ -1,0 +1,64 @@
+name: Build and validate Bridge 2.2.0 with Coop
+on:
+  push:
+    branches: ['release/2.2.0']
+    paths: ['source/**', 'scripts/**', 'docs/releases/coop-0.3.38-coop.6.json', '.github/workflows/release-220.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-220-candidate
+  cancel-in-progress: false
+jobs:
+  candidate:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: coop6-complete-verified
+          run-id: 39707316359
+          github-token: ${{ github.token }}
+          path: coop-input
+      - name: Tests and reproducible Bridge build with exact approved Coop
+        run: python scripts/build_220.py --coop coop-input/Coop_6_Windows_x64.zip
+      - name: Native Windows GUI, real Coop startup and Bridge compatibility
+        run: python scripts/verify_220_windows.py
+      - name: Scan exact final ZIP and updater with Defender archive scanning enabled
+        shell: pwsh
+        run: ./scripts/scan_220.ps1
+      - name: Upload reviewed update candidate
+        uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0-update-candidate
+          path: |
+            build/release-220/Atualizar-Bridge.exe
+            build/release-220/coop-assets/*.bin
+            build/release-220/build-report.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload complete setup with Coop folder
+        uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0-Setup-e-Coop
+          path: |
+            build/release-220/OpenOmsi_BBS_2.2.0_Setup_e_Coop.zip
+            build/release-220/OpenOmsi_BBS_2.2.0_Setup_e_Coop.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload validation and native Setup previews
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0-Windows-evidence
+          path: build/release-220/evidence/*
+          if-no-files-found: ignore
+          retention-days: 30

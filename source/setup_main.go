@@ -58,11 +58,14 @@ func (u *setupUI) configure(c Config) (Config, error) {
 		break
 	}
 	suggestion := c.OpenOMSI
+	if suggestion == "" {
+		suggestion = bundledCoopExecutable(u.dir)
+	}
 	if suggestion == "" && fileExists(filepath.Join(c.Root, "openomsi.exe")) {
 		suggestion = filepath.Join(c.Root, "openomsi.exe")
 	}
 	for {
-		s, e := u.line("Pasta do openOMSI ou caminho de openomsi.exe", "openOMSI folder or path to openomsi.exe", "openOMSI-Ordner oder vollständiger Pfad zu openomsi.exe", suggestion)
+		s, e := u.line("Pasta ou executável do openOMSI (oficial ou Cooperativo)", "openOMSI folder or executable (official or Cooperative)", "openOMSI-Ordner oder Programmdatei (offiziell oder kooperativ)", suggestion)
 		if e != nil {
 			return c, e
 		}
@@ -71,10 +74,7 @@ func (u *setupUI) configure(c Config) (Config, error) {
 			fmt.Println(e)
 			continue
 		}
-		if st, e := os.Stat(p); e == nil && st.IsDir() {
-			p = filepath.Join(p, "openomsi.exe")
-		}
-		c.OpenOMSI = p
+		c.OpenOMSI = resolveOpenOMSIExecutable(p)
 		if e = validateConfig(c, u.dir); e != nil {
 			u.say("As pastas não passaram na validação:", "Folder validation failed:", "Die Ordner konnten nicht bestätigt werden:")
 			fmt.Println(e)

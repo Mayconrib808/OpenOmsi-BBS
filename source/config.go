@@ -2,9 +2,12 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"debug/pe"
 	"fmt"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -16,7 +19,7 @@ type Config struct {
 	Passengers, AllTiles, AutoStart, BCSCompat, TimetableSync bool
 	Multiplayer                                               bool
 	CompanyProfile, CompanyID, PlayerName                     string
-	CompanyProfileSource string
+	CompanyProfileSource                                      string
 }
 
 func defaultConfig() Config {
@@ -109,7 +112,95 @@ func readConfig(path string) Config {
 			c.PlayerName = v
 		}
 	}
+	c.OpenOMSI = resolveOpenOMSIExecutable(c.OpenOMSI)
 	return c
+}
+
+// Select the game itself, never execute a renamed portable opener to probe its
+// CLI or monitor a BCS trip. The user's selected executable must exist before
+// its sibling programa folder can be considered. Official installs keep their
+// direct openomsi.exe. Documentation and launcher filenames are not required.
+func resolveOpenOMSIExecutable(selected string) string {
+	if selected == "" || !filepath.IsAbs(selected) {
+		return selected
+	}
+	selected = filepath.Clean(selected)
+	info, err := os.Stat(selected)
+	if err != nil {
+		return selected
+	}
+	if info.IsDir() {
+		direct := filepath.Join(selected, "openomsi.exe")
+		if fileExists(direct) {
+			return direct
+		}
+		portable := filepath.Join(selected, "programa", "openomsi.exe")
+		if fileExists(portable) {
+			return portable
+		}
+		return direct // validateConfig reports the missing executable.
+	}
+	if info.Mode().IsRegular() && strings.EqualFold(filepath.Ext(selected), ".exe") && !strings.EqualFold(filepath.Base(selected), "openomsi.exe") {
+		portable := filepath.Join(filepath.Dir(selected), "programa", "openomsi.exe")
+		if fileExists(portable) {
+			return portable
+		}
+	}
+	return selected
+}
+
+// The derivative identifies itself in the real binary. Do not infer it from
+// optional TXT files or from a folder named programa. These switches duplicate
+// its portable opener so a BCS launch cannot replace it with an official build
+// or redirect it through an inherited launcher. They affect this child only.
+func cooperativeOpenOMSIBuild(executable string) bool {
+	f, err := os.Open(executable)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 512<<20 {
+		return false
+	}
+	marker := []byte("0.3.38-coop.")
+	buffer := make([]byte, 64<<10)
+	var tail []byte
+	for {
+		n, readErr := f.Read(buffer)
+		chunk := append(tail, buffer[:n]...)
+		if bytes.Contains(chunk, marker) {
+			return true
+		}
+		if readErr == io.EOF || readErr != nil {
+			return false
+		}
+		keep := len(marker) - 1
+		if len(chunk) < keep {
+			keep = len(chunk)
+		}
+		tail = append(tail[:0], chunk[len(chunk)-keep:]...)
+	}
+}
+
+func prepareOpenOMSICommand(cmd *exec.Cmd, executable string) {
+	if !cooperativeOpenOMSIBuild(executable) {
+		return
+	}
+	env := cmd.Env
+	if env == nil {
+		env = os.Environ()
+	}
+	child := make([]string, 0, len(env)+3)
+	for _, entry := range env {
+		name, _, _ := strings.Cut(entry, "=")
+		if strings.EqualFold(name, "OMSI_NO_UPDATE") || strings.EqualFold(name, "OMSI_NO_GUARD") || strings.EqualFold(name, "OPENOMSI_BIN") || strings.EqualFold(name, "OMSI_LAUNCHER") {
+			continue
+		}
+		child = append(child, entry)
+	}
+	cmd.Env = append(child, "OMSI_NO_UPDATE=1", "OMSI_NO_GUARD=1", "OPENOMSI_BIN="+executable)
+	cmd.Dir = filepath.Dir(executable)
 }
 
 func parseBool(s string, d bool) bool {

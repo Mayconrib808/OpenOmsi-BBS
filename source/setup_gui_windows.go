@@ -51,6 +51,7 @@ const (
 	guiIDUpdates     = 114
 	guiIDAutoUpdates = 115
 	guiIDAutoStart   = 116
+	guiIDBundledCoop = 117
 )
 
 type guiPoint struct{ X, Y int32 }
@@ -254,8 +255,9 @@ func (g *setupGUI) createControls() {
 	g.root = g.edit(g.config.Root, 34, 176, 705, 201)
 	g.translatedButton("folder", 754, 176, 170, 34, guiIDRoot)
 	g.translatedLabel("executable", 34, 220, 740, 25)
-	g.executable = g.edit(g.config.OpenOMSI, 34, 247, 705, 202)
-	g.translatedButton("file", 754, 247, 170, 34, guiIDOpenOMSI)
+	g.executable = g.edit(g.config.OpenOMSI, 34, 247, 460, 202)
+	g.translatedButton("file", 510, 247, 170, 34, guiIDOpenOMSI)
+	g.translatedButton("bundled_coop", 694, 247, 230, 34, guiIDBundledCoop)
 	g.translatedLabel("company", 34, 303, 445, 26)
 	g.multiplayer = g.control("BUTTON", g.text("enable"), 510, 301, 414, 30, guiWSTabStop|guiBMAutoCheck, guiIDMultiplayer)
 	g.translations = append(g.translations, guiTranslation{g.multiplayer, "enable"})
@@ -485,6 +487,13 @@ func (g *setupGUI) command(id int) {
 		} else if path != "" {
 			guiSetText(g.executable, path)
 		}
+	case guiIDBundledCoop:
+		if path := bundledCoopExecutable(g.dir); path != "" {
+			guiSetText(g.executable, path)
+			guiSetText(g.status, g.text("bundled_coop_selected"))
+		} else {
+			guiMessageBox(g.window, g.text("bundled_coop_missing"), 0x10)
+		}
 	case guiIDProfile:
 		if path, err := g.pickFile(g.text("pick_profile"), g.text("profile_filter")); err != nil {
 			guiMessageBox(g.window, err.Error(), 0x10)
@@ -665,6 +674,9 @@ func runSetupGUI(dir string, smoke bool) error {
 	// a 900-pixel-high desktop. Virtualized coordinates work on older Windows.
 	guiUser.NewProc("SetProcessDPIAware").Call()
 	g := &setupGUI{dir: dir, config: readInstalledConfig(dir), results: make(chan guiResult, 1), updateResults: make(chan setupUpdateResult, 1), smoke: smoke}
+	if g.config.OpenOMSI == "" {
+		g.config.OpenOMSI = bundledCoopExecutable(dir)
+	}
 	activeSetupGUI = g
 	defer func() { activeSetupGUI = nil }()
 	g.background, _, _ = guiGDI.NewProc("CreateSolidBrush").Call(guiRGB(14, 25, 41))
@@ -721,6 +733,14 @@ func runSetupGUI(dir string, smoke bool) error {
 		return fmt.Errorf("Falha ao criar os campos da interface.")
 	}
 	if smoke {
+		if bundled := bundledCoopExecutable(g.dir); bundled != "" {
+			previous := g.config.OpenOMSI
+			g.command(guiIDBundledCoop)
+			if guiText(g.executable) != bundled || g.config.OpenOMSI != previous {
+				guiUser.NewProc("DestroyWindow").Call(g.window)
+				return fmt.Errorf("bundled Coop button must select the real game without saving preferences")
+			}
+		}
 		guiSetText(g.root, `C:\Smoke\OMSI 2`)
 		guiSetText(g.executable, `C:\Smoke\openomsi.exe`)
 		guiSetText(g.player, "SmokeTest")

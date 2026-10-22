@@ -115,6 +115,7 @@ func runOpenOMSICLIProbe(executable, option string) (string, error) {
 		}
 	}
 	cmd.Env = append(env, "OMSI_BACKGROUND=1")
+	prepareOpenOMSICommand(cmd, executable)
 	prepareOpenOMSIProbe(cmd)
 	var output openOMSIProbeOutput
 	cmd.Stdout, cmd.Stderr = &output, &output

@@ -3,7 +3,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -19,9 +18,7 @@ func setupFormConfig(previous Config, root, executable, player string, multiplay
 	if c.OpenOMSI, err = cleanInputPath(executable); err != nil {
 		return previous, fmt.Errorf(localText(c.Language, "Escolha o executável do OpenOMSI: %w", "Choose the OpenOMSI executable: %w", "Wähle die OpenOMSI-Programmdatei: %w"), err)
 	}
-	if info, err := os.Stat(c.OpenOMSI); err == nil && info.IsDir() {
-		c.OpenOMSI = filepath.Join(c.OpenOMSI, "openomsi.exe")
-	}
+	c.OpenOMSI = resolveOpenOMSIExecutable(c.OpenOMSI)
 	c.Language = normalizeLanguage(c.Language)
 	c.Multiplayer = multiplayer
 	c.PlayerName = strings.TrimSpace(player)

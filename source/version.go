@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-const bridgeVersion = "2.1.9.7-hotfix.1"
+const bridgeVersion = "2.2.0"
 const bridgeAuthor = "Mayconrib808"
 
 // Large maps can take several minutes on first load. All startup watchers share one limit.
-const startupTimeout = 15 * time.Minute
+const startupTimeout = 60 * time.Minute
 
 func normalizeLanguage(s string) string {
 	s = strings.ReplaceAll(strings.ToLower(strings.TrimSpace(s)), "_", "-")

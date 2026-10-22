@@ -108,6 +108,16 @@ func automaticPlayerManifest(payload map[string][]byte) []byte {
 	return []byte(b.String())
 }
 
+func automaticBridgeBinaryManifest(payload map[string][]byte) []byte {
+	binaries := map[string][]byte{}
+	for name, data := range payload {
+		if bridgeUpdateBinaryAllowed(name) {
+			binaries[name] = data
+		}
+	}
+	return automaticPlayerManifest(binaries)
+}
+
 // Preserve the host's attested binary while sharing the newly installed Setup
 // checksum, so old host/player patch combinations remain valid in either order.
 func updatedHostManifest(previous []byte, setup []byte) []byte {
@@ -129,7 +139,7 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 		return state, fmt.Errorf("atualizador incompleto")
 	}
 	for name := range payload {
-		if !bridgeUpdateBinaryAllowed(name) {
+		if !bridgeUpdateBinaryAllowed(name) && !verifyCoopPayloadFile(name, payload[name]) {
 			return state, fmt.Errorf("componente inesperado no atualizador")
 		}
 	}
@@ -146,18 +156,23 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	for name, data := range payload {
 		files[name] = data
 	}
-	files["docs/PATCH-PLAYER-SHA256.txt"] = automaticPlayerManifest(payload)
+	files["docs/PATCH-PLAYER-SHA256.txt"] = automaticBridgeBinaryManifest(payload)
 	// The cumulative installer carries the complete seven-file runtime. Its
 	// own checksums are the new runtime inventory, even if an older package
 	// lacked a component or its old manifest is missing/damaged. Source files,
 	// documentation and user settings are not part of this binary update.
-	completeRuntime := len(payload) == 7 // all names already passed the fixed allowlist
+	completeRuntime := true
+	for _, name := range []string{"Setup.exe", "HostAgent.exe", "CompanyHost.exe", "PeDePeAdapter/openomsi.exe", "app/OpenOMSI_BCS_Bridge.exe", "app/compat/Omsi.exe", "app/compat/omsi-plugin-host32.exe"} {
+		if len(payload[name]) == 0 {
+			completeRuntime = false
+		}
+	}
 	if completeRuntime {
 		files["docs/SHA256.txt"] = automaticPlayerManifest(payload)
 	}
 	if host, e := os.ReadFile(filepath.Join(dir, "docs", "PATCH-HOST-SHA256.txt")); e == nil {
 		if completeRuntime {
-			files["docs/PATCH-HOST-SHA256.txt"] = automaticPlayerManifest(payload)
+			files["docs/PATCH-HOST-SHA256.txt"] = automaticBridgeBinaryManifest(payload)
 		} else {
 			files["docs/PATCH-HOST-SHA256.txt"] = updatedHostManifestForPayload(host, payload)
 		}
