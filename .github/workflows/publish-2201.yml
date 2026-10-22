@@ -1,0 +1,127 @@
+name: Publish signed Bridge 2.2.0.1 with Coop 7
+on:
+  push:
+    branches: ['updates/2.2.0.1-publication']
+    paths: ['publication-2201/**', '.github/workflows/publish-2201.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: openomsi-update-distribution
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Check exact approved build identities
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json,subprocess
+          checks=[(39711784500,'45fd12694d318b135f4bddfd7c9ca5b7ca272b67','.github/workflows/release-220.yml'),(39775741405,'b6949d797997f453457bd9cc0601032c698c2cf5','.github/workflows/driver-share-windows.yml')]
+          for run,commit,path in checks:
+            r=json.loads(subprocess.check_output(['gh','api',f'repos/Mayconrib808/OpenOmsi-BBS/actions/runs/{run}']))
+            assert r['status']=='completed' and r['conclusion']=='success' and r['head_sha']==commit and r['path']==path
+          print('Both pinned builds completed successfully.')
+          PY
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0-update-candidate
+          run-id: 39711784500
+          github-token: ${{ github.token }}
+          path: approved-base
+      - uses: actions/download-artifact@v8
+        with:
+          name: bridge-2201-coop7-windows
+          run-id: 39775741405
+          github-token: ${{ github.token }}
+          path: approved-game
+      - name: Restore and verify exact signed distribution
+        run: |
+          python3 publication-2201/reconstruct.py
+          cd prepared-publication
+          node verificar-antes.mjs
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.1-approved-publication
+          path: prepared-publication/**
+          retention-days: 30
+          if-no-files-found: error
+  windows:
+    needs: prepare
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.1-approved-publication
+          path: prepared-publication
+      - name: Verify native Setup, updater progress and Coop 7
+        run: python publication-2201/verify-windows.py
+      - name: Scan exact new updater and Coop archive with Defender
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $evidence = Join-Path $env:GITHUB_WORKSPACE 'prepared-publication/evidence'
+          Set-MpPreference -DisableArchiveScanning $false
+          if ((Get-MpPreference).DisableArchiveScanning) { throw 'Archive scanning is unavailable.' }
+          $platform = Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+          $scanner = if ($platform) { $platform.FullName } else { "$env:ProgramFiles/Windows Defender/MpCmdRun.exe" }
+          & $scanner -SignatureUpdate 2>&1 | Out-File (Join-Path $evidence 'defender-update.log')
+          if (-not (Get-MpComputerStatus).AntivirusEnabled) { throw 'Defender is unavailable.' }
+          $files = @('prepared-publication/assets/packages/c734faca3808127012892b6045a1995c03ecda8abf3cf7242b13a3034449662d.exe','prepared-publication/Coop7.zip')
+          $report = [ordered]@{status='pending'; archive_scanning_enabled=$true; files=@()}
+          foreach ($file in $files) {
+            $target = (Resolve-Path $file).Path
+            $log = Join-Path $evidence ((Split-Path $target -Leaf) + '-defender.log')
+            & $scanner -Scan -ScanType 3 -File $target -DisableRemediation 2>&1 | Tee-Object -FilePath $log
+            $code = $LASTEXITCODE
+            $scan = Get-Content $log -Raw
+            $passed = $code -eq 0 -and $scan -match 'found no threats|no threats found' -and $scan -notmatch 'skipped'
+            $report.files += [ordered]@{name=(Split-Path $target -Leaf); sha256=(Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant(); exit_code=$code; passed=$passed}
+            if (-not $passed) { $report.status='requires_review'; $report | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $evidence 'defender-2201.json'); throw 'Exact-file Defender scan did not pass.' }
+          }
+          $report.status='passed'
+          $report | ConvertTo-Json -Depth 6 | Set-Content (Join-Path $evidence 'defender-2201.json')
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Bridge-2.2.0.1-Windows-evidence
+          path: prepared-publication/evidence/**
+          if-no-files-found: error
+          retention-days: 30
+  deploy:
+    needs: [prepare, windows]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.1-approved-publication
+          path: prepared-publication
+      - name: Verify signed files before deployment
+        working-directory: prepared-publication
+        run: node verificar-antes.mjs
+      - name: Publish manifest, updater and Coop 6 and 7 together
+        working-directory: prepared-publication
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
+      - name: Verify live manifest and every downloadable byte
+        working-directory: prepared-publication
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            if node verificar-online.mjs; then exit 0; fi
+            if test "$attempt" -lt 6; then sleep 5; fi
+          done
+          exit 1

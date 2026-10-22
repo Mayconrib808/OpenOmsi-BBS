@@ -1,0 +1,70 @@
+{
+  "sha256": "78da217b753f664f3c56c70875c5bd3ceb213a22d805140a69bbd3e42940c081",
+  "size": 63884704,
+  "prefix": "OpenOMSI_Coop_0.3.38_coop.6_Portatil/",
+  "parts": [
+    {
+      "sha256": "76b1c4ac0a429c5c1e457b765576c2520d00200f2027c75c839921be2e05070f",
+      "size": 16777216
+    },
+    {
+      "sha256": "2bf983f5a0d4b8f2788f5cdf43a4901d4c0bf5af185cdd96f6f2404c5f347f17",
+      "size": 16777216
+    },
+    {
+      "sha256": "5ef15761bd71590e2b577f76f867c11a17349ca230130cd2379a064bfd9c256a",
+      "size": 16777216
+    },
+    {
+      "sha256": "b6dc96a14e9cc609c0c9ac6f687698453e52541a540da4fd4157ae3adc6d1a0f",
+      "size": 13553056
+    }
+  ],
+  "files": {
+    "OpenOmsi Coop 0.3.38/ABRIR-COOPERATIVO.exe": "7230d3a2399933645608c5d85ec6cc7b978fb9e067b4bf90c3fa8b72915a5676",
+    "OpenOmsi Coop 0.3.38/LEIA-ME.txt": "dfea6292a142920cc2524f2bbaf6fb32af0d2c925f6a9b9d5fbe1cf58c049b3d",
+    "OpenOmsi Coop 0.3.38/LICENSE-AGPL-3.0.txt": "4cfc1a0e645c6506a80022ac1423d598e0a4a27d62ebd3d8d96b518278b74525",
+    "OpenOmsi Coop 0.3.38/licenses/gcc-mingw-w64-base-copyright.txt": "a481f772f7a53335f13b32c6c54eb1c8577ce97704edd3757ab7ed4287a8e96a",
+    "OpenOmsi Coop 0.3.38/licenses/GPL-3.txt": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "OpenOmsi Coop 0.3.38/licenses/LGPL-2.1.txt": "dc626520dcd53a22f727af3ee42c770e56c97a64fe3adb063799d8ab032fe551",
+    "OpenOmsi Coop 0.3.38/licenses/mingw-w64-common-copyright.txt": "af23297b7d17e8e31817a5d58088de6fdafe34705bb5a7d1d330f08711b31314",
+    "OpenOmsi Coop 0.3.38/licenses/mingw-w64-x86-64-dev-copyright.txt": "af23297b7d17e8e31817a5d58088de6fdafe34705bb5a7d1d330f08711b31314",
+    "OpenOmsi Coop 0.3.38/programa/assets/sounds/coop_turnstile_coin.wav": "aae7495351814969964e3080afad94dfba5176bfb3f422a880b8b78d7d08ae5f",
+    "OpenOmsi Coop 0.3.38/programa/dxcompiler.dll": "0689e2fee0a1c9df8662a59680469f24e2a3ad7ce6bbbcc9284f7a83172bfc59",
+    "OpenOmsi Coop 0.3.38/programa/dxil.dll": "64be2368211d257a038a7d4ea6bb3e24c878eb8d588c7b8414fccf759b69c2ac",
+    "OpenOmsi Coop 0.3.38/programa/libEGL.dll": "8c349c357be712b136ab3dc6ab28f4c2c2c50a095c03039cff389251628727ac",
+    "OpenOmsi Coop 0.3.38/programa/libGLESv2.dll": "c31f0b650c923a7f04a437b59831b5caeb6307ceeda604ead305176c6b131f43",
+    "OpenOmsi Coop 0.3.38/programa/LICENSE": "4cfc1a0e645c6506a80022ac1423d598e0a4a27d62ebd3d8d96b518278b74525",
+    "OpenOmsi Coop 0.3.38/programa/LICENSE-ANGLE.txt": "bf4da21bd20bcfb5b60b7ecc67fa864a79be049e21d6178076887f178dd6c71a",
+    "OpenOmsi Coop 0.3.38/programa/msvcp140.dll": "7c26614e1d733892c2deac7e245ce115504b1d80592dd0a01b08e3e5a55f89ca",
+    "OpenOmsi Coop 0.3.38/programa/openomsi-launcher-app.exe": "a9104447b84dfc6e4146c0cf590b0a774cb97537083052c2f6a7a2d223443f29",
+    "OpenOmsi Coop 0.3.38/programa/openomsi-launcher.exe": "c11d5d98808e79dd36d861aeb3e7aca4e30b8f368862f18126ee641526633fbc",
+    "OpenOmsi Coop 0.3.38/programa/openomsi.exe": "1196798e51d226e024b550786f0bc76d88a526b8e9f51c9c82bd9200a66e58f2",
+    "OpenOmsi Coop 0.3.38/programa/README.md": "3f450e7fc6bb36283f3ad5d8e0446570e599bee6ebaad6b081a5a32d48194890",
+    "OpenOmsi Coop 0.3.38/programa/steam_api64.dll": "eb17909a76668cf9ae0b92a618a34a50f6c73d3a6787cb4dd8ce36a8b10bfb75",
+    "OpenOmsi Coop 0.3.38/programa/vcruntime140.dll": "d1f4225df2cd877dbf130d5668a021dce3f94118455ff5ec952061c30afc9ce7",
+    "OpenOmsi Coop 0.3.38/programa/vcruntime140_1.dll": "a7146c08f89fe5b04541ab507cdb59ff7b44534d4ba3c668a426c6450a03434e",
+    "OpenOmsi Coop 0.3.38/SHA256.json": "b095d4b8e4e88ffd9599cabffcd79e40a9f6e1dba10a30d514c8aa8461ff7963",
+    "OpenOmsi Coop 0.3.38/source/audit_pe.py": "86a3340038ad99a7489a807d58970e9ae7f11c172d17ce36a9571fe88315a019",
+    "OpenOmsi Coop 0.3.38/source/BUILD-INFO.json": "93cac79e98bcf22550acefe86c93111dd6c14ef96ec11cec44af02ac9f707a2c",
+    "OpenOmsi Coop 0.3.38/source/BUILD.md": "46fb4d1e5a07068bf4524df66a9ded2603b1b76eeb4dcc4f58c375a699f406fd",
+    "OpenOmsi Coop 0.3.38/source/openomsi-coop6-source.zip": "8afb7de864785550417c8fd4b7e837625bf9aac9179d52ce412eb8e77ac96ef0",
+    "OpenOmsi Coop 0.3.38/source/portable-launcher/BUILD.md": "b50190ed05ca201511ec32a6d8512c57da58a050cb12052e8bfd0db65398a4c8",
+    "OpenOmsi Coop 0.3.38/source/portable-launcher/openomsi.ico": "51dc4207d2733c910b2d47fc5faea7714f64d69428f85e5570046aa668d6b532",
+    "OpenOmsi Coop 0.3.38/source/portable-launcher/start-coop.c": "481e05890b2f0a9d918bc87469098ab863561614f8e6d338e1816c71905c8805",
+    "OpenOmsi Coop 0.3.38/source/portable-launcher/start-coop.manifest": "724ddc633be6d4c5e332d41ddc55a6fa6af2c99b9ea3b2c1d5eb1b3b491369ec",
+    "OpenOmsi Coop 0.3.38/source/portable-launcher/start-coop.rc": "5e7178aff398bb36012b2700162cfcf63c7fc44458d9c9df47a7f08cbb10725b",
+    "OpenOmsi Coop 0.3.38/THIRD-PARTY-NOTICES.txt": "0f988598ac0351eccc3d56e7d76c643b739c93551c10aea68bf34e7bdda820a3",
+    "OpenOmsi Coop 0.3.38/validation/build-build.log": "a7fb73a6cc2ee8b0b08edee21e57b5a45951be69822b4a13c246e66f8875adfe",
+    "OpenOmsi Coop 0.3.38/validation/build-defender-report.json": "fc9f0ebd9611612c693cfeeb85d71993d6d8298f8fbe72d2e3232f53cf61ab8b",
+    "OpenOmsi Coop 0.3.38/validation/build-defender-scan.log": "8321e3f867b632a8bea774405a99097b011b81847da36cf6a0225bfdeff5f70a",
+    "OpenOmsi Coop 0.3.38/validation/build-overlay-sha256.json": "921765788bb5cb73117244f96f326396b7ee9f80ba2fe97cb4225a0c0b06875c",
+    "OpenOmsi Coop 0.3.38/validation/build-regressions.log": "2a3c72a27e7da6b5b0026279b4776acbabdd752e7760a2b686494e352eb71e44",
+    "OpenOmsi Coop 0.3.38/validation/defender-files.json": "6df806a59bdde4ab5a458b4cbd8a68f565bfbe30aacf06924e6e187b480e31e6",
+    "OpenOmsi Coop 0.3.38/validation/defender-files.log": "fb354074dbdde7039565cb808e8f168270396a3d769b0ecdcb5077b052252960",
+    "OpenOmsi Coop 0.3.38/validation/pe-import-audit.json": "d7652d33e69f2bb05e972927de68f639337f7a5097e17b365617647f1663d2bf",
+    "OpenOmsi Coop 0.3.38/validation/windows-self-test.stderr.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "OpenOmsi Coop 0.3.38/validation/windows-self-test.stdout.log": "14daac09ec3efcfbf0bb3f76cd08a6a2c6da42d03652d4fedcef1bf23acb611e",
+    "OpenOmsi Coop 0.3.38/validation/windows-startup.json": "354f874125b2310846f74b3239b84a43c5493c02fe75bdb0449fc73cefd3ab52"
+  }
+}
