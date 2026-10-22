@@ -46,6 +46,16 @@ jobs:
           cargo build --locked --release --target x86_64-pc-windows-msvc -p omsi-app --bin openomsi 2>&1 | Tee-Object -FilePath ../out/build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item target/x86_64-pc-windows-msvc/release/openomsi.exe ../out/openomsi.exe
+      - name: Native Windows self-test
+        working-directory: game
+        shell: pwsh
+        run: |
+          $exe = 'target/x86_64-pc-windows-msvc/release/openomsi.exe'
+          & $exe --version 2>&1 | Tee-Object -FilePath ../out/windows-version.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --self-test 2>&1 | Tee-Object -FilePath ../out/windows-self-test.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @{ passed = $true; graphical_gameplay_tested = $false; two_player_gameplay_tested = $false } | ConvertTo-Json | Set-Content ../out/windows-startup.json
       - name: Package complete corresponding source
         run: |
           python support/build-support/coop6/prepare.py package
@@ -64,7 +74,8 @@ jobs:
               & $scanner -SignatureUpdate 2>&1 | Out-File out/defender-update.log
               & $scanner -Scan -ScanType 3 -File "$env:GITHUB_WORKSPACE/out" -DisableRemediation 2>&1 | Tee-Object -FilePath out/defender-scan.log
               $report.exit_code = $LASTEXITCODE
-              if ($LASTEXITCODE -eq 0) { $report.status = 'passed' }
+              if ($LASTEXITCODE -eq 0 -and (Get-Content out/defender-scan.log -Raw) -match 'found no threats|no threats found') { $report.status = 'passed' }
+              elseif ($LASTEXITCODE -eq 0) { $report.status = 'review_log' }
               else { $report.status = 'scan_error_or_detection' }
             }
           } catch { $report.error = $_.Exception.Message }
