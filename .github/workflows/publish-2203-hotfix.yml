@@ -27,7 +27,7 @@ jobs:
           const fs=require('fs'),{execFileSync}=require('child_process'),p=require('./build-support/bridge2203-hotfix/publication.json');
           if(p.version!=='2.2.0.3-hotfix.2'||p.sequence!==2026102303||!Number.isSafeInteger(p.candidate_run_id)||!/^[a-f0-9]{40}$/.test(p.candidate_commit))throw Error('Invalid hotfix request');
           const r=JSON.parse(execFileSync('gh',['api',`repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${p.candidate_run_id}`],{encoding:'utf8'}));
-          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2203-hotfix2.yml'||r.head_branch!=='release/2.2.0.3')throw Error('Exact hotfix candidate did not pass');
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2203-hotfix.yml'||r.head_branch!=='release/2.2.0.3')throw Error('Exact hotfix candidate did not pass');
           fs.appendFileSync(process.env.GITHUB_OUTPUT,`run_id=${p.candidate_run_id}\n`);
           NODE
       - uses: actions/download-artifact@v8
