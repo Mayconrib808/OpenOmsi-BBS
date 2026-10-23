@@ -13,7 +13,7 @@ for name,item in spec.items():
         data=p.read_bytes().replace(b'\r\n',b'\n')
         if sha(data)!=item['before']:raise ValueError('Source baseline differs: '+name)
         p.write_bytes(data)
-patch=(support.parent/'greetings/greetings.patch').read_bytes().replace(b'\r\n',b'\n')
+patch=(support/'greetings.patch').read_bytes().replace(b'\r\n',b'\n')
 subprocess.run(['git','apply','--whitespace=nowarn','-'],input=patch,cwd=game,check=True)
 for name,item in spec.items():
     p=game/name

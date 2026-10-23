@@ -357,14 +357,6 @@
      /// the scenery objects' scripts (see `World::scenery_sync`)
      scenery: omsi_sim::scenery::SceneryState,
      camera: Camera,
-@@ -77,6 +79,7 @@
-     cabin_air: crate::condensation::CabinAir,
-     /// a dedicated server's administration and clock (see `admin`)
-     srv_admin: crate::admin::ServerAdmin,
-+    coop_ai: crate::coop::AiServer,
-     srv_clock: f64,
-     srv_metar: Option<String>,
-     srv_metar_due: std::time::Instant,
 --- a/crates/omsi-app/src/offscreen/setup.rs
 +++ b/crates/omsi-app/src/offscreen/setup.rs
 @@ -34,7 +34,38 @@
@@ -407,15 +399,7 @@
          // the map's own route arrows, with OMSI 2's route arrows
          world.show_help_arrows(&renderer, &mut scene, settings.nav_arrows);
          let lan_seed = lan_off.as_ref().map(lan::population_seed);
-@@ -243,6 +274,7 @@
-         let real_time = RealTime::default();
-         let recorder = record::Recorder::new(out, player.as_mut(), &args.root, settings.doppler);
-         Ok(Offscreen {
-+            coop_ai: Default::default(),
-             args,
-             out,
-             w,
-@@ -252,6 +284,7 @@
+@@ -253,6 +284,7 @@
              renderer,
              scene,
              world,
@@ -436,35 +420,7 @@
      }
  
      /// The ground under the vehicles (`OMSI_GROUND_GAP`).
-@@ -42,6 +44,7 @@
-         let Self {
-             ref mut srv_clock,
-             ref mut srv_admin,
-+            ref mut coop_ai,
-             ref srv_metar,
-             ref mut srv_metar_due,
-             ref mut srv_metar_rx,
-@@ -53,7 +56,7 @@
-             ref renderer,
-             ref mut scene,
-             ref mut sim_view,
--            ref humans_off,
-+            ref mut humans_off,
-             ref mut real_time,
-             ref settings,
-             ..
-@@ -112,8 +115,10 @@
-             let hub = omsi_lan::admin::hub().map(|h| &**h);
-             let rules = crate::admin::server_rules(srv_metar.is_some());
-             for (from, text) in l.take_commands() {
-+                if coop_ai.receive(l, traffic.as_mut(), humans_off.as_mut(), from, &text) { continue; }
-                 omsi_lan::admin::server_command(l, from, &text, srv_admin, &positions, &rules, hub);
-             }
-+            coop_ai.tick(l, traffic.as_mut(), humans_off.as_mut());
-             for text in crate::lan::take_local_admin() {
-                 srv_admin.admins.insert(crate::admin::LOCAL_ADMIN, omsi_admin::Role::Admin);
-                 omsi_lan::admin::server_command(l, crate::admin::LOCAL_ADMIN, &format!("admin {text}"), srv_admin, &positions, &rules, hub);
-@@ -821,6 +826,34 @@
+@@ -824,6 +826,34 @@
          }
      }
  
