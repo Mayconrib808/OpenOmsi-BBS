@@ -10,7 +10,7 @@
  pub mod emergency;
 --- /dev/null
 +++ b/crates/omsi-sim/src/ai_traffic/greetings.rs
-@@ -0,0 +1,260 @@
+@@ -0,0 +1,279 @@
 +//! Friendly greetings between oncoming buses. Presentation only; no driving or timetable changes.
 +use crate::VehicleInstance;
 +use glam::{DVec2, DVec3};
@@ -175,7 +175,7 @@
 +            if car.vehicle.host.capture_sound_triggers {
 +                car.vehicle.host.network_sound_triggers.push((HORN_EVENT.into(), None, None));
 +            }
-+            let saved = ["lights_fern", "lights_fernlicht", "farol_alto", "farolalto"]
++            let saved = ["lights_fern", "lights_fernlicht", "farol_alto", "farolalto", "Spot_Select"]
 +                .iter().filter_map(|&name| car.vehicle.var(name).map(|v| (name,v))).collect();
 +            self.flashes.insert(id,Flash { began:now,saved });
 +        }
@@ -184,7 +184,10 @@
 +            if let Some(f) = self.flashes.get(&car.id) {
 +                let elapsed = now - f.began;
 +                let on = elapsed < 0.2 || (0.35..0.55).contains(&elapsed);
-+                for &(name,original) in &f.saved { car.vehicle.set_var(name, if on { 1.0 } else { original }); }
++                for &(name,original) in &f.saved {
++                    let high = if name == "Spot_Select" && car.vehicle.ty.model.spotlights.len() < 2 { 0.0 } else { 1.0 };
++                    car.vehicle.set_var(name, if on { high } else { original });
++                }
 +            }
 +        }
 +    }
@@ -270,6 +273,22 @@
 +        sim.snapshot_sounds(&mut frame,DVec3::ZERO,250.0,0.0,None); assert_eq!(frame.honks.len(),1);
 +        sim.snapshot_sounds(&mut frame,DVec3::ZERO,250.0,0.0,None); assert!(frame.honks.is_empty());
 +    }
++    #[test] fn two_ai_buses_on_the_same_line_greet_each_other_once() {
++        let (f,mut sim)=scene();
++        let setup=super::super::BusSetup {route:vec![0],stops:vec![],number:None,hof:None,
++            timetable:super::super::bus_service::AiTimetable {line:"205".into(),terminus:"B".into(),stops:vec![]} };
++        let mut v=VehicleInstance::new(f.ty.clone(),crate::VehicleHost::new(crate::SimClock::default()));
++        v.set_engine_var("lights_fern",0.0);
++        sim.place_car(v,crate::traffic::LaneKind::Street,0,40.0,f.ty.clone(),2,None,Some(2),Some(8.0),Some(setup));
++        sim.cars[1].vehicle.position=DVec3::new(-3.5,40.0,0.0);sim.cars[1].vehicle.heading=180.0;
++        sim.cars[1].vehicle.host.capture_sound_triggers=true;
++        let mut g=Greetings::default();g.update(&mut sim,vec![],0.1);g.update(&mut sim,vec![],0.5);
++        for car in &sim.cars { assert_eq!(car.vehicle.var("lights_fern"),Some(1.0));
++            assert_eq!(car.vehicle.host.network_sound_triggers.iter().filter(|e|e.0==HORN_EVENT).count(),1); }
++        for _ in 0..100 {g.restore(&mut sim);g.update(&mut sim,vec![],0.1);}
++        for car in &sim.cars {assert_eq!(car.vehicle.host.network_sound_triggers.iter().filter(|e|e.0==HORN_EVENT).count(),1);}
++    }
++
 +}
 --- a/crates/omsi-sim/src/view_events/sounds.rs
 +++ b/crates/omsi-sim/src/view_events/sounds.rs
@@ -303,7 +322,7 @@
              looks: Default::default(),
 --- a/crates/omsi-app/src/app_events/frame/steps.rs
 +++ b/crates/omsi-app/src/app_events/frame/steps.rs
-@@ -40,7 +40,18 @@
+@@ -40,7 +40,19 @@
              let r = p.rail.as_ref()?;
              Some(omsi_sim::ai_traffic::model::PlayerRail { lane: r.lane, s: r.s, along: r.along, train: omsi_sim::ai_traffic::model::is_train(&p.vehicle.ty.def) })
          });
@@ -316,7 +335,8 @@
 +                .map(|(id,r)| { let mut b = Bus::from_vehicle(BusId::Player(*id), r.vehicle(), &r.last.line,
 +                    r.last.flags & omsi_net::FLAG_HORN != 0); b.speed = r.last.speed_kmh / 3.6; b }).collect();
 +            if let Some(p) = player { buses.push(Bus::from_vehicle(BusId::Player(0), &p.vehicle, "", false)); }
-+            greetings.update(&mut t.sim, buses, dt);
++            let greeting_dt = if dt > 0.0 { dt } else { t.sim.last_dt };
++            greetings.update(&mut t.sim, buses, greeting_dt);
 +        }
 +        t.greetings = greetings;
          let t0 = Instant::now();
