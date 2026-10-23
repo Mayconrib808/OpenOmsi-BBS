@@ -130,4 +130,74 @@ world = world.replace(vehicle_eye,
                 crate::traffic::Viewer::lan_player(at, heading as f64)''')
 world_path.write_text(world, encoding='utf-8', newline='\n')
 
-print('Prepared owner-avatar, on-foot authorization, F1 skin, and player-hosted LAN foot traffic source fixes; validation required.')
+
+# Reduce network command amplification during an active handover. Most input
+# snapshots fit one protocol-14 CMD; their previous 48-byte hex fragmentation
+# produced three or more commands every 50 ms and starved the 3-second lease
+# during Cloudflare relay. Keep the old, safe fragment protocol as fallback.
+share_path = game / 'crates/omsi-lan/src/drive_share.rs'
+share = share_path.read_text(encoding='utf-8')
+src = 'pub const FRAGMENT_PREFIX: &str = "DRV1F ";'
+assert share.count(src) == 1
+share = share.replace(src, src + '\npub const COMPACT_INPUT_PREFIX: &str = "DRV1I ";')
+src = '''    let wire = message.encode();
+    wire.as_bytes().chunks(48).enumerate().map(|(i, bytes)| {'''
+repl = '''    if let Message::Input { token, seq, frame } = message {
+        let compact = format!("{COMPACT_INPUT_PREFIX}{token:x} {seq:x} {}",
+            serde_json::to_string(frame).expect("serializable input frame"));
+        if compact.len() <= 125 && !compact.contains('|') && !compact.contains('\\n') {
+            return vec![compact];
+        }
+    }
+    let wire = message.encode();
+    wire.as_bytes().chunks(48).enumerate().map(|(i, bytes)| {'''
+assert share.count(src) == 1
+share = share.replace(src, repl)
+src = '''    pub fn receive(&mut self, peer: u32, wire: &str, now: u64) -> Option<Message> {
+        self.pending.retain'''
+repl = '''    pub fn receive(&mut self, peer: u32, wire: &str, now: u64) -> Option<Message> {
+        if let Some(data) = wire.strip_prefix(COMPACT_INPUT_PREFIX) {
+            if wire.len() > 125 { return None; }
+            let mut fields = data.splitn(3, ' ');
+            let token = u64::from_str_radix(fields.next()?, 16).ok()?;
+            let seq = u64::from_str_radix(fields.next()?, 16).ok()?;
+            let frame: Frame = serde_json::from_str(fields.next()?).ok()?;
+            let message = Message::Input { token, seq, frame };
+            return message.valid().then_some(message);
+        }
+        self.pending.retain'''
+assert share.count(src) == 1
+share = share.replace(src, repl)
+src = 'let m=Message::Input {token:42,seq:1,frame:Frame::safe()};let parts=fragments(&m,7);assert!(parts.len()>1);'
+repl = 'let m=Message::Input {token:42,seq:1,frame:Frame {buttons:vec!["large_valid_button_name_one".into(),"large_valid_button_name_two".into(),"large_valid_button_name_three".into()],..Frame::safe()}};let parts=fragments(&m,7);assert!(parts.len()>1);'
+assert share.count(src) == 1
+share = share.replace(src, repl)
+before_test = '    #[test]\n    fn fragments_from_other_peers_and_expired_requests_cannot_be_combined() {'
+test = '''    #[test]
+    fn compact_input_uses_one_authenticated_command_and_falls_back_for_large_frames() {
+        let m = Message::Input { token: 42, seq: 5, frame: Frame::safe() };
+        let parts = fragments(&m, 7);
+        assert_eq!(parts.len(), 1);
+        assert!(parts[0].len() <= 125);
+        assert!(parts[0].starts_with(COMPACT_INPUT_PREFIX));
+        assert!(!parts[0].contains('|'));
+        let mut inbox = Inbox::default();
+        assert_eq!(inbox.receive(2, &parts[0], 100), Some(m));
+        assert!(inbox.receive(2, "DRV1I 0 2 {}", 200).is_none());
+        assert!(inbox.receive(2, "DRV1I 2 nothex {}", 200).is_none());
+    }
+'''
+assert share.count(before_test) == 1
+share = share.replace(before_test, test + before_test)
+share_path.write_text(share, encoding='utf-8', newline='\n')
+
+drive_path = game / 'crates/omsi-app/src/coop_drive.rs'
+drive = drive_path.read_text(encoding='utf-8')
+src = '''        if !wire.starts_with(omsi_lan::drive_share::FRAGMENT_PREFIX) {return false;}'''
+repl = '''        if !wire.starts_with(omsi_lan::drive_share::FRAGMENT_PREFIX)
+            && !wire.starts_with(omsi_lan::drive_share::COMPACT_INPUT_PREFIX) {return false;}'''
+assert drive.count(src) == 1
+drive = drive.replace(src, repl)
+drive_path.write_text(drive, encoding='utf-8', newline='\n')
+
+print('Prepared Coop 10 driver handover, on-foot AI, F1, skin and compact-input changes; requires integration validation.')
