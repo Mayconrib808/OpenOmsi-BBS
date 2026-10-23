@@ -1,0 +1,25 @@
+name: Bridge 2.2.0.3 activation integrity regression
+on:
+  push:
+    branches: ['fix/2203-activation-integrity-scope']
+  pull_request:
+    branches: ['release/2.2.0.3']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  bridge-regression:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Test release-specific Bridge sources without rebuilding retained P15 host
+        run: python scripts/build_2203.py --tests-only
