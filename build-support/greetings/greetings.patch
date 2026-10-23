@@ -10,7 +10,7 @@
  pub mod emergency;
 --- /dev/null
 +++ b/crates/omsi-sim/src/ai_traffic/greetings.rs
-@@ -0,0 +1,279 @@
+@@ -0,0 +1,281 @@
 +//! Friendly greetings between oncoming buses. Presentation only; no driving or timetable changes.
 +use crate::VehicleInstance;
 +use glam::{DVec2, DVec3};
@@ -231,6 +231,7 @@
 +        let setup=super::super::BusSetup {route:vec![0],stops:vec![],number:None,hof:None,
 +            timetable:super::super::bus_service::AiTimetable {line:"205".into(),terminus:"A".into(),stops:vec![]} };
 +        let mut v=VehicleInstance::new(f.ty.clone(),crate::VehicleHost::new(crate::SimClock::default()));
++        setup.timetable.install(&mut v.host,None);
 +        v.set_engine_var("lights_fern",0.0); v.set_engine_var("lights_abbl",1.0);
 +        sim.place_car(v,crate::traffic::LaneKind::Street,0,0.0,f.ty.clone(),1,None,Some(1),Some(8.0),Some(setup));
 +        sim.cars[0].vehicle.position=DVec3::ZERO; sim.cars[0].vehicle.heading=0.0;
@@ -278,6 +279,7 @@
 +        let setup=super::super::BusSetup {route:vec![0],stops:vec![],number:None,hof:None,
 +            timetable:super::super::bus_service::AiTimetable {line:"205".into(),terminus:"B".into(),stops:vec![]} };
 +        let mut v=VehicleInstance::new(f.ty.clone(),crate::VehicleHost::new(crate::SimClock::default()));
++        setup.timetable.install(&mut v.host,None);
 +        v.set_engine_var("lights_fern",0.0);
 +        sim.place_car(v,crate::traffic::LaneKind::Street,0,40.0,f.ty.clone(),2,None,Some(2),Some(8.0),Some(setup));
 +        sim.cars[1].vehicle.position=DVec3::new(-3.5,40.0,0.0);sim.cars[1].vehicle.heading=180.0;
@@ -355,6 +357,14 @@
      /// the scenery objects' scripts (see `World::scenery_sync`)
      scenery: omsi_sim::scenery::SceneryState,
      camera: Camera,
+@@ -77,6 +79,7 @@
+     cabin_air: crate::condensation::CabinAir,
+     /// a dedicated server's administration and clock (see `admin`)
+     srv_admin: crate::admin::ServerAdmin,
++    coop_ai: crate::coop::AiServer,
+     srv_clock: f64,
+     srv_metar: Option<String>,
+     srv_metar_due: std::time::Instant,
 --- a/crates/omsi-app/src/offscreen/setup.rs
 +++ b/crates/omsi-app/src/offscreen/setup.rs
 @@ -34,7 +34,38 @@
@@ -397,7 +407,15 @@
          // the map's own route arrows, with OMSI 2's route arrows
          world.show_help_arrows(&renderer, &mut scene, settings.nav_arrows);
          let lan_seed = lan_off.as_ref().map(lan::population_seed);
-@@ -253,6 +284,7 @@
+@@ -243,6 +274,7 @@
+         let real_time = RealTime::default();
+         let recorder = record::Recorder::new(out, player.as_mut(), &args.root, settings.doppler);
+         Ok(Offscreen {
++            coop_ai: Default::default(),
+             args,
+             out,
+             w,
+@@ -252,6 +284,7 @@
              renderer,
              scene,
              world,
@@ -418,7 +436,35 @@
      }
  
      /// The ground under the vehicles (`OMSI_GROUND_GAP`).
-@@ -824,6 +826,34 @@
+@@ -42,6 +44,7 @@
+         let Self {
+             ref mut srv_clock,
+             ref mut srv_admin,
++            ref mut coop_ai,
+             ref srv_metar,
+             ref mut srv_metar_due,
+             ref mut srv_metar_rx,
+@@ -53,7 +56,7 @@
+             ref renderer,
+             ref mut scene,
+             ref mut sim_view,
+-            ref humans_off,
++            ref mut humans_off,
+             ref mut real_time,
+             ref settings,
+             ..
+@@ -112,8 +115,10 @@
+             let hub = omsi_lan::admin::hub().map(|h| &**h);
+             let rules = crate::admin::server_rules(srv_metar.is_some());
+             for (from, text) in l.take_commands() {
++                if coop_ai.receive(l, traffic.as_mut(), humans_off.as_mut(), from, &text) { continue; }
+                 omsi_lan::admin::server_command(l, from, &text, srv_admin, &positions, &rules, hub);
+             }
++            coop_ai.tick(l, traffic.as_mut(), humans_off.as_mut());
+             for text in crate::lan::take_local_admin() {
+                 srv_admin.admins.insert(crate::admin::LOCAL_ADMIN, omsi_admin::Role::Admin);
+                 omsi_lan::admin::server_command(l, crate::admin::LOCAL_ADMIN, &format!("admin {text}"), srv_admin, &positions, &rules, hub);
+@@ -821,6 +826,34 @@
          }
      }
  

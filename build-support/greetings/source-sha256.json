@@ -5,7 +5,7 @@
   },
   "crates/omsi-sim/src/ai_traffic/greetings.rs": {
     "before": null,
-    "after": "f478e9285a7d3ca11c38c2e64f182d385003d6ebfba1bfccc35b284c0bcd8138"
+    "after": "ce75d2fb2de4eaa770faf6315181a62fb071eadce1c24246828fa02d2d64ba7c"
   },
   "crates/omsi-sim/src/view_events/sounds.rs": {
     "before": "943a51b8088607bb7f521f3aca5a8efef1e53eeb8811a3f032bdeb2b08c282e5",
@@ -20,15 +20,15 @@
     "after": "360d30c8c8e61ffc3b05ee1da1dbfd21efa23932640703a299057dd7848e267d"
   },
   "crates/omsi-app/src/offscreen.rs": {
-    "before": "f9c0dc41553630c3d850d93967bdd006e3644dc602aea749829a19e485b0e67a",
+    "before": "449c61727d8706c7c57781fcdc83ca4d797bb934bc9ae28ce111ec8b9c0a1e87",
     "after": "6957f3cd3310e7a164ead2918206623e38156c89a106b35d7a28afcdb5f7ca9c"
   },
   "crates/omsi-app/src/offscreen/setup.rs": {
-    "before": "c3a44bc914b4bb16a629f90a3830eec25c750cce63e2af397233f3948ad1109b",
+    "before": "e25862a6f35bc52172f2c4600a1a36a21bc1c2f4491970d38b07634a690be39c",
     "after": "8a43229a0c3ea0e26388239c7b58f756294b72bec74eda78e00767796d229504"
   },
   "crates/omsi-app/src/offscreen/step.rs": {
-    "before": "02616c790cb79d64fae886dadb44849f4220354ba3dae7adf7af6c1e2d2e09ba",
+    "before": "401aa4dc1720c9693f965fc8a71c6fd90d7f2b2ccc275b922c53fe0c630baefc",
     "after": "39174dcea26f42c2a1d45c6591a29942aabbd09c3107b6895598fcc62132c3dc"
   }
 }

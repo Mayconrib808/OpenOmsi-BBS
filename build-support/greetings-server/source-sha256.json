@@ -5,7 +5,7 @@
   },
   "crates/omsi-sim/src/ai_traffic/greetings.rs": {
     "before": null,
-    "after": "f478e9285a7d3ca11c38c2e64f182d385003d6ebfba1bfccc35b284c0bcd8138"
+    "after": "ce75d2fb2de4eaa770faf6315181a62fb071eadce1c24246828fa02d2d64ba7c"
   },
   "crates/omsi-sim/src/view_events/sounds.rs": {
     "before": "943a51b8088607bb7f521f3aca5a8efef1e53eeb8811a3f032bdeb2b08c282e5",
