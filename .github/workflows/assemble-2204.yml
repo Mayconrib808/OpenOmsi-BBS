@@ -1,0 +1,96 @@
+name: Assemble and validate cumulative Bridge 2.2.0.4
+on:
+  push:
+    branches: ['release/2.2.0.4']
+    paths: ['.github/workflows/assemble-2204.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  bridge:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Verify and await the exact native game and dedicated-server jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $run=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/40012950992" | ConvertFrom-Json
+          if ($run.head_sha -ne 'fc1d9f2cb01baf4ff8bd9e5841169c0139876ccb' -or $run.path -ne '.github/workflows/release-2204.yml') {throw 'Native source identity differs'}
+          $diff=gh api "repos/$env:GITHUB_REPOSITORY/compare/fc1d9f2cb01baf4ff8bd9e5841169c0139876ccb...$env:GITHUB_SHA" | ConvertFrom-Json
+          $allowed=@('scripts/build_2204.py','.github/workflows/release-2204.yml','.github/workflows/assemble-2204.yml','docs/releases/v2.2.0.4.md')
+          foreach ($file in $diff.files) {if ($file.filename -cnotin $allowed) {throw ('Native inputs changed: '+$file.filename)}}
+          $deadline=(Get-Date).AddMinutes(30)
+          while ($true) {
+            $jobs=(gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/40012950992/jobs" | ConvertFrom-Json).jobs | Where-Object {$_.name -in @('game','server')}
+            if (@($jobs).Count -ne 2) {throw 'Expected exact game and server jobs'}
+            foreach ($job in $jobs) {if ($job.status -eq 'completed' -and $job.conclusion -ne 'success') {throw 'Native job did not pass'}}
+            if (@($jobs | Where-Object {$_.status -ne 'completed'}).Count -eq 0) {break}
+            if ((Get-Date) -gt $deadline) {throw 'Native validation timed out'}
+            Start-Sleep -Seconds 20
+          }
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: coop10-handover-candidate-windows
+          run-id: 40012950992
+          github-token: ${{ github.token }}
+          path: game-runtime
+      - uses: actions/download-artifact@v8
+        with:
+          name: bridge-2203-dynamic-windows
+          run-id: 40012950992
+          github-token: ${{ github.token }}
+          path: server-runtime
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.3-hotfix.2-complete
+          run-id: 39992267151
+          github-token: ${{ github.token }}
+          path: approved-full
+      - name: Assemble cumulative Hotfix2, Coop10 and dedicated streaming server
+        run: python scripts/build_2204.py --baseline approved-full/OpenOmsi_BBS_2.2.0.3_hotfix2_Setup_e_Coop9.zip --game game-runtime --server server-runtime
+      - name: Native Setup readiness, refresh timer and retained P15 controls
+        run: |
+          python scripts/verify_2204_windows.py
+          python build-support/bridge2203/test_p15_host_controls.py --package build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10
+      - name: Finalize portable package
+        run: python scripts/build_2204.py --finalize
+      - name: Scan exact final updater and package
+        shell: pwsh
+        run: scripts/scan_2204.ps1
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Bridge-2.2.0.4-evidence
+          path: build/release-2204/evidence/**
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.4-candidate
+          path: |
+            build/release-2204/Atualizar-Bridge.exe
+            build/release-2204/build-report.json
+            build/release-2204/coop-spec.json
+            build/release-2204/coop_bundle_manifest.go
+            build/release-2204/coop-assets/**
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.4-complete
+          path: |
+            build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10.zip
+            build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
