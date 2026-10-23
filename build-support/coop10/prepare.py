@@ -200,4 +200,153 @@ assert drive.count(src) == 1
 drive = drive.replace(src, repl)
 drive_path.write_text(drive, encoding='utf-8', newline='\n')
 
-print('Prepared Coop 10 driver handover, on-foot AI, F1, skin and compact-input changes; requires integration validation.')
+
+# A driver takeover is represented as a *seat occupation* in the existing
+# protocol-14 walker tail. 1023 cannot be a normal passenger seat. Its owner
+# is still enforced by the lease gate; the marker only affects rendering.
+drive_path = game / 'crates/omsi-app/src/coop_drive.rs'
+drive = drive_path.read_text(encoding='utf-8')
+mark = 'use winit::keyboard::KeyCode;'
+assert drive.count(mark) == 1
+drive = drive.replace(mark, mark + '\n/// A visual driver seat, never a passenger-seat index.\npub(crate) const DRIVER_SEAT: u16 = 1023;')
+mark = '''                    self.coop_camera_load_group(true);
+                    self.net.coop.panel=false;'''
+repl = '''                    self.coop_camera_load_group(true);
+                    // Place this actual avatar beside the steering wheel instead of
+                    // leaving its body in a passenger seat while the camera teleports.
+                    if let Some(BusId::Ai(id)) = self.foot_bus() {
+                        let target = self.coop_vehicle(BusId::Ai(id)).and_then(|bus| {
+                            let eye = bus.ty.def.cameras_driver.first()?;
+                            let mut local = glam::Vec3::from(eye.pos);
+                            local.z -= 1.48;
+                            let at = bus.world_transform().transform_point3(local).as_dvec3();
+                            Some((local, at))
+                        });
+                        if let (Some((local, at)), Some(foot)) = (target, self.session.on_foot.as_mut()) {
+                            foot.seat = None;
+                            foot.inside = Some((BusId::Ai(id), local));
+                            foot.pos = at;
+                            foot.vel = glam::DVec2::ZERO;
+                            foot.transit = None;
+                            foot.face_seat = false;
+                        }
+                    }
+                    self.net.coop.panel=false;'''
+assert drive.count(mark) == 1, 'New driver camera anchor changed'
+drive = drive.replace(mark,repl)
+drive_path.write_text(drive,encoding='utf-8',newline='\n')
+
+foot_path = game / 'crates/omsi-app/src/on_foot.rs'
+foot = foot_path.read_text(encoding='utf-8')
+mark = '''        // (the way it goes, which is not where the body faces when it steps sideways)'''
+extra = '''        // The approved visiting driver occupies the wheel, not an arbitrary
+        // passenger seat; other clients render them with DriverFigure at the wheel.
+        let driving = self.net.coop.drive.visitor_active();
+        let aboard = if driving {
+            aboard.map(|mut a| { a.seat = Some(crate::coop_drive::DRIVER_SEAT); a })
+        } else { aboard };
+'''
+assert foot.count(mark) == 1
+foot = foot.replace(mark,extra+mark)
+mark = 'seated: f.seat.is_some(), aboard })'
+assert foot.count(mark) == 1
+foot = foot.replace(mark, 'seated: f.seat.is_some() || driving, aboard })')
+mark = '''        let Some(wk) = wk else { continue };
+        // (the way it goes: an older game sends none, then its facing)'''
+repl = '''        let Some(wk) = wk else { continue };
+        if wk.aboard.is_some_and(|a| a.seat == Some(crate::coop_drive::DRIVER_SEAT)) {
+            // Rendered by DriverFigure in the owner's bus; not also as a
+            // seated/standing passenger at an unrelated seat.
+            h.avatar_remove(REMOTE_KEY + id);
+            continue;
+        }
+        // (the way it goes: an older game sends none, then its facing)'''
+assert foot.count(mark) == 1
+foot = foot.replace(mark,repl)
+foot_path.write_text(foot,encoding='utf-8',newline='\n')
+
+# Existing scene DriverFigure draws the person physically seated at the
+# correct wheel with that model's driver pose/animations. Switch its character
+# to the approved visitor while the owner's real human avatar is on foot.
+character_path = game / 'crates/omsi-app/src/coop_character.rs'
+character = character_path.read_text(encoding='utf-8')
+mark = '''        let key=(p.uid,self.net.coop.character.chosen.clone());'''
+repl = '''        let borrowed = if self.net.coop.drive.owner_active() {
+            self.drive_peer().and_then(|peer| {
+                self.net.lan.as_ref()?.peers()
+                    .find(|p| p.pose.id == peer)
+                    .and_then(|p| omsi_net::human_path(&p.pose.figure))
+            })
+        } else { None };
+        let key=(p.uid, borrowed.unwrap_or_else(|| self.net.coop.character.chosen.clone()));'''
+assert character.count(mark) == 1
+character = character.replace(mark,repl)
+character_path.write_text(character,encoding='utf-8',newline='\n')
+
+# Keep the friend's animated driver visible even though the *owner* is walking;
+# do not redraw the original owner's body over the new one.
+render_path = game / 'crates/omsi-app/src/app_events/frame/driving.rs'
+render = render_path.read_text(encoding='utf-8')
+mark = 'cx.common.settings.driver && cx.people.on_foot.is_none(), at_eyes,'
+assert render.count(mark) == 1
+render = render.replace(mark,
+    'cx.common.settings.driver && (cx.people.on_foot.is_none() || cx.net.coop.drive.owner_active()), at_eyes,')
+render_path.write_text(render,encoding='utf-8',newline='\n')
+
+# Pass temporary occupants through the existing LAN tick for *every* observer.
+# The owner's own driver seat is rendered by the player_to_scene rule above;
+# remote owners are rendered by view_sync/lan.rs with the visitor's .hum.
+lan_path = game / 'crates/omsi-lan/src/game.rs'
+lan = lan_path.read_text(encoding='utf-8')
+mark = '    pub hide_driver_for: Option<u32>,'
+assert lan.count(mark) == 1
+lan = lan.replace(mark, mark + '\n    /// Visual driver occupants of remote buses; does not grant control.\n    pub borrowed_drivers: Vec<(u32, String)>,')
+lan_path.write_text(lan,encoding='utf-8',newline='\n')
+
+tick_path = game / 'crates/omsi-app/src/app_impl/lan_tick.rs'
+tick = tick_path.read_text(encoding='utf-8')
+mark = '''        let radio_keyed = self.voice_radio_held();'''
+repl = '''        let borrowed_drivers: Vec<(u32, String)> = self.net.lan.as_ref().map(|lan|
+            lan.peers().filter_map(|peer| {
+                let a = peer.pose.walker?.aboard?;
+                (a.seat == Some(crate::coop_drive::DRIVER_SEAT))
+                    .then_some((a.owner, peer.pose.figure.clone()))
+            }).collect()
+        ).unwrap_or_default();
+        let radio_keyed = self.voice_radio_held();'''
+assert tick.count(mark) == 1
+tick = tick.replace(mark, repl)
+mark = '''            hide_driver_for,'''
+assert tick.count(mark) == 1
+tick = tick.replace(mark, mark+'\n            borrowed_drivers,')
+tick_path.write_text(tick,encoding='utf-8',newline='\n')
+off_path = game / 'crates/omsi-app/src/offscreen/step.rs'
+off = off_path.read_text(encoding='utf-8')
+mark = '''                hide_driver_for: None,'''
+assert off.count(mark)==1
+off=off.replace(mark,mark+'\n                borrowed_drivers: Vec::new(),')
+off_path.write_text(off,encoding='utf-8',newline='\n')
+
+view_path = game / 'crates/omsi-app/src/view_sync/lan.rs'
+view = view_path.read_text(encoding='utf-8')
+mark = '''        if v.driver_for.as_deref() != Some(rv.last.figure.as_str()) {'''
+repl = '''        let borrowed = frame.borrowed_drivers.iter()
+            .find(|(owner, _)| *owner == *id)
+            .and_then(|(_, figure)| omsi_net::human_path(figure));
+        let actual_figure = borrowed.as_deref().unwrap_or(rv.last.figure.as_str());
+        if v.driver_for.as_deref() != Some(actual_figure) {'''
+assert view.count(mark) == 1
+view = view.replace(mark,repl)
+mark = '''            v.driver_for = Some(rv.last.figure.clone());'''
+assert view.count(mark)==1
+view=view.replace(mark,'            v.driver_for = Some(actual_figure.to_string());')
+mark = '''omsi_net::human_path(&rv.last.figure).as_deref(), 1000 + *id as u64);'''
+assert view.count(mark)==1
+view=view.replace(mark,'''omsi_net::human_path(actual_figure).as_deref(), 1000 + *id as u64);''')
+mark='rv.last.walker.is_none() && frame.hide_driver_for != Some(*id), false);'
+assert view.count(mark)==1
+view=view.replace(mark,
+    '(borrowed.is_some() || rv.last.walker.is_none()) && frame.hide_driver_for != Some(*id), false);')
+view_path.write_text(view,encoding='utf-8',newline='\n')
+
+print('Prepared Coop 10 real visitor-driver figure, compact CMD, F1, walking AI, human sync; requires two-player validation.')
