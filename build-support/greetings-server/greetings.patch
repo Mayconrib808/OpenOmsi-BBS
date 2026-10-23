@@ -10,7 +10,7 @@
  pub mod emergency;
 --- /dev/null
 +++ b/crates/omsi-sim/src/ai_traffic/greetings.rs
-@@ -0,0 +1,281 @@
+@@ -0,0 +1,289 @@
 +//! Friendly greetings between oncoming buses. Presentation only; no driving or timetable changes.
 +use crate::VehicleInstance;
 +use glam::{DVec2, DVec3};
@@ -188,6 +188,8 @@
 +                    let high = if name == "Spot_Select" && car.vehicle.ty.model.spotlights.len() < 2 { 0.0 } else { 1.0 };
 +                    car.vehicle.set_var(name, if on { high } else { original });
 +                }
++                let names: Vec<_> = f.saved.iter().map(|(n,_)| *n).collect();
++                car.vehicle.refresh_external_lamp_signals(&names);
 +            }
 +        }
 +    }
@@ -225,14 +227,18 @@
 +    }
 +
 +    fn scene() -> (super::super::scenario_tests::Fixture, super::super::TrafficSim) {
-+        let f=super::super::scenario_tests::Fixture::new();
++        let mut f=super::super::scenario_tests::Fixture::new();
++        std::sync::Arc::make_mut(&mut f.ty).model.meshes.push(omsi_model::MeshDef {
++            light_enh_2: vec![omsi_model::LightEnh2 { variable:"lights_fern".into(),time_const:10.0,..Default::default() },
++                omsi_model::LightEnh2 { variable:"lights_abbl".into(),..Default::default() }], ..Default::default()
++        });
 +        let net=crate::traffic::Network { lanes:vec![super::super::scenario_tests::street(DVec3::ZERO,0.0,500.0)],..Default::default() };
 +        let mut sim=super::super::scenario_tests::traffic(&f,net);
 +        let setup=super::super::BusSetup {route:vec![0],stops:vec![],number:None,hof:None,
 +            timetable:super::super::bus_service::AiTimetable {line:"205".into(),terminus:"A".into(),stops:vec![]} };
 +        let mut v=VehicleInstance::new(f.ty.clone(),crate::VehicleHost::new(crate::SimClock::default()));
 +        setup.timetable.install(&mut v.host,None);
-+        v.set_engine_var("lights_fern",0.0); v.set_engine_var("lights_abbl",1.0);
++        v.set_engine_var("lights_fern",0.0); v.set_engine_var("lights_abbl",1.0); v.light_fade=vec![0.0,0.75];
 +        sim.place_car(v,crate::traffic::LaneKind::Street,0,0.0,f.ty.clone(),1,None,Some(1),Some(8.0),Some(setup));
 +        sim.cars[0].vehicle.position=DVec3::ZERO; sim.cars[0].vehicle.heading=0.0;
 +        sim.cars[0].vehicle.host.capture_sound_triggers=true;
@@ -243,9 +249,11 @@
 +        g.update(&mut sim,vec![p.clone()],0.1); g.restore(&mut sim); g.update(&mut sim,vec![p.clone()],0.2);
 +        assert_eq!(sim.cars[0].vehicle.var("lights_fern"),Some(1.0));
 +        assert_eq!(sim.cars[0].vehicle.var("lights_abbl"),Some(1.0));
++        assert_eq!(sim.cars[0].vehicle.light_fade,vec![1.0,0.75]);
 +        assert_eq!(sim.cars[0].vehicle.host.network_sound_triggers.iter().filter(|e|e.0==HORN_EVENT).count(),1);
 +        for _ in 0..200 { g.restore(&mut sim); g.update(&mut sim,vec![p.clone()],0.1); }
 +        assert_eq!(sim.cars[0].vehicle.var("lights_fern"),Some(0.0));
++        assert_eq!(sim.cars[0].vehicle.light_fade,vec![0.0,0.75]);
 +        assert_eq!(sim.cars[0].vehicle.host.network_sound_triggers.iter().filter(|e|e.0==HORN_EVENT).count(),1);
 +    }
 +    #[test] fn different_line_replies_to_horn_and_brief_flash_but_not_steady_lights() {
@@ -455,3 +463,34 @@
      /// The cabin air, the tyres' spray and the roads' wetness, frame by frame as the window's
      /// `frame_lights` and `frame_lighting` have them.
      pub(super) fn surroundings_step(&mut self) {
+--- a/crates/omsi-sim/src/vehicle/visuals.rs
++++ b/crates/omsi-sim/src/vehicle/visuals.rs
+@@ -3,6 +3,28 @@
+ use super::*;
+ 
+ impl VehicleInstance {
++    /// Refresh externally signalled lamp materials and coronas without stepping physics,
++    /// scripts, animation, doors or passengers a second time.
++    pub fn refresh_external_lamp_signals(&mut self, names: &[&str]) {
++        let props = super::props::compute_mesh_props(&self.ty, &|n| self.var(n));
++        for (current, next) in self.mesh_props.iter_mut().zip(props) {
++            current.slot_light = next.slot_light;
++            current.slot_night = next.slot_night;
++        }
++        let mut index = 0;
++        for mesh in &self.ty.model.meshes {
++            for light in &mesh.light_enh_2 {
++                if names.iter().any(|n| n.eq_ignore_ascii_case(light.variable.trim())) {
++                    let value = self.var(&light.variable).unwrap_or(0.0);
++                    let target = (value * if light.factor > 0.0 { light.factor } else { 1.0 }).clamp(0.0, 2.0);
++                    if self.light_fade.len() <= index { self.light_fade.resize(index + 1, 0.0); }
++                    self.light_fade[index] = if target.is_finite() { target } else { 0.0 };
++                }
++                index += 1;
++            }
++        }
++    }
++
+     /// Brightest `[interiorlight]` of the vehicle right now (0..1), for the passengers.
+     pub fn interior_light(&self) -> f32 {
+         self.ty

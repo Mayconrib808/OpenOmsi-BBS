@@ -5,7 +5,7 @@
   },
   "crates/omsi-sim/src/ai_traffic/greetings.rs": {
     "before": null,
-    "after": "ce75d2fb2de4eaa770faf6315181a62fb071eadce1c24246828fa02d2d64ba7c"
+    "after": "9f89ad3bfc33e6601fd0bbb92146d1e33f0e5c0871bc549ea0b0605bb136d782"
   },
   "crates/omsi-sim/src/view_events/sounds.rs": {
     "before": "943a51b8088607bb7f521f3aca5a8efef1e53eeb8811a3f032bdeb2b08c282e5",
@@ -30,5 +30,9 @@
   "crates/omsi-app/src/offscreen/step.rs": {
     "before": "401aa4dc1720c9693f965fc8a71c6fd90d7f2b2ccc275b922c53fe0c630baefc",
     "after": "973e81462c8f99b3d0dd24f2e95aebb160c60f7da988163ec32fac8b0d3afc48"
+  },
+  "crates/omsi-sim/src/vehicle/visuals.rs": {
+    "before": "41af3070cfafef66c3de30fd8ec9d923653d658fd0d3834e95b4acdd18b4bf70",
+    "after": "30680abb64008c9ca13f60edc56064899ace8bce82a66c87b949e17098682d9a"
   }
 }
