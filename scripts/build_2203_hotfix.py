@@ -6,9 +6,9 @@ import build, build_bridge_update, setup_resources
 from build_runtime_2203 import embedded_payload, EXPECTED
 from build_2203 import tests, archive
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='2.2.0.3-hotfix.1'
-SEQUENCE=2026102302
-PACKAGE='OpenOmsi_BBS_2.2.0.3_hotfix1_Setup_e_Coop9'
+VERSION='2.2.0.3-hotfix.2'
+SEQUENCE=2026102303
+PACKAGE='OpenOmsi_BBS_2.2.0.3_hotfix2_Setup_e_Coop9'
 BASE_UPDATER='53a6fe30e6f074cbfc6d82a41f7af65337022b1691f06270e59ce03bb964f9d1'
 BASE_PACKAGE='f5b921e6b15ee38329d3db405cc1eabeecd11d211624d95b2cbb86ef1a39af07'
 def sha(b):return hashlib.sha256(b).hexdigest()
@@ -20,7 +20,7 @@ def main():
  original=a.baseline_update.read_bytes();full=a.baseline_package.read_bytes()
  if sha(original)!=BASE_UPDATER or sha(full)!=BASE_PACKAGE:raise ValueError('Approved 2.2.0.3 bytes differ')
  payload=embedded_payload(original)
- out=ROOT/'build/release-2203-hotfix';out.mkdir(parents=True,exist_ok=False)
+ out=ROOT/'build/release-2203-hotfix2';out.mkdir(parents=True,exist_ok=False)
  runtime=out/'runtime'
  for name,data in payload.items():
   path=runtime/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(data)
@@ -57,15 +57,15 @@ def main():
  ignore=shutil.ignore_patterns('__pycache__','*.pyc','*.exe','*.dll','*.syso','*.zip','assets','node_modules')
  for name in ('source','scripts','docs','build-support'):
   shutil.copytree(ROOT/name,package/name,dirs_exist_ok=True,ignore=ignore)
- readme=package/'LEIA-ME.txt';text=readme.read_text(encoding='utf-8');text=text.replace('OpenOmsi BBS 2.2.0.3 +','OpenOmsi BBS 2.2.0.3-hotfix.1 +',1)
- text+='''\nHOTFIX 2.2.0.3-hotfix.1 — Status do Servidor\nO Setup consulta o HostAgent local e confirma a presença no diretório a cada 5 segundos.\nVerde: agente pronto para abrir um mapa sob demanda, iniciando um mapa ou servidor online.\nAmarelo: offline, sem mapas disponíveis, sem configuração ou consulta indisponível.\nO botão Verificar se o servidor está online consulta novamente sem iniciar um mapa.\nO HostAgent e suas seis opções P15, a Coop 9 e o servidor dinâmico são os mesmos\nda 2.2.0.3. Nenhuma configuração do host é modificada.\n'''
+ readme=package/'LEIA-ME.txt';text=readme.read_text(encoding='utf-8');text=text.replace('OpenOmsi BBS 2.2.0.3 +','OpenOmsi BBS 2.2.0.3-hotfix.2 +',1)
+ text+='''\nHOTFIX 2.2.0.3-hotfix.2 — Status do Servidor\nO Setup consulta o HostAgent local e confirma a presença no diretório a cada 5 segundos.\nVerde: agente pronto para abrir um mapa sob demanda, iniciando um mapa ou servidor online.\nAmarelo: offline, sem mapas disponíveis, sem configuração ou consulta indisponível.\nO botão Verificar se o servidor está online consulta novamente sem iniciar um mapa.\nO HostAgent e suas seis opções P15, a Coop 9 e o servidor dinâmico são os mesmos\nda 2.2.0.3. Nenhuma configuração do host é modificada.\n'''
  readme.write_text(text,encoding='utf-8')
  report=dict(version=VERSION,sequence=SEQUENCE,rebuilt=['Setup.exe'],retained_components_sha256={n:sha(b) for n,b in payload.items() if n!='Setup.exe'},components_sha256={n:sha(b) for n,b in payload.items()},updater_sha256=sha((out/'Atualizar-Bridge.exe').read_bytes()),installer_size=(out/'Atualizar-Bridge.exe').stat().st_size,base_updater_sha256=BASE_UPDATER,base_package_sha256=BASE_PACKAGE,coop_archive_sha256=json.loads((ROOT/'docs/releases/coop-0.3.38-coop.9.json').read_text())['sha256'],poll_interval_seconds=5,read_only_status=True)
  (out/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
- (package/'docs/BUILD-2.2.0.3-hotfix.1.json').write_text(json.dumps(report,indent=2)+'\n')
+ (package/'docs/BUILD-2.2.0.3-hotfix.2.json').write_text(json.dumps(report,indent=2)+'\n')
  print('Hotfix built with all six previous release binaries preserved.')
 def finalize():
- out=ROOT/'build/release-2203-hotfix';package=out/PACKAGE
+ out=ROOT/'build/release-2203-hotfix2';package=out/PACKAGE
  shutil.copytree(out/'evidence',package/'validation',dirs_exist_ok=True)
  names=sorted(p.relative_to(package).as_posix() for p in package.rglob('*') if p.is_file() and p.relative_to(package).as_posix() not in {'docs/PACKAGE_FILES.txt','docs/SHA256.txt'})
  names.append('docs/PACKAGE_FILES.txt');(package/'docs/PACKAGE_FILES.txt').write_text('\n'.join(sorted(names))+'\n',encoding='utf-8')
