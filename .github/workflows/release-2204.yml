@@ -212,7 +212,8 @@ jobs:
       - name: Native Setup readiness, refresh timer and retained P15 controls
         run: |
           python scripts/verify_2204_windows.py
-          python build-support/bridge2203/test_p15_host_controls.py --package build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/test_p15_2204.py --package build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10
       - name: Finalize portable package
         run: python scripts/build_2204.py --finalize
       - name: Scan exact final updater and package
