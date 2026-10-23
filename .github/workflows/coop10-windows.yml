@@ -4,6 +4,9 @@ on:
     branches: ['fix/coop10-on-2203-hotfix2']
     paths: ['build-support/coop10/**', '.github/workflows/coop10-windows.yml']
   workflow_dispatch:
+  pull_request:
+    branches: ['release/2.2.0.3']
+    paths: ['build-support/coop10/**', '.github/workflows/coop10-windows.yml']
 permissions:
   contents: read
 jobs:
