@@ -92,9 +92,19 @@ try {
     $hd=Read-HostObject (Join-Path $f.Data 'HostAgent.local.json')
     $cd=Read-HostObject (Join-Path $f.Data 'CompanyHost.local.json')
     Assert-True ($hd.server -eq $cd.Server -and $hd.server -eq (Join-Path $f.Root 'app/server-dinamico-p14/openomsi.exe')) 'Existing personal dynamic server was not retained/selected'
-    Assert-True ((Get-FileHash $f.Server).Hash -eq $oldNative -and (Get-FileHash $hd.server).Hash -eq $oldNative) 'Native dynamic binary changed'
+    Assert-True ((Get-FileHash $f.Server).Hash -eq $oldNative -and (Get-FileHash $hd.server).Hash -eq (Get-FileHash (Join-Path $Package 'app/server-dinamico-p14/openomsi.exe')).Hash) 'The managed runtime was not upgraded while retaining the independent old copy'
     Assert-True ($cd.Config -eq 'F:\Original\server.cfg' -and $cd.Keep.n -eq 3) 'Existing server configuration changed'
-    $passed.Add('existing_personal_dynamic_p14_keeps_exact_native_and_companyhost_configuration')
+    $passed.Add('existing_personal_dynamic_p14_updates_managed_runtime_keeps_original_copy_and_companyhost_configuration')
+    $f=Fixture 14 $true
+    $managed=Join-Path $f.Root 'app/server-dinamico-p14/openomsi.exe'
+    $null=[IO.Directory]::CreateDirectory([IO.Path]::GetDirectoryName($managed))
+    Copy-Item -LiteralPath (Join-Path $Baseline 'app/server/openomsi.exe') -Destination $managed
+    Set-FixtureServer $f $managed
+    $configuration=Snapshot $f.Data
+    Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
+    Assert-Snapshot $configuration
+    Assert-True ((Get-FileHash $managed).Hash -eq (Get-FileHash (Join-Path $Package 'app/server-dinamico-p14/openomsi.exe')).Hash) 'Existing managed dynamic runtime was not updated in place'
+    $passed.Add('existing_managed_streaming_server_updates_in_place_without_changing_saved_configuration')
     $f=Fixture 14 $true; $hostSnapshot=Snapshot $f.Data
     Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
     Assert-Snapshot $hostSnapshot; $passed.Add('explicit_custom_p14_server_preserved')

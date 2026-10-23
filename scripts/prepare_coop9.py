@@ -89,6 +89,8 @@ def main():
     script=script.replace("$knownDynamic = (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash -eq '"+sha(server_exe)+"'", "$knownDynamic = (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash.ToLowerInvariant() -in @('"+OLD_DYNAMIC+"','"+sha(server_exe)+"')")
     script=script.replace("@('Personal-Host-2.2.0.3/Backups'", "@('Personal-Host-2.2.0.2/Backups','Personal-Host-2.2.0.3/Backups'")
     script=script.replace("$recentReceipt = Join-Path $DataRoot 'Personal-Host-2.2.0.3/installed.json'", "$recentReceipt = Join-Path $DataRoot 'Personal-Host-2.2.0.3/installed.json'\n    if (-not [IO.File]::Exists($recentReceipt)) { $recentReceipt = Join-Path $DataRoot 'Personal-Host-2.2.0.2/installed.json' }")
+    script=script.replace("(Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash -ne $file.sha256", "(Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -notin @('"+OLD_DYNAMIC+"','"+sha(server_exe)+"')")
+    script=script.replace('Servidor dinamico P14 selecionado, com o mesmo executavel da sua edicao pessoal anterior.', 'Servidor dinamico P14 atualizado: base 0.3.39, carregamento por regioes e cumprimentos da IA.')
     files['scripts/atualizar_host_pessoal.ps1']=b'\xef\xbb\xbf'+script.encode()
     tests=(ROOT/'build-support/bridge2203/test_host_pessoal.ps1').read_text(encoding='utf-8-sig').replace('2.2.0.2','2.2.0.3').replace(OLD_DYNAMIC,sha(server_exe))
     (ROOT/'scripts/test_host_2203.ps1').write_text(tests,encoding='utf-8-sig',newline='\n')
