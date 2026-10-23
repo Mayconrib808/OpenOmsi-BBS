@@ -59,8 +59,8 @@ lan = lan_path.read_text(encoding='utf-8')
 where = '    pub listener: Option<DVec3>,'
 assert lan.count(where) == 1, 'LanInput structure changed unexpectedly'
 lan = lan.replace(where,
-    where + '\\n    /// Local rendering preference; never transmitted to other clients.\\n    pub hide_driver_for: Option<u32>,')
-lan_path.write_text(lan, encoding='utf-8', newline='\\n')
+    where + '\n    /// Local rendering preference; never transmitted to other clients.\n    pub hide_driver_for: Option<u32>,')
+lan_path.write_text(lan, encoding='utf-8', newline='\n')
 
 tick_path = game / 'crates/omsi-app/src/app_impl/lan_tick.rs'
 tick = tick_path.read_text(encoding='utf-8')
@@ -74,18 +74,18 @@ extra = '''        let hide_driver_for = if self.net.coop.camera.as_ref().is_som
             None
         };'''
 assert tick.count(where) == 1, 'Character tick changed unexpectedly'
-tick = tick.replace(where, where + '\\n' + extra)
+tick = tick.replace(where, where + '\n' + extra)
 where = '            listener: self.camera.as_ref().map(|c| c.position),'
 assert tick.count(where) == 1, 'LAN frame creation changed unexpectedly'
-tick = tick.replace(where, where + '\\n            hide_driver_for,')
-tick_path.write_text(tick, encoding='utf-8', newline='\\n')
+tick = tick.replace(where, where + '\n            hide_driver_for,')
+tick_path.write_text(tick, encoding='utf-8', newline='\n')
 
 off_path = game / 'crates/omsi-app/src/offscreen/step.rs'
 off = off_path.read_text(encoding='utf-8')
-where = '            let frame = lan::LanInput {\\n                listener,'
+where = '            let frame = lan::LanInput {\n                listener,'
 assert off.count(where) == 1, 'Offscreen LAN frame changed unexpectedly'
-off = off.replace(where, where + '\\n                hide_driver_for: None,')
-off_path.write_text(off, encoding='utf-8', newline='\\n')
+off = off.replace(where, where + '\n                hide_driver_for: None,')
+off_path.write_text(off, encoding='utf-8', newline='\n')
 
 view_path = game / 'crates/omsi-app/src/view_sync/lan.rs'
 view = view_path.read_text(encoding='utf-8')
@@ -93,6 +93,6 @@ where = 'rv.last.walker.is_none(), false);'
 assert view.count(where) == 1, 'Remote driver renderer changed unexpectedly'
 view = view.replace(where,
     'rv.last.walker.is_none() && frame.hide_driver_for != Some(*id), false);')
-view_path.write_text(view, encoding='utf-8', newline='\\n')
+view_path.write_text(view, encoding='utf-8', newline='\n')
 
 print('Prepared owner-avatar handover, on-foot authorization and F1 rendering fixes; Rust validation required.')
