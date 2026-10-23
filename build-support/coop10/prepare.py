@@ -291,6 +291,12 @@ mark = 'cx.common.settings.driver && cx.people.on_foot.is_none(), at_eyes,'
 assert render.count(mark) == 1
 render = render.replace(mark,
     'cx.common.settings.driver && (cx.people.on_foot.is_none() || cx.net.coop.drive.owner_active()), at_eyes,')
+
+annotation = 'PlayerToSceneCx { reads: [view, world, people, ui], writes: [player, gfx, perf] }'
+assert render.count(annotation) == 1
+render = render.replace(annotation,
+    'PlayerToSceneCx { reads: [view, world, people, ui, net], writes: [player, gfx, perf] }')
+
 render_path.write_text(render,encoding='utf-8',newline='\n')
 
 # Pass temporary occupants through the existing LAN tick for *every* observer.
