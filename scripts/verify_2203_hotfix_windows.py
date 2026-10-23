@@ -2,7 +2,7 @@
 import ctypes, http.server, json, os, subprocess, tempfile, threading, time
 from pathlib import Path
 from build_2203_hotfix import ROOT,PACKAGE
-out=ROOT/'build/release-2203-hotfix';package=out/PACKAGE;evidence=out/'evidence';evidence.mkdir()
+out=ROOT/'build/release-2203-hotfix2';package=out/PACKAGE;evidence=out/'evidence';evidence.mkdir()
 env=dict(os.environ,BRIDGE_SETUP_PREVIEWS=str(evidence))
 subprocess.run([str(package/'Setup.exe'),'--gui-smoke'],env=env,check=True,timeout=40)
 subprocess.run([str(out/'Atualizar-Bridge.exe'),'--coop-progress-smoke'],env=env,check=True,timeout=20)
