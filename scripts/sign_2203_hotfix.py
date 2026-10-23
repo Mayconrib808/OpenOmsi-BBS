@@ -3,7 +3,7 @@ import argparse,base64,json
 from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='2.2.0.3-hotfix.1';SEQUENCE=2026102302
+VERSION='2.2.0.3-hotfix.2';SEQUENCE=2026102303
 ORIGIN='https://openomsi-bbs-updates.maycongamesmaximo.workers.dev'
 def main():
  p=argparse.ArgumentParser();p.add_argument('--publisher-key',type=Path,required=True);p.add_argument('--candidate-report',type=Path,required=True);p.add_argument('--candidate-run',type=int,required=True);p.add_argument('--candidate-commit',required=True);a=p.parse_args()
