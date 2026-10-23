@@ -22,6 +22,8 @@ import build
 import build_bridge_update
 import setup_resources
 
+ROOT = Path(__file__).resolve().parents[1]
+
 EXPECTED = {
     'HostAgent.exe': 'a483e435a23b9a74276fb045945ce58357ab5ea99f8759ddc2dddae41a41dba4',
     'CompanyHost.exe': '3d57a4733cbfb8bec677c29d888de339a92ae43c161f9e48ccc9b7a97c7d6cb3',
