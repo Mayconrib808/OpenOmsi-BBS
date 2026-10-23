@@ -15,6 +15,16 @@ func setupLanguageIndex(lang string) int {
 }
 
 var setupStrings = map[string][3]string{
+ "server_status": {"Status do Servidor", "Server status", "Serverstatus"},
+ "server_check": {"Verificar se o servidor está online", "Check whether the server is online", "Serverstatus jetzt prüfen"},
+ "server_checking": {"Verificando...", "Checking...", "Wird geprüft..."},
+ "server_standby": {"Agente pronto (sob demanda)", "Agent ready (on demand)", "Agent bereit (auf Anfrage)"},
+ "server_online": {"Servidor online", "Server online", "Server online"},
+ "server_starting": {"Agente ativo; iniciando mapa", "Agent active; starting map", "Agent aktiv; Karte startet"},
+ "server_agent_offline": {"HostAgent offline", "HostAgent offline", "HostAgent offline"},
+ "server_unavailable": {"Não foi possível confirmar", "Could not confirm", "Bestätigung nicht möglich"},
+ "server_unconfigured": {"Host/empresa não configurado", "Host/company not configured", "Host/Firma nicht eingerichtet"},
+ "server_no_maps": {"Nenhum mapa disponível", "No map available", "Keine Karte verfügbar"},
 	"bundled_coop":          {"Usar Coop incluído", "Use bundled Coop", "Coop auswählen"},
 	"bundled_coop_selected": {"Coop 0.3.38 selecionado. Use Salvar e ativar para aplicar.", "Coop 0.3.38 selected. Use Save and activate to apply.", "Coop 0.3.38 ausgewählt. Mit Speichern und aktivieren übernehmen."},
 	"bundled_coop_missing":  {"A pasta OpenOmsi Coop 0.3.38 não foi encontrada. Conclua a atualização 2.2 ou extraia o pacote completo.", "The OpenOmsi Coop 0.3.38 folder was not found. Complete the 2.2 update or extract the full package.", "Der Ordner OpenOmsi Coop 0.3.38 fehlt. Das Update 2.2 abschließen oder das vollständige Paket entpacken."},

@@ -22,6 +22,8 @@ const (
 	guiWMCommand     = 0x0111
 	guiWMComplete    = 0x8001
 	guiWMUpdates     = 0x8002
+	guiWMServerStatus = 0x8003
+	guiWMTimer = 0x0113
 	guiWMClose       = 0x0010
 	guiWMDestroy     = 0x0002
 	guiWMDrawItem    = 0x002B
@@ -52,6 +54,9 @@ const (
 	guiIDAutoUpdates = 115
 	guiIDAutoStart   = 116
 	guiIDBundledCoop = 117
+	guiIDServerStatus = 118
+	guiIDServerLamp = 119
+	guiIDServerTimer = 120
 )
 
 type guiPoint struct{ X, Y int32 }
@@ -133,6 +138,11 @@ type setupGUI struct {
 	updateState                                                                  string
 	updateCancel                                                                 context.CancelFunc
 	availableUpdate                                                              *bridgeRelease
+	serverLamp, serverLabel, serverButton uintptr
+	serverResults chan setupServerStatus
+	serverState setupServerStatus
+	serverChecking, serverClosing bool
+	serverCancel context.CancelFunc
 }
 
 var activeSetupGUI *setupGUI
@@ -215,6 +225,7 @@ func (g *setupGUI) applyLanguage() {
 	}
 	g.updateMultiplayerControls()
 	g.renderUpdateState()
+	g.renderServerStatus()
 	guiSetText(g.status, g.text("ready"))
 	guiUser.NewProc("InvalidateRect").Call(g.window, 0, 1)
 }
@@ -294,10 +305,13 @@ func (g *setupGUI) createControls() {
 	g.updateButton = g.translatedButton("updates_check", 716, 578, 208, 36, guiIDUpdates)
 	g.updateStatus = g.label(g.text("updates_checking"), 716, 617, 208, 30)
 	guiUser.NewProc("SendMessageW").Call(g.updateStatus, guiWMSetFont, g.smallFont, 1)
-	g.translatedButton("logs", 34, 650, 194, 36, guiIDLogs)
-	g.translatedButton("tutorial", 244, 650, 194, 36, guiIDTutorial)
-	g.translatedButton("host", 454, 650, 224, 36, guiIDHost)
-	g.translatedButton("admin", 694, 650, 230, 36, guiIDCompany)
+	g.serverLamp = g.control("STATIC", "", 34, 651, 24, 28, 0x000D, guiIDServerLamp)
+	g.serverLabel = g.label("", 66, 654, 500, 32)
+	g.serverButton = g.translatedButton("server_check", 584, 650, 340, 36, guiIDServerStatus)
+	g.translatedButton("logs", 34, 700, 194, 36, guiIDLogs)
+	g.translatedButton("tutorial", 244, 700, 194, 36, guiIDTutorial)
+	g.translatedButton("host", 454, 700, 224, 36, guiIDHost)
+	g.translatedButton("admin", 694, 700, 230, 36, guiIDCompany)
 	g.populate()
 }
 func (g *setupGUI) busyState(busy bool) {
@@ -457,6 +471,7 @@ func setupChangesAllowed(language ...string) error {
 }
 
 func (g *setupGUI) command(id int) {
+	if id == guiIDServerStatus { g.checkServerStatus(); return }
 	if id == guiIDCancel && g.busy {
 		g.cancel()
 		guiSetText(g.status, g.text("cancelling"))
@@ -608,6 +623,11 @@ func setupWindowProcedure(window uintptr, message uint32, wparam, lparam uintptr
 	case guiWMComplete:
 		g.finish()
 		return 0
+	case guiWMTimer:
+		if wparam == guiIDServerTimer { g.checkServerStatus(); return 0 }
+	case guiWMServerStatus:
+		g.finishServerStatus()
+		return 0
 	case guiWMUpdates:
 		g.finishUpdateCheck()
 		return 0
@@ -621,6 +641,7 @@ func setupWindowProcedure(window uintptr, message uint32, wparam, lparam uintptr
 		return brush
 	case guiWMDrawItem:
 		item := (*guiDrawItem)(unsafe.Pointer(lparam))
+		if item.ID == guiIDServerLamp { g.drawServerLamp(item); return 1 }
 		brush, foreground := g.buttonBrush, guiRGB(236, 243, 251)
 		if item.ID == guiIDSave {
 			brush, foreground = g.accentBrush, guiRGB(16, 26, 41)
@@ -655,6 +676,9 @@ func setupWindowProcedure(window uintptr, message uint32, wparam, lparam uintptr
 		}
 		return 0
 	case guiWMDestroy:
+		g.serverClosing = true
+		guiUser.NewProc("KillTimer").Call(window,guiIDServerTimer)
+		if g.serverCancel != nil { g.serverCancel() }
 		if g.updateCancel != nil {
 			g.updateCancel()
 		}
@@ -673,7 +697,7 @@ func runSetupGUI(dir string, smoke bool) error {
 	// System-DPI-aware sizing keeps native controls sharp and the full form fits
 	// a 900-pixel-high desktop. Virtualized coordinates work on older Windows.
 	guiUser.NewProc("SetProcessDPIAware").Call()
-	g := &setupGUI{dir: dir, config: readInstalledConfig(dir), results: make(chan guiResult, 1), updateResults: make(chan setupUpdateResult, 1), smoke: smoke}
+	g := &setupGUI{dir: dir, config: readInstalledConfig(dir), results: make(chan guiResult, 1), updateResults: make(chan setupUpdateResult, 1), serverResults: make(chan setupServerStatus,1), smoke: smoke}
 	if g.config.OpenOMSI == "" {
 		g.config.OpenOMSI = bundledCoopExecutable(dir)
 	}
@@ -710,7 +734,7 @@ func runSetupGUI(dir string, smoke bool) error {
 	}
 	defer guiUser.NewProc("UnregisterClassW").Call(uintptr(unsafe.Pointer(class.Name)), instance)
 	style := uintptr(0x00C00000 | 0x00080000 | 0x00020000 | 0x02000000)
-	rect := guiRect{Right: 960, Bottom: 704}
+	rect := guiRect{Right: 960, Bottom: 754}
 	guiUser.NewProc("AdjustWindowRectEx").Call(uintptr(unsafe.Pointer(&rect)), style, 0, 0)
 	width, height := int(rect.Right-rect.Left), int(rect.Bottom-rect.Top)
 	screenWidth, _, _ := guiUser.NewProc("GetSystemMetrics").Call(0)
@@ -772,6 +796,20 @@ func runSetupGUI(dir string, smoke bool) error {
 				}
 			}
 		}
+		g.config.Language = "pt"
+        g.applyLanguage()
+        for _, sample := range []setupServerStatus{{Ready:true,Key:"server_standby"},{Key:"server_agent_offline"}} {
+            g.serverChecking = true
+            g.serverResults <- sample
+            g.finishServerStatus()
+            if g.serverChecking || g.serverState.Ready != sample.Ready || guiText(g.serverLabel) != g.text("server_status")+" — "+g.text(sample.Key) {
+                return fmt.Errorf("native server status result did not update lamp and label")
+            }
+            if previews := os.Getenv("BRIDGE_SETUP_PREVIEWS"); previews != "" {
+                guiUser.NewProc("RedrawWindow").Call(g.window,0,0,0x0581)
+                if err := captureSetupPreview(g.window,filepath.Join(previews,"setup-"+sample.Key+".png")); err != nil { return err }
+            }
+        }
 		for _, checked := range []uintptr{0, 1, 0} {
 			guiUser.NewProc("SendMessageW").Call(g.multiplayer, guiBMSetCheck, checked, 0)
 			g.command(guiIDMultiplayer)
@@ -799,6 +837,7 @@ func runSetupGUI(dir string, smoke bool) error {
 		guiUser.NewProc("ShowWindow").Call(g.window, 1)
 		guiUser.NewProc("UpdateWindow").Call(g.window)
 		guiUser.NewProc("SetFocus").Call(g.root)
+		g.startServerStatus()
 		if g.autoCheckUpdates {
 			g.checkUpdates()
 		} else {

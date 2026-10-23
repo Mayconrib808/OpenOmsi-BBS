@@ -1,0 +1,67 @@
+name: Build Bridge 2.2.0.3 hotfix 1 server status
+on:
+  push:
+    branches: ['release/2.2.0.3']
+    paths: ['build-support/bridge2203-hotfix/request.json', '.github/workflows/release-2203-hotfix.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.3-update-candidate
+          run-id: 39973561655
+          github-token: ${{ github.token }}
+          path: approved-base
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.3-Setup-e-Coop9
+          run-id: 39973561655
+          github-token: ${{ github.token }}
+          path: approved-full
+      - name: Build Setup and retain six exact release binaries
+        run: python scripts/build_2203_hotfix.py --baseline-update approved-base/Atualizar-Bridge.exe --baseline-package approved-full/OpenOmsi_BBS_2.2.0.3_Setup_e_Coop9.zip
+      - name: Native lamp, manual refresh and actual five-second timer
+        run: python scripts/verify_2203_hotfix_windows.py
+      - name: Finalize complete portable package
+        run: python scripts/build_2203_hotfix.py --finalize
+      - name: Scan exact release files with Defender
+        shell: pwsh
+        run: scripts/scan_2203_hotfix.ps1
+      - name: Report exact candidate identity
+        run: python -c "from pathlib import Path; import json; print('HOTFIX_REPORT='+json.dumps(json.loads(Path('build/release-2203-hotfix/build-report.json').read_text())))"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Bridge-2.2.0.3-hotfix.1-evidence
+          path: build/release-2203-hotfix/evidence/**
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.3-hotfix.1-candidate
+          path: |
+            build/release-2203-hotfix/Atualizar-Bridge.exe
+            build/release-2203-hotfix/build-report.json
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.3-hotfix.1-complete
+          path: |
+            build/release-2203-hotfix/OpenOmsi_BBS_2.2.0.3_hotfix1_Setup_e_Coop9.zip
+            build/release-2203-hotfix/OpenOmsi_BBS_2.2.0.3_hotfix1_Setup_e_Coop9.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
