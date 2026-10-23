@@ -49,7 +49,7 @@
 +            else {
 +                let shown = [v.str_var("Matrix_Nr"), v.str_var("SetLineTo"), v.str_var("IBIS_Linie")]
 +                    .into_iter().find(|s| !s.trim().is_empty());
-+                shown.map(str::to_string).unwrap_or_else(|| {
++                shown.unwrap_or_else(|| {
 +                    // Do not silently merge 92E and 92 when only a numeric IBIS is available.
 +                    if v.var("IBIS_Linie_Suffix").is_some_and(|s| s > 0.5) { return String::new(); }
 +                    v.var("IBIS_LinieKurs").filter(|n| n.is_finite() && *n > 0.0)
