@@ -53,7 +53,28 @@ func verifyPackageForUpdate(dir string, payload map[string][]byte) (int, error) 
 	return verifyPackageWithRepairableBinaries(dir, repairable)
 }
 
+// Setup activation needs a working Bridge, not a byte-for-byte copy of the
+// entire distributable. Custom CompanyHost/HostAgent builds are independent
+// applications; their hashes remain auditable with Setup.exe --verify.
+func verifyPackageForActivation(dir string) (int, error) {
+	return verifyPackageWithPolicy(dir, nil, true)
+}
+
+func packageActivationRuntimeBinary(rel string) bool {
+	switch strings.ToLower(rel) {
+	case "setup.exe", "app/openomsi_bcs_bridge.exe",
+		"app/compat/omsi.exe", "app/compat/omsi-plugin-host32.exe",
+		"pedepeadapter/openomsi.exe":
+		return true
+	}
+	return false
+}
+
 func verifyPackageWithRepairableBinaries(dir string, repairable map[string]bool) (int, error) {
+	return verifyPackageWithPolicy(dir, repairable, false)
+}
+
+func verifyPackageWithPolicy(dir string, repairable map[string]bool, activationOnly bool) (int, error) {
 	patches, e := packagePatchHashes(dir)
 	if e != nil {
 		return 0, e
@@ -92,6 +113,12 @@ func verifyPackageWithRepairableBinaries(dir string, repairable map[string]bool)
 			return count, fmt.Errorf("unsafe or duplicate manifest path")
 		}
 		seen[strings.ToLower(rel)] = true
+		// Activation verifies only the executable chain it actually installs.
+		// A separate host build, optional assets or edited source files must
+		// not disable the user's existing BCS integration.
+		if activationOnly && !packageActivationRuntimeBinary(rel) {
+			continue
+		}
 		// Documentation is optional and never participates in runtime integrity.
 		if packageOptionalDocumentation(rel) {
 			continue
