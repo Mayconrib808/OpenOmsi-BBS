@@ -8,11 +8,10 @@ pub const FLASH_EVENT: &str = "bbs_greeting_flash";
 const HIGH_VARS: &[&str] = &["lights_fern", "lights_fernlicht", "farol_alto", "farolalto", "luz_alta", "luzalta", "high_beam", "highbeam", "fernlicht"];
 
 pub fn horn_active(v: &VehicleInstance) -> bool {
-    v.var_index().iter().any(|(name, &slot)| {
-        let signal = ["cockpit_hupe", "cockpit_hupe_swheel", "cockpit_hupe_volume", "horn", "hupe", "buzina", "buzina_vol", "buzina_volume", "horn_active", "bbs_input_horn"].contains(&name.as_str());
-        signal && v.state.vars.get(slot as usize).is_some_and(|n| *n > 0.5)
-    })
+    ["cockpit_hupe", "cockpit_hupe_swheel", "cockpit_hupe_volume", "horn", "hupe", "buzina", "buzina_vol", "buzina_volume", "horn_active", "bbs_input_horn"]
+        .iter().any(|name| v.var(name).is_some_and(|n| n > 0.5))
 }
+
 pub fn high_active(v: &VehicleInstance) -> bool {
     HIGH_VARS.iter().any(|n| v.var(n).is_some_and(|n| n > 0.5))
         || (v.ty.model.spotlights.len() >= 2 && v.var("Spot_Select").is_some_and(|n| n >= 1.0))
