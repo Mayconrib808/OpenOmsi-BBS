@@ -416,7 +416,7 @@ func (g *setupGUI) saveAndActivate() {
 		if _, err := checkOpenOMSICompatibility(c.OpenOMSI, false, c.Multiplayer); err != nil {
 			return guiResult{err: fmt.Errorf(g.text("incompatible"), err)}
 		}
-		if _, err := verifyPackage(g.dir); err != nil {
+		if _, err := verifyPackageForActivation(g.dir); err != nil {
 			return guiResult{err: fmt.Errorf(g.text("package"), err)}
 		}
 		if c.Multiplayer {
