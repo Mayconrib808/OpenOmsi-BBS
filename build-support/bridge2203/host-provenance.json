@@ -1,0 +1,40 @@
+{
+  "components": {
+    "HostAgent.exe": {
+      "original_sha256": "a483e435a23b9a74276fb045945ce58357ab5ea99f8759ddc2dddae41a41dba4",
+      "updated_sha256": "1a5d856e9c77a8ae13ccce50c9a0dc82bce742dce566bc5b3ec1306b1d8804b4",
+      "version_literal_offsets": [
+        4117722,
+        4144852,
+        4189014
+      ],
+      "changed_sections": [
+        ".rdata"
+      ],
+      "executable_code_sections_unchanged": {
+        ".text": "3d4facd6ac1c92bbba12e78b4b6824d4f6f9d1f2d4d328fb07f04ce108b6f737"
+      },
+      "original_version": "2.1.9.8",
+      "identification_version": "2.2.0.3",
+      "source_recompiled": false
+    },
+    "CompanyHost.exe": {
+      "original_sha256": "3d57a4733cbfb8bec677c29d888de339a92ae43c161f9e48ccc9b7a97c7d6cb3",
+      "updated_sha256": "90bf9c7eeda4f03f9d22417df48a25d5216887004f68f014a818c90b023d96f1",
+      "version_literal_offsets": [
+        3932503
+      ],
+      "changed_sections": [
+        ".rdata"
+      ],
+      "executable_code_sections_unchanged": {
+        ".text": "7656e6692eb77bc0fb39f1ec1457421428086ef0b586b2db73b768bc0aacf854"
+      },
+      "original_version": "2.1.9.8",
+      "identification_version": "2.2.0.3",
+      "source_recompiled": false
+    }
+  },
+  "complete_p15_code_retained": true,
+  "corresponding_host_source_available": false
+}

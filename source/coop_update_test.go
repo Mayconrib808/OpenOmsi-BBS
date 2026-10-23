@@ -40,6 +40,31 @@ func coopFixture(t *testing.T) ([]byte, coopDistribution) {
 	return data.Bytes(), spec
 }
 
+func TestCumulativeBundleInstallsManagedServerAndCoopAtExactPaths(t *testing.T) {
+    var data bytes.Buffer
+    z := zip.NewWriter(&data)
+    spec := coopDistribution{Prefix: "Bridge-2203/", FullPaths: true, Files: map[string]string{}}
+    want := map[string][]byte{bundledCoopFolder+"/programa/openomsi.exe": []byte("MZ game"), "app/server-dinamico-p14/openomsi.exe": []byte("MZ server")}
+    for name, content := range want {
+        f, err := z.Create(spec.Prefix+name); if err != nil { t.Fatal(err) }
+        if _,err=f.Write(content); err != nil {t.Fatal(err)}
+        spec.Files[name]=fmt.Sprintf("%x",sha256.Sum256(content))
+    }
+    if err:=z.Close();err!=nil {t.Fatal(err)}
+    spec.Size=int64(data.Len());spec.SHA256=fmt.Sprintf("%x",sha256.Sum256(data.Bytes()))
+    files,err:=readCoopDistribution(data.Bytes(),spec)
+    if err!=nil || len(files)!=2 {t.Fatalf("cumulative read: %v",err)}
+    dir:=t.TempDir()
+    for name,content:=range files {
+        if !bytes.Equal(content,want[name]) {t.Fatal("wrong destination",name)}
+        path:=filepath.Join(dir,filepath.FromSlash(name)); if err:=os.MkdirAll(filepath.Dir(path),0755);err!=nil {t.Fatal(err)}
+        if err:=os.WriteFile(path,content,0644);err!=nil {t.Fatal(err)}
+    }
+    if !existingCoopBundle(dir,spec) {t.Fatal("installed cumulative bundle not recognized")}
+    if err:=os.WriteFile(filepath.Join(dir,"app/server-dinamico-p14/openomsi.exe"),[]byte("corrupt"),0644);err!=nil {t.Fatal(err)}
+    if existingCoopBundle(dir,spec) {t.Fatal("damaged managed server accepted")}
+}
+
 func TestCoopDownloadRechecksCacheAndRejectsChangedPart(t *testing.T) {
 	data, spec := coopFixture(t)
 	parts := map[string][]byte{}

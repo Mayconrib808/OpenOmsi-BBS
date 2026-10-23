@@ -20,6 +20,7 @@ type coopDistributionPart struct {
 }
 
 type coopDistribution struct {
+	FullPaths bool // Signed cumulative bundles may also carry the managed dynamic host.
 	SHA256 string
 	Size   int64
 	Prefix string
@@ -44,7 +45,7 @@ func verifyCoopPayloadFile(name string, data []byte) bool {
 
 func existingCoopBundle(dir string, spec coopDistribution) bool {
 	for name, digest := range spec.Files {
-		if !strings.HasPrefix(name, bundledCoopFolder+"/") || strings.Contains(name, "\\") || strings.Contains(name, ":") || filepath.ToSlash(filepath.Clean(filepath.FromSlash(name))) != name {
+		if (!spec.FullPaths && !strings.HasPrefix(name, bundledCoopFolder+"/")) || strings.HasPrefix(name, "/") || strings.HasPrefix(name, "../") || strings.Contains(name, "\\") || strings.Contains(name, ":") || filepath.ToSlash(filepath.Clean(filepath.FromSlash(name))) != name {
 			return false
 		}
 		path := filepath.Join(dir, filepath.FromSlash(name))
@@ -94,6 +95,7 @@ func readCoopDistribution(data []byte, spec coopDistribution) (map[string][]byte
 			return nil, fmt.Errorf("caminho inválido no pacote do Cooperativo")
 		}
 		name := bundledCoopFolder + "/" + rel
+		if spec.FullPaths { name = rel }
 		expected, ok := spec.Files[name]
 		total += entry.UncompressedSize64
 		if !ok || files[name] != nil || entry.UncompressedSize64 > 128<<20 || total > 384<<20 {

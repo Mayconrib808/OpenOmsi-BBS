@@ -124,6 +124,9 @@ func checkUpdateHostClosed(dir string) error {
 	err = syscall.Process32First(snapshot, &entry)
 	for err == nil {
 		name := syscall.UTF16ToString(entry.ExeFile[:])
+		if strings.EqualFold(name, "openomsi.exe") && sameExecutableForUpdate(processExecutableForUpdate(entry.ProcessID), filepath.Join(dir, "app", "server-dinamico-p14", "openomsi.exe")) {
+			return fmt.Errorf("feche o servidor dinâmico desta instalação antes de atualizar")
+		}
 		if (strings.EqualFold(name, "HostAgent.exe") || strings.EqualFold(name, "CompanyHost.exe")) && sameExecutableForUpdate(processExecutableForUpdate(entry.ProcessID), filepath.Join(dir, name)) {
 			return fmt.Errorf("feche o HostAgent e o servidor da empresa antes de atualizar")
 		}
