@@ -244,9 +244,13 @@ def main():
             shutil.copy2(package/name,installed/name)
         assert not old_server.exists()
         assert old_server.drive.lower() != installed.drive.lower(), 'Cross-drive fixture did not use C: and D:'
+        installer_env = env.copy()
+        # A Python child of pwsh inherits PowerShell 7 module paths. Let the
+        # Windows PowerShell 5.1 process initialize its own standard module paths.
+        installer_env.pop('PSModulePath',None)
         subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',
             str(package/'scripts/atualizar_host_pessoal.ps1'),'-Destination',str(installed),
-            '-NonInteractive','-NoLaunch'],env=env,cwd=package,check=True,timeout=60)
+            '-NonInteractive','-NoLaunch'],env=installer_env,cwd=package,check=True,timeout=60)
         saved = json.loads(config.read_text(encoding='utf-8-sig'))
         actual_server = installed/'app/server-dinamico-p14/openomsi.exe'
         assert saved['server'] == str(actual_server) and actual_server.is_file()
@@ -321,7 +325,7 @@ def main():
             installed_native_version_checked=True,default_launch_uses_repaired_config=True,
             saved_values_retained_on_reopen=True,false_values_saved=True,
             real_two_player_bcs_trip_tested=False),indent=2)+'\n',encoding='utf-8')
-        print('ACTUAL P15 WIN32 CONTROLS PASSED: six fields, map switching, Save, reopen and false values')
+        print('ACTUAL P15 WIN32 CONTROLS PASSED: missing C: server repaired to D: installation; default launch, six fields, map switching, Save, reopen and false values')
 
 
 if __name__ == '__main__':
