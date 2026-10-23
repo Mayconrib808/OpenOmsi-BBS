@@ -19,7 +19,7 @@ def go_manifest(spec):
     return '\n'.join(lines+['\t},','}',''])
 def main():
     p=argparse.ArgumentParser();p.add_argument('--previous-coop',type=Path,required=True);p.add_argument('--dynamic-baseline',type=Path,required=True)
-    p.add_argument('--new-build',type=Path,required=True);p.add_argument('--game-run',type=int,required=True);p.add_argument('--game-commit',required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
+    p.add_argument('--new-server',type=Path,required=True);p.add_argument('--server-run',type=int,required=True);p.add_argument('--server-commit',required=True);p.add_argument('--new-build',type=Path,required=True);p.add_argument('--game-run',type=int,required=True);p.add_argument('--game-commit',required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
     spec=json.loads((ROOT/'docs/releases/coop-0.3.38-coop.8.json').read_text())
     old=a.previous_coop.read_bytes()
     if sha(old)!=spec['sha256']:raise ValueError('Previous Coop 8 differs')
@@ -48,7 +48,7 @@ def main():
     for n in ['build.log','regressions.log','greetings-tests.log','on-foot-network-test.log','windows-self-test.log','windows-version.log','windows-help.log','windows-startup.json','defender-report.json','defender-scan.log','defender-update.log','greetings-source-sha256.json','driver-share-source-sha256.json','character-source-sha256.json','overlay-sha256.json','build-sha256.json']:
         files[FOLDER+'validation/coop9-'+n]=read(n)
     files[FOLDER+'source/BUILD-INFO.json']=dump(dict(product='OpenOMSI 0.3.38-coop.9',bridge_version='2.2.0.3',protocol=14,game_run_id=a.game_run,game_commit=a.game_commit,executable_sha256=sha(exe),source_sha256=sha(source),streaming_preserved=True,automated_greeting_tests=9,graphical_gameplay_tested=False,two_player_bcs_trip_tested=False))
-    files[FOLDER+'source/BUILD.md']=('Fonte correspondente: openomsi-coop9-source.zip.\nPreparação: coop6, driver-share, character e greetings em build-support.\nO jogo e o servidor dinâmico P14 usam exatamente o mesmo executável e a mesma fonte.\n').encode()
+    files[FOLDER+'source/BUILD.md']=('Fonte correspondente: openomsi-coop9-source.zip.\nPreparação: coop6, driver-share, character e greetings em build-support.\nO servidor dinâmico mantém a base 0.3.39; fonte correspondente em docs/source da Bridge.\n').encode()
     files[FOLDER+'LEIA-ME.txt']=('OpenOMSI 0.3.38-coop.9 — Bridge 2.2.0.3 — protocolo 14\n\n'
       'Ônibus da mesma linha que se aproximam em sentidos opostos se cumprimentam com buzina e dois lampejos.\n'
       'A IA também responde à buzina ou a um lampejo curto do jogador, mesmo em outra linha.\n'
@@ -57,27 +57,39 @@ def main():
       'Em multiplayer, o host ou servidor que simula a IA também precisa da Coop 9. Protocolo 14 mantido.\n'
       'Skins, troca de motorista, cliques do cobrador e catraca da Coop 8 foram mantidos.\n'
       'Testes automatizados e nativos do Windows incluídos. Viagem gráfica real com BCS e dois jogadores pendente.\n').encode()
+    server_read=lambda n:(a.new_server/n).read_bytes()
+    server_json=lambda n:json.loads(server_read(n).decode('utf-8-sig'))
+    server_exe=server_read('openomsi.exe')
+    if sha(server_exe)!=server_json('build-sha256.json')['openomsi.exe'] or server_exe[:2]!=b'MZ':raise ValueError('Server executable differs')
+    if '0.3.39-bbs-stream.2' not in server_read('windows-version.log').decode('utf-8-sig'):raise ValueError('Server native base regressed')
+    if server_json('defender-report.json')['status']!='passed' or not server_json('windows-startup.json')['passed']:raise ValueError('Native server validation did not pass')
+    if not re.search(r'test result: ok\. 9 passed; 0 failed',server_read('greetings-tests.log').decode('utf-8-sig')):raise ValueError('Server greeting regressions did not pass')
+    server_source=server_read('openomsi-dynamic-source.zip')
+    with zipfile.ZipFile(io.BytesIO(server_source)) as z:
+        for n,v in server_json('greetings-source-sha256.json').items():
+            if sha(z.read('openomsi-dynamic-source/'+n))!=v['after']:raise ValueError('Server corresponding source differs')
+    files['docs/source/OpenOMSI_0.3.39_Dinamico_Fonte.zip']=server_source
+    for name in ['greetings-tests.log','greetings-source-sha256.json','windows-version.log','windows-startup.json','defender-report.json']:
+        files['docs/validation-dynamic/'+name]=server_read(name)
     dynamic={}
     with zipfile.ZipFile(a.dynamic_baseline) as z:
         for n in z.namelist():
             if n.startswith('app/server/') and not n.endswith('/'):
                 dynamic['app/server-dinamico-p14/'+Path(n).name]=z.read(n)
     if sha(dynamic['app/server-dinamico-p14/openomsi.exe'])!=OLD_DYNAMIC:raise ValueError('Dynamic source baseline differs')
-    for name in ['steam_api64.dll','msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll']:
-        dynamic['app/server-dinamico-p14/'+name]=files[FOLDER+'programa/'+name]
-    dynamic['app/server-dinamico-p14/openomsi.exe']=exe
-    dynamic['app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json']=dump(dict(bridge_line='2.2.0.3',native_version='0.3.38-coop.9',protocol=14,streaming=True,oncoming_greetings=True,source=FOLDER+'source/openomsi-coop9-source.zip',native_sha256=sha(exe)))
+    dynamic['app/server-dinamico-p14/openomsi.exe']=server_exe
+    dynamic['app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json']=dump(dict(bridge_line='2.2.0.3',native_version='0.3.39-bbs-stream.2',protocol=14,streaming=True,oncoming_greetings=True,source='docs/source/OpenOMSI_0.3.39_Dinamico_Fonte.zip',source_commit='9eaf95d4caafabe041edcdfc37931b5259c30c8a',build_commit=a.server_commit,build_run=a.server_run,native_sha256=sha(server_exe)))
     files.update(dynamic)
     provenance=json.loads((ROOT/'build-support/bridge2203/host-provenance.json').read_text())
     previous={'HostAgent.exe':['a483e435a23b9a74276fb045945ce58357ab5ea99f8759ddc2dddae41a41dba4','9611698e6318da299c32841c08a770959693dbaa495c33caa6671ff3649cadd3','b02fd974513b2e5f94987f459af72fe736fb80e132a0af68d51f0df7d42e368a','10dd12ad4226b254ef262810c58d3ac089f108cfdc4933fb9eee361a4ca031b1'],
       'CompanyHost.exe':['3d57a4733cbfb8bec677c29d888de339a92ae43c161f9e48ccc9b7a97c7d6cb3','ebfd3836d70ea342e65494309496d85f22232af540faacbc62dbcf6df66beb5c','69c28833dab1ecec927acfbf61c26b75c7c4227d25b019baf0c3b68c29ed393f','bd4e777156515c60704ce7213d63478d71ad859279352c40d72f83e7bfa34f8a']}
     host_manifest=dict(schema=1,version='2.2.0.3',edition='publico.1',previous_hosts=previous,host_protocols=[6,7,14,15],included_dynamic_protocol=14,files=[{'path':n,'sha256':sha(d)} for n,d in sorted(dynamic.items())]+[{'path':n,'sha256':v['updated_sha256']} for n,v in provenance['components'].items()])
     files['docs/HOST-PESSOAL-2.2.0.3.json']=dump(host_manifest)
-    script=(ROOT/'build-support/bridge2203/atualizar_host_pessoal.ps1').read_text(encoding='utf-8-sig').replace('2.2.0.2','2.2.0.3').replace('host-pessoal.3','publico.1').replace(OLD_DYNAMIC,sha(exe))
-    script=script.replace("$knownDynamic = (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash -eq '"+sha(exe)+"'", "$knownDynamic = (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash.ToLowerInvariant() -in @('"+OLD_DYNAMIC+"','"+sha(exe)+"')")
+    script=(ROOT/'build-support/bridge2203/atualizar_host_pessoal.ps1').read_text(encoding='utf-8-sig').replace('2.2.0.2','2.2.0.3').replace('host-pessoal.3','publico.1').replace(OLD_DYNAMIC,sha(server_exe))
+    script=script.replace("$knownDynamic = (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash -eq '"+sha(server_exe)+"'", "$knownDynamic = (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash.ToLowerInvariant() -in @('"+OLD_DYNAMIC+"','"+sha(server_exe)+"')")
     script=script.replace("@('Personal-Host-2.2.0.3/Backups'", "@('Personal-Host-2.2.0.2/Backups','Personal-Host-2.2.0.3/Backups'")
     files['scripts/atualizar_host_pessoal.ps1']=b'\xef\xbb\xbf'+script.encode()
-    tests=(ROOT/'build-support/bridge2203/test_host_pessoal.ps1').read_text(encoding='utf-8-sig').replace('2.2.0.2','2.2.0.3').replace(OLD_DYNAMIC,sha(exe))
+    tests=(ROOT/'build-support/bridge2203/test_host_pessoal.ps1').read_text(encoding='utf-8-sig').replace('2.2.0.2','2.2.0.3').replace(OLD_DYNAMIC,sha(server_exe))
     (ROOT/'scripts/test_host_2203.ps1').write_text(tests,encoding='utf-8-sig',newline='\n')
     files['ATIVAR-SERVIDOR-DINAMICO.cmd']=b'@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\\atualizar_host_pessoal.ps1" -Destination "%~dp0." -NoLaunch\r\npause\r\n'
     files['docs/HOST-P15-PROVENIENCIA.json']=dump(provenance)

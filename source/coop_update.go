@@ -45,7 +45,7 @@ func verifyCoopPayloadFile(name string, data []byte) bool {
 
 func existingCoopBundle(dir string, spec coopDistribution) bool {
 	for name, digest := range spec.Files {
-		if (!spec.FullPaths && !strings.HasPrefix(name, bundledCoopFolder+"/")) || strings.HasPrefix(name, "/") || strings.HasPrefix(name, "../") || strings.Contains(name, "\\") || strings.Contains(name, ":") || filepath.ToSlash(filepath.Clean(filepath.FromSlash(name))) != name {
+		if (!spec.FullPaths && !strings.HasPrefix(name, bundledCoopFolder+"/")) || name == ".." || name == "." || strings.HasPrefix(name, "/") || strings.HasPrefix(name, "../") || strings.Contains(name, "\\") || strings.Contains(name, ":") || filepath.ToSlash(filepath.Clean(filepath.FromSlash(name))) != name {
 			return false
 		}
 		path := filepath.Join(dir, filepath.FromSlash(name))

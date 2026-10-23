@@ -33,5 +33,6 @@ checks.update(setup_gui='passed', bundled_coop_button='passed', updater_progress
 (evidence / 'windows-native.json').write_text(json.dumps(checks, indent=2) + '\n', encoding='utf-8')
 print('Native Setup, included Coop selection, updater progress and real game capability probes passed.')
 
+(package/'validation').mkdir(exist_ok=True)
 # Exercise the actual complete P15 controls, not the archived incomplete Go source.
 subprocess.run([__import__('sys').executable, str(ROOT/'build-support/bridge2203/test_p15_host_controls.py'), '--package', str(package)],check=True,timeout=180)
