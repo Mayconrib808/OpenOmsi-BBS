@@ -1,34 +1,40 @@
-HOST PARTICULAR 2.2.0.2 - MAYCON
+HOST PARTICULAR 2.2.0.2 - MAYCON - CORRECAO host-pessoal.2
 
-1. Feche HostAgent, CompanyHost, Setup e o servidor/OpenOMSI desta instalacao.
-2. Extraia este ZIP inteiro em qualquer pasta.
+1. Feche HostAgent (inclusive na bandeja), CompanyHost, Setup e o servidor.
+2. Extraia este ZIP inteiro em uma pasta separada.
 3. Abra ATUALIZAR-MEU-HOST.cmd.
    Ele procura a instalacao que voce ja usa. Se aparecer a selecao de pasta,
-   escolha a pasta da Bridge onde ficam Setup.exe e HostAgent.exe.
-4. Ao concluir, abra/inicie o HostAgent instalado na sua pasta habitual.
+   escolha sua Bridge, onde ficam Setup.exe e HostAgent.exe.
+4. Abra o HostAgent instalado na sua pasta habitual.
 
-O pacote recompila HostAgent e CompanyHost como 2.2.0.2 a partir das fontes
-atuais. Mantem suporte aos protocolos 6, 7, 14 e 15 e inclui o mesmo servidor
-dinamico P14 0.3.39-bbs-stream.1 da edicao pessoal anterior, com runtimes.
+Esta correcao restaura os componentes completos anteriores ao erro de
+recompilacao: voz por proximidade, radio, alcance, lista publica, identificador
+para banimento de maquina e senha de administrador por mapa.
 
-Sua Bridge, Setup, adaptador BCS e jogo/Coop atuais ficam como estao.
-As skins do Coop 8, troca de motorista e demais mudancas do jogo continuam
-dependendo da versao do jogo que voce ja instalou; este ZIP atualiza o host.
-Empresa, convite/link, mapas, METAR, passageiros, horario, portas, limites,
-preferencias e arquivos extras sao preservados.
+O codigo executavel do HostAgent e CompanyHost e identico ao dos componentes
+P15 completos ja distribuidos. Apenas as identificacoes de versao em dados
+foram atualizadas para 2.2.0.2. Nao foram recompilados a partir do arquivo de
+fontes antigo, que nao corresponde ao componente P15 completo. Os hashes,
+origem e alteracoes exatas constam em docs/BINARY-PROVENANCE.json.
 
-Para o host dinamico P14 existente, o instalador usa uma pasta propria dentro
-da Bridge: app/server-dinamico-p14. O caminho fica salvo no HostAgent.
-Servidores personalizados e perfis de protocolo 15 continuam selecionados;
-o servidor P14 incluso nao substitui nem converte um servidor P15.
-Cada partida continua exigindo jogo e servidor no mesmo protocolo.
+O servidor dinamico P14 continua sendo exatamente o mesmo executavel
+0.3.39-bbs-stream.1 da edicao pessoal anterior. O suporte do HostAgent ao
+protocolo 15 nao converte esse servidor P14 em P15. Para usar recursos de
+rede P15, o servidor e o jogo tambem precisam usar o protocolo 15.
+Uma selecao independente de servidor P15/personalizado e mantida.
 
-O instalador confere os arquivos, guarda backup dos componentes/configuracoes
-alterados e reverte a operacao se uma substituicao falhar. O caminho do backup
-aparece na tela: LOCALAPPDATA/OpenOmsi-BBS/Personal-Host-2.2.0.2/Backups.
-Hosts desconhecidos/mais novos sao mantidos e a atualizacao para antes de
-substituir arquivos. Rodar o mesmo pacote novamente preserva as preferencias.
+Sua Bridge, Setup, adaptador BCS, jogo/Coop e arquivos extras sao preservados.
+Empresa, chaves, mapas, METAR, passageiros, horario, portas, limites e
+preferencias atuais sao mantidos. Ao atualizar um HostAgent afetado pela
+regressao, campos P15 ausentes sao recuperados de backups da mesma empresa
+e mapa, quando disponiveis. Valores atuais explicitos nao sao sobrescritos.
 
-Esta edicao e particular e nao muda o Buscar atualizacoes publico.
-Testes e fontes acompanham o ZIP. O servidor dinamico continua experimental:
-uma viagem real com BCS e dois jogadores precisa ser validada no jogo.
+Para o host dinamico existente, a copia fica em app/server-dinamico-p14,
+dentro da sua Bridge. O instalador confere todos os arquivos, guarda backup
+e reverte a operacao se houver uma falha na substituicao. O caminho aparece
+na tela: LOCALAPPDATA/OpenOmsi-BBS/Personal-Host-2.2.0.2/Backups.
+Hosts desconhecidos/mais novos sao mantidos e a operacao para antes de gravar.
+
+Esta edicao e particular e nao altera o Buscar atualizacoes publico.
+Testes da janela real, instalacao, rollback e Defender acompanham o ZIP.
+Uma viagem real com BCS e dois jogadores ainda depende de validacao no jogo.

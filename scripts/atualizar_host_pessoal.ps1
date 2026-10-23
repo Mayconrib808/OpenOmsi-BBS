@@ -300,23 +300,67 @@ function Get-HostSelection {
     return [PSCustomObject]@{ Activate = $activate; Protocol = $protocol; Server = $server }
 }
 
+function Restore-P15MapPreferences {
+    param($Document, [string]$Path, [string]$DataRoot)
+    $company = Get-Field $Document 'company' $null
+    $companyID = [string](Get-Field $company 'company_id' '')
+    $maps = Get-Field $Document 'maps' $null
+    if (-not $companyID -or $null -eq $maps) { return $false }
+    $directories = @()
+    foreach ($relative in @('Personal-Host-2.2.0.2/Backups','Personal-Dynamic-2.2/Backups','Personal-Dynamic-2.2/Install-Backups')) {
+        $root = Join-Path $DataRoot $relative
+        if ([IO.Directory]::Exists($root)) { $directories += @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue) }
+    }
+    $changed = $false
+    foreach ($directory in @($directories | Sort-Object Name -Descending | Select-Object -First 50)) {
+        try {
+            $index = Join-Path $directory.FullName 'backup.json'
+            if (-not [IO.File]::Exists($index)) { continue }
+            $records = @(ConvertFrom-Json ([IO.File]::ReadAllText($index)))
+            foreach ($record in $records) {
+                if (-not $record.existed -or $record.target -ne $Path -or -not [IO.File]::Exists($record.backup)) { continue }
+                if (-not (Test-PathInside $record.backup $directory.FullName)) { continue }
+                $previous = Read-HostObject $record.backup
+                if ([string](Get-Field (Get-Field $previous 'company' $null) 'company_id' '') -ne $companyID) { continue }
+                $oldMaps = Get-Field $previous 'maps' $null
+                if ($null -eq $oldMaps) { continue }
+                foreach ($map in $maps.PSObject.Properties) {
+                    $oldMap = Get-Field $oldMaps $map.Name $null
+                    if ($null -eq $oldMap) { continue }
+                    foreach ($name in @('voice','voice_radio','voice_range','public_server','require_hardware_id','admin_password')) {
+                        $saved = $oldMap.PSObject.Properties[$name]
+                        if ($null -eq $map.Value.PSObject.Properties[$name] -and $null -ne $saved) {
+                            Set-JsonField $map.Value $name $saved.Value
+                            $changed = $true
+                        }
+                    }
+                }
+            }
+        } catch { continue } # A malformed old backup must not replace valid current settings.
+    }
+    return $changed
+}
+
 function Add-HostSettings {
-    param($Plan, [string]$Path, [string]$Kind, [string]$Server)
+    param($Plan, [string]$Path, [string]$Kind, [string]$Server, [string]$DataRoot, [bool]$RecoverP15=$false)
     $document = Read-HostObject $Path
     if ($null -eq $document) { return $false }
     if ($Kind -eq 'HostAgent' -and (Get-Field $document 'schema' 0) -ne 1) { throw 'HostAgent.local.json nao reconhecido.' }
     $custom = Get-Field $document 'use_custom_server' $false
     if ($Kind -eq 'HostAgent' -and $custom -isnot [bool]) { throw 'Opcao use_custom_server invalida.' }
+    $changed = $false
+    if ($Kind -eq 'HostAgent' -and $RecoverP15) { $changed = Restore-P15MapPreferences $document $Path $DataRoot }
     $selection = Get-HostSelection $document $Kind
-    if (-not $selection.Activate) { return $false }
-    $same = $selection.Server -eq $Server
-    if ($same -and ($Kind -ne 'HostAgent' -or $custom)) { return $true }
-    Set-JsonField $document 'server' $Server
-    if ($Kind -eq 'HostAgent') { Set-JsonField $document 'use_custom_server' $true }
+    if ($selection.Activate -and ($selection.Server -ne $Server -or ($Kind -eq 'HostAgent' -and -not $custom))) {
+        Set-JsonField $document 'server' $Server
+        if ($Kind -eq 'HostAgent') { Set-JsonField $document 'use_custom_server' $true }
+        $changed = $true
+    }
+    if (-not $changed) { return $selection.Activate }
     # Company, map options, passwords, time zone and all unknown fields stay intact.
     $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes((ConvertTo-Json -InputObject $document -Depth 100) + [Environment]::NewLine)
     Add-InstallFile $Plan '' $Path (Get-ByteHash $bytes) $bytes
-    return $true
+    return $selection.Activate
 }
 
 function Add-HostIntegrityEdit {
@@ -361,7 +405,7 @@ function Invoke-HostOnlyInstaller {
     }
     $manifestPath = Join-Path $sourceRoot 'docs/HOST-PESSOAL-2.2.0.2.json'
     $manifest = Read-HostObject $manifestPath
-    if ($null -eq $manifest -or $manifest.schema -ne 1 -or $manifest.version -ne '2.2.0.2' -or $manifest.edition -ne 'host-pessoal.1') { throw 'Extraia o ZIP inteiro; pacote do host nao reconhecido.' }
+    if ($null -eq $manifest -or $manifest.schema -ne 1 -or $manifest.version -ne '2.2.0.2' -or $manifest.edition -ne 'host-pessoal.2') { throw 'Extraia o ZIP inteiro; pacote do host nao reconhecido.' }
     $allowed = @('HostAgent.exe','CompanyHost.exe','app/server-dinamico-p14/openomsi.exe','app/server-dinamico-p14/steam_api64.dll','app/server-dinamico-p14/msvcp140.dll','app/server-dinamico-p14/vcruntime140.dll','app/server-dinamico-p14/vcruntime140_1.dll','app/server-dinamico-p14/.openomsi-content','app/server-dinamico-p14/OpenOMSI-LICENSE.txt','app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json')
     if (@($manifest.files).Count -ne $allowed.Count) { throw 'Lista de componentes do host inesperada.' }
     $plan = [ordered]@{}; $hashes = @{}; $seen = @{}
@@ -388,8 +432,12 @@ function Invoke-HostOnlyInstaller {
     $hostPath = Join-Path $dataRoot 'HostAgent.local.json'
     $companyPath = Join-Path $dataRoot 'CompanyHost.local.json'
     if (-not [IO.File]::Exists($companyPath)) { $companyPath = Join-Path $destinationRoot 'CompanyHost.local.json' }
-    $hostActivated = Add-HostSettings $plan $hostPath 'HostAgent' $server
-    $companyActivated = Add-HostSettings $plan $companyPath 'CompanyHost' $server
+    $installedHostHash = (Get-FileHash -LiteralPath (Join-Path $destinationRoot 'HostAgent.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+    # Only hosts built from the obsolete source need missing preferences recovered.
+    # Complete P15 builds omit false values deliberately; never recover over those.
+    $recoverP15 = $installedHostHash -in @('b02fd974513b2e5f94987f459af72fe736fb80e132a0af68d51f0df7d42e368a','9611698e6318da299c32841c08a770959693dbaa495c33caa6671ff3649cadd3')
+    $hostActivated = Add-HostSettings $plan $hostPath 'HostAgent' $server $dataRoot $recoverP15
+    $companyActivated = Add-HostSettings $plan $companyPath 'CompanyHost' $server $dataRoot
     foreach ($name in @('docs/SHA256.txt','SHA256SUMS.txt','docs/PATCH-HOST-SHA256.txt')) {
         Add-HostIntegrityEdit $plan (Join-Path $destinationRoot $name) $hashes
     }
@@ -403,13 +451,14 @@ function Invoke-HostOnlyInstaller {
         if (-not [IO.File]::Exists($startupPath)) { Add-InstallFile $plan '' $startupPath (Get-ByteHash $bytes) $bytes }
     }
     Add-InstallFile $plan $manifestPath (Join-Path $destinationRoot 'docs/HOST-PESSOAL-2.2.0.2.json') ((Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash)
-    $receipt = [PSCustomObject]@{ version='2.2.0.2'; edition='host-pessoal.1'; installation=$destinationRoot; dynamic_server=$server; host_dynamic_selected=$hostActivated; company_dynamic_selected=$companyActivated; player_files_updated=$false }
+    $receipt = [PSCustomObject]@{ version='2.2.0.2'; edition='host-pessoal.2'; installation=$destinationRoot; dynamic_server=$server; host_dynamic_selected=$hostActivated; company_dynamic_selected=$companyActivated; player_files_updated=$false }
     $receiptPath = Join-Path $dataRoot 'Personal-Host-2.2.0.2/installed.json'
     $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes((ConvertTo-Json $receipt -Depth 8))
     Add-InstallFile $plan '' $receiptPath (Get-ByteHash $bytes) $bytes
     Write-Host ('Atualizando seu host em: ' + $destinationRoot) -ForegroundColor Cyan
     $backup = Invoke-PersonalTransaction $plan (Join-Path $dataRoot 'Personal-Host-2.2.0.2/Backups')
     Write-Host 'HostAgent e CompanyHost 2.2.0.2 instalados. Sua Bridge e seu Coop atuais foram preservados.' -ForegroundColor Green
+    Write-Host 'Recursos P15 restaurados: voz, radio, alcance, lista publica, banimento de maquina e senha admin.'
     if ($hostActivated -or $companyActivated) { Write-Host 'Servidor dinamico P14 selecionado, com o mesmo executavel da sua edicao pessoal anterior.' }
     else { Write-Host 'Seu servidor personalizado/protocolo atual foi mantido. A copia dinamica P14 fica disponivel separadamente.' }
     if ($backup) { Write-Host ('Backup dos arquivos e configuracoes alterados: ' + $backup) }

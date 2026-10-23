@@ -1,4 +1,4 @@
-﻿param([Parameter(Mandatory=$true)][string]$Package, [Parameter(Mandatory=$true)][string]$Baseline)
+﻿param([Parameter(Mandatory=$true)][string]$Package, [Parameter(Mandatory=$true)][string]$Baseline, [Parameter(Mandatory=$true)][string]$Regressed)
 Set-StrictMode -Version 2.0
 $ErrorActionPreference='Stop'
 $Package=[IO.Path]::GetFullPath($Package)
@@ -82,6 +82,39 @@ try {
     Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
     Assert-True ((Get-FileHash $startup).Hash -eq $startupHash) 'Existing startup arguments changed'
     $passed.Add('existing_windows_startup_arguments_preserved_byte_for_byte')
+    foreach($explicit in @($false,$true)) {
+        $f=Fixture 15 $true
+        foreach($name in @('HostAgent.exe','CompanyHost.exe')) { Copy-Item -LiteralPath (Join-Path $Regressed $name) -Destination (Join-Path $f.Root $name) -Force }
+        $path=Join-Path $f.Data 'HostAgent.local.json'
+        $current=Read-HostObject $path
+        if($explicit) {
+            foreach($name in @('voice','voice_radio','public_server','require_hardware_id')) { Set-JsonField $current.maps.mapa $name $false }
+            Set-JsonField $current.maps.mapa 'voice_range' 75
+            Set-JsonField $current.maps.mapa 'admin_password' 'current-admin-kept'
+            Put-File $path (ConvertTo-Json $current -Depth 30)
+        }
+        $old=Read-HostObject $path
+        foreach($name in @('voice','voice_radio','public_server','require_hardware_id')) { Set-JsonField $old.maps.mapa $name $true }
+        Set-JsonField $old.maps.mapa 'voice_range' 180
+        Set-JsonField $old.maps.mapa 'admin_password' 'previous-admin-kept'
+        $dir=Join-Path $f.Data 'Personal-Host-2.2.0.2/Backups/20261022-201214-9ef2eb3f'
+        $bak=Join-Path $dir '0003.bak'
+        Put-File $bak (ConvertTo-Json $old -Depth 30)
+        Put-File (Join-Path $dir 'backup.json') (ConvertTo-Json @(@{target=$path;backup=$bak;existed=$true}))
+        $serverBefore=(Get-FileHash $f.Server).Hash
+        Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
+        $actual=Read-HostObject $path
+        Assert-True ($actual.server -eq $current.server -and (Get-FileHash $f.Server).Hash -eq $serverBefore) 'P15 server selection changed during recovery'
+        foreach($name in @('host_key','room_id','control_key','company','unknown')) { Assert-True ((ConvertTo-Json $actual.$name -Depth 30 -Compress) -eq (ConvertTo-Json $current.$name -Depth 30 -Compress)) ('Recovery changed unrelated '+$name) }
+        $expected=$old.maps.mapa
+        if($explicit) { $expected=$current.maps.mapa }
+        foreach($name in @('voice','voice_radio','voice_range','public_server','require_hardware_id','admin_password')) { Assert-True ($actual.maps.mapa.$name -eq $expected.$name) ('P15 preference recovery failed: '+$name) }
+        $saved=[IO.File]::ReadAllText($path)
+        Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
+        Assert-True ([IO.File]::ReadAllText($path) -eq $saved) 'Corrected host reintroduced an old preference'
+        if($explicit) { $passed.Add('actual_regressed_host_upgrade_preserves_explicit_false_range_and_admin_password') }
+        else { $passed.Add('actual_regressed_host_upgrade_recovers_six_missing_p15_fields_from_company_map_backup') }
+    }
     $f=Fixture; Put-File (Join-Path $f.Data 'HostAgent.local.json') '{bad-json'; $snap=Snapshot $f.Root
     $failed=$false; try { Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch } catch {$failed=$true}
     Assert-True $failed 'Malformed settings accepted'; Assert-Snapshot $snap; $passed.Add('malformed_settings_abort_before_any_write')

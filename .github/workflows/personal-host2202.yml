@@ -2,7 +2,7 @@ name: Build and verify personal host 2.2.0.2
 on:
   push:
     branches: ['personal/2.2.0.2-host']
-    paths: ['scripts/*host*2202*', 'scripts/atualizar_host_pessoal.ps1', 'scripts/test_host_pessoal.ps1', 'scripts/recompilar_host.py', 'build-support/host-personal2202/**', '.github/workflows/personal-host2202.yml']
+    paths: ['scripts/*host*2202*', 'scripts/test_p15_host_controls.py', 'scripts/atualizar_host_pessoal.ps1', 'scripts/test_host_pessoal.ps1', 'build-support/host-personal2202/**', '.github/workflows/personal-host2202.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,10 +15,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
-        with:
-          go-version: '1.23.2'
-          cache: false
       - name: Check original dynamic server validation
         shell: pwsh
         env:
@@ -26,20 +22,30 @@ jobs:
         run: |
           $r=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/39698116557" | ConvertFrom-Json
           if($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '0f2754dc5526429662f49a42bfe615b69e13a923'){throw 'Original native host was not approved.'}
+          $r=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/39868993435" | ConvertFrom-Json
+          if($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '022fe32fecdf892a68e21eafe4f47faf124560b4'){throw 'Previous regression package provenance differs.'}
       - uses: actions/download-artifact@v8
         with:
           name: Bridge-2.1.9.8-Streaming-Experimental
           run-id: 39698116557
           github-token: ${{ github.token }}
           path: previous-dynamic
-      - name: Test host protocols and build actual two native host components
-        run: python scripts/build_host_personal2202.py --baseline previous-dynamic/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.2-Host-Particular-Maycon
+          run-id: 39868993435
+          github-token: ${{ github.token }}
+          path: previous-regression
+      - name: Restore complete P15 hosts with unchanged executable code
+        run: python scripts/restore_host_personal2202.py --baseline previous-dynamic/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip --regressed previous-regression/Bridge_2.2.0.2_Host_Particular_Maycon.zip
+      - name: Actual P15 native controls Save reopen and map switching
+        run: python scripts/test_p15_host_controls.py --package build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon
       - name: Actual installation and rollback on Windows PowerShell 5.1
         shell: powershell
-        run: scripts/test_host_pessoal.ps1 -Package build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon -Baseline build/host-personal2202/baseline
+        run: scripts/test_host_pessoal.ps1 -Package build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon -Baseline build/host-personal2202/baseline -Regressed build/host-personal2202/regressed
       - name: Actual installation and rollback on PowerShell 7
         shell: pwsh
-        run: scripts/test_host_pessoal.ps1 -Package build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon -Baseline build/host-personal2202/baseline
+        run: scripts/test_host_pessoal.ps1 -Package build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon -Baseline build/host-personal2202/baseline -Regressed build/host-personal2202/regressed
       - name: Defender scan actual native payload
         shell: pwsh
         run: |
@@ -56,7 +62,7 @@ jobs:
           if($code -ne 0 -or $text -notmatch 'found no threats|no threats found' -or $text -match 'skipped'){throw 'Native payload Defender verification did not pass.'}
           @{status='passed';archive_scanning_enabled=(-not (Get-MpPreference).DisableArchiveScanning);exit_code=$code;sha256=@(Get-ChildItem $scan -Recurse -File | Where-Object {$_.Extension -in @('.exe','.dll')} | ForEach-Object {@{name=$_.FullName.Substring($scan.Length+1);sha256=(Get-FileHash $_.FullName).Hash.ToLowerInvariant()}})} | ConvertTo-Json -Depth 8 | Set-Content build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon/validation/defender.json
       - name: Build complete private ZIP with successful evidence
-        run: python scripts/build_host_personal2202.py --baseline previous-dynamic/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip --finalize
+        run: python scripts/restore_host_personal2202.py --baseline previous-dynamic/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip --finalize
       - name: Scan exact final ZIP
         shell: pwsh
         run: |
@@ -77,6 +83,7 @@ jobs:
           path: |
             build/host-personal2202/*.log
             build/host-personal2202/Bridge_2.2.0.2_Host_Particular_Maycon/validation/**
+            build/host-personal2202/native-previews/**
           if-no-files-found: warn
           retention-days: 30
       - uses: actions/upload-artifact@v7
