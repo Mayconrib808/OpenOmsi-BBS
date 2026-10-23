@@ -34,6 +34,7 @@ class NativeUI:
         self.u.SendMessageTimeoutW.restype = W.LPARAM
         self.u.PostMessageW.argtypes = [W.HWND, W.UINT, W.WPARAM, W.LPARAM]
         self.u.GetClassNameW.argtypes = [W.HWND, W.LPWSTR, C.c_int]
+        self.u.GetWindowLongW.argtypes = [W.HWND, C.c_int]
         self.u.GetWindowRect.argtypes = [W.HWND, C.POINTER(W.RECT)]
         self.u.GetDlgCtrlID.argtypes = [W.HWND]
         self.u.GetParent.argtypes = [W.HWND]
@@ -49,6 +50,12 @@ class NativeUI:
 
     def text(self, hwnd):
         length = min(self.send(hwnd, 0xE), 4096)
+        cls = C.create_unicode_buffer(128)
+        self.u.GetClassNameW(hwnd, cls, 128)
+        if cls.value.lower() == 'edit' and self.u.GetWindowLongW(hwnd, -16) & 0x20:
+            # Windows protects cross-process WM_GETTEXT for password controls.
+            # Preserve their HWND/layout; verify the real saved value in JSON.
+            return '*' * length
         buffer = C.create_unicode_buffer(length + 1)
         self.send(hwnd, 0xD, length + 1, C.cast(buffer, C.c_void_p).value)
         return buffer.value
@@ -139,6 +146,8 @@ class NativeUI:
             hwnd = controls[name]['hwnd']
             actual = bool(self.send(hwnd, 0xF0)) if isinstance(values[name], bool) else self.text(hwnd)
             expected = values[name] if isinstance(values[name], bool) else str(values[name])
+            if name == 'admin_password':
+                expected = '*' * len(expected)
             if actual != expected:
                 raise AssertionError('Native control did not retain ' + name)
 
