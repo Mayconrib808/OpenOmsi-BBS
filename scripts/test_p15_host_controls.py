@@ -247,7 +247,10 @@ def main():
         installer_env = env.copy()
         # A Python child of pwsh inherits PowerShell 7 module paths. Let the
         # Windows PowerShell 5.1 process initialize its own standard module paths.
-        installer_env.pop('PSModulePath',None)
+        for key in list(installer_env):
+            if key.lower() == 'psmodulepath':
+                del installer_env[key]
+        installer_env['PSModulePath'] = str(Path(os.environ['SystemRoot'])/'System32/WindowsPowerShell/v1.0/Modules')
         subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',
             str(package/'scripts/atualizar_host_pessoal.ps1'),'-Destination',str(installed),
             '-NonInteractive','-NoLaunch'],env=installer_env,cwd=package,check=True,timeout=60)
