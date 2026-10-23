@@ -93,6 +93,13 @@ where = 'rv.last.walker.is_none(), false);'
 assert view.count(where) == 1, 'Remote driver renderer changed unexpectedly'
 view = view.replace(where,
     'rv.last.walker.is_none() && frame.hide_driver_for != Some(*id), false);')
+# The body model is allowed to refresh even while the remote vehicle is being
+# represented by a temporary stand-in. Otherwise the selected .hum can remain
+# frozen until the bus is removed or the player reconnects.
+stale_skin = 'if v.driver_for.as_deref() != Some(rv.last.figure.as_str()) && !rv.stand_in {'
+assert view.count(stale_skin) == 1, 'Remote character lifecycle changed unexpectedly'
+view = view.replace(stale_skin,
+    'if v.driver_for.as_deref() != Some(rv.last.figure.as_str()) {')
 view_path.write_text(view, encoding='utf-8', newline='\n')
 
 print('Prepared owner-avatar handover, on-foot authorization and F1 rendering fixes; Rust validation required.')
