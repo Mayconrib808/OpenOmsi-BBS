@@ -102,4 +102,32 @@ view = view.replace(stale_skin,
     'if v.driver_for.as_deref() != Some(rv.last.figure.as_str()) {')
 view_path.write_text(view, encoding='utf-8', newline='\n')
 
-print('Prepared owner-avatar handover, on-foot authorization and F1 rendering fixes; Rust validation required.')
+
+# The player-hosted LAN world must stream traffic, waiting passengers and
+# pedestrians around EVERY player, including those who removed their bus or
+# work as a conductor on foot. The host remains the only AI authority.
+world_path = game / 'crates/omsi-app/src/lan_world.rs'
+world = world_path.read_text(encoding='utf-8')
+filter_vehicle = '.filter(|p| p.has_pose && p.pose.has_vehicle())'
+assert world.count(filter_vehicle) == 2, 'LAN host player-center filters changed unexpectedly'
+world = world.replace(filter_vehicle,
+    '.filter(|p| p.has_pose && (p.pose.has_vehicle() || p.pose.walker.is_some()))')
+vehicle_center = '.map(|p| (p.pose.id, DVec3::new(p.pose.x, p.pose.y, p.pose.z)))'
+assert world.count(vehicle_center) == 1, 'LAN host center mapper changed unexpectedly'
+world = world.replace(vehicle_center,
+    '''.map(|p| {
+                let at = p.pose.walker.map(|w| DVec3::new(w.x, w.y, w.z))
+                    .unwrap_or_else(|| DVec3::new(p.pose.x, p.pose.y, p.pose.z));
+                (p.pose.id, at)
+            })''')
+vehicle_eye = '''                let at = DVec3::new(p.pose.x, p.pose.y, p.pose.z);
+                crate::traffic::Viewer::lan_player(at, p.pose.heading as f64)'''
+assert world.count(vehicle_eye) == 1, 'LAN remote eye mapper changed unexpectedly'
+world = world.replace(vehicle_eye,
+    '''                let at = p.pose.walker.map(|w| DVec3::new(w.x, w.y, w.z))
+                    .unwrap_or_else(|| DVec3::new(p.pose.x, p.pose.y, p.pose.z));
+                let heading = p.pose.walker.map(|w| w.heading).unwrap_or(p.pose.heading);
+                crate::traffic::Viewer::lan_player(at, heading as f64)''')
+world_path.write_text(world, encoding='utf-8', newline='\n')
+
+print('Prepared owner-avatar, on-foot authorization, F1 skin, and player-hosted LAN foot traffic source fixes; validation required.')
