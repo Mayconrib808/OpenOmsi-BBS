@@ -1,8 +1,8 @@
-name: Build Bridge 2.2.0.3 hotfix 1 server status
+name: Build Bridge 2.2.0.3 hotfix 2 server status
 on:
   push:
     branches: ['release/2.2.0.3']
-    paths: ['build-support/bridge2203-hotfix/request.json', '.github/workflows/release-2203-hotfix.yml']
+    paths: ['build-support/bridge2203-hotfix/request.json', '.github/workflows/release-2203-hotfix2.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -41,27 +41,27 @@ jobs:
         shell: pwsh
         run: scripts/scan_2203_hotfix.ps1
       - name: Report exact candidate identity
-        run: python -c "from pathlib import Path; import json; print('HOTFIX_REPORT='+json.dumps(json.loads(Path('build/release-2203-hotfix/build-report.json').read_text())))"
+        run: python -c "from pathlib import Path; import json; print('HOTFIX_REPORT='+json.dumps(json.loads(Path('build/release-2203-hotfix2/build-report.json').read_text())))"
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: Bridge-2.2.0.3-hotfix.1-evidence
-          path: build/release-2203-hotfix/evidence/**
+          name: Bridge-2.2.0.3-hotfix.2-evidence
+          path: build/release-2203-hotfix2/evidence/**
           if-no-files-found: warn
           retention-days: 30
       - uses: actions/upload-artifact@v7
         with:
-          name: Bridge-2.2.0.3-hotfix.1-candidate
+          name: Bridge-2.2.0.3-hotfix.2-candidate
           path: |
-            build/release-2203-hotfix/Atualizar-Bridge.exe
-            build/release-2203-hotfix/build-report.json
+            build/release-2203-hotfix2/Atualizar-Bridge.exe
+            build/release-2203-hotfix2/build-report.json
           if-no-files-found: error
           retention-days: 30
       - uses: actions/upload-artifact@v7
         with:
-          name: Bridge-2.2.0.3-hotfix.1-complete
+          name: Bridge-2.2.0.3-hotfix.2-complete
           path: |
-            build/release-2203-hotfix/OpenOmsi_BBS_2.2.0.3_hotfix1_Setup_e_Coop9.zip
-            build/release-2203-hotfix/OpenOmsi_BBS_2.2.0.3_hotfix1_Setup_e_Coop9.zip.sha256
+            build/release-2203-hotfix2/OpenOmsi_BBS_2.2.0.3_hotfix2_Setup_e_Coop9.zip
+            build/release-2203-hotfix2/OpenOmsi_BBS_2.2.0.3_hotfix2_Setup_e_Coop9.zip.sha256
           if-no-files-found: error
           retention-days: 30
