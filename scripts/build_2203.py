@@ -120,7 +120,7 @@ def main():
         path.write_bytes(content)
     ignore = shutil.ignore_patterns('__pycache__', '*.pyc', '*.exe', '*.dll', '*.syso', '*.zip', 'assets', 'node_modules')
     for name in ('source', 'scripts', 'docs', 'native', 'examples', 'relay', 'update-service', 'build-support'):
-        shutil.copytree(ROOT / name, package / name, ignore=ignore)
+        shutil.copytree(ROOT / name, package / name, ignore=ignore, dirs_exist_ok=True)
     for name in ('LICENSE', 'THIRD_PARTY_NOTICES.md', 'NOTICE_FOR_PEDEPE.md'):
         shutil.copy2(ROOT / name, package / name)
     shutil.copy2(ROOT / 'app/bridge.ini.example', package / 'app/bridge.ini.example')
