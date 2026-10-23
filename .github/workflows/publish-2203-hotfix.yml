@@ -1,4 +1,4 @@
-name: Publish signed Bridge 2.2.0.3 hotfix 1
+name: Publish signed Bridge 2.2.0.3 hotfix 2
 on:
   push:
     branches: ['release/2.2.0.3']
@@ -25,26 +25,26 @@ jobs:
         run: |
           node - <<'NODE'
           const fs=require('fs'),{execFileSync}=require('child_process'),p=require('./build-support/bridge2203-hotfix/publication.json');
-          if(p.version!=='2.2.0.3-hotfix.1'||p.sequence!==2026102302||!Number.isSafeInteger(p.candidate_run_id)||!/^[a-f0-9]{40}$/.test(p.candidate_commit))throw Error('Invalid hotfix request');
+          if(p.version!=='2.2.0.3-hotfix.2'||p.sequence!==2026102303||!Number.isSafeInteger(p.candidate_run_id)||!/^[a-f0-9]{40}$/.test(p.candidate_commit))throw Error('Invalid hotfix request');
           const r=JSON.parse(execFileSync('gh',['api',`repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${p.candidate_run_id}`],{encoding:'utf8'}));
-          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2203-hotfix.yml'||r.head_branch!=='release/2.2.0.3')throw Error('Exact hotfix candidate did not pass');
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2203-hotfix2.yml'||r.head_branch!=='release/2.2.0.3')throw Error('Exact hotfix candidate did not pass');
           fs.appendFileSync(process.env.GITHUB_OUTPUT,`run_id=${p.candidate_run_id}\n`);
           NODE
       - uses: actions/download-artifact@v8
         with:
-          name: Bridge-2.2.0.3-hotfix.1-candidate
+          name: Bridge-2.2.0.3-hotfix.2-candidate
           run-id: ${{ steps.candidate.outputs.run_id }}
           github-token: ${{ github.token }}
           path: approved-hotfix
       - uses: actions/download-artifact@v8
         with:
-          name: Bridge-2.2.0.3-hotfix.1-complete
+          name: Bridge-2.2.0.3-hotfix.2-complete
           run-id: ${{ steps.candidate.outputs.run_id }}
           github-token: ${{ github.token }}
           path: approved-full
       - uses: actions/download-artifact@v8
         with:
-          name: Bridge-2.2.0.3-hotfix.1-evidence
+          name: Bridge-2.2.0.3-hotfix.2-evidence
           run-id: ${{ steps.candidate.outputs.run_id }}
           github-token: ${{ github.token }}
           path: approved-evidence
@@ -85,7 +85,7 @@ jobs:
           exit 1
       - uses: actions/upload-artifact@v7
         with:
-          name: Bridge-2.2.0.3-hotfix.1-live
+          name: Bridge-2.2.0.3-hotfix.2-live
           path: |
             build-support/bridge2203-hotfix/publication.json
             build-support/bridge2203-hotfix/stable.json
