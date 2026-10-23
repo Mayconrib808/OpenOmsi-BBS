@@ -35,4 +35,19 @@ if source.count(old_message) == 1:
     source = source.replace(old_message, 'O pedido de direcao expirou. Confira se os dois usam a mesma versao do Coop.')
 
 path.write_text(source, encoding='utf-8', newline='\n')
+
+# Allow the owner to grant pending requests even when standing/walking outside
+# the bus. This only exposes the button when an actual passenger is requesting
+# control of the owner's bus; the authority check stays in drive_grant().
+panel_path = game / 'crates/omsi-app/src/game_panels/coop_panel.rs'
+panel = panel_path.read_text(encoding='utf-8')
+seated_only = 'if app.session.on_foot.is_none() && app.player.is_some() {'
+all_owner_modes = '''if app.player.is_some() && (
+        app.session.on_foot.is_none()
+        || app.coop_passengers().iter().any(|(peer, _)| app.drive_requested(*peer))
+    ) {'''
+assert panel.count(seated_only) == 1, 'Unexpected Coop panel source: refuses unsafe patch'
+panel = panel.replace(seated_only, all_owner_modes)
+panel_path.write_text(panel, encoding='utf-8', newline='\n')
+
 print('Prepared owner-avatar handover fix. Requires Rust compile and two-player validation.')
