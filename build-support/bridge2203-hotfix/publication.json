@@ -1,10 +1,10 @@
 {
-  "version": "2.2.0.3-hotfix.1",
-  "sequence": 2026102302,
-  "candidate_run_id": 39978708288,
-  "candidate_commit": "db035a56f332a06051ac2cabc8375c5afa7c5bf6",
-  "installer_sha256": "7a55c239e5df37e8d9277fd2d363463ea06ee534bc5957641339523cc7027175",
-  "installer_size": 24215552,
-  "full_package_sha256": "47dcbf3179bf0eba23476f9ebc05cc95d8a460c677c3a05592eea0e0ba8d7178",
+  "version": "2.2.0.3-hotfix.2",
+  "sequence": 2026102303,
+  "candidate_run_id": 39992267151,
+  "candidate_commit": "c166fd40dec14531d11297851123433dad88527d",
+  "installer_sha256": "8f3dd579c9a3c39a993055f09d6690bb17ed82b9e276481ccf64011b71981af9",
+  "installer_size": 24216576,
+  "full_package_sha256": "3dc96e6fa824fe3e873821cc4d8eae285b8982e6146ec85d77f4bd3b8c45503f",
   "coop_archive_sha256": "cfbd7169534e1b9b8380491f3386447abc45ce37b1d9e730b4a8393cffa60eca"
 }
