@@ -1,0 +1,34 @@
+{
+  "crates/omsi-sim/src/ai_traffic.rs": {
+    "before": "df07b2b8567d942c2ad9486ea49721893ccddf42b08ddd3d2aece12e8b3158a9",
+    "after": "aceaf049b125ac6493b886fc14aeb0b91cb849c378e6a8be64574067f5dc7019"
+  },
+  "crates/omsi-sim/src/ai_traffic/greetings.rs": {
+    "before": null,
+    "after": "c18e842185c7c4cc5efaa7cf7860ae8fdc1381b5c5297d8723bb1f2ea3b35def"
+  },
+  "crates/omsi-sim/src/view_events/sounds.rs": {
+    "before": "943a51b8088607bb7f521f3aca5a8efef1e53eeb8811a3f032bdeb2b08c282e5",
+    "after": "27cf9b3d50df344c9cb4602f3ae0205bd8176f46f4bfd006f95cedd184fff45e"
+  },
+  "crates/omsi-app/src/traffic.rs": {
+    "before": "cdc1cb4449fe872b1d262da9924869c10ecb8ccc0e2b9faec3a82f8323684392",
+    "after": "235d82190e17c6ba3ee97bac19de6246917b1061e8d6df118ad345efce5a7674"
+  },
+  "crates/omsi-app/src/app_events/frame/steps.rs": {
+    "before": "1ebb120d9a1cefafdb38c642b396733b2775ab89d3f9abca3e327da9b6938ada",
+    "after": "714ecb7932b10758dbd0a41a84748b6c46672efecb6e05ab7f5b0c98905010c7"
+  },
+  "crates/omsi-app/src/offscreen.rs": {
+    "before": "f9c0dc41553630c3d850d93967bdd006e3644dc602aea749829a19e485b0e67a",
+    "after": "6957f3cd3310e7a164ead2918206623e38156c89a106b35d7a28afcdb5f7ca9c"
+  },
+  "crates/omsi-app/src/offscreen/setup.rs": {
+    "before": "c3a44bc914b4bb16a629f90a3830eec25c750cce63e2af397233f3948ad1109b",
+    "after": "8a43229a0c3ea0e26388239c7b58f756294b72bec74eda78e00767796d229504"
+  },
+  "crates/omsi-app/src/offscreen/step.rs": {
+    "before": "02616c790cb79d64fae886dadb44849f4220354ba3dae7adf7af6c1e2d2e09ba",
+    "after": "39174dcea26f42c2a1d45c6591a29942aabbd09c3107b6895598fcc62132c3dc"
+  }
+}
