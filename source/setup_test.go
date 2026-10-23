@@ -894,6 +894,48 @@ func TestPackageVerificationDetectsTamperingAndTraversal(t *testing.T) {
 		t.Fatal("manifest omitting the required plugin helper was accepted")
 	}
 }
+func TestActivationIntegrityAllowsCustomHostWithoutSkippingBridgeChecks(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string][]byte{
+		"Setup.exe": []byte("setup"),
+		"app/OpenOMSI_BCS_Bridge.exe": []byte("bridge"),
+		"app/compat/Omsi.exe": []byte("facade"),
+		"app/compat/omsi-plugin-host32.exe": []byte("helper"),
+		"PeDePeAdapter/openomsi.exe": []byte("adapter"),
+		"CompanyHost.exe": []byte("released host"),
+		"HostAgent.exe": []byte("released agent"),
+		"source/local-instructions.txt": []byte("stock source"),
+	}
+	manifest(t, dir, files)
+	if _, err := verifyPackageForActivation(dir); err != nil {
+		t.Fatal("clean installation refused:", err)
+	}
+	for _, name := range []string{"CompanyHost.exe", "HostAgent.exe", "source/local-instructions.txt"} {
+		if err := os.WriteFile(filepath.Join(dir, filepath.FromSlash(name)), []byte("customized"), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := verifyPackageForActivation(dir); err != nil {
+		t.Fatal("customized non-Bridge component blocked activation:", err)
+	}
+	if _, err := verifyPackage(dir); err == nil {
+		t.Fatal("manual complete integrity audit missed custom components")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "app", "OpenOMSI_BCS_Bridge.exe"), []byte("altered bridge"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := verifyPackageForActivation(dir); err == nil {
+		t.Fatal("activation accepted a modified Bridge executable")
+	}
+	manifest(t, dir, files)
+	if err := os.Remove(filepath.Join(dir, "app", "compat", "Omsi.exe")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := verifyPackageForActivation(dir); err == nil {
+		t.Fatal("activation accepted a missing required facade")
+	}
+}
+
 func TestDiagnosticCollectionOnlyIncludesExpectedLocalFiles(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(appDir(dir), 0755)
