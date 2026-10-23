@@ -356,3 +356,6 @@ view=view.replace(mark,
 view_path.write_text(view,encoding='utf-8',newline='\n')
 
 print('Prepared Coop 10 real visitor-driver figure, compact CMD, F1, walking AI, human sync; requires two-player validation.')
+
+import runpy
+runpy.run_path(str(support / "world_centers.py"))

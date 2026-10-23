@@ -1,0 +1,245 @@
+name: Build Bridge 2.2.0.4 Coop10 and walking world
+on:
+  push:
+    branches: ['release/2.2.0.4']
+    paths: ['build-support/coop10/**', 'scripts/build_2204.py', 'scripts/verify_2204_windows.py', '.github/workflows/release-2204.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  game:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    env:
+      OPENOMSI_VERSION: 0.3.38-coop.10
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: support
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: 866c60de268f3fc8737287b8e2d13993c49b1f1f
+          path: game
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: coop6-windows-msvc
+          cache-on-failure: true
+          workspaces: |
+            game -> target
+            game/tools/coop-check -> target
+      - name: Prepare cumulative corresponding source
+        run: |
+          python support/build-support/coop6/prepare.py
+          python support/build-support/driver-share/prepare.py
+          python support/build-support/character/prepare.py
+          python support/build-support/greetings/prepare.py
+          python support/build-support/coop10/prepare.py
+      - name: Cooperative regressions
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo test --locked --manifest-path tools/coop-check/Cargo.toml 2>&1 | Tee-Object -FilePath ../out/regressions.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Actual AI greeting, input discrimination, cooldown, sound and lamp regressions
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim --lib ai_traffic::greetings 2>&1 | Tee-Object -FilePath ../out/greetings-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-net --lib world_interest 2>&1 | Tee-Object -FilePath ../out/world-interest-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-lan --lib walking_without_a_bus_keeps_the_players_chosen_character 2>&1 | Tee-Object -FilePath ../out/on-foot-network-test.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-lan --lib drive_share::tests 2>&1 | Tee-Object -FilePath ../out/driver-share-transport-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build actual Windows game and streaming server runtime
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo build --locked --release --target x86_64-pc-windows-msvc -p omsi-app --bin openomsi 2>&1 | Tee-Object -FilePath ../out/build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item target/x86_64-pc-windows-msvc/release/openomsi.exe ../out/openomsi.exe
+      - name: Native Windows self-test and server capability
+        working-directory: game
+        shell: pwsh
+        run: |
+          $exe = 'target/x86_64-pc-windows-msvc/release/openomsi.exe'
+          & $exe --version 2>&1 | Tee-Object -FilePath ../out/windows-version.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --help 2>&1 | Tee-Object -FilePath ../out/windows-help.log
+          if ($LASTEXITCODE -ne 0 -or (Get-Content ../out/windows-help.log -Raw) -notmatch '--server') { throw 'Server capability missing' }
+          & $exe --self-test 2>&1 | Tee-Object -FilePath ../out/windows-self-test.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @{passed=$true; graphical_gameplay_tested=$false; two_player_gameplay_tested=$false; protocol=14; streaming_preserved=$true} | ConvertTo-Json | Set-Content ../out/windows-startup.json
+      - name: Package corresponding source
+        run: |
+          python support/build-support/coop6/prepare.py package
+          python -c "from pathlib import Path; Path('out/openomsi-coop6-source.zip').rename('out/openomsi-coop10-source.zip')"
+      - name: Microsoft Defender scan
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $status=Get-MpComputerStatus
+          if (-not $status.AntivirusEnabled) { throw 'Defender unavailable' }
+          $platform=Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          $scanner=if ($platform) {$platform.FullName} else {"$env:ProgramFiles/Windows Defender/MpCmdRun.exe"}
+          & $scanner -SignatureUpdate 2>&1 | Out-File out/defender-update.log
+          & $scanner -Scan -ScanType 3 -File "$env:GITHUB_WORKSPACE/out" -DisableRemediation 2>&1 | Tee-Object -FilePath out/defender-scan.log
+          $code=$LASTEXITCODE
+          $passed=$code -eq 0 -and (Get-Content out/defender-scan.log -Raw) -match 'found no threats|no threats found'
+          @{status=$(if($passed){'passed'}else{'requires_review'});exit_code=$code;engine=$status.AMEngineVersion;signatures=$status.AntivirusSignatureVersion} | ConvertTo-Json | Set-Content out/defender-report.json
+          if (-not $passed) { throw 'Defender scan did not pass' }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coop10-handover-candidate-windows
+          retention-days: 30
+          if-no-files-found: error
+          path: out/*
+  server:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    env:
+      OPENOMSI_VERSION: 0.3.39-bbs-stream.3
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: support
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: 9eaf95d4caafabe041edcdfc37931b5259c30c8a
+          path: game
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: coop9-server-windows-msvc
+          cache-on-failure: true
+          workspaces: |
+            game -> target
+            game/tools/coop-check -> target
+      - name: Preserve exact 0.3.39 base and apply dynamic streaming and greetings
+        run: |
+          python support/build-support/greetings-server/prepare.py
+          python support/build-support/coop10/world_centers.py
+      - name: Actual AI greeting, input discrimination, cooldown, sound and lamp regressions
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-net --lib world_interest 2>&1 | Tee-Object -FilePath ../out/world-interest-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-sim --lib ai_traffic::greetings 2>&1 | Tee-Object -FilePath ../out/greetings-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build actual Windows game and streaming server runtime
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo build --locked --release --target x86_64-pc-windows-msvc -p omsi-app --bin openomsi 2>&1 | Tee-Object -FilePath ../out/build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item target/x86_64-pc-windows-msvc/release/openomsi.exe ../out/openomsi.exe
+      - name: Native Windows self-test and server capability
+        working-directory: game
+        shell: pwsh
+        run: |
+          $exe = 'target/x86_64-pc-windows-msvc/release/openomsi.exe'
+          & $exe --version 2>&1 | Tee-Object -FilePath ../out/windows-version.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $exe --help 2>&1 | Tee-Object -FilePath ../out/windows-help.log
+          if ($LASTEXITCODE -ne 0 -or (Get-Content ../out/windows-help.log -Raw) -notmatch '--server') { throw 'Server capability missing' }
+          & $exe --self-test 2>&1 | Tee-Object -FilePath ../out/windows-self-test.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          @{passed=$true; graphical_gameplay_tested=$false; two_player_gameplay_tested=$false; protocol=14; streaming_preserved=$true} | ConvertTo-Json | Set-Content ../out/windows-startup.json
+      - name: Package complete corresponding dynamic server source
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; from zipfile import ZipFile,ZIP_DEFLATED; import hashlib,json; root=Path('game'); z=ZipFile('out/openomsi-dynamic-source.zip','w',ZIP_DEFLATED,compresslevel=9); [z.write(p,Path('openomsi-dynamic-source')/p.relative_to(root)) for p in sorted(root.rglob('*')) if p.is_file() and not any(v in {'.git','target'} for v in p.relative_to(root).parts)]; z.close(); Path('out/build-sha256.json').write_text(json.dumps({p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in Path('out').iterdir() if p.is_file() and p.suffix!='.log'},indent=2))"
+      - name: Microsoft Defender scan
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $status=Get-MpComputerStatus
+          if (-not $status.AntivirusEnabled) { throw 'Defender unavailable' }
+          $platform=Get-ChildItem "$env:ProgramData/Microsoft/Windows Defender/Platform/*/MpCmdRun.exe" | Sort-Object FullName -Descending | Select-Object -First 1
+          $scanner=if ($platform) {$platform.FullName} else {"$env:ProgramFiles/Windows Defender/MpCmdRun.exe"}
+          & $scanner -SignatureUpdate 2>&1 | Out-File out/defender-update.log
+          & $scanner -Scan -ScanType 3 -File "$env:GITHUB_WORKSPACE/out" -DisableRemediation 2>&1 | Tee-Object -FilePath out/defender-scan.log
+          $code=$LASTEXITCODE
+          $passed=$code -eq 0 -and (Get-Content out/defender-scan.log -Raw) -match 'found no threats|no threats found'
+          @{status=$(if($passed){'passed'}else{'requires_review'});exit_code=$code;engine=$status.AMEngineVersion;signatures=$status.AntivirusSignatureVersion} | ConvertTo-Json | Set-Content out/defender-report.json
+          if (-not $passed) { throw 'Defender scan did not pass' }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: bridge-2203-dynamic-windows
+          retention-days: 30
+          if-no-files-found: error
+          path: out/*
+  bridge:
+    needs: [game, server]
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: coop10-handover-candidate-windows
+          path: game-runtime
+      - uses: actions/download-artifact@v8
+        with:
+          name: bridge-2203-dynamic-windows
+          path: server-runtime
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.3-hotfix.2-complete
+          run-id: 39992267151
+          github-token: ${{ github.token }}
+          path: approved-full
+      - name: Assemble cumulative Hotfix2, Coop10 and dedicated streaming server
+        run: python scripts/build_2204.py --baseline approved-full/OpenOmsi_BBS_2.2.0.3_hotfix2_Setup_e_Coop9.zip --game game-runtime --server server-runtime
+      - name: Native Setup readiness, refresh timer and retained P15 controls
+        run: |
+          python scripts/verify_2204_windows.py
+          python build-support/bridge2203/test_p15_host_controls.py --package build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10
+      - name: Finalize portable package
+        run: python scripts/build_2204.py --finalize
+      - name: Scan exact final updater and package
+        shell: pwsh
+        run: scripts/scan_2204.ps1
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Bridge-2.2.0.4-evidence
+          path: build/release-2204/evidence/**
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.4-candidate
+          path: |
+            build/release-2204/Atualizar-Bridge.exe
+            build/release-2204/build-report.json
+            build/release-2204/coop-spec.json
+            build/release-2204/coop-assets/**
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.4-complete
+          path: |
+            build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10.zip
+            build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
