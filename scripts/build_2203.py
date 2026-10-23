@@ -86,7 +86,7 @@ def archive(directory, target):
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--coop', type=Path)
-    p.add_argument('--baseline-update', type=Path, required=True)
+    p.add_argument('--baseline-update', type=Path)
     p.add_argument('--output', type=Path, default=ROOT / 'build/release-2203')
     p.add_argument('--go', default='go')
     p.add_argument('--tests-only', action='store_true')
@@ -94,6 +94,8 @@ def main():
     tests(a.go)
     if a.tests_only:
         return
+    if a.baseline_update is None:
+        p.error('--baseline-update is required for a release build')
     if build.VERSION != '2.2.0.3' or not a.coop:
         p.error('Bridge 2.2.0.3 source and the approved --coop archive are required')
     files, parts = check_coop(a.coop)
