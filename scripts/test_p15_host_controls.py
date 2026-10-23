@@ -6,6 +6,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import time
@@ -220,23 +221,52 @@ def main():
     args = parser.parse_args()
     package = args.package.resolve()
     report = package / 'validation/native-p15-controls.json'
-    with tempfile.TemporaryDirectory(prefix='host2202-real-ui-') as temp:
+    local_temp = Path(os.environ['LOCALAPPDATA'])/'Temp'
+    local_temp.mkdir(parents=True,exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='host2202-real-ui-',dir=local_temp) as temp, tempfile.TemporaryDirectory(prefix='ui-moved-install-', dir=package.parent) as install_temp:
         folder = Path(temp)
         env = os.environ.copy()
         for key in ('LOCALAPPDATA','APPDATA'):
             env[key] = str(folder / key)
             Path(env[key]).mkdir()
-        config = folder / 'HostAgent.local.json'
-        before = fixture(folder, package/'app/server-dinamico-p14/openomsi.exe')
+        config = Path(env['LOCALAPPDATA']) / 'OpenOmsi-BBS/HostAgent.local.json'
+        config.parent.mkdir()
+        old_server = folder/'Downloads/Bridge_2.2.0_Maycon_Servidor_Dinamico_P14 (1)/app/server-dinamico-p14/openomsi.exe'
+        before = fixture(folder, old_server)
         config.write_text(json.dumps(before), encoding='utf-8')
+        installed = Path(install_temp)/'OpenOmsi_BBS_2.1.1 Host'
+        installed.mkdir()
+        for name in ('Setup.exe','PeDePeAdapter/openomsi.exe','app/bridge.ini'):
+            path = installed/name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(b'Existing player file, preserved by the host installer')
+        for name in ('HostAgent.exe','CompanyHost.exe'):
+            shutil.copy2(package/name,installed/name)
+        assert not old_server.exists()
+        assert old_server.drive.lower() != installed.drive.lower(), 'Cross-drive fixture did not use C: and D:'
+        subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',
+            str(package/'scripts/atualizar_host_pessoal.ps1'),'-Destination',str(installed),
+            '-NonInteractive','-NoLaunch'],env=env,cwd=package,check=True,timeout=60)
+        saved = json.loads(config.read_text(encoding='utf-8-sig'))
+        actual_server = installed/'app/server-dinamico-p14/openomsi.exe'
+        assert saved['server'] == str(actual_server) and actual_server.is_file()
+        assert hashlib.sha256(actual_server.read_bytes()).hexdigest() == '8d6875bfd4b4143a8ceae149ee790291affb1f37167bb3db9250009be9217240'
+        for key in ('company','maps','host_key','room_id','control_key'):
+            assert saved[key] == before[key], 'Moved install changed '+key
+        before['server'] = str(actual_server)
+        version = subprocess.run([str(actual_server),'--version'],cwd=installed,
+            capture_output=True,text=True,check=True,timeout=30)
+        assert '0.3.39' in version.stdout + version.stderr
         values = dict(voice=True,voice_radio=True,voice_range=135,public_server=True,
                       require_hardware_id=True,admin_password='ci-admin-password-2202')
         second = dict(voice=False,voice_radio=False,voice_range=210,public_server=False,
                       require_hardware_id=False,admin_password='')
         title = None
         for reopen in (False, True):
-            process = subprocess.Popen([str(package/'HostAgent.exe'), '--config', str(config)],
-                                       cwd=package, env=env)
+            command = [str(installed/'HostAgent.exe')]
+            if reopen:
+                command += ['--config',str(config)]
+            process = subprocess.Popen(command,cwd=installed,env=env)
             ui = NativeUI(process.pid)
             window = None
             try:
@@ -286,6 +316,9 @@ def main():
                     process.wait(timeout=5)
         report.write_text(json.dumps(dict(status='passed',persisted_fields=FIELDS,
             actual_window_title=title,map_switch_preserves_values=True,
+            moved_host_cross_drive_save_passed=True,old_managed_server_missing=True,
+            installed_server_exists_and_sha256_verified=True,
+            installed_native_version_checked=True,default_launch_uses_repaired_config=True,
             saved_values_retained_on_reopen=True,false_values_saved=True,
             real_two_player_bcs_trip_tested=False),indent=2)+'\n',encoding='utf-8')
         print('ACTUAL P15 WIN32 CONTROLS PASSED: six fields, map switching, Save, reopen and false values')

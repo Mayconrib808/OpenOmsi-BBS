@@ -41,9 +41,9 @@ def main():
  if a.finalize:
   for major in (5,7):
    r=json.loads((package/f'validation/installer-powershell-{major}.json').read_text(encoding='utf-8-sig'))
-   if r['status']!='passed' or len(r['passed'])<16:raise ValueError('Installer scenarios missing')
+   if r['status']!='passed' or len(r['passed'])<23:raise ValueError('Installer scenarios missing')
   ui=json.loads((package/'validation/native-p15-controls.json').read_text())
-  if ui['status']!='passed' or len(ui['persisted_fields'])!=6 or not ui['map_switch_preserves_values']:raise ValueError('Actual P15 controls and persistence did not pass')
+  if ui['status']!='passed' or len(ui['persisted_fields'])!=6 or not ui['map_switch_preserves_values'] or not ui['moved_host_cross_drive_save_passed']:raise ValueError('Actual P15 controls and persistence did not pass')
   scan=json.loads((package/'validation/defender.json').read_text(encoding='utf-8-sig'))
   if scan['status']!='passed':raise ValueError('Defender did not pass')
   sums=''.join(sha(f.read_bytes())+'  '+f.relative_to(package).as_posix()+'\n' for f in sorted(package.rglob('*')) if f.is_file())
@@ -53,7 +53,7 @@ def main():
    for f in sorted(package.rglob('*')):
     if f.is_file():z.write(f,f.relative_to(package).as_posix())
   digest=sha(target.read_bytes());(OUT/(PACKAGE+'.zip.sha256')).write_text(digest+'  '+target.name+'\n')
-  print('HOST2202_FINAL='+json.dumps({'sha256':digest,'size':target.stat().st_size,'name':target.name,'edition':'host-pessoal.2'}));return
+  print('HOST2202_FINAL='+json.dumps({'sha256':digest,'size':target.stat().st_size,'name':target.name,'edition':'host-pessoal.3'}));return
  OUT.mkdir(parents=True,exist_ok=True);package.mkdir();baseline=OUT/'baseline';baseline.mkdir();provenance={}
  if not a.regressed:raise ValueError('Actual previous regression package is required for upgrade validation')
  regressed=OUT/'regressed';regressed.mkdir()
@@ -87,10 +87,10 @@ def main():
  docs=package/'docs';docs.mkdir();shutil.copy2(ROOT/'build-support/host-personal2202/native-stream-build.py',docs/'native-stream-build.py')
  for n in ['LICENSE','NOTICE_FOR_PEDEPE.md','THIRD_PARTY_NOTICES.md']:
   if (ROOT/n).is_file():shutil.copy2(ROOT/n,package/n)
- metadata=json.loads((package/'app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json').read_text(encoding='utf-8-sig'));metadata.update(bridge_line='2.2.0.2',edition='host-pessoal.2',native_executable_unchanged=True);dump(package/'app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json',metadata)
+ metadata=json.loads((package/'app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json').read_text(encoding='utf-8-sig'));metadata.update(bridge_line='2.2.0.2',edition='host-pessoal.3',native_executable_unchanged=True);dump(package/'app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json',metadata)
  files=[{'path':f.relative_to(package).as_posix(),'sha256':sha(f.read_bytes())} for f in sorted(package.rglob('*')) if f.is_file() and (f.name in PREVIOUS or 'app/server-dinamico-p14' in f.as_posix())]
  if len(files)!=10:raise ValueError('Unexpected host payload')
- dump(docs/'HOST-PESSOAL-2.2.0.2.json',{'schema':1,'version':'2.2.0.2','edition':'host-pessoal.2','files':files,'previous_hosts':PREVIOUS,'host_protocols':[6,7,14,15],'included_dynamic_protocol':14,'preserves_player_files':True,'public_update_channel_changed':False,'original_p15_build':provenance,'build_commit':os.environ.get('GITHUB_SHA','local')})
+ dump(docs/'HOST-PESSOAL-2.2.0.2.json',{'schema':1,'version':'2.2.0.2','edition':'host-pessoal.3','files':files,'previous_hosts':PREVIOUS,'host_protocols':[6,7,14,15],'included_dynamic_protocol':14,'preserves_player_files':True,'public_update_channel_changed':False,'original_p15_build':provenance,'build_commit':os.environ.get('GITHUB_SHA','local')})
  dump(docs/'BINARY-PROVENANCE.json',{'components':provenance,'method':'Only same-length identification literals in PE read-only data were changed. Executable code sections are byte-identical to the approved complete P15 originals. The archived Go source predates these binaries and is deliberately not supplied as corresponding source.','baseline_run':39698116557,'real_two_player_bcs_trip_tested':False})
  print('Complete P15 hosts restored; all executable code bytes preserved; version data and native controls validated.')
 if __name__=='__main__':main()

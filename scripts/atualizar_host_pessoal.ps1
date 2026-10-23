@@ -1,6 +1,6 @@
 ﻿# Host-only personal update for Bridge 2.2.0.2 with verified transaction backups.
 [CmdletBinding()]
-param([string]$Destination, [switch]$NonInteractive, [switch]$NoLaunch)
+param([string]$Destination, [string]$PreferredDestination, [switch]$NonInteractive, [switch]$NoLaunch)
 
 Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
@@ -290,14 +290,19 @@ function Get-HostSelection {
         }
     }
     $knownDynamic = $false
-    if ([IO.File]::Exists($server)) {
+    $serverExists = [IO.File]::Exists($server)
+    if ($serverExists) {
         $knownDynamic = (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash -eq '8d6875bfd4b4143a8ceae149ee790291affb1f37167bb3db9250009be9217240'
     }
+    # A missing managed sidecar is a moved/deleted installation, not a deliberate
+    # custom executable. Do not infer identity from its old drive or bundle name.
+    $missingManagedDynamic = $protocol -in @(0,14) -and -not $serverExists -and [IO.Path]::IsPathRooted($server) -and
+        $server.Replace('\','/') -match '(?i)/app/server-dinamico-p14/openomsi\.exe$'
     $custom = Get-Field $Document 'use_custom_server' $false
     # A deliberate custom server, protocols 6/7/15 and unknown profiles stay selected.
     # The existing dynamic P14 host can move in place without changing its binary.
-    $activate = $protocol -ne 15 -and ($knownDynamic -or ($Kind -eq 'HostAgent' -and $protocol -eq 14 -and -not $custom))
-    return [PSCustomObject]@{ Activate = $activate; Protocol = $protocol; Server = $server }
+    $activate = $protocol -ne 15 -and ($knownDynamic -or $missingManagedDynamic -or ($Kind -eq 'HostAgent' -and $protocol -eq 14 -and -not $custom))
+    return [PSCustomObject]@{ Activate = $activate; Protocol = $protocol; Server = $server; MissingManagedDynamic = $missingManagedDynamic }
 }
 
 function Restore-P15MapPreferences {
@@ -379,10 +384,32 @@ function Add-HostIntegrityEdit {
     }
 }
 
+function Add-HostStartupEdit {
+    param($Plan, [string]$Path, [string]$Agent, [string]$Config)
+    $quotedAgent = '"' + $Agent.Replace('%','%%') + '"'
+    if (-not [IO.File]::Exists($Path)) {
+        $quotedConfig = '"' + $Config.Replace('%','%%') + '"'
+        $text = '@echo off' + [Environment]::NewLine + 'start "" /b ' + $quotedAgent + ' --background --config ' + $quotedConfig + [Environment]::NewLine
+    } else {
+        $old = [IO.File]::ReadAllText($Path)
+        $pattern = '(?im)^(?<prefix>[ \t]*start[ \t]+""[ \t]+(?:/b[ \t]+)?)"(?<exe>[^"\r\n]+[\\/]HostAgent\.exe)"(?<tail>[^\r\n]*)'
+        $text = [regex]::Replace($old, $pattern, {
+            param($m)
+            if ($m.Groups['tail'].Value -notmatch '(?i)--background\b' -or $m.Groups['tail'].Value -notmatch '(?i)--config\b') { return $m.Value }
+            return $m.Groups['prefix'].Value + $quotedAgent + $m.Groups['tail'].Value
+        }.GetNewClosure())
+        if ($text -eq $old) { return }
+    }
+    # Keep --config and every other argument; update only the managed agent path.
+    $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes($text)
+    Add-InstallFile $Plan '' $Path (Get-ByteHash $bytes) $bytes
+}
+
 function Invoke-HostOnlyInstaller {
-    param([string]$Destination, [switch]$NonInteractive, [switch]$NoLaunch)
+    param([string]$Destination, [string]$PreferredDestination, [switch]$NonInteractive, [switch]$NoLaunch)
     $sourceRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
     $dataRoot = Get-PersonalDataRoot $sourceRoot
+    if ([string]::IsNullOrWhiteSpace($Destination) -and (Test-PersonalBridgeFolder $PreferredDestination)) { $Destination = $PreferredDestination }
     if ([string]::IsNullOrWhiteSpace($Destination)) {
         $Destination = Find-PersonalBridgeFolder $sourceRoot $dataRoot
         if ([string]::IsNullOrWhiteSpace($Destination)) {
@@ -405,7 +432,7 @@ function Invoke-HostOnlyInstaller {
     }
     $manifestPath = Join-Path $sourceRoot 'docs/HOST-PESSOAL-2.2.0.2.json'
     $manifest = Read-HostObject $manifestPath
-    if ($null -eq $manifest -or $manifest.schema -ne 1 -or $manifest.version -ne '2.2.0.2' -or $manifest.edition -ne 'host-pessoal.2') { throw 'Extraia o ZIP inteiro; pacote do host nao reconhecido.' }
+    if ($null -eq $manifest -or $manifest.schema -ne 1 -or $manifest.version -ne '2.2.0.2' -or $manifest.edition -ne 'host-pessoal.3') { throw 'Extraia o ZIP inteiro; pacote do host nao reconhecido.' }
     $allowed = @('HostAgent.exe','CompanyHost.exe','app/server-dinamico-p14/openomsi.exe','app/server-dinamico-p14/steam_api64.dll','app/server-dinamico-p14/msvcp140.dll','app/server-dinamico-p14/vcruntime140.dll','app/server-dinamico-p14/vcruntime140_1.dll','app/server-dinamico-p14/.openomsi-content','app/server-dinamico-p14/OpenOMSI-LICENSE.txt','app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json')
     if (@($manifest.files).Count -ne $allowed.Count) { throw 'Lista de componentes do host inesperada.' }
     $plan = [ordered]@{}; $hashes = @{}; $seen = @{}
@@ -444,24 +471,24 @@ function Invoke-HostOnlyInstaller {
     $hostDocument = Read-HostObject $hostPath
     if ($null -ne $hostDocument -and (Get-Field $hostDocument 'start_with_windows' $false) -and -not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
         $startupPath = Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs/Startup/OpenOmsi-BBS-Host.cmd'
-        $quotedAgent = '"' + (Join-Path $destinationRoot 'HostAgent.exe').Replace('%','%%') + '"'
-        $quotedConfig = '"' + $hostPath.Replace('%','%%') + '"'
-        $startupText = '@echo off' + [Environment]::NewLine + 'start "" /b ' + $quotedAgent + ' --background --config ' + $quotedConfig + [Environment]::NewLine
-        $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes($startupText)
-        if (-not [IO.File]::Exists($startupPath)) { Add-InstallFile $plan '' $startupPath (Get-ByteHash $bytes) $bytes }
+        Add-HostStartupEdit $plan $startupPath (Join-Path $destinationRoot 'HostAgent.exe') $hostPath
     }
     Add-InstallFile $plan $manifestPath (Join-Path $destinationRoot 'docs/HOST-PESSOAL-2.2.0.2.json') ((Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash)
-    $receipt = [PSCustomObject]@{ version='2.2.0.2'; edition='host-pessoal.2'; installation=$destinationRoot; dynamic_server=$server; host_dynamic_selected=$hostActivated; company_dynamic_selected=$companyActivated; player_files_updated=$false }
+    $receipt = [PSCustomObject]@{ version='2.2.0.2'; edition='host-pessoal.3'; installation=$destinationRoot; dynamic_server=$server; host_dynamic_selected=$hostActivated; company_dynamic_selected=$companyActivated; player_files_updated=$false }
     $receiptPath = Join-Path $dataRoot 'Personal-Host-2.2.0.2/installed.json'
     $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes((ConvertTo-Json $receipt -Depth 8))
     Add-InstallFile $plan '' $receiptPath (Get-ByteHash $bytes) $bytes
     Write-Host ('Atualizando seu host em: ' + $destinationRoot) -ForegroundColor Cyan
     $backup = Invoke-PersonalTransaction $plan (Join-Path $dataRoot 'Personal-Host-2.2.0.2/Backups')
+    if ($hostActivated -or $companyActivated) {
+        if (-not [IO.File]::Exists($server) -or (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash -ne '8d6875bfd4b4143a8ceae149ee790291affb1f37167bb3db9250009be9217240') { throw 'Nao foi possivel verificar o servidor instalado.' }
+    }
     Write-Host 'HostAgent e CompanyHost 2.2.0.2 instalados. Sua Bridge e seu Coop atuais foram preservados.' -ForegroundColor Green
     Write-Host 'Recursos P15 restaurados: voz, radio, alcance, lista publica, banimento de maquina e senha admin.'
     if ($hostActivated -or $companyActivated) { Write-Host 'Servidor dinamico P14 selecionado, com o mesmo executavel da sua edicao pessoal anterior.' }
     else { Write-Host 'Seu servidor personalizado/protocolo atual foi mantido. A copia dinamica P14 fica disponivel separadamente.' }
     if ($backup) { Write-Host ('Backup dos arquivos e configuracoes alterados: ' + $backup) }
+    if ($hostActivated) { Write-Host ('Caminho do servidor verificado: ' + $server) -ForegroundColor Green }
     if (-not $NoLaunch) {
         try { Start-Process -FilePath (Join-Path $destinationRoot 'HostAgent.exe') -WorkingDirectory $destinationRoot | Out-Null }
         catch { Write-Host 'Abra o HostAgent da sua pasta instalada.' }
@@ -474,7 +501,7 @@ if ($MyInvocation.InvocationName -ne '.') {
     try {
         $locked = $mutex.WaitOne(0)
         if (-not $locked) { throw 'Ja existe uma atualizacao do host em andamento.' }
-        Invoke-HostOnlyInstaller -Destination $Destination -NonInteractive:$NonInteractive -NoLaunch:$NoLaunch
+        Invoke-HostOnlyInstaller -Destination $Destination -PreferredDestination $PreferredDestination -NonInteractive:$NonInteractive -NoLaunch:$NoLaunch
         exit 0
     } catch { Write-Host ('ERRO: ' + $_.Exception.Message) -ForegroundColor Red; exit 1 }
     finally { if ($locked) { $mutex.ReleaseMutex() }; $mutex.Dispose() }

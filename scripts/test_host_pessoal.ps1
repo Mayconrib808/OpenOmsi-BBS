@@ -29,6 +29,30 @@ function Fixture {
     return [PSCustomObject]@{Root=$install;Data=$data;Base=$base;Server=$server}
 }
 function Get-Process { [CmdletBinding()]param([string]$Name) return @() }
+function Set-FixtureServer {
+    param($Fixture,[string]$Server)
+    foreach($name in @('HostAgent.local.json','CompanyHost.local.json')) {
+        $path=Join-Path $Fixture.Data $name
+        $doc=Read-HostObject $path
+        Set-JsonField $doc 'server' $Server
+        Put-File $path (ConvertTo-Json $doc -Depth 30)
+    }
+}
+function Moved-HostFixture {
+    $f=Fixture 14 $true
+    # The already-corrected P15 binaries must not be regressed by a path repair.
+    foreach($name in @('HostAgent.exe','CompanyHost.exe')) { Copy-Item -LiteralPath (Join-Path $Package $name) -Destination (Join-Path $f.Root $name) -Force }
+    $old=Join-Path $f.Base 'Downloads/Bridge_2.2.0_Maycon_Servidor_Dinamico_P14 (1)/app/server-dinamico-p14/openomsi.exe'
+    Set-FixtureServer $f $old
+    Add-Member -InputObject $f -MemberType NoteProperty -Name OldManaged -Value $old
+    $path=Join-Path $f.Data 'HostAgent.local.json'
+    $doc=Read-HostObject $path
+    foreach($name in @('voice','voice_radio','public_server','require_hardware_id')) { Set-JsonField $doc.maps.mapa $name $true }
+    Set-JsonField $doc.maps.mapa 'voice_range' 75
+    Set-JsonField $doc.maps.mapa 'admin_password' 'private-admin-preserved'
+    Put-File $path (ConvertTo-Json $doc -Depth 30)
+    return $f
+}
 try {
     $f=Fixture
     $before=Snapshot $f.Root
@@ -82,6 +106,80 @@ try {
     Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
     Assert-True ((Get-FileHash $startup).Hash -eq $startupHash) 'Existing startup arguments changed'
     $passed.Add('existing_windows_startup_arguments_preserved_byte_for_byte')
+    $f=Moved-HostFixture
+    $before=Read-HostObject (Join-Path $f.Data 'HostAgent.local.json')
+    $players=Snapshot $f.Root
+    $players.Remove((Join-Path $f.Root 'docs/SHA256.txt'))
+    Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
+    Assert-Snapshot $players
+    $actual=Read-HostObject (Join-Path $f.Data 'HostAgent.local.json')
+    $company=Read-HostObject (Join-Path $f.Data 'CompanyHost.local.json')
+    $expected=Join-Path $f.Root 'app/server-dinamico-p14/openomsi.exe'
+    Assert-True ($actual.server -eq $expected -and $company.Server -eq $expected -and [IO.File]::Exists($expected)) 'Missing managed path was not repaired to selected installation'
+    Assert-True ((Get-FileHash $expected).Hash -eq '8d6875bfd4b4143a8ceae149ee790291affb1f37167bb3db9250009be9217240') 'Wrong dynamic server installed'
+    foreach($name in @('company','maps','host_key','room_id','control_key','unknown')) { Assert-True ((ConvertTo-Json $actual.$name -Depth 30 -Compress) -eq (ConvertTo-Json $before.$name -Depth 30 -Compress)) ('Moved host changed '+$name) }
+    $passed.Add('already_corrected_p15_host_with_missing_old_dynamic_path_moves_both_host_references_to_existing_verified_server')
+
+    $f=Fixture 14 $true
+    Set-FixtureServer $f (Join-Path $f.Base 'private-custom-server/openomsi.exe')
+    $saved=Snapshot $f.Data
+    Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
+    Assert-Snapshot $saved
+    $passed.Add('missing_genuine_custom_p14_path_is_preserved')
+
+    $f=Fixture 15 $true
+    Set-FixtureServer $f (Join-Path $f.Base 'removed/app/server-dinamico-p14/openomsi.exe')
+    $saved=Snapshot $f.Data
+    Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
+    Assert-Snapshot $saved
+    $passed.Add('missing_path_in_protocol15_profile_is_not_downgraded_to_p14')
+
+    $f=Fixture 14 $true
+    $other=Join-Path $f.Base 'custom/app/server-dinamico-p14/openomsi.exe'
+    Put-File $other 'user selected a different or newer native server'
+    Set-FixtureServer $f $other
+    $saved=Snapshot $f.Data; $originalHash=(Get-FileHash $other).Hash
+    Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
+    Assert-Snapshot $saved
+    Assert-True ((Get-FileHash $other).Hash -eq $originalHash) 'Existing independent native executable replaced'
+    $passed.Add('existing_changed_native_in_managed_named_folder_is_preserved')
+
+    $f=Moved-HostFixture
+    $startup=Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs/Startup/OpenOmsi-BBS-Host.cmd'
+    $oldAgent=Join-Path $f.Base 'old-download/HostAgent.exe'
+    $tail=' --background --config "'+(Join-Path $f.Data 'HostAgent.local.json')+'" --custom-saved-argument'
+    $text='@echo off'+[Environment]::NewLine+'start "" /b "'+$oldAgent+'"'+$tail+[Environment]::NewLine
+    Put-File $startup $text
+    Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch
+    $expectedText=$text.Replace('"'+$oldAgent+'"','"'+(Join-Path $f.Root 'HostAgent.exe')+'"')
+    Assert-True ([IO.File]::ReadAllText($startup) -eq $expectedText) 'Managed startup path or saved arguments incorrect'
+    $passed.Add('moved_managed_windows_startup_updates_only_agent_path_and_keeps_config_and_arguments')
+
+    $oldInstallation=Fixture
+    $f=Moved-HostFixture
+    $oldHostHash=(Get-FileHash (Join-Path $oldInstallation.Root 'HostAgent.exe')).Hash
+    Put-File (Join-Path $f.Data 'Personal-Host-2.2.0.2/installed.json') (ConvertTo-Json @{installation=$oldInstallation.Root})
+    Invoke-HostOnlyInstaller -PreferredDestination $f.Root -NonInteractive -NoLaunch
+    $receipt=Read-HostObject (Join-Path $f.Data 'Personal-Host-2.2.0.2/installed.json')
+    Assert-True ($receipt.installation -eq $f.Root) 'Preferred existing installation lost to old receipt'
+    Assert-True ((Get-FileHash (Join-Path $oldInstallation.Root 'HostAgent.exe')).Hash -eq $oldHostHash) 'Old unrelated installation modified'
+    $passed.Add('preferred_current_bridge_folder_wins_over_stale_download_receipt')
+
+    $f=Moved-HostFixture
+    $startup=Join-Path $env:APPDATA 'Microsoft/Windows/Start Menu/Programs/Startup/OpenOmsi-BBS-Host.cmd'
+    Put-File $startup ('start "" /b "'+(Join-Path $f.Base 'old/HostAgent.exe')+'" --background --config "custom-settings.json"')
+    $savedRoot=Snapshot $f.Root; $savedData=Snapshot $f.Data; $savedStartup=[IO.File]::ReadAllText($startup)
+    $originalCommit=${function:Commit-PersonalFile}
+    try {
+        function Commit-PersonalFile { param($Job) if($Job.Path.EndsWith('installed.json')){throw 'Injected late commit failure'}; if($Job.Existed){[IO.File]::Replace($Job.Staged,$Job.Path,[NullString]::Value)}else{[IO.File]::Move($Job.Staged,$Job.Path)} }
+        $failed=$false; try{Invoke-HostOnlyInstaller -Destination $f.Root -NonInteractive -NoLaunch}catch{$failed=$true}
+        Assert-True $failed 'Late moved-host failure ignored'
+        Assert-Snapshot $savedRoot; Assert-Snapshot $savedData
+        Assert-True ([IO.File]::ReadAllText($startup) -eq $savedStartup) 'Moved startup not rolled back'
+        Assert-True (-not [IO.File]::Exists((Join-Path $f.Root 'app/server-dinamico-p14/openomsi.exe'))) 'Partial moved server left after rollback'
+    } finally { Set-Item Function:Commit-PersonalFile $originalCommit }
+    $passed.Add('late_moved_host_failure_restores_previous_settings_paths_startup_and_binaries')
+
     foreach($explicit in @($false,$true)) {
         $f=Fixture 15 $true
         foreach($name in @('HostAgent.exe','CompanyHost.exe')) { Copy-Item -LiteralPath (Join-Path $Regressed $name) -Destination (Join-Path $f.Root $name) -Force }

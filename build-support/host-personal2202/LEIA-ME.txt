@@ -1,9 +1,11 @@
-HOST PARTICULAR 2.2.0.2 - MAYCON - CORRECAO host-pessoal.2
+HOST PARTICULAR 2.2.0.2 - MAYCON - CORRECAO host-pessoal.3
 
 1. Feche HostAgent (inclusive na bandeja), CompanyHost, Setup e o servidor.
 2. Extraia este ZIP inteiro em uma pasta separada.
 3. Abra ATUALIZAR-MEU-HOST.cmd.
-   Ele procura a instalacao que voce ja usa. Se aparecer a selecao de pasta,
+   Esta edicao prefere D:\Download\OpenOmsi_BBS_2.1.1 Host, a pasta do print,
+   quando ela existe. Caso contrario, procura a instalacao que voce ja usa.
+   Se aparecer a selecao de pasta,
    escolha sua Bridge, onde ficam Setup.exe e HostAgent.exe.
 4. Abra o HostAgent instalado na sua pasta habitual.
 
@@ -22,6 +24,10 @@ O servidor dinamico P14 continua sendo exatamente o mesmo executavel
 protocolo 15 nao converte esse servidor P14 em P15. Para usar recursos de
 rede P15, o servidor e o jogo tambem precisam usar o protocolo 15.
 Uma selecao independente de servidor P15/personalizado e mantida.
+Um caminho ausente da pasta gerenciada app/server-dinamico-p14 e corrigido
+para a instalacao atual; um caminho personalizado diferente e preservado.
+O atalho gerenciado de inicializacao passa a abrir o HostAgent da pasta atual,
+preservando --config e os demais argumentos.
 
 Sua Bridge, Setup, adaptador BCS, jogo/Coop e arquivos extras sao preservados.
 Empresa, chaves, mapas, METAR, passageiros, horario, portas, limites e
