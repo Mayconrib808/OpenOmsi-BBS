@@ -24,7 +24,7 @@ jobs:
           $run=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/40012950992" | ConvertFrom-Json
           if ($run.head_sha -ne 'fc1d9f2cb01baf4ff8bd9e5841169c0139876ccb' -or $run.path -ne '.github/workflows/release-2204.yml') {throw 'Native source identity differs'}
           $diff=gh api "repos/$env:GITHUB_REPOSITORY/compare/fc1d9f2cb01baf4ff8bd9e5841169c0139876ccb...$env:GITHUB_SHA" | ConvertFrom-Json
-          $allowed=@('scripts/build_2204.py','.github/workflows/release-2204.yml','.github/workflows/assemble-2204.yml','docs/releases/v2.2.0.4.md')
+          $allowed=@('scripts/build_2204.py','.github/workflows/release-2204.yml','.github/workflows/assemble-2204.yml','docs/releases/v2.2.0.4.md','scripts/test_p15_2204.py')
           foreach ($file in $diff.files) {if ($file.filename -cnotin $allowed) {throw ('Native inputs changed: '+$file.filename)}}
           $deadline=(Get-Date).AddMinutes(30)
           while ($true) {
@@ -62,7 +62,8 @@ jobs:
       - name: Native Setup readiness, refresh timer and retained P15 controls
         run: |
           python scripts/verify_2204_windows.py
-          python build-support/bridge2203/test_p15_host_controls.py --package build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/test_p15_2204.py --package build/release-2204/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10
       - name: Finalize portable package
         run: python scripts/build_2204.py --finalize
       - name: Scan exact final updater and package
