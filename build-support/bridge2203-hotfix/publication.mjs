@@ -10,8 +10,8 @@ const key=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032
 function decode(bytes){const envelope=JSON.parse(bytes),raw=Buffer.from(envelope.payload,'base64');if(!verify(null,raw,key,Buffer.from(envelope.signature,'base64')))throw Error('Publisher signature differs');return JSON.parse(raw);}
 const manifest=decode(signed),installer=manifest.installer;
 const sha=b=>createHash('sha256').update(b).digest('hex');
-const packageName='OpenOmsi_BBS_2.2.0.3_hotfix1_Setup_e_Coop9.zip';
-if(manifest.version!=='2.2.0.3-hotfix.1'||manifest.sequence!==2026102302||publication.version!==manifest.version||publication.sequence!==manifest.sequence||installer.sha256!==publication.installer_sha256||installer.url!==`${origin}/packages/${installer.sha256}.exe`||!Number.isSafeInteger(installer.size)||installer.size<2||installer.size>25*1024*1024)throw Error('Hotfix release identity differs');
+const packageName='OpenOmsi_BBS_2.2.0.3_hotfix2_Setup_e_Coop9.zip';
+if(manifest.version!=='2.2.0.3-hotfix.2'||manifest.sequence!==2026102303||publication.version!==manifest.version||publication.sequence!==manifest.sequence||installer.sha256!==publication.installer_sha256||installer.url!==`${origin}/packages/${installer.sha256}.exe`||!Number.isSafeInteger(installer.size)||installer.size<2||installer.size>25*1024*1024)throw Error('Hotfix release identity differs');
 async function request(url){const r=await fetch(url,{headers:{'User-Agent':'OpenOmsi-BBS/2.2.0.3','Cache-Control':'no-cache'},signal:AbortSignal.timeout(90000)});if(!r.ok)throw Error('HTTP '+r.status+' '+url);return r;}
 function addInstaller(path,report){const b=readFileSync(path);if(sha(b)!==report.updater_sha256)throw Error('Immutable updater differs');writeFileSync(`distribution/assets/packages/${report.updater_sha256}.exe`,b);}
 function addParts(path){for(const name of readdirSync(path)){const b=readFileSync(join(path,name));if(sha(b)+'.bin'!==name)throw Error('Immutable Coop part differs');writeFileSync('distribution/assets/packages/'+name,b);}}
@@ -40,7 +40,7 @@ if(process.argv[2]==='prepare'){
  const coop=Buffer.concat(chunks);if(coop.length!==spec.size||sha(coop)!==spec.sha256)throw Error('Pinned cumulative Coop archive differs');
  for(const hash of Object.values(spec.files))if(!exe.includes(Buffer.from(hash)))throw Error('Coop file pin absent');
  for(const name of readdirSync('distribution/assets/packages')){const match=/^([a-f0-9]{64})\.(exe|bin)$/.exec(name);if(!match||sha(readFileSync('distribution/assets/packages/'+name))!==match[1])throw Error('Invalid immutable asset');}
- console.log('PREPARED: signed 2.2.0.3-hotfix.1; exact native status, timer, manual check, preserved P15 binaries and Defender evidence; every prior immutable asset retained.');
+ console.log('PREPARED: signed 2.2.0.3-hotfix.2; exact native status, timer, manual check, preserved P15 binaries and Defender evidence; every prior immutable asset retained.');
 }else if(process.argv[2]==='verify-live'){
  const r=await request(origin+'/stable.json');if(!Buffer.from(await r.arrayBuffer()).equals(signed)||!r.headers.get('cache-control')?.includes('no-store'))throw Error('Live signed manifest differs');
  let count=0;for(const name of readdirSync('distribution/assets/packages')){const expected=readFileSync('distribution/assets/packages/'+name),r=await request(origin+'/packages/'+name),b=Buffer.from(await r.arrayBuffer());if(b.length!==expected.length||sha(b)!==sha(expected)||!r.headers.get('cache-control')?.includes('immutable'))throw Error('Live immutable asset differs: '+name);count++;}
