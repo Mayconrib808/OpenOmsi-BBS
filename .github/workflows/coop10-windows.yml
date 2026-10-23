@@ -55,6 +55,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --locked --release -p omsi-lan --lib walking_without_a_bus_keeps_the_players_chosen_character 2>&1 | Tee-Object -FilePath ../out/on-foot-network-test.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-lan --lib drive_share::tests 2>&1 | Tee-Object -FilePath ../out/driver-share-transport-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build actual Windows game and streaming server runtime
         working-directory: game
         shell: pwsh
