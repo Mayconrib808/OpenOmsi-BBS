@@ -148,7 +148,7 @@ func adminAction(dir, action string) error {
 	}
 	bridge := bridgePath(dir)
 	if action == "activate" {
-		if _, e := verifyPackage(dir); e != nil {
+		if _, e := verifyPackageForActivation(dir); e != nil {
 			return fmt.Errorf("%s: %w", localText(c.Language, "Falha na integridade do pacote", "Package integrity failed", "Die Prüfung der Dateiintegrität ist fehlgeschlagen"), e)
 		}
 		if e := validateConfig(c, dir); e != nil {
