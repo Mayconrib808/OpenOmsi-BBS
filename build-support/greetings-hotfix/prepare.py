@@ -66,6 +66,10 @@ edit('crates/omsi-app/src/lan_world.rs', '''            run.par_iter_mut().for_e
                 v.update_ai(dt,f);
                 omsi_sim::ai_traffic::greetings::step_remote_flash(v,dt);
             });''')
+# Models can switch high-beam meshes with [visible]/[matl_alphascale], not just light maps.
+edit('crates/omsi-sim/src/vehicle/visuals.rs',
+ '            current.slot_light = next.slot_light;',
+ '            current.visible = next.visible;\n            current.slot_alpha = next.slot_alpha;\n            current.slot_light = next.slot_light;')
 # Separate friendly horns from ordinary traffic horns to avoid replaying native AI audio twice.
 edit('crates/omsi-sim/src/view_events/sounds.rs',
  '    pub honks: Vec<(bool, DVec3, Arc<VehicleType>)>,',
