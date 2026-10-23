@@ -88,10 +88,16 @@ def main():
     script=(ROOT/'build-support/bridge2203/atualizar_host_pessoal.ps1').read_text(encoding='utf-8-sig').replace('2.2.0.2','2.2.0.3').replace('host-pessoal.3','publico.1').replace(OLD_DYNAMIC,sha(server_exe))
     script=script.replace("$knownDynamic = (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash -eq '"+sha(server_exe)+"'", "$knownDynamic = (Get-FileHash -LiteralPath $server -Algorithm SHA256).Hash.ToLowerInvariant() -in @('"+OLD_DYNAMIC+"','"+sha(server_exe)+"')")
     script=script.replace("@('Personal-Host-2.2.0.3/Backups'", "@('Personal-Host-2.2.0.2/Backups','Personal-Host-2.2.0.3/Backups'")
+    script=script.replace("$recentReceipt = Join-Path $DataRoot 'Personal-Host-2.2.0.3/installed.json'", "$recentReceipt = Join-Path $DataRoot 'Personal-Host-2.2.0.3/installed.json'\n    if (-not [IO.File]::Exists($recentReceipt)) { $recentReceipt = Join-Path $DataRoot 'Personal-Host-2.2.0.2/installed.json' }")
     files['scripts/atualizar_host_pessoal.ps1']=b'\xef\xbb\xbf'+script.encode()
     tests=(ROOT/'build-support/bridge2203/test_host_pessoal.ps1').read_text(encoding='utf-8-sig').replace('2.2.0.2','2.2.0.3').replace(OLD_DYNAMIC,sha(server_exe))
     (ROOT/'scripts/test_host_2203.ps1').write_text(tests,encoding='utf-8-sig',newline='\n')
-    files['ATIVAR-SERVIDOR-DINAMICO.cmd']=b'@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\\atualizar_host_pessoal.ps1" -Destination "%~dp0." -NoLaunch\r\npause\r\n'
+    files['ATIVAR-SERVIDOR-DINAMICO.cmd']=('@echo off\r\n'
+      'if exist "%~dp0app\\bridge.ini" (\r\n'
+      '  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\\atualizar_host_pessoal.ps1" -PreferredDestination "%~dp0." -NoLaunch\r\n'
+      ') else (\r\n'
+      '  powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\\atualizar_host_pessoal.ps1" -NoLaunch\r\n'
+      ')\r\npause\r\n').encode()
     files['docs/HOST-P15-PROVENIENCIA.json']=dump(provenance)
     files[FOLDER+'SHA256.json']=dump({n[len(FOLDER):]:sha(d) for n,d in sorted(files.items()) if n.startswith(FOLDER) and n!=FOLDER+'SHA256.json'})
     out=io.BytesIO()

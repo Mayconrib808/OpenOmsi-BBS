@@ -1,0 +1,126 @@
+name: Build and validate Bridge 2.2.0.3 with Coop 9
+on:
+  push:
+    branches: ['release/2.2.0.3']
+    paths: ['build-support/bridge2203/request.json', '.github/workflows/release-2203.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Check exact native game and baseline publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $p=Get-Content build-support/bridge2203/request.json -Raw | ConvertFrom-Json
+          if ($p.version -ne '2.2.0.3' -or $p.sequence -ne 2026102301) {throw 'Invalid release request.'}
+          $deadline=(Get-Date).AddMinutes(45)
+          while ($true) {
+            $game=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$($p.game_run_id)" | ConvertFrom-Json
+            $server=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$($p.server_run_id)" | ConvertFrom-Json
+            if ($game.head_sha -ne $p.game_commit -or $game.path -ne '.github/workflows/greetings-windows.yml' -or $server.head_sha -ne $p.server_commit -or $server.path -ne '.github/workflows/greetings-server-windows.yml') {throw 'Native source identity differs.'}
+            foreach ($native in @($game,$server)) {if ($native.status -eq 'completed' -and $native.conclusion -ne 'success') {throw 'A pinned native candidate did not pass.'}}
+            if ($game.status -eq 'completed' -and $server.status -eq 'completed') {break}
+            if ((Get-Date) -gt $deadline) {throw 'Pinned native validation did not finish within the release window.'}
+            Write-Host 'Waiting for the exact game and server Windows validation.'
+            Start-Sleep -Seconds 20
+          }
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.2-update-candidate
+          run-id: 39863166328
+          github-token: ${{ github.token }}
+          path: approved-previous
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.1.9.8-Streaming-Experimental
+          run-id: 39698116557
+          github-token: ${{ github.token }}
+          path: approved-dynamic
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.2-Host-Particular-Maycon
+          run-id: 39868993435
+          github-token: ${{ github.token }}
+          path: approved-regression
+      - uses: actions/download-artifact@v8
+        with:
+          name: bridge-2203-coop9-windows
+          run-id: 39967140696
+          github-token: ${{ github.token }}
+          path: approved-game
+      - uses: actions/download-artifact@v8
+        with:
+          name: bridge-2203-dynamic-windows
+          run-id: 39967140712
+          github-token: ${{ github.token }}
+          path: approved-server
+      - name: Prepare complete Coop 9 and pin every downloadable byte
+        run: python scripts/prepare_coop9.py --previous-coop approved-previous/Coop8.zip --dynamic-baseline approved-dynamic/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip --new-server approved-server --server-run 39967140712 --server-commit dc5b4496d18c641f7c668e2172ea807d6f2173e2 --new-build approved-game --game-run 39967140696 --game-commit dc5b4496d18c641f7c668e2172ea807d6f2173e2 --output build/Coop9.zip
+      - name: Build updater and full package with native Go tests
+        run: python scripts/build_2203.py --coop build/Coop9.zip --baseline-update approved-previous/Atualizar-Bridge.exe
+      - name: Native Setup, updater and actual game compatibility checks
+        run: python scripts/verify_2203_windows.py
+      - name: Cumulative host installer fixture and rollback validation
+        shell: pwsh
+        run: |
+          python -c "from zipfile import ZipFile; ZipFile('approved-dynamic/Bridge-2.1.9.8-Streaming-Protocolo14-TESTE.zip').extractall('build/host-baseline'); ZipFile('approved-regression/Bridge_2.2.0.2_Host_Particular_Maycon.zip').extractall('build/host-regression')"
+          powershell.exe -NoProfile -File scripts/test_host_2203.ps1 -Package build/release-2203/OpenOmsi_BBS_2.2.0.3_Setup_e_Coop9 -Baseline build/host-baseline -Regressed build/host-regression
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./scripts/test_host_2203.ps1 -Package build/release-2203/OpenOmsi_BBS_2.2.0.3_Setup_e_Coop9 -Baseline build/host-baseline -Regressed build/host-regression
+          Copy-Item build/release-2203/OpenOmsi_BBS_2.2.0.3_Setup_e_Coop9/validation/* build/release-2203/evidence/
+      - name: Include native validation reports in the final public ZIP
+        shell: pwsh
+        run: |
+          python -c "from pathlib import Path; import sys,shutil,json,hashlib; sys.path.insert(0,'scripts'); import build_2203 as b; out=Path('build/release-2203'); package=out/b.PACKAGE; [(shutil.copy2(p,package/'validation'/p.name)) for p in (out/'evidence').glob('*.json')]; names=sorted(p.relative_to(package).as_posix() for p in package.rglob('*') if p.is_file() and p.relative_to(package).as_posix() not in {'docs/SHA256.txt','docs/PACKAGE_FILES.txt'}); names.append('docs/PACKAGE_FILES.txt'); (package/'docs/PACKAGE_FILES.txt').write_text('\n'.join(sorted(names))+'\n',encoding='utf-8'); (package/'docs/SHA256.txt').write_text(''.join(hashlib.sha256((package/n).read_bytes()).hexdigest()+'  '+n+'\n' for n in sorted(names)),encoding='utf-8'); target=out/(b.PACKAGE+'.zip'); target.unlink(); b.archive(package,target); report=json.loads((out/'build-report.json').read_text()); report['full_package_sha256']=hashlib.sha256(target.read_bytes()).hexdigest(); report['native_p15_controls_tested']=True; report['host_installer_powershell_5_and_7_tested']=True; (out/'build-report.json').write_text(json.dumps(report,indent=2)+'\n',encoding='utf-8')"
+      - name: Scan exact updater and full package with Microsoft Defender
+        shell: pwsh
+        run: scripts/scan_2203.ps1
+      - name: Stage source manifest and native evidence
+        shell: pwsh
+        run: |
+          Copy-Item source/coop_bundle_manifest.go build/release-2203/
+          Copy-Item docs/releases/coop-0.3.38-coop.9.json build/release-2203/
+          Copy-Item build/Coop9.zip build/release-2203/
+          Get-Content build/release-2203/build-report.json
+          python -c "import json; from pathlib import Path; print('BRIDGE2203_SOURCE_RECORD='+json.dumps({name:Path(name).read_bytes().decode('utf-8') for name in ['source/coop_bundle_manifest.go','docs/releases/coop-0.3.38-coop.9.json']}))"
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Bridge-2.2.0.3-Windows-evidence
+          path: build/release-2203/evidence/**
+          if-no-files-found: warn
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.3-update-candidate
+          path: |
+            build/release-2203/Atualizar-Bridge.exe
+            build/release-2203/build-report.json
+            build/release-2203/coop_bundle_manifest.go
+            build/release-2203/coop-0.3.38-coop.9.json
+            build/release-2203/Coop9.zip
+            build/release-2203/coop-assets/**
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.3-Setup-e-Coop9
+          path: |
+            build/release-2203/OpenOmsi_BBS_2.2.0.3_Setup_e_Coop9.zip
+            build/release-2203/OpenOmsi_BBS_2.2.0.3_Setup_e_Coop9.zip.sha256
+          if-no-files-found: error
+          retention-days: 30

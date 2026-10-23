@@ -149,8 +149,8 @@ def archive_package(directory: Path) -> Path:
 
 
 def main() -> int:
-    if VERSION == "2.2.0.3":
-        raise SystemExit("Use scripts/build_2203.py with the approved baseline updater. The archived host source predates the complete P15 binary; rebuilding it would remove host features.")
+    if (ROOT / "build-support/bridge2203/host-provenance.json").exists():
+        raise SystemExit("Use the release-specific cumulative builder (scripts/build_2203.py for 2.2.0.3) with the approved baseline updater. The archived host source predates the complete P15 binary; rebuilding it would remove host features.")
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check-only", action="store_true", help="Run complete build/checks in a temporary folder.")
     parser.add_argument("--update-origin", default="", help="Deployed HTTPS distribution origin.")
