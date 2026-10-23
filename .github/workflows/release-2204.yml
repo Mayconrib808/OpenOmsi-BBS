@@ -232,6 +232,7 @@ jobs:
             build/release-2204/Atualizar-Bridge.exe
             build/release-2204/build-report.json
             build/release-2204/coop-spec.json
+            build/release-2204/coop_bundle_manifest.go
             build/release-2204/coop-assets/**
           if-no-files-found: error
           retention-days: 30

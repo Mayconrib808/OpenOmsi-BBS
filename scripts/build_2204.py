@@ -31,7 +31,7 @@ def main():
  files['app/server-dinamico-p14/openomsi.exe']=(a.server/'openomsi.exe').read_bytes()
  del files[COOP+'/source/openomsi-coop9-source.zip']
  files[COOP+'/source/openomsi-coop10-source.zip']=(a.game/'openomsi-coop10-source.zip').read_bytes()
- files['app/server-dinamico-p14/openomsi-dynamic-source.zip']=(a.server/'openomsi-dynamic-source.zip').read_bytes()
+ files['docs/source/OpenOMSI_0.3.39_Dinamico_Fonte.zip']=(a.server/'openomsi-dynamic-source.zip').read_bytes()
  for folder,label in ((a.game,'coop10'),(a.server,'dynamic-stream3')):
   for path in folder.iterdir():
    if path.is_file() and path.suffix in ('.log','.json'):
@@ -40,24 +40,38 @@ def main():
  files[COOP+'/source/BUILD-INFO.json']=(json.dumps(info,indent=2)+'\n').encode()
  files[COOP+'/LEIA-ME.txt']+=b'\nCoop 10: troca de motorista, autorizacao fora do onibus, corpo oculto na F1.\nIA e passageiros carregam perto de cada jogador a pe e de cada onibus.\nAtualize tambem o host dinamico. Mantidos protocolo 14 e base do servidor 0.3.39.\n'
  marker=json.loads(files['app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json'])
- marker.update(version='0.3.39-bbs-stream.3',sha256=info['dynamic_sha256'],world_interest='buses_and_walkers')
+ marker.update(bridge_line=VERSION,native_version='0.3.39-bbs-stream.3',native_sha256=info['dynamic_sha256'],world_interest='buses_and_walkers',build_commit=os.environ.get('GITHUB_SHA'),build_run=os.environ.get('GITHUB_RUN_ID'))
  files['app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json']=(json.dumps(marker,indent=2)+'\n').encode()
- files[COOP+'/SHA256.json']=(json.dumps({n:sha(b) for n,b in files.items() if n.startswith(COOP+'/') and n!=COOP+'/SHA256.json'},indent=2)+'\n').encode()
+ # Keep the personal-host activation route consistent with the new server bytes.
+ host_name='docs/HOST-PESSOAL-2.2.0.3.json'
+ host_manifest=json.loads(files[host_name])
+ for item in host_manifest['files']:
+  if item['path'] in files:item['sha256']=sha(files[item['path']])
+ files[host_name]=(json.dumps(host_manifest,indent=2)+'\n').encode()
+ server_old=old['files']['app/server-dinamico-p14/openomsi.exe']
+ script=files['scripts/atualizar_host_pessoal.ps1'].decode('utf-8-sig')
+ script=script.replace(server_old,info['dynamic_sha256'])
+ ancient='8d6875bfd4b4143a8ceae149ee790291affb1f37167bb3db9250009be9217240'
+ script=script.replace("@('"+ancient+"','"+info['dynamic_sha256']+"')", "@('"+ancient+"','"+server_old+"','"+info['dynamic_sha256']+"')")
+ files['scripts/atualizar_host_pessoal.ps1']=b'\xef\xbb\xbf'+script.encode()
+ files[COOP+'/SHA256.json']=(json.dumps({n[len(COOP)+1:]:sha(b) for n,b in files.items() if n.startswith(COOP+'/') and n!=COOP+'/SHA256.json'},indent=2)+'\n').encode()
  prefix='Bridge-2.2.0.4/'
  bundle=io.BytesIO()
  with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for n,b in sorted(files.items()):
    item=zipfile.ZipInfo(prefix+n,(2026,10,23,0,0,0));item.compress_type=zipfile.ZIP_DEFLATED;z.writestr(item,b,compresslevel=9)
- data=bundle.getvalue();assert len(data)<=128<<20
+ data=bundle.getvalue();assert len(data)<=128<<20 and sum(map(len,files.values()))<=384<<20
  assets=OUT/'coop-assets';assets.mkdir();parts=[]
  for at in range(0,len(data),16<<20):
   b=data[at:at+(16<<20)];digest=sha(b);parts.append(dict(sha256=digest,size=len(b)));(assets/(digest+'.bin')).write_bytes(b)
  spec=dict(files={n:sha(b) for n,b in files.items()},parts=parts,prefix=prefix,sha256=sha(data),size=len(data))
  (OUT/'coop-spec.json').write_text(json.dumps(spec,indent=2)+'\n')
+ (ROOT/'docs/releases/coop-0.3.38-coop.10.json').write_text(json.dumps(spec,indent=2)+'\n')
  text='package main\n\nconst bundledCoopOrigin = "https://openomsi-bbs-updates.maycongamesmaximo.workers.dev"\nvar bundledCoopDistribution = coopDistribution{FullPaths:true,SHA256:'+json.dumps(spec['sha256'])+',Size:'+str(spec['size'])+',Prefix:'+json.dumps(prefix)+',\nParts:[]coopDistributionPart{\n'
  text+=''.join('{SHA256:'+json.dumps(p['sha256'])+',Size:'+str(p['size'])+'},\n' for p in parts)+'},\nFiles:map[string]string{\n'
  text+=''.join(json.dumps(n)+':'+json.dumps(h)+',\n' for n,h in sorted(spec['files'].items()))+'},}\n'
  (build.SOURCE/'coop_bundle_manifest.go').write_text(text)
+ shutil.copy2(build.SOURCE/'coop_bundle_manifest.go',OUT/'coop_bundle_manifest.go')
  tests('go')
  payload={name:(package/name).read_bytes() for name in EXPECTED}
  before={n:sha(b) for n,b in payload.items()}
