@@ -55,26 +55,36 @@ jobs:
       - name: Checks on Linux
         if: runner.os == 'Linux'
         shell: bash
-        run: python scripts/build.py --check-only
+        run: |
+          if test -f build-support/bridge2203/host-provenance.json; then
+            # The archived host source predates P15. Run the release-specific
+            # Go tests without rebuilding/downgrading the retained host.
+            python scripts/build_2203.py --tests-only
+          else
+            python scripts/build.py --check-only
+          fi
+      - name: Release-specific P15 Bridge source tests on Windows
+        if: runner.os == 'Windows' && hashFiles('build-support/bridge2203/host-provenance.json') != ''
+        run: python scripts/build_2203.py --tests-only
       - name: Download this run's tested native server
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && hashFiles('build-support/bridge2203/host-provenance.json') == ''
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: BBS-free-bus-native-server
           path: build/native-server
       - name: Complete package and native DLL tests on Windows
         id: windows_build
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && hashFiles('build-support/bridge2203/host-provenance.json') == ''
         shell: bash
         run: python scripts/build.py --native-server build/native-server
       - name: Microsoft Defender scan of candidate ZIP and all executable files
         id: defender_scan
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && hashFiles('build-support/bridge2203/host-provenance.json') == ''
         continue-on-error: true
         shell: pwsh
         run: ./scripts/scan_release_package.ps1 -PackagePath 'dist/OpenOmsi.+.BBS.${{ steps.windows_build.outputs.version }}.zip'
       - name: Classify Defender result
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && hashFiles('build-support/bridge2203/host-provenance.json') == ''
         shell: pwsh
         run: |
           $reportPath = Join-Path '${{ runner.temp }}' 'openomsi-defender-report/report.json'
@@ -99,7 +109,7 @@ jobs:
           }
           throw ('Defender/package validation failed and publication remains blocked. status=' + [string]$report.status + '; error=' + [string]$report.error)
       - name: Upload complete bridge ZIP and checksum
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && hashFiles('build-support/bridge2203/host-provenance.json') == ''
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: OpenOMSI-BCS-Bridge-v${{ steps.windows_build.outputs.version }}-TEST
