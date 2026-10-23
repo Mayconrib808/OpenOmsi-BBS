@@ -16,7 +16,10 @@ for name,item in spec.items():
 patch=(support/'greetings.patch').read_bytes().replace(b'\r\n',b'\n')
 subprocess.run(['git','apply','--whitespace=nowarn','-'],input=patch,cwd=game,check=True)
 for name,item in spec.items():
-    if sha((game/name).read_bytes())!=item['after']:raise ValueError('Patched source differs: '+name)
+    p=game/name
+    data=p.read_bytes().replace(b'\r\n',b'\n')
+    if sha(data)!=item['after']:raise ValueError('Patched source differs: '+name)
+    p.write_bytes(data)
 out=root/'out';out.mkdir(exist_ok=True)
 (out/'greetings-source-sha256.json').write_text(json.dumps(spec,indent=2)+'\n')
 print('Applied oncoming bus greetings and preserved dynamic server streaming.')
