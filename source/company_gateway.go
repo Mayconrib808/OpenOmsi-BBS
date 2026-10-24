@@ -84,19 +84,33 @@ func newCompanyGateway(ctx context.Context, cfg companyHostConfig, session Compa
 		g.Close()
 		return nil, fmt.Errorf("porta HTTP %d indisponível: %w", cfg.WebPort, err)
 	}
-	g.reserveUDP, err = net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1)})
-	if err != nil {
+	// The official simulator serves gameplay over UDP and native file streams
+	// over TCP on the same backend port. Windows may reserve a UDP-selected
+	// ephemeral port for TCP (notably on GitHub Actions runners). Reserve TCP
+	// first, then the matching UDP port; retry if the pair is unavailable.
+	for attempt := 0; attempt < 32; attempt++ {
+		files, listenErr := net.Listen("tcp4", "127.0.0.1:0")
+		if listenErr != nil {
+			err = listenErr
+			continue
+		}
+		port := files.Addr().(*net.TCPAddr).Port
+		udp, listenErr := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port})
+		if listenErr != nil {
+			_ = files.Close()
+			err = listenErr
+			continue
+		}
+		g.reserveFiles, g.reserveUDP = files, udp
+		g.backendPort = port
+		g.backendUDP = udp.LocalAddr().(*net.UDPAddr)
+		break
+	}
+	if g.reserveUDP == nil {
 		g.Close()
-		return nil, err
+		return nil, fmt.Errorf("nenhuma porta TCP/UDP compartilhada disponível após 32 tentativas: %w", err)
 	}
 	g.reserveWeb, err = net.Listen("tcp4", "127.0.0.1:0")
-	if err != nil {
-		g.Close()
-		return nil, err
-	}
-	g.backendUDP = g.reserveUDP.LocalAddr().(*net.UDPAddr)
-	g.backendPort = g.backendUDP.Port
-	g.reserveFiles, err = net.Listen("tcp4", net.JoinHostPort("127.0.0.1", strconv.Itoa(g.backendPort)))
 	if err != nil {
 		g.Close()
 		return nil, err
