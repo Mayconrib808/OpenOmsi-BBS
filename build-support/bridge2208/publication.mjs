@@ -1,4 +1,4 @@
-import {readFileSync,writeFileSync,mkdirSync,readdirSync,copyFileSync,cpSync} from 'node:fs';
+import {readFileSync,writeFileSync,mkdirSync,readdirSync,copyFileSync,cpSync,existsSync} from 'node:fs';
 import {createHash,createPublicKey,verify} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 const repo=process.env.GITHUB_REPOSITORY;
@@ -18,7 +18,7 @@ function collect(dir,allowMissing=false){
  const name=sha(exe)+'.exe';
  writeFileSync('distribution/assets/packages/'+name,exe);
  const parts=dir+'/coop-assets';
- try{for(const f of readdirSync(parts)){const bytes=readFileSync(parts+'/'+f);if(f!==sha(bytes)+'.bin'||bytes.length>20*1024*1024)throw Error('Immutable chunk differs: '+dir+'/'+f);writeFileSync('distribution/assets/packages/'+f,bytes)}}catch(e){if(!allowMissing)throw e}
+ if(existsSync(parts))for(const f of readdirSync(parts)){const bytes=readFileSync(parts+'/'+f);if(f!==sha(bytes)+'.bin'||bytes.length>20*1024*1024)throw Error('Immutable chunk differs: '+dir+'/'+f);writeFileSync('distribution/assets/packages/'+f,bytes)}
  return report;
 }
 if(process.argv[2]==='prepare'){
