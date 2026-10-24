@@ -31,14 +31,14 @@ index 5460d4f..edcb66e 100644
  
      /// Looking round with the mouse goes by the cursor's way in the window (a view of the
 diff --git a/crates/omsi-app/src/app_impl/vehicles.rs b/crates/omsi-app/src/app_impl/vehicles.rs
-index 4827552..6343dd9 100644
+index 4827552..3a8bfd9 100644
 --- a/crates/omsi-app/src/app_impl/vehicles.rs
 +++ b/crates/omsi-app/src/app_impl/vehicles.rs
 @@ -15,6 +15,7 @@ impl App {
              let paint = name.as_ref().and_then(|name| t.ty.paint_schemes.iter().position(|s| s.name.eq_ignore_ascii_case(name)));
              trailers.push(w.add_vehicle_part(r, scene, &t.ty, paint, &render));
          }
-+        self.args.paint = name.clone().or_else(|| Some("original".into()));
++        self.args.paint = name.clone();
          let old = std::mem::replace(&mut p.render, render);
          let old_trailers = std::mem::replace(&mut p.trailer_renders, trailers);
          p.vehicle.host.paint_scheme = Some(scheme);
@@ -51,12 +51,12 @@ index 4827552..6343dd9 100644
 +            path.ends_with(&bus.replace('\\', "/").to_lowercase())
 +        }).and_then(|p| p.vehicle.host.paint_scheme.map(|scheme| scheme
 +            .and_then(|i| p.vehicle.ty.paint_schemes.get(i)).map(|p| p.name.clone())
-+            .unwrap_or_else(|| "original".into()))));
++            .unwrap_or_default())));
          let bus = bus.to_string();
          let (Some(w), Some(r), Some(cam)) = (self.world.clone(), self.renderer.as_ref(), self.camera.as_ref()) else { return };
          let (x, y, heading) = match (self.view.as_str(), self.player.as_ref()) {
 diff --git a/crates/omsi-app/src/coop.rs b/crates/omsi-app/src/coop.rs
-index 036c4ac..0079794 100644
+index 036c4ac..2c4d9b4 100644
 --- a/crates/omsi-app/src/coop.rs
 +++ b/crates/omsi-app/src/coop.rs
 @@ -667,9 +667,7 @@ impl App {
@@ -82,13 +82,12 @@ index 036c4ac..0079794 100644
          let surface = self.gfx.surface.as_ref()?;
          let size = (surface.config.width, surface.config.height);
          Some(shown.cursor_ray(BodyPose::of(v), |camera| {
-@@ -1187,6 +1188,12 @@ impl App {
+@@ -1187,6 +1188,11 @@ impl App {
                      .and_then(|b| self.coop_vehicle(b))
                      .and_then(|v| mesh_info(v, a.part, a.index))
                      .map(|x| x.0)
 +            } else if a.kind == 2 {
-+                self.foot_bus().and_then(|b| self.coop_vehicle(b))
-+                    .and_then(|v| v.host.tickets.as_ref())
++                self.session.humans.as_ref().and_then(|h| h.tickets.as_ref())
 +                    .and_then(|p| p.tickets.get(a.index as usize))
 +                    .map(|t| format!("{} ({:.2})", t.name, t.value))
 +                    .or_else(|| Some(format!("{} {}", text("Bilhete", "Ticket", "Fahrschein"), a.index + 1)))
@@ -96,10 +95,10 @@ index 036c4ac..0079794 100644
                  Some(text("Caixa", "Cash desk", "Kasse").into())
              }
 diff --git a/crates/omsi-app/src/coop_drive.rs b/crates/omsi-app/src/coop_drive.rs
-index 74cd910..3600b3c 100644
+index 74cd910..0c92d3f 100644
 --- a/crates/omsi-app/src/coop_drive.rs
 +++ b/crates/omsi-app/src/coop_drive.rs
-@@ -19,6 +19,21 @@ struct Owner {
+@@ -19,6 +19,24 @@ struct Owner {
      seen: Instant,
      sent: Instant,
      triggers: Vec<String>,
@@ -112,7 +111,10 @@ index 74cd910..3600b3c 100644
 +}
 +impl Motion {
 +    fn apply(&self, vehicle: &mut omsi_sim::VehicleInstance) {
-+        let t = (self.started.elapsed().as_secs_f64() / 0.1).clamp(0.0, 1.0);
++        self.apply_elapsed(vehicle, self.started.elapsed().as_secs_f64());
++    }
++    fn apply_elapsed(&self, vehicle: &mut omsi_sim::VehicleInstance, elapsed: f64) {
++        let t = (elapsed / 0.1).clamp(0.0, 1.0);
 +        vehicle.position = self.from.0.lerp(self.to.0, t);
 +        vehicle.heading = self.from.1 + ((self.to.1-self.from.1+180.0).rem_euclid(360.0)-180.0)*t;
 +        vehicle.pitch = self.from.2 + (self.to.2-self.from.2)*t as f32;
@@ -121,7 +123,7 @@ index 74cd910..3600b3c 100644
  }
  struct Visitor {
      owner: u32,
-@@ -157,6 +172,7 @@ impl App {
+@@ -157,6 +175,7 @@ impl App {
              seen: now,
              sent: now,
              triggers: Vec::new(),
@@ -129,7 +131,7 @@ index 74cd910..3600b3c 100644
          });
          self.drive_send(
              peer,
-@@ -468,6 +484,7 @@ impl App {
+@@ -468,6 +487,7 @@ impl App {
                          let state = Snapshot::capture(o.uid, bus, &p.vehicle);
                          o.frozen = true;
                          o.seen = now;
@@ -137,7 +139,7 @@ index 74cd910..3600b3c 100644
                          let commit = Message::Commit { token, state };
                          if omsi_lan::vehicle_transfer::encode(&commit).is_none() {
                              p.authority_remote = false;
-@@ -538,12 +555,15 @@ impl App {
+@@ -538,12 +558,15 @@ impl App {
                      p.vehicle.host.fired_triggers.clear();
                      p.vehicle.host.fired_trigger_vars.clear();
                      p.vehicle.host.fired_file_triggers.clear();
@@ -153,7 +155,7 @@ index 74cd910..3600b3c 100644
                          if let (Some(a), Some(mut sounds)) =
                              (self.sound.audio.as_ref(), old.sounds.take())
                          {
-@@ -562,6 +582,7 @@ impl App {
+@@ -562,6 +585,7 @@ impl App {
                      self.player = Some(p);
                      v.active = true;
                      v.seen = now;
@@ -161,7 +163,15 @@ index 74cd910..3600b3c 100644
                      self.net.coop.camera = None;
                      self.net.inside_remote = None;
                      self.view = "driver".into();
-@@ -630,7 +651,15 @@ impl App {
+@@ -610,6 +634,7 @@ impl App {
+                         && o.bus == state.bus
+                 });
+                 if valid {
++                    let old_paint = self.player.as_ref().and_then(|p| p.vehicle.host.paint_scheme);
+                     let same_desk = desk != 0 && desk == self.coop_desk(0).id;
+                     if let Some(p) = self.player.as_mut() {
+                         let preserve: Vec<_> = p
+@@ -630,7 +655,15 @@ impl App {
                              p.vehicle.host.tt_terminus_index,
                              p.vehicle.host.tt_busstop_index,
                          );
@@ -177,7 +187,18 @@ index 74cd910..3600b3c 100644
                              let h = &mut p.vehicle.host;
                              h.tt_line = tt.0;
                              h.tt_delay = tt.1;
-@@ -844,6 +873,12 @@ impl App {
+@@ -672,6 +705,10 @@ impl App {
+                             }
+                         }
+                     }
++                    let new_paint = self.player.as_ref().and_then(|p| p.vehicle.host.paint_scheme);
++                    if new_paint != old_paint {
++                        if let Some(scheme) = new_paint { self.repaint_current_vehicle(scheme); }
++                    }
+                 }
+             }
+             Message::Context {
+@@ -844,6 +881,12 @@ impl App {
                  self.drive_message(m.owner, message);
              }
          }
@@ -190,11 +211,87 @@ index 74cd910..3600b3c 100644
          if self.session.humans.as_ref().is_some_and(|h| h.stop_request) {
              self.drive_queue_trigger("int_haltewunsch");
          }
+@@ -1085,3 +1128,62 @@ fn passenger_input(name: &str) -> bool {
+                 | "schedule_active"
+         )
+ }
++
++#[cfg(test)]
++mod coop13_regressions {
++    use super::*;
++    use clap::Parser;
++
++    fn bus() -> omsi_sim::VehicleInstance {
++        let program = omsi_script::compile(&omsi_script::CompileInput {
++            builtin_vars: vec!["counter".into()], ..Default::default()
++        });
++        let ty = omsi_sim::VehicleType {
++            def: Default::default(), model: Default::default(), model_dir: Default::default(),
++            program: Arc::new(program), meshes: vec![], paint_schemes: vec![], texchanges: vec![],
++            wheel_meshes: vec![], suspension_axles: vec![], missing_packs: vec![],
++            mesh_bounds: vec![], mesh_boxes: vec![],
++        };
++        omsi_sim::VehicleInstance::new(Arc::new(ty), omsi_sim::VehicleHost::new(Default::default()))
++    }
++
++    #[test]
++    fn coop13_g_does_not_reclaim_a_vehicle_with_remote_authority() {
++        let args = Args::parse_from(["openomsi", "--root", "."]);
++        let mut app = crate::assemble_app(args, crate::settings::Settings::default());
++        let mut player = crate::spawn::coop13_test_player(bus());
++        player.authority_remote = true;
++        let uid = player.uid;
++        app.player = Some(player);
++        app.start_on_foot(glam::DVec3::ZERO, 0.0);
++        app.session.on_foot.as_mut().unwrap().inside = Some((BusId::Player, glam::Vec3::ZERO));
++        let now = Instant::now();
++        app.net.coop.drive.owner = Some(Owner {
++            peer: 2, token: 11, uid, bus: "Vehicles/test.bus".into(), frozen: true,
++            active: true, seen: now, sent: now, triggers: vec![], motion: None,
++        });
++        assert!(app.foot_key(KeyCode::KeyG, true, false, false, false));
++        assert!(app.session.on_foot.is_some(), "G reclaimed the remote driver's wheel");
++        assert!(app.player.as_ref().unwrap().authority_remote);
++        assert_eq!(app.view, "foot");
++    }
++
++    #[test]
++    fn coop13_passive_motion_smooths_chassis_without_advancing_simulation() {
++        let mut player = crate::spawn::coop13_test_player(bus());
++        player.authority_remote = true;
++        player.vehicle.host.clock.run_time = 123.0;
++        let motion = Motion {
++            from: (glam::DVec3::ZERO, 359.0, 0.0, 0.0),
++            to: (glam::DVec3::new(10.0, 0.0, 0.0), 1.0, 0.1, 0.0),
++            started: Instant::now() - Duration::from_millis(50),
++        };
++        motion.apply_elapsed(&mut player.vehicle, 0.05);
++        assert!((player.vehicle.position.x-5.0).abs() < 1e-6);
++        assert!((player.vehicle.heading-360.0).abs() < 0.2);
++        let position = player.vehicle.position;
++        player.tick(0.1, None, false, false);
++        assert_eq!(player.vehicle.position, position);
++        assert_eq!(player.vehicle.host.clock.run_time, 123.0);
++    }
++}
 diff --git a/crates/omsi-app/src/on_foot.rs b/crates/omsi-app/src/on_foot.rs
-index a45110d..2aedacc 100644
+index a45110d..42c1b95 100644
 --- a/crates/omsi-app/src/on_foot.rs
 +++ b/crates/omsi-app/src/on_foot.rs
-@@ -654,6 +654,7 @@ impl App {
+@@ -508,6 +508,12 @@ impl App {
+     /// and the player stands beside where its driver's door was, on foot; another bus is
+     /// taken by walking up to its driver's door (G), or placed from the menu.
+     pub(crate) fn remove_driven_vehicle(&mut self) {
++        if self.net.coop.drive.busy() {
++            self.coop_notice("Devolva ou retome a direção antes de remover o ônibus.",
++                "Return or reclaim the wheel before removing the bus.",
++                "Vor dem Entfernen die Lenkung zurückgeben oder übernehmen.");
++            return;
++        }
+         if self.player.is_none() {
+             self.service_msg = Some(("There is no vehicle to remove: you are on foot".into(), 3.0));
+             return;
+@@ -654,6 +660,7 @@ impl App {
  
      /// Back at the wheel of the own bus.
      fn sit_at_the_wheel(&mut self) {
@@ -202,7 +299,7 @@ index a45110d..2aedacc 100644
          WheelCx::of(&mut self.parts()).sit_at_the_wheel();
      }
  
-@@ -697,7 +698,7 @@ impl App {
+@@ -697,7 +704,7 @@ impl App {
          // inside a bus: the wheel of the own bus by the driver's place, else the free seat
          // nearest by
          if let Some((bus, _)) = f.inside {
@@ -211,7 +308,7 @@ index a45110d..2aedacc 100644
                  let stand = self.player.as_ref().and_then(|p| self.session.humans.as_mut().and_then(|h| h.driver_stand(&p.vehicle).and_then(|l| h.vehicle_cabin_world(&p.vehicle, l))));
                  if stand.map(|s| (s - pos).truncate().length() < 2.5).unwrap_or(true) {
                      self.sit_at_the_wheel();
-@@ -737,7 +738,7 @@ impl App {
+@@ -737,7 +744,7 @@ impl App {
          }
          // (the door by the driver's seat, not the first door of the list: next to it the
          // walker was put in the seat behind the driver)
@@ -220,7 +317,7 @@ index a45110d..2aedacc 100644
          let Some(h) = self.session.humans.as_ref() else { return };
          if omsi_cfg::flags::OMSI_DEBUG_FOOT.is_set() { log::info!("on foot at ({:.1}, {:.1}): G - own bus doors {:?}, a seat near: {:?}", pos.x, pos.y, h.bus_doors(BusId::Player).iter().map(|d| ((d.x * 10.0).round() / 10.0, (d.y * 10.0).round() / 10.0)).collect::<Vec<_>>(), h.seat_near(pos, DOOR_REACH, None).map(|s| (s.bus, s.seat))); }
          if let Some(d) = own_front {
-@@ -748,7 +749,7 @@ impl App {
+@@ -748,7 +755,7 @@ impl App {
          }
          // beside the own bus's cab, on either side (a bus without a door by its driver, or
          // one got out of on the other side): back at the wheel too
@@ -229,7 +326,7 @@ index a45110d..2aedacc 100644
              let v = &p.vehicle;
              let h = self.session.humans.as_mut()?;
              h.driver_stand(v).and_then(|l| h.vehicle_cabin_world(v, l))
-@@ -798,7 +799,9 @@ impl App {
+@@ -798,7 +805,9 @@ impl App {
              KeyCode::Escape | KeyCode::F12 | KeyCode::KeyP | KeyCode::KeyV | KeyCode::Slash => false,
              KeyCode::F1 => {
                  if pressed && !repeat {
@@ -240,7 +337,7 @@ index a45110d..2aedacc 100644
                          && self.net.coop.remote.is_some_and(|(_,epoch,_)|epoch!=0) {
                          self.select_cabin_view(true);
                          return true;
-@@ -818,6 +821,7 @@ impl App {
+@@ -818,6 +827,7 @@ impl App {
                          f.cam = FootCam::Free;
                          f.vel = DVec2::ZERO;
                      }
@@ -248,7 +345,7 @@ index a45110d..2aedacc 100644
                      self.view = "free".into();
                      self.cam.ego = false;
                  }
-@@ -934,13 +938,11 @@ impl App {
+@@ -934,13 +944,11 @@ impl App {
          };
          // The approved visiting driver occupies the wheel, not an arbitrary
          // passenger seat; other clients render them with DriverFigure at the wheel.
@@ -265,7 +362,7 @@ index a45110d..2aedacc 100644
      }
  
      /// The player's figure on foot: `driver`, the figure at the wheel, else the one the map
-@@ -1006,8 +1008,8 @@ fn vehicle_boxes(at: DVec2, r: f64, player: Option<&crate::player::Player>, plac
+@@ -1006,8 +1014,8 @@ fn vehicle_boxes(at: DVec2, r: f64, player: Option<&crate::player::Player>, plac
              add(&c.vehicle);
          }
      }
@@ -276,7 +373,7 @@ index a45110d..2aedacc 100644
      }
      boxes
  }
-@@ -1063,6 +1065,7 @@ pub(crate) fn take_placed(
+@@ -1063,6 +1071,7 @@ pub(crate) fn take_placed(
  
  /// Back at the wheel of the own bus.
  fn sit_at_the_wheel(people: &mut crate::app::PeoplePart, view: &mut crate::app::ViewPart, ui: &mut crate::app::UiPart, player: &crate::app::PlayerPart) {
@@ -284,7 +381,7 @@ index a45110d..2aedacc 100644
      let Some(f) = people.on_foot.take() else { return };
      if let Some(h) = people.humans.as_mut() {
          h.avatar_remove(AVATAR_KEY);
-@@ -1431,7 +1434,7 @@ pub(crate) fn remote_walkers(cx: &mut OnFootCx) {
+@@ -1431,7 +1440,7 @@ pub(crate) fn remote_walkers(cx: &mut OnFootCx) {
          // aboard a player's bus (ours, or a third player's): in that bus's frame as it
          // is drawn here, on its seat or its floor
          let aboard = wk.aboard.and_then(|a| {
@@ -293,7 +390,7 @@ index a45110d..2aedacc 100644
              let (at, bh) = h.cabin_world(bus, glam::Vec3::from(a.local))?;
              Some((bus, a.seat, at, bh))
          });
-@@ -1507,3 +1510,35 @@ impl App {
+@@ -1507,3 +1516,35 @@ impl App {
  
  #[cfg(test)]
  mod tests;
@@ -328,6 +425,27 @@ index a45110d..2aedacc 100644
 +        assert!(!pose.seated);
 +        assert_eq!(pose.aboard.unwrap().seat, None);
 +    }
++}
+diff --git a/crates/omsi-app/src/spawn.rs b/crates/omsi-app/src/spawn.rs
+index ccafef9..b4314cb 100644
+--- a/crates/omsi-app/src/spawn.rs
++++ b/crates/omsi-app/src/spawn.rs
+@@ -909,3 +909,16 @@ mod preparation_tests {
+         let _ = std::fs::remove_dir_all(&dir);
+     }
+ }
++
++#[cfg(test)]
++pub(crate) fn coop13_test_player(vehicle: omsi_sim::VehicleInstance) -> Player {
++    let ty = vehicle.ty.clone();
++    let render = scene::VehicleRender {
++        window_wipers: None, instances: vec![], own_materials: vec![], set: None,
++        variants: vec![], text_textures: vec![], script_textures: vec![],
++        shared_script: false, displays_far: false, display_tick: 0, skinned: vec![],
++        damaged: vec![], glass_cracks: vec![], hidden: false,
++        interior_lamps: Default::default(), interior_blocks: Default::default(),
++    };
++    new_player(vehicle, render, vec![], vec![], false, &ty)
 +}
 diff --git a/crates/omsi-lan/src/game.rs b/crates/omsi-lan/src/game.rs
 index 8fde738..fab0d2d 100644
@@ -493,3 +611,37 @@ index 92b065d..854bbed 100644
      /// Is `bus` among the buses people can be in this frame (an AI bus, or another player's)?
      pub fn knows_bus(&self, bus: u64) -> bool {
          self.remote_now.iter().any(|b| b.id == BusId::Ai(bus)) || self.seats.contains_key(&BusId::Ai(bus))
+diff --git a/crates/omsi-sim/src/people/tests.rs b/crates/omsi-sim/src/people/tests.rs
+index 794287f..823518b 100644
+--- a/crates/omsi-sim/src/people/tests.rs
++++ b/crates/omsi-sim/src/people/tests.rs
+@@ -1210,3 +1210,29 @@ fn people_off_a_bus_without_a_pavement_step_away_from_the_door() {
+     places.dedup();
+     assert!(places.len() > 30, "a busload spreads out: {} places of 39", places.len());
+ }
++
++#[test]
++fn coop13_borrowed_cabin_tracks_local_chassis_without_duplicate_boarding() {
++    let dir = std::env::temp_dir().join(format!("omsi-coop13-cabin-{}", std::process::id()));
++    std::fs::create_dir_all(&dir).unwrap();
++    std::fs::write(dir.join("test.bus"), "[model]\nmodel.cfg\n[passengercabin]\ncabin.cfg\n[paths]\npaths.cfg\n").unwrap();
++    std::fs::write(dir.join("model.cfg"), "").unwrap();
++    std::fs::write(dir.join("paths.cfg"), "[pathpnt]\n0\n0\n0.5\n").unwrap();
++    std::fs::write(dir.join("cabin.cfg"), "[entry]\n0\n").unwrap();
++    let ty = Arc::new(crate::VehicleType::load(&dir, &dir.join("test.bus")).unwrap());
++    let mut v = VehicleInstance::new(ty, crate::VehicleHost::new(Default::default()));
++    let mut h = PeopleSim::new(&dir, 0);
++    v.position = DVec3::new(20.0, 15.0, 1.0);
++    h.set_borrowed_cabin(&v);
++    assert_eq!(h.remote_now.len(), 1);
++    assert_eq!(h.remote_now[0].id, BusId::Player);
++    assert!(matches!(h.remote_now[0].takes, Takes::Nobody));
++    v.position = DVec3::new(80.0, 40.0, 2.0);
++    v.heading = 120.0;
++    h.set_borrowed_cabin(&v);
++    assert_eq!(h.remote_now.len(), 1, "old local cabin must be replaced, not retained");
++    assert_eq!(h.remote_now[0].pos, v.position);
++    assert_eq!(h.remote_now[0].heading, 120.0);
++    assert!(matches!(h.remote_now[0].takes, Takes::Nobody));
++    std::fs::remove_dir_all(&dir).ok();
++}

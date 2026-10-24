@@ -8,7 +8,7 @@ permissions:
   contents: read
 concurrency:
   group: coop13-native-p15
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   native:
     runs-on: windows-latest
@@ -61,6 +61,8 @@ jobs:
           cargo test --locked --release -p omsi-app --lib coop13 -- --nocapture 2>&1 | Tee-Object ../out/coop13-app-regressions.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --locked --release -p omsi-lan --lib coop13 -- --nocapture 2>&1 | Tee-Object ../out/coop13-lan-regressions.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-sim --lib coop13 -- --nocapture 2>&1 | Tee-Object ../out/coop13-cabin-regressions.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build actual Windows game and dedicated server runtime
         working-directory: game

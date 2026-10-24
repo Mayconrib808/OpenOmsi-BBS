@@ -9,19 +9,23 @@
   },
   "crates/omsi-app/src/app_impl/vehicles.rs": {
     "before": "4a232f7ada85dbe101500e2f3d80f2efb2612ea529c494e8632c666bdaa265ce",
-    "after": "349140a306539f5c12a1964e5650ddf7d56c60ddc5124659188a3ebd2fb5453a"
+    "after": "8938e888201c45bc27c052daf170ab3c017e13562947b820f46b87881b62426f"
   },
   "crates/omsi-app/src/coop.rs": {
     "before": "f3858fcebc942fa9e71a9dd68fc047d96c6efe780a0a6094ed17e654a35b1279",
-    "after": "8a4f43bc251b758e93011eaa61ad7d8f77ddddc06f04ed0ef728ad6c0c2a0d8f"
+    "after": "59a0ff94e62fa0c73c42d9b9fa6bab89c0c02867dc7860db21b7285902533f16"
   },
   "crates/omsi-app/src/coop_drive.rs": {
     "before": "214091dc2ba9b71913b24d46ade69b0b77eb5ccbf88f3f9c4caa9563173b10f7",
-    "after": "6442c5f0ff7d98f87f2a8ea911f0c6bd29b018f2b9d4501d3ae67cd562a55962"
+    "after": "ece593608d4a846654f36e0842b76358f95c9df12f7774f297ff8bd2e9bdccca"
   },
   "crates/omsi-app/src/on_foot.rs": {
     "before": "6362fe3dde226ff7f34d3884726b6073794503e10ce8a53c155efe04194f3803",
-    "after": "ec4e8efe945f3c805bd620c6cb2f684fa0218fc9dbbc4f9defd347e03e149ef2"
+    "after": "58b9123852b85f0e6dc638e0aadd1584572e05023c81fd1ea039aac9c6df2dc3"
+  },
+  "crates/omsi-app/src/spawn.rs": {
+    "before": "cfe1c3c287d9976b155c27b6bee4aa5b1cde892fb6a5f8be99ce3ebc264fa127",
+    "after": "0e8606651a1c0fb33d79af5e1670e6ff63d97cc75376695d8725ddee14202995"
   },
   "crates/omsi-lan/src/game.rs": {
     "before": "0b92df8768105fb3ffb2e3dfdeaa4dc80f3ae343ceb3e812bfe8796d2ca98d79",
@@ -42,5 +46,9 @@
   "crates/omsi-sim/src/people/buses.rs": {
     "before": "5bc1db3cfebdcc83108f838f845ab338fa9251ec73522bdaccf81421d9cf23d5",
     "after": "088d50623b666ca7e85e3f04dc9eeaf6a2707b7a09610391fc81edaac6662f26"
+  },
+  "crates/omsi-sim/src/people/tests.rs": {
+    "before": "c9910e8fc3ba3520b0b45287c89899ba1afe972a010a97c614c715fd96f4aae8",
+    "after": "cca31fb10ee4f02fe94eabfa7898afbaf1e1a52de2805b5505c6f3b22ac064fe"
   }
 }
