@@ -73,7 +73,19 @@ jobs:
           pathlib.Path('fecho-user.mp3').write_bytes(mp3)
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          ffmpeg -nostdin -y -loglevel error -i fecho-user.mp3 -ar 32000 -ac 1 -c:a pcm_s16le fecho-user.wav
+          python -m pip install --quiet soundfile==0.13.1
+          if ($LASTEXITCODE -ne 0) { throw 'Audio decoder dependency unavailable' }
+          @'
+          import soundfile as sf, wave
+          pcm, rate=sf.read('fecho-user.mp3',dtype='int16',always_2d=True)
+          assert rate==32000 and pcm.shape[1]==1 and pcm.shape[0]>100000,(rate,pcm.shape)
+          with wave.open('fecho-user.wav','wb') as wavefile:
+              wavefile.setnchannels(1)
+              wavefile.setsampwidth(2)
+              wavefile.setframerate(rate)
+              wavefile.writeframes(pcm.astype('<i2').tobytes())
+          print('Fechou decoded:',len(pcm),'samples',flush=True)
+          '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'Fechou audio could not be decoded' }
           python scripts/package_coop14_source.py
           if ($LASTEXITCODE -ne 0) { throw 'Coop14 source packaging failed' }
