@@ -40,8 +40,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $id=40119950951
-          $sha='e731fc1c5ff8707649fb416ea051f3b264992f1e'
+          $id=40120506459
+          $sha='a16a56ffe1cf4255fcd6d009fa530b32e64e1c88'
           $deadline=(Get-Date).AddMinutes(65)
           while($true) {
             $run=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id" | ConvertFrom-Json
@@ -56,11 +56,11 @@ jobs:
           $jobs=(gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" | ConvertFrom-Json).jobs
           $matches=@($jobs | Where-Object { $_.name -eq 'native' })
           if ($matches.Count -ne 1 -or $matches[0].conclusion -ne 'success') { throw 'Required native P15 job did not pass' }
-          'NATIVE_CANDIDATE_RUN=40119950951' | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          'NATIVE_CANDIDATE_RUN=40120506459' | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - uses: actions/download-artifact@v8
         with:
           name: coop13-p15-native-evidence
-          run-id: 40119950951
+          run-id: 40120506459
           github-token: ${{ github.token }}
           path: approved-game
       - uses: actions/download-artifact@v8
