@@ -2,7 +2,7 @@ name: Publish signed Bridge 2.2.0.5 Coop11
 on:
   push:
     branches: ['release/2.2.0.5-coop11']
-    paths: ['build-support/bridge2205/stable.json', 'build-support/bridge2205/publication.json', '.github/workflows/publish-2204.yml']
+    paths: ['build-support/bridge2205/stable.json', 'build-support/bridge2205/publication.json']
   workflow_dispatch:
 permissions:
   contents: read
