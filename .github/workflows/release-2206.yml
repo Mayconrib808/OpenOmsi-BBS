@@ -34,7 +34,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check build-support/bridge2206/publication.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Await and authenticate all four exact Coop12 native and Bridge jobs
+      - name: Await and authenticate the exact cumulative Coop12 native build
         env:
           GH_TOKEN: ${{ github.token }}
         shell: pwsh

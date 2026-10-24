@@ -149,6 +149,23 @@ type setupGUI struct {
 	serverMapLabels, serverCopyButtons                                           [3]uintptr
 	serverPageLabel, serverPrevious, serverNext                                  uintptr
 	serverPage                                                                   int
+	scrollTop, scrollMax                                                         int
+}
+
+func (g *setupGUI) scrollTo(top int) {
+	if top < 0 {
+		top = 0
+	}
+	if top > g.scrollMax {
+		top = g.scrollMax
+	}
+	delta := g.scrollTop - top
+	if delta == 0 {
+		return
+	}
+	g.scrollTop = top
+	guiUser.NewProc("ScrollWindowEx").Call(g.window, 0, uintptr(int32(delta)), 0, 0, 0, 0, 7)
+	guiUser.NewProc("SetScrollPos").Call(g.window, 1, uintptr(top), 1)
 }
 
 var activeSetupGUI *setupGUI
@@ -645,6 +662,29 @@ func setupWindowProcedure(window uintptr, message uint32, wparam, lparam uintptr
 		return result
 	}
 	switch message {
+	case 0x0115: // WM_VSCROLL
+		top := g.scrollTop
+		switch wparam & 0xFFFF {
+		case 0:
+			top -= 28
+		case 1:
+			top += 28
+		case 2:
+			top -= 160
+		case 3:
+			top += 160
+		case 4, 5:
+			top = int((wparam >> 16) & 0xFFFF)
+		case 6:
+			top = 0
+		case 7:
+			top = g.scrollMax
+		}
+		g.scrollTo(top)
+		return 0
+	case 0x020A: // WM_MOUSEWHEEL
+		g.scrollTo(g.scrollTop - int(int16(wparam>>16))/120*84)
+		return 0
 	case guiWMCommand:
 		if int(wparam&0xFFFF) == guiIDLanguage && (wparam>>16)&0xFFFF != 1 {
 			return 0
@@ -733,8 +773,7 @@ func runSetupGUI(dir string, smoke bool) error {
 	if int32(initialized) >= 0 {
 		defer ole.NewProc("CoUninitialize").Call()
 	}
-	// System-DPI-aware sizing keeps native controls sharp and the full form fits
-	// a 900-pixel-high desktop. Virtualized coordinates work on older Windows.
+	// Keep the entire form accessible on smaller desktops as well as at high DPI.
 	guiUser.NewProc("SetProcessDPIAware").Call()
 	g := &setupGUI{dir: dir, config: readInstalledConfig(dir), results: make(chan guiResult, 1), updateResults: make(chan setupUpdateResult, 1), serverResults: make(chan setupServerStatus, 1), smoke: smoke}
 	if g.config.OpenOMSI == "" {
@@ -778,7 +817,16 @@ func runSetupGUI(dir string, smoke bool) error {
 	width, height := int(rect.Right-rect.Left), int(rect.Bottom-rect.Top)
 	screenWidth, _, _ := guiUser.NewProc("GetSystemMetrics").Call(0)
 	screenHeight, _, _ := guiUser.NewProc("GetSystemMetrics").Call(1)
-	x, y := (int(screenWidth)-width)/2, (int(screenHeight)-height)/2
+	workArea := guiRect{Right: int32(screenWidth), Bottom: int32(screenHeight)}
+	guiUser.NewProc("SystemParametersInfoW").Call(0x0030, 0, uintptr(unsafe.Pointer(&workArea)), 0)
+	available := int(workArea.Bottom-workArea.Top) - 16
+	if height > available && available > 300 {
+		g.scrollMax = height - available
+		height = available
+		style |= 0x00200000 // WS_VSCROLL
+		width += 18
+	}
+	x, y := (int(screenWidth)-width)/2, int(workArea.Top)+(int(workArea.Bottom-workArea.Top)-height)/2
 	if x < 0 {
 		x = 0
 	}
@@ -791,6 +839,9 @@ func runSetupGUI(dir string, smoke bool) error {
 	}
 	g.autoCheckUpdates = readSetupAutomaticUpdates(g.dir)
 	g.createControls()
+	if g.scrollMax > 0 {
+		guiUser.NewProc("SetScrollRange").Call(g.window, 1, 0, uintptr(g.scrollMax), 1)
+	}
 	if g.language == 0 || g.multiplayer == 0 || g.autoStart == 0 || g.root == 0 || g.executable == 0 || g.profile == 0 || g.player == 0 || g.status == 0 {
 		guiUser.NewProc("DestroyWindow").Call(g.window)
 		return fmt.Errorf("Falha ao criar os campos da interface.")

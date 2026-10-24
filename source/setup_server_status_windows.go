@@ -147,6 +147,16 @@ func setupClipboardText(window uintptr, text string) error {
 
 // Exercise the actual native buttons and UTF-16 clipboard in --gui-smoke.
 func (g *setupGUI) smokeServerLinks() error {
+	if g.scrollMax > 0 {
+		var before, after guiRect
+		guiUser.NewProc("GetWindowRect").Call(g.serverPrevious, uintptr(unsafe.Pointer(&before)))
+		g.scrollTo(g.scrollMax)
+		guiUser.NewProc("GetWindowRect").Call(g.serverPrevious, uintptr(unsafe.Pointer(&after)))
+		if int(before.Top-after.Top) != g.scrollMax {
+			return fmt.Errorf("small-screen scrolling did not move native map controls")
+		}
+		g.scrollTo(0)
+	}
 	g.serverState = setupServerStatus{Ready: true, Key: "server_online", Maps: []setupActiveServer{
 		{ID: "a", Name: "Carrão City", Address: "https://carrao.trycloudflare.com", Players: 2},
 		{ID: "b", Name: "Fikcyjny Szczecin", Address: "https://szczecin.trycloudflare.com", Players: 1},
@@ -182,10 +192,12 @@ func (g *setupGUI) smokeServerLinks() error {
 	if previews := os.Getenv("BRIDGE_SETUP_PREVIEWS"); previews != "" {
 		g.serverPage = 0
 		g.renderServerStatus()
+		g.scrollTo(g.scrollMax)
 		guiUser.NewProc("RedrawWindow").Call(g.window, 0, 0, 0x0581)
 		if err := captureSetupPreview(g.window, filepath.Join(previews, "setup-active-maps.png")); err != nil {
 			return err
 		}
+		g.scrollTo(0)
 	}
 	g.serverState = setupServerStatus{Key: "server_agent_offline"}
 	g.renderServerStatus()
