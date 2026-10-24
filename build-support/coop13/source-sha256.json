@@ -13,7 +13,7 @@
   },
   "crates/omsi-app/src/coop.rs": {
     "before": "f3858fcebc942fa9e71a9dd68fc047d96c6efe780a0a6094ed17e654a35b1279",
-    "after": "59a0ff94e62fa0c73c42d9b9fa6bab89c0c02867dc7860db21b7285902533f16"
+    "after": "4ea217f3920fd2af4e403469fbd159f8be98ae389d714f9d5099d1190d356f9f"
   },
   "crates/omsi-app/src/coop_drive.rs": {
     "before": "214091dc2ba9b71913b24d46ade69b0b77eb5ccbf88f3f9c4caa9563173b10f7",

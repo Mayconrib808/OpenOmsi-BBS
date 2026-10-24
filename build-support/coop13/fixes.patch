@@ -56,7 +56,7 @@ index 4827552..3a8bfd9 100644
          let (Some(w), Some(r), Some(cam)) = (self.world.clone(), self.renderer.as_ref(), self.camera.as_ref()) else { return };
          let (x, y, heading) = match (self.view.as_str(), self.player.as_ref()) {
 diff --git a/crates/omsi-app/src/coop.rs b/crates/omsi-app/src/coop.rs
-index 036c4ac..2c4d9b4 100644
+index 036c4ac..ef9316e 100644
 --- a/crates/omsi-app/src/coop.rs
 +++ b/crates/omsi-app/src/coop.rs
 @@ -667,9 +667,7 @@ impl App {
@@ -70,19 +70,7 @@ index 036c4ac..2c4d9b4 100644
                  self.player
                      .as_mut()
                      .unwrap()
-@@ -1084,7 +1082,10 @@ impl App {
- 
-     fn coop_cursor_ray(&self, bus: BusId) -> Option<(DVec3, glam::Vec3, f32)> {
-         let v = self.coop_vehicle(bus)?;
--        let (_, shown) = self.net.coop.drawn.filter(|(b, _)| *b == bus)?;
-+        let shown = self.net.coop.drawn.filter(|(b, _)| *b == bus).map(|(_, v)| v)
-+            .or_else(|| self.camera.as_ref().map(|camera| PresentedView {
-+                camera: *camera, body: BodyPose::of(v),
-+            }))?;
-         let surface = self.gfx.surface.as_ref()?;
-         let size = (surface.config.width, surface.config.height);
-         Some(shown.cursor_ray(BodyPose::of(v), |camera| {
-@@ -1187,6 +1188,11 @@ impl App {
+@@ -1187,6 +1185,11 @@ impl App {
                      .and_then(|b| self.coop_vehicle(b))
                      .and_then(|v| mesh_info(v, a.part, a.index))
                      .map(|x| x.0)
