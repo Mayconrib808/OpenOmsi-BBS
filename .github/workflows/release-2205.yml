@@ -1,0 +1,116 @@
+name: Assemble cumulative Bridge 2.2.0.5 with Coop11
+on:
+  push:
+    branches: ['release/2.2.0.5-coop11']
+    paths: ['.github/workflows/release-2205.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Await and authenticate all four exact Coop11 native and Bridge jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $id=40052250630
+          $sha='33fbd73938974f86bb26317df8733e21540153ba'
+          $deadline=(Get-Date).AddMinutes(65)
+          while($true) {
+            $run=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id" | ConvertFrom-Json
+            if ($run.head_sha -ne $sha -or $run.path -ne '.github/workflows/coop11-authority.yml' -or $run.head_branch -ne 'work/coop11-real-vehicle-authority') { throw 'Native candidate identity differs' }
+            if ($run.status -eq 'completed') {
+              if ($run.conclusion -ne 'success') { throw 'Coop11 native candidate did not pass; no release permitted' }
+              break
+            }
+            if ((Get-Date) -gt $deadline) { throw 'Native validation timed out' }
+            Start-Sleep -Seconds 20
+          }
+          $jobs=(gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" | ConvertFrom-Json).jobs
+          foreach ($n in @('native (game','native (server,','native (server15','bridge')) {
+            $matches=@($jobs | Where-Object { $_.name.StartsWith($n) })
+            if ($matches.Count -ne 1 -or $matches[0].conclusion -ne 'success') { throw ("Required job did not pass: "+$n) }
+          }
+          'NATIVE_CANDIDATE_RUN=40052250630' | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - uses: actions/download-artifact@v8
+        with:
+          name: coop11-game-development-evidence
+          run-id: 40052250630
+          github-token: ${{ github.token }}
+          path: approved-game
+      - uses: actions/download-artifact@v8
+        with:
+          name: coop11-server-development-evidence
+          run-id: 40052250630
+          github-token: ${{ github.token }}
+          path: approved-server14
+      - uses: actions/download-artifact@v8
+        with:
+          name: coop11-server15-development-evidence
+          run-id: 40052250630
+          github-token: ${{ github.token }}
+          path: approved-server15
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.4-complete
+          run-id: 40017148265
+          github-token: ${{ github.token }}
+          path: approved-previous-full
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.4-candidate
+          run-id: 40017148265
+          github-token: ${{ github.token }}
+          path: approved-previous
+      - name: Package public corresponding source patches and pinned upstream IDs
+        run: python scripts/package_coop11_source.py
+      - name: Build cumulative signed-update candidate with Coop11 and P14/P15
+        run: python scripts/build_2205.py --baseline approved-previous-full/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10.zip --old-spec approved-previous/coop-spec.json --game approved-game --server approved-server14 --server15 approved-server15 --sources out
+      - name: Test native Setup, live status lamp and full host preferences
+        run: python scripts/verify_2205_windows.py
+      - name: Finalize complete source-backed portable ZIP
+        run: python scripts/build_2205.py --finalize
+      - name: Defender scan exact final ZIP and updater
+        shell: pwsh
+        run: scripts/scan_2205.ps1
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Bridge-2.2.0.5-evidence
+          retention-days: 30
+          if-no-files-found: warn
+          path: build/release-2205/evidence/**
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.5-candidate
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            build/release-2205/Atualizar-Bridge.exe
+            build/release-2205/build-report.json
+            build/release-2205/coop-spec.json
+            build/release-2205/coop_bundle_manifest.go
+            build/release-2205/coop-assets/**
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.5-complete
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            build/release-2205/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11.zip
+            build/release-2205/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11.zip.sha256
