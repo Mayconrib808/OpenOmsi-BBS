@@ -448,10 +448,19 @@ index ccafef9..b4314cb 100644
 +    new_player(vehicle, render, vec![], vec![], false, &ty)
 +}
 diff --git a/crates/omsi-lan/src/game.rs b/crates/omsi-lan/src/game.rs
-index 8fde738..fab0d2d 100644
+index 8fde738..f91e84e 100644
 --- a/crates/omsi-lan/src/game.rs
 +++ b/crates/omsi-lan/src/game.rs
-@@ -2456,6 +2456,11 @@ pub fn tick_receive(
+@@ -2447,6 +2447,8 @@ pub fn tick_receive(
+                 // (who they are, what their bus shows: the newest state's)
+                 ip.name = pose.name.clone();
+                 ip.bus = pose.bus.clone();
++                ip.figure = pose.figure.clone();
++                ip.paint = pose.paint.clone();
+                 ip.table = pose.table;
+                 ip.line = pose.line.clone();
+                 ip.destination = pose.destination.clone();
+@@ -2456,6 +2458,11 @@ pub fn tick_receive(
              }
              None => drive_remote(rv, &pose, dt, false),
          }
@@ -514,6 +523,22 @@ index 70c2f78..e6b92e6 100644
      fn incompatible_or_nonfinite_snapshots_never_partly_modify_the_bus() {
          let a = bus();
          let mut b = bus();
+diff --git a/crates/omsi-net/src/lib.rs b/crates/omsi-net/src/lib.rs
+index e920902..dfcb316 100644
+--- a/crates/omsi-net/src/lib.rs
++++ b/crates/omsi-net/src/lib.rs
+@@ -2895,8 +2895,10 @@ impl LanSession {
+         if peer.history.len() >= 12 {
+             peer.history.pop_front();
+         }
+-        peer.history.push_back((now, state.clone()));
+         peer.pose.set_state(state);
++        // History drives the rendered bus and its driver figure. Wire STATE
++        // packets contain motion only; preserve the INFO identity before caching.
++        peer.history.push_back((now, peer.pose.clone()));
+         if self.role == Role::Host {
+             self.broadcast(data, Some(id));
+         }
 diff --git a/crates/omsi-net/src/sounds.rs b/crates/omsi-net/src/sounds.rs
 index 2e298b0..f8ffaa4 100644
 --- a/crates/omsi-net/src/sounds.rs
@@ -591,6 +616,41 @@ index 2e298b0..f8ffaa4 100644
      fn validates_bounds_protocol_and_recipient() {
          let mut a = Sync::default();
          let mut b = Sync::default();
+diff --git a/crates/omsi-net/src/tests/bus_info.rs b/crates/omsi-net/src/tests/bus_info.rs
+index ac335e0..849e48e 100644
+--- a/crates/omsi-net/src/tests/bus_info.rs
++++ b/crates/omsi-net/src/tests/bus_info.rs
+@@ -42,3 +42,30 @@ fn info_carries_what_the_bus_is_and_its_height_and_an_older_info_has_neither() {
+     kept.set_state(pose(2.0));
+     assert_eq!(kept.content, fp);
+ }
++
++#[test]
++fn coop13_motion_history_keeps_character_skin_with_bus_and_after_respawn() {
++    let mut client = LanSession::join_addr(Vec::new(), None, "observer", Default::default()).unwrap();
++    client.my_id = 5;
++    let from = SocketAddr::from((Ipv4Addr::LOCALHOST, 29999));
++    for (index, bus) in ["Vehicles/first.bus", "", "Vehicles/first.bus", "Vehicles/second.bus"].into_iter().enumerate() {
++        let mut info = pose(0.0);
++        info.id = 2;
++        info.bus = bus.into();
++        info.figure = format!("Humans/Chosen/skin{}.hum", index % 2);
++        info.paint = "EMTU".into();
++        let text = info.encode_info();
++        client.on_info(&text.split('|').collect::<Vec<_>>(), from);
++        let mut moving = pose(10.0 + index as f64);
++        moving.id = 2;
++        moving.sent_ms = (index as u32 + 1) * 100;
++        let packet = wire::encode_state(&moving, PROTOCOL as u8, index as u16 + 1);
++        client.on_state(&packet, from);
++        let peer = client.peers.get(&2).unwrap();
++        let cached = &peer.history.back().unwrap().1;
++        assert_eq!(cached.figure, info.figure, "selected skin lost for bus {bus:?}");
++        assert_eq!(cached.bus, info.bus);
++        assert_eq!(cached.paint, info.paint);
++        assert!((cached.x - moving.x).abs() < 0.02);
++    }
++}
 diff --git a/crates/omsi-sim/src/people/buses.rs b/crates/omsi-sim/src/people/buses.rs
 index 92b065d..854bbed 100644
 --- a/crates/omsi-sim/src/people/buses.rs

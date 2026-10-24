@@ -29,7 +29,7 @@
   },
   "crates/omsi-lan/src/game.rs": {
     "before": "0b92df8768105fb3ffb2e3dfdeaa4dc80f3ae343ceb3e812bfe8796d2ca98d79",
-    "after": "54abca34722164894b8285638accdf4e178ff83aa6a84422f16c87d73d85e33a"
+    "after": "4dd0b53a515ef3231051dde09a44609775cb5c162e8b152218699b3028a63abb"
   },
   "crates/omsi-lan/src/game/sound_sync.rs": {
     "before": "a6d8bcbf088644a9cd800ef9498c2f91354e66f81d0d9017423b7cd723fb3a17",
@@ -39,9 +39,17 @@
     "before": "6d896098b6bb897de8b45c148ba5012d20bb8077d78df9d9d812e021d946d16c",
     "after": "f947bca1ee6f2f5fbf7ff7f7fa96d810e7fd72d512931a564d11192401a97750"
   },
+  "crates/omsi-net/src/lib.rs": {
+    "before": "1769a646a25c7813120d17eed24180b27c3fa24b14fb1e32e01f9959fe720b07",
+    "after": "3c62e528371b1e8c419d6af2870dd7574d2abe811fa0509041f2465dd2a481d2"
+  },
   "crates/omsi-net/src/sounds.rs": {
     "before": "3c1250c92d878124f0a8d20f6054d0caa114bb0b9243764f993a4b69034b9442",
     "after": "c3b5cdbad7743e03e3b636e1c29cf2214f682329e802a7db011c1594b0fecdc6"
+  },
+  "crates/omsi-net/src/tests/bus_info.rs": {
+    "before": "45b7af132cc10b9bffd670147bc7e4ee5ab789b3b2c565b97c4cbe4e631c772f",
+    "after": "5cede726c350c47adfd168f58ae926a41b8072141dae245890ebd5d6ad0abb36"
   },
   "crates/omsi-sim/src/people/buses.rs": {
     "before": "5bc1db3cfebdcc83108f838f845ab338fa9251ec73522bdaccf81421d9cf23d5",
