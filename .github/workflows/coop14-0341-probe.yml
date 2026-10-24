@@ -101,8 +101,15 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          git -C game apply --3way --binary --whitespace=nowarn ../support/build-support/coop13/fixes.patch
-          if ($LASTEXITCODE -ne 0) { throw 'Coop13 compatibility conflict; DO NOT replace 0.3.40 with falsely relabeled 0.3.41' }
+          git -C game apply --reject --binary --whitespace=nowarn ../support/build-support/coop13/fixes.patch
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host 'Coop13 partial merge requires manual review:'
+            Get-ChildItem game -Filter *.rej -Recurse | ForEach-Object {
+              Write-Host ('===== PATCH REJECTION: ' + $_.FullName)
+              Get-Content $_.FullName
+            }
+            throw 'Coop13 has rejected hunks; no build or publication until reconciled'
+          }
       - name: Compile and test real native 0.3.41 coop game and P15 server
         working-directory: game
         shell: pwsh
