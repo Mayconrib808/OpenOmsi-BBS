@@ -84,6 +84,23 @@ jobs:
         run: python scripts/package_coop11_source.py
       - name: Build cumulative signed-update candidate with Coop11 and P14/P15
         run: python scripts/build_2205.py --baseline approved-previous-full/OpenOmsi_BBS_2.2.0.4_Setup_e_Coop10.zip --old-spec approved-previous/coop-spec.json --game approved-game --server approved-server14 --server15 approved-server15 --sources out
+      - name: Smoke-test actual bundled Coop11 game and P14/P15 server files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $root='build/release-2205/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11'
+          foreach($name in @('OpenOmsi Coop 0.3.38/programa/openomsi.exe','app/server-dinamico-p14/openomsi.exe','app/server-dinamico-p15/openomsi.exe')) {
+            $exe=Join-Path $root $name
+            if(!(Test-Path $exe)){throw ('Missing bundled native executable: '+$name)}
+            & $exe --version
+            if($LASTEXITCODE -ne 0){throw ('Bundled version check failed: '+$name)}
+            & $exe --self-test
+            if($LASTEXITCODE -ne 0){throw ('Bundled native self-test failed: '+$name)}
+            if($name -match 'server-dinamico') {
+              $helpText=(& $exe --help 2>&1) -join "`n"
+              if($LASTEXITCODE -ne 0 -or $helpText -notmatch '--server'){throw ('Bundled dynamic server is not capable: '+$name)}
+            }
+          }
       - name: Test native Setup, live status lamp and full host preferences
         run: python scripts/verify_2205_windows.py
       - name: Finalize complete source-backed portable ZIP
