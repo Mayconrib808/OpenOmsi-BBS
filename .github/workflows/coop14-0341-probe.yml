@@ -50,7 +50,35 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           git -C game apply --3way --binary --whitespace=nowarn ../support/build-support/coop12/cumulative.patch
-          if ($LASTEXITCODE -ne 0) { throw 'Cumulative Coop12 patch needs manual port to 0.3.41; DO NOT publish stock renamed binary' }
+          if ($LASTEXITCODE -ne 0) {
+            # Two independently additive conflicts; preserve BOTH upstream 0.3.41 and cumulative Coop.
+            @'
+          from pathlib import Path
+          import re,subprocess
+          root=Path('game')
+          expected={
+            'crates/omsi-app/src/lib.rs': ('mod auto_announce;', 'mod coop;'),
+            'crates/omsi-render/src/render.rs': ('fn street_light(', 'fn set_visibility('),
+          }
+          conflicts=set(subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],cwd=root,text=True).splitlines())
+          assert conflicts==set(expected),f'Unexpected conflicts: {conflicts}'
+          for name,(left,right) in expected.items():
+              p=root/name
+              raw=p.read_text(encoding='utf-8')
+              sections=list(re.finditer(r'(?m)^<<<<<<< ours\n(.*?)^=======\n(.*?)^>>>>>>> theirs\n',raw,re.S))
+              assert len(sections)==1,(name,len(sections))
+              m=sections[0]
+              ours,theirs=m.group(1),m.group(2)
+              assert left in ours and right in theirs,(name,ours[:200],theirs[:200])
+              merged=raw[:m.start()]+ours+theirs+raw[m.end():]
+              assert not any(x in merged for x in ('<<<<<<<','=======\n','>>>>>>>'))
+              p.write_text(merged,encoding='utf-8',newline='\n')
+              print('Preserved BOTH official 0.3.41 and Coop changes:',name,flush=True)
+          subprocess.run(['git','add','-A'],cwd=root,check=True)
+          assert not subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],cwd=root,text=True).strip()
+          '@ | python -
+            if ($LASTEXITCODE -ne 0) { throw 'Unsafe non-additive merge: stop, no publication' }
+          }
       - name: Reapply Coop12 horn and driver-transfer hotfixes
         shell: pwsh
         run: |
