@@ -52,10 +52,14 @@ def main():
  # Keep the personal-host activation route consistent with the new server bytes.
  host_name='docs/HOST-PESSOAL-2.2.0.3.json'
  host_manifest=json.loads(files[host_name])
+ host_manifest['version']=VERSION
+ host_manifest['included_dynamic_protocols']=[14,15]
  for item in host_manifest['files']:
   if item['path'] in files:item['sha256']=sha(files[item['path']])
- if not any(item.get('path')=='app/server-dinamico-p15/openomsi.exe' for item in host_manifest['files']):
-  host_manifest['files'].append({'path':'app/server-dinamico-p15/openomsi.exe','sha256':info['dynamic_p15_sha256']})
+ existing={item['path'] for item in host_manifest['files']}
+ for name,data in sorted(files.items()):
+  if name.startswith('app/server-dinamico-p15/') and name not in existing:
+   host_manifest['files'].append({'path':name,'sha256':sha(data)})
  files[host_name]=(json.dumps(host_manifest,indent=2)+'\n').encode()
  server_old=old['files']['app/server-dinamico-p14/openomsi.exe']
  script=files['scripts/atualizar_host_pessoal.ps1'].decode('utf-8-sig')
