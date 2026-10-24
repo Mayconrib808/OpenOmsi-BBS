@@ -163,3 +163,52 @@ func TestSetupServerPlayerUsesSavedProfileAndSkipsDisabledMaps(t *testing.T) {
 		t.Fatal("used another company", got)
 	}
 }
+
+
+func TestSetupClientWithStoppedLocalAgentCanSeeRemoteCompany(t *testing.T) {
+	t.Setenv("LOCALAPPDATA", t.TempDir())
+	dir := t.TempDir()
+	localPath := setupHostSettingsPath(dir)
+	if err := os.MkdirAll(filepath.Dir(localPath), 0700); err != nil { t.Fatal(err) }
+	local := []byte(`{"control_port":27199,"control_key":"0123456789abcdef0123456789abcdef"}`)
+	if err := os.WriteFile(localPath, local, 0600); err != nil { t.Fatal(err) }
+	profile := filepath.Join(dir, "company.json")
+	if err := os.WriteFile(profile, []byte(`{"company_id":"demo","directory_url":"https://directory.workers.dev/rooms/0123456789abcdef0123456789abcdef","sessions":[{"id":"map-a","name":"Carrão City"}]}`), 0600); err != nil { t.Fatal(err) }
+	localCalls, remoteCalls := 0, 0
+	client := &http.Client{Transport: setupStatusTransport(func(r *http.Request) (*http.Response, error) {
+		if r.Method != "GET" { t.Fatal("read-only status changed settings") }
+		var body string
+		if r.URL.Host == "127.0.0.1:27199" {
+			localCalls++
+			if r.Header.Get("Authorization") != "Bearer 0123456789abcdef0123456789abcdef" { t.Fatal("local auth missing") }
+			body = `{"running":false}`
+		} else {
+			remoteCalls++
+			if r.Header.Get("Authorization") != "" { t.Fatal("leaked local key to directory") }
+			body = `{"host_online":true,"session":{"session_id":"map-a","state":"online","address":"https://carrao.trycloudflare.com"}}`
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	got := checkSetupServerStatus(context.Background(), client, dir, Config{CompanyID:"demo",CompanyProfile:profile})
+	if !got.Ready || got.Key != "server_online" || len(got.Maps) != 1 || localCalls != 1 || remoteCalls != 1 {
+		t.Fatal("remote company incorrectly shown offline on player PC",got,localCalls,remoteCalls)
+	}
+	b,_ := os.ReadFile(localPath)
+	if string(b) != string(local) { t.Fatal("local host settings changed") }
+}
+
+func TestSetupMixedMapStatesDoNotHideAnOnlineSession(t *testing.T) {
+	directory := "https://directory.workers.dev/rooms/0123456789abcdef0123456789abcdef"
+	client := &http.Client{Transport: setupStatusTransport(func(r *http.Request) (*http.Response, error) {
+		id := filepath.Base(r.URL.Path)
+		body := fmt.Sprintf(`{"host_online":false,"session":{"session_id":%q,"state":"offline"}}`,id)
+		if id == "map-b" {
+			body = fmt.Sprintf(`{"host_online":true,"session":{"session_id":%q,"state":"online","address":"https://map-b.trycloudflare.com"}}`,id)
+		}
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+	})}
+	got := checkSetupDirectoryStatus(context.Background(),client,directory,[]string{"map-a","map-b"})
+	if !got.Ready || got.Key != "server_online" || len(got.Maps)!=1 || got.Maps[0].ID!="map-b" {
+		t.Fatal("offline map suppressed online map",got)
+	}
+}
