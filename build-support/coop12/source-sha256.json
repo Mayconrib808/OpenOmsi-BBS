@@ -311,6 +311,14 @@
     "before": "6261511e560e0349b807c299df1b15ee7a7347ddf5990abebf29884d9ada0c05",
     "after": "a7ea2d6a9e4b605d5fcceb32b6ad0d9047a3d22a47801283021b74a6f74c9ac4"
   },
+  "crates/omsi-sim/src/vehicle/tests/articulation.rs": {
+    "before": "9959d651bede327532f2b09d871fb018f4772a567330795254fa0e31a4b5b2f3",
+    "after": "b278bc0a637d78c2e422ba5265b379535eb48b5bc82e73bc32e360105de8815b"
+  },
+  "crates/omsi-sim/src/vehicle/tests/model_variables.rs": {
+    "before": "e2d52e0a0cac3c0b9bd172382f627574b83278273309d5f00b6679ece1badc7f",
+    "after": "d659b5e6f2fe4bf8fdf4c80d311a760eb09197e683c4b46c7159c91a11dbdc4c"
+  },
   "crates/omsi-sim/src/vehicle/tests/scripts_props.rs": {
     "before": "d1f3eff0441d11b7ba71a3a39fb119517402bfca96501dbf05edd5fe2d1015fd",
     "after": "bfdfaec5053e050baa80dd6da31fc36ade9ba7d60a641346d618beb4dc6b44d6"
@@ -341,7 +349,7 @@
   },
   "tools/coop-check/Cargo.lock": {
     "before": null,
-    "after": "f54d120367214153579082cb8d99b313dffb2b991add4f327b2ea054380ad9b6"
+    "after": "9286b3a159b1444fc9028c92fabbd5d28ea665a60e6270d7442165151e269cd5"
   },
   "tools/coop-check/Cargo.toml": {
     "before": null,

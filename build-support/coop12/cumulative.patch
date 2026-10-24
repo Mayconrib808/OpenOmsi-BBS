@@ -10446,6 +10446,30 @@ index fe1ccf11..d6f3b5b0 100644
                  file: PathBuf::from(file),
                  materials: Vec::new(),
                  overrides: Vec::new(),
+diff --git a/crates/omsi-sim/src/vehicle/tests/articulation.rs b/crates/omsi-sim/src/vehicle/tests/articulation.rs
+index f7130523..2a5b5645 100644
+--- a/crates/omsi-sim/src/vehicle/tests/articulation.rs
++++ b/crates/omsi-sim/src/vehicle/tests/articulation.rs
+@@ -723,6 +723,7 @@ fn a_skin_plan_moves_the_vertices_as_the_weighted_bones_do() {
+         viewpoint: 0,
+         skin,
+         keep_winding: false,
++        pick_geometry: Default::default(),
+     };
+     let bone = |def_index: Option<usize>, weights: &[(u32, f32)]| SkinBone { def_index, weights: weights.to_vec() };
+     t.meshes.push(mesh(10, Vec::new(), 1));
+diff --git a/crates/omsi-sim/src/vehicle/tests/model_variables.rs b/crates/omsi-sim/src/vehicle/tests/model_variables.rs
+index e7873479..79073aa5 100644
+--- a/crates/omsi-sim/src/vehicle/tests/model_variables.rs
++++ b/crates/omsi-sim/src/vehicle/tests/model_variables.rs
+@@ -75,6 +75,7 @@ fn diagnostic_type(reverse: bool) -> VehicleType {
+             viewpoint: 0,
+             skin: Vec::new(),
+             keep_winding: false,
++            pick_geometry: Default::default(),
+         })
+         .collect();
+     ty
 diff --git a/crates/omsi-sim/src/vehicle/tests/scripts_props.rs b/crates/omsi-sim/src/vehicle/tests/scripts_props.rs
 index 3aa8eee3..cebd4c49 100644
 --- a/crates/omsi-sim/src/vehicle/tests/scripts_props.rs
