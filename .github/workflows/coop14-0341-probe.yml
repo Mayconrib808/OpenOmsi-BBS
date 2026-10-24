@@ -156,6 +156,11 @@ jobs:
           '@ | python -
             if ($LASTEXITCODE -ne 0) { throw 'Unknown Coop13 changes; no publication' }
           }
+      - name: Connect custom Fechou button sound to both driver and conductor
+        shell: pwsh
+        run: |
+          python support/build-support/coop14/close_signal.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Compile and test real native 0.3.41 coop game and P15 server
         working-directory: game
         shell: pwsh
