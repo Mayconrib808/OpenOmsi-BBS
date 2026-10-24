@@ -49,7 +49,6 @@ jobs:
           cache-on-failure: true
           workspaces: |
             game -> target
-            game/tools/coop-check -> target
       - name: Preserve all cumulative fixes
         shell: pwsh
         run: |
@@ -84,7 +83,7 @@ jobs:
           if ('${{ matrix.mode }}' -eq 'game') {
             cargo test --locked --release -p omsi-lan --lib vehicle_transfer 2>&1 | Tee-Object ../out/vehicle-transfer-tests.log
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            cargo test --locked --manifest-path tools/coop-check/Cargo.toml 2>&1 | Tee-Object ../out/coop-regressions.log
+            cargo test --manifest-path tools/coop-check/Cargo.toml 2>&1 | Tee-Object ../out/coop-regressions.log
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
           cargo test --locked --release -p omsi-app --lib dedicated_612_tiles -- --nocapture 2>&1 | Tee-Object ../out/612-tile-regression.log
@@ -96,9 +95,9 @@ jobs:
           cargo build --locked --release --target x86_64-pc-windows-msvc -p omsi-app --bin openomsi 2>&1 | Tee-Object ../out/build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item target/x86_64-pc-windows-msvc/release/openomsi.exe ../out/openomsi.exe
-          & ../out/openomsi.exe --version 2>&1 | Tee-Object ../out/version.log
+          & target/x86_64-pc-windows-msvc/release/openomsi.exe --version 2>&1 | Tee-Object ../out/version.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & ../out/openomsi.exe --self-test 2>&1 | Tee-Object ../out/self-test.log
+          & target/x86_64-pc-windows-msvc/release/openomsi.exe --self-test 2>&1 | Tee-Object ../out/self-test.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v7
         if: always()
