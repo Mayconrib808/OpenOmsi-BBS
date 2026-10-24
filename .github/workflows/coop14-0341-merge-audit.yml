@@ -26,12 +26,20 @@ jobs:
           set -uo pipefail
           mkdir -p out
           git -C game describe --tags --exact-match | tee out/version.txt
-          git -C game apply --3way --binary --whitespace=nowarn ../support/build-support/coop12/cumulative.patch > out/coop12-apply.stdout 2> out/coop12-apply.stderr
-          result=$?
+          if git -C game apply --3way --binary --whitespace=nowarn ../support/build-support/coop12/cumulative.patch > out/coop12-apply.stdout 2> out/coop12-apply.stderr; then
+            result=0
+          else
+            result=$?
+          fi
           echo "cumulative_patch_exit_code=$result" | tee out/result.txt
           git -C game diff --name-only --diff-filter=U | tee out/conflicts.txt
           git -C game status --short | tee out/worktree.txt
+          cat out/coop12-apply.stdout
           cat out/coop12-apply.stderr
+          for path in $(cat out/conflicts.txt); do
+            echo "===== MERGE CONFLICT: $path =====" | tee -a out/conflict-context.txt
+            grep -n -B 25 -A 40 -E '^(<<<<<<<|=======|>>>>>>>)' "game/$path" | tee -a out/conflict-context.txt || true
+          done
           if [ "$result" != "0" ]; then
             echo "PATCH PORT REQUIRED: original v0.3.41 is genuine, but cumulative Coop features are not fully merged." | tee -a out/result.txt
           fi
