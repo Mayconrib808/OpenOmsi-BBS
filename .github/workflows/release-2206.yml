@@ -75,10 +75,23 @@ jobs:
           run-id: 40056968283
           github-token: ${{ github.token }}
           path: approved-previous
+      - name: Download and SHA256-pin the official openOMSI 0.3.40 Windows x64 launcher
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force official-openomsi | Out-Null
+          gh release download v0.3.40 --repo openOMSI-org/openOMSI --pattern 'openOMSI-0.3.40-windows-x64.zip' --dir official-openomsi
+          if ($LASTEXITCODE -ne 0) { throw 'Official launcher download failed' }
+          $zip='official-openomsi/openOMSI-0.3.40-windows-x64.zip'
+          $actual=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected='698f25ec97085550a26c59f0b846f30b5ab49380e03cec8a495984e2a543b316'
+          if ($actual -ne $expected) { throw "Official openOMSI 0.3.40 archive hash mismatch: $actual" }
       - name: Package public corresponding source patches and pinned upstream IDs
         run: python scripts/package_coop12_source.py
       - name: Build cumulative signed-update candidate with Coop12 and P14/P15
-        run: python scripts/build_2206.py --baseline approved-previous-full/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11.zip --old-spec approved-previous/coop-spec.json --game approved-game --sources out
+        run: python scripts/build_2206.py --baseline approved-previous-full/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11.zip --old-spec approved-previous/coop-spec.json --game approved-game --sources out --official-launcher official-openomsi/openOMSI-0.3.40-windows-x64.zip
       - name: Smoke-test actual bundled Coop12 game and P14/P15 server files
         shell: pwsh
         run: |
@@ -95,6 +108,16 @@ jobs:
               ('app/server-dinamico-p14/openomsi.exe', '0.3.39-bbs-stream.4-dev.1', True),
               ('app/server-dinamico-p15/openomsi.exe', '0.3.40-coop.12', True),
           ]
+          # Fail the release if ANY stale 0.3.38 lobby binary remains.
+          evidence = __import__('json').loads((root/'OpenOmsi Coop 0.3.40/validation/official-040-launcher.json').read_text())
+          if evidence['upstream_archive_sha256'] != '698f25ec97085550a26c59f0b846f30b5ab49380e03cec8a495984e2a543b316':
+              raise RuntimeError('Launcher provenance differs from pinned official archive')
+          for target,info in evidence['binaries'].items():
+              blob = (root/target).read_bytes()
+              if not blob.startswith(b'MZ') or __import__('hashlib').sha256(blob).hexdigest()!=info['after'] or info['before']==info['after']:
+                  raise RuntimeError('Stale or corrupt P14 launcher: '+target)
+          if len(evidence['binaries'])!=2:
+              raise RuntimeError('Both GUI and CLI launcher must be migrated')
           for name, version, dedicated in cases:
               exe = root / name
               if not exe.is_file() or exe.read_bytes()[:2] != b'MZ':
