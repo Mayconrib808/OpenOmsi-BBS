@@ -1,0 +1,120 @@
+name: Build signed-updater candidate 2.2.0.8 real Coop14
+on:
+  push:
+    branches: ['release/2.2.0.8-candidate']
+    paths: ['.github/workflows/release-2208-updater.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-2208-updater-candidate
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Get original signed 2.2.0.7 full bundle and its verified Coop specification
+        uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.7-complete
+          run-id: 40121432530
+          github-token: ${{ github.token }}
+          path: old-complete
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.7-candidate
+          run-id: 40121432530
+          github-token: ${{ github.token }}
+          path: old-candidate
+      - name: Download real compiled beta and official v0.3.41 launcher
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force official,approved-game | Out-Null
+          gh release download v2.2.0.8-beta.1 --repo $env:GITHUB_REPOSITORY --pattern 'OpenOmsi_BBS_2.2.0.8_Coop14_0.3.41_BETA.zip' --dir approved-game
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot fetch actual compiled Coop14 beta' }
+          gh release download v0.3.41 --repo openOMSI-org/openOMSI --pattern 'openOMSI-0.3.41-windows-x64.zip' --dir official
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot fetch authentic 0.3.41 official launcher' }
+          $hash=(Get-FileHash official/openOMSI-0.3.41-windows-x64.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne '2b8acd52fea8da68dd896656501abed4abffd5c08a062b68e7563268ecef8fb6') { throw 'Bad upstream hash' }
+      - name: Prepare actual PE binary, version evidence, source overlay and user's Fechou cue
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          import zipfile, pathlib, subprocess,os,base64
+          root=pathlib.Path('approved-game')
+          with zipfile.ZipFile(root/'OpenOmsi_BBS_2.2.0.8_Coop14_0.3.41_BETA.zip') as z:
+              for name,out in [
+                 ('OpenOmsi Coop 0.3.41/programa/openomsi.exe','openomsi.exe'),
+                 ('OpenOmsi Coop 0.3.41/programa/steam_api64.dll','steam_api64.dll')
+              ]:
+                  (root/out).write_bytes(z.read(name))
+          p=subprocess.run([str((root/'openomsi.exe').resolve()),'--version'],capture_output=True,text=True,errors='replace',timeout=60,env=dict(os.environ,OPENOMSI_COOP_GAME_ONLY='1'))
+          text=p.stdout+'\n'+p.stderr
+          print('Actual native version:',text,flush=True)
+          assert p.returncode==0 and '0.3.41-coop.14' in text
+          (root/'version.log').write_text(text,encoding='utf-8')
+          sound=pathlib.Path('build-support/coop14/fecho-48k-mono.mp3.b64')
+          assert sound.is_file()
+          mp3=base64.b64decode(sound.read_text().strip(),validate=True)
+          pathlib.Path('fecho-user.mp3').write_bytes(mp3)
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ffmpeg -nostdin -y -loglevel error -i fecho-user.mp3 -ar 32000 -ac 1 -c:a pcm_s16le fecho-user.wav
+          if ($LASTEXITCODE -ne 0) { throw 'Fechou audio could not be decoded' }
+          python scripts/package_coop14_source.py
+          if ($LASTEXITCODE -ne 0) { throw 'Coop14 source packaging failed' }
+      - name: Build real 2.2.0.8 Setup, native 0.3.41 Coop14 bundle, P15 host and signed-feed updater candidate
+        shell: pwsh
+        run: |
+          python scripts/build_2208.py --baseline old-complete/OpenOmsi_BBS_2.2.0.7_Setup_e_Coop13.zip --old-spec old-candidate/coop-spec.json --game approved-game --sources out --official-launcher official/openOMSI-0.3.41-windows-x64.zip --closing-wav fecho-user.wav
+          if ($LASTEXITCODE -ne 0) { throw 'Authenticated updater build failed' }
+      - name: Verify generated app/server is installed from authenticated dynamic P15 copy
+        shell: pwsh
+        run: |
+          @'
+          import json, pathlib,hashlib
+          r=pathlib.Path('build/release-2208')
+          report=json.loads((r/'build-report.json').read_text())
+          spec=json.loads((r/'coop-spec.json').read_text())
+          assert report['version']=='2.2.0.8' and report['sequence']==2026102411
+          assert report['coop_protocol']==15 and report['official_041_p15']
+          assert 'app/server-dinamico-p15/openomsi.exe' in spec['files']
+          assert 'app/server/openomsi.exe' not in spec['files'] # replicated by signed installer
+          assert report['dynamic_p15_sha256']==spec['files']['app/server-dinamico-p15/openomsi.exe']
+          assert (r/'Atualizar-Bridge.exe').read_bytes()[:2]==b'MZ'
+          print('RELEASE-CANDIDATE VERIFIED',report['updater_sha256'],report['coop_archive_sha256'],flush=True)
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.8-update-candidate
+          path: |
+            build/release-2208/Atualizar-Bridge.exe
+            build/release-2208/build-report.json
+            build/release-2208/coop-spec.json
+            build/release-2208/coop_bundle_manifest.go
+            build/release-2208/coop-assets/**
+          retention-days: 30
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.8-source-bundle
+          path: |
+            out/openomsi-coop14-source.zip
+            approved-game/version.log
+          retention-days: 30
+          if-no-files-found: warn
