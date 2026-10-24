@@ -14,7 +14,7 @@ function addParts(path){for(const n of readdirSync(path)){const b=readFileSync(p
 if(process.argv[2]==='prepare'){
  const report=json('approved-new/build-report.json'),exe=readFileSync('approved-new/Atualizar-Bridge.exe'),spec=json('approved-new/coop-spec.json');
  if(report.version!==manifest.version||report.sequence!==manifest.sequence||!report.world_interest_both_hosts||!report.dynamic_p15_sha256||spec.files['app/server-dinamico-p15/openomsi.exe']!==report.dynamic_p15_sha256||!report.native_setup_smoke||!report.native_server_lamp||!report.native_manual_and_timer||sha(exe)!==installer.sha256||exe.length!==installer.size||report.updater_sha256!==installer.sha256||report.full_package_sha256!==publication.full_package_sha256||spec.sha256!==report.coop_archive_sha256)throw Error('Candidate differs');
- const scan=json('approved-evidence/defender-2204.json'),native=json('approved-evidence/server-status-hotfix.json');
+ const scan=json('approved-evidence/defender-2205.json'),native=json('approved-evidence/server-status-hotfix.json');
  if(scan.status!=='passed'||!scan.archive_scanning_enabled||scan.files.length!==2||!scan.files.every(f=>f.passed&&f.exit_code===0)||!native.native_setup_gui||!native.manual_button||native.automatic_interval_seconds!==5||!native.host_preferences_unchanged)throw Error('Native or Defender validation incomplete');
  for(const [n,h] of [['Atualizar-Bridge.exe',installer.sha256],['OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11.zip',publication.full_package_sha256]])if(scan.files.find(f=>f.name===n)?.sha256!==h)throw Error('Scan covers different bytes');
  const prior=json('approved-prior2204/build-report.json');
@@ -37,5 +37,5 @@ if(process.argv[2]==='prepare'){
  const response=await request(origin+'/stable.json');
  if(!Buffer.from(await response.arrayBuffer()).equals(signed)||!response.headers.get('cache-control')?.includes('no-store'))throw Error('Live manifest differs');
  for(const n of readdirSync('distribution/assets/packages')){const expected=readFileSync('distribution/assets/packages/'+n),r=await request(origin+'/packages/'+n),b=Buffer.from(await r.arrayBuffer());if(b.length!==expected.length||sha(b)!==sha(expected)||!r.headers.get('cache-control')?.includes('immutable'))throw Error('Live download differs: '+n);}
- console.log('LIVE VERIFIED: Bridge 2.2.0.5, Coop11 and dynamic 0.3.39-bbs-stream.3; every new and previous immutable download verified.');
+ console.log('LIVE VERIFIED: Bridge 2.2.0.5, Coop11 with P14 0.3.39-bbs-stream.4 and P15 0.3.40-bbs-stream.1; every new and previous immutable download verified.');
 }else throw Error('Expected prepare or verify-live');
