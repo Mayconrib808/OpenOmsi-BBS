@@ -56,9 +56,9 @@ jobs:
         working-directory: game
         shell: pwsh
         run: |
-          cargo build --locked --release --target x86_64-pc-windows-msvc -p omsi-app --bin openomsi 2>&1 | Tee-Object ../out/build.log
+          cargo build --locked --release -p omsi-app --bin openomsi 2>&1 | Tee-Object ../out/build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item target/x86_64-pc-windows-msvc/release/openomsi.exe ../out/openomsi.exe
+          Copy-Item target/release/openomsi.exe ../out/openomsi.exe
           @'
           import os,pathlib,subprocess
           exe=pathlib.Path('../out/openomsi.exe').resolve()
