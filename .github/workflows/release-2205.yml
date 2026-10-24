@@ -97,23 +97,37 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $root=(Resolve-Path 'build/release-2205/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11').Path
-          $env:OPENOMSI_COOP_GAME_ONLY='1'
-          foreach($name in @('OpenOmsi Coop 0.3.38/programa/openomsi.exe','app/server-dinamico-p14/openomsi.exe','app/server-dinamico-p15/openomsi.exe')) {
-            $exe=Join-Path $root $name
-            if(!(Test-Path $exe)){throw ('Missing bundled native executable: '+$name)}
-            Push-Location (Split-Path $exe -Parent)
-            try {
-              & $exe --version
-              if($LASTEXITCODE -ne 0){throw ('Bundled version check failed: '+$name+' exit='+$LASTEXITCODE)}
-              & $exe --self-test
-              if($LASTEXITCODE -ne 0){throw ('Bundled native self-test failed: '+$name+' exit='+$LASTEXITCODE)}
-              if($name -match 'server-dinamico') {
-                $helpText=(& $exe --help 2>&1) -join "`n"
-                if($LASTEXITCODE -ne 0 -or $helpText -notmatch '--server'){throw ('Bundled dynamic server is not capable: '+$name)}
-              }
-            } finally { Pop-Location }
-          }
+          # GUI-subsystem Windows executables can leave $LASTEXITCODE unset when
+          # invoked directly by PowerShell. Python waits for the actual process
+          # and checks both its exit status and the expected native output.
+          @'
+          import os, pathlib, subprocess, sys
+          root = pathlib.Path('build/release-2205/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11').resolve()
+          env = dict(os.environ, OPENOMSI_COOP_GAME_ONLY='1')
+          cases = [
+              ('OpenOmsi Coop 0.3.38/programa/openomsi.exe', '0.3.38-coop.11-dev.1', False),
+              ('app/server-dinamico-p14/openomsi.exe', '0.3.39-bbs-stream.4-dev.1', True),
+              ('app/server-dinamico-p15/openomsi.exe', '0.3.40-bbs-stream.1-dev.1', True),
+          ]
+          for name, version, dedicated in cases:
+              exe = root / name
+              if not exe.is_file() or exe.read_bytes()[:2] != b'MZ':
+                  raise RuntimeError(f'Missing Windows PE executable: {name}')
+              for arg in ('--version', '--self-test', '--help') if dedicated else ('--version', '--self-test'):
+                  p = subprocess.run([str(exe), arg], cwd=str(exe.parent), env=env,
+                                     capture_output=True, text=True, errors='replace', timeout=45)
+                  output = p.stdout + '\n' + p.stderr
+                  print(f'{name} {arg}: exit={p.returncode}\n{output}', flush=True)
+                  if p.returncode != 0:
+                      raise RuntimeError(f'Native command failed: {name} {arg}, exit={p.returncode}')
+                  if arg == '--version' and version not in output:
+                      raise RuntimeError(f'Bundled native version mismatch: {name}')
+                  if arg == '--self-test' and 'self-test ok' not in output.lower():
+                      raise RuntimeError(f'Bundled native self-test missing success marker: {name}')
+                  if arg == '--help' and '--server' not in output:
+                      raise RuntimeError(f'Bundled dedicated server capability missing: {name}')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Test native Setup, live status lamp and full host preferences
         run: python scripts/verify_2205_windows.py
       - name: Finalize complete source-backed portable ZIP
