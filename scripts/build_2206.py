@@ -5,9 +5,9 @@ import build, build_bridge_update, setup_resources
 from build_runtime_2203 import embedded_payload, EXPECTED
 from build_2203 import tests, archive
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='2.2.0.6.1'
-SEQUENCE=2026102407
-PACKAGE='OpenOmsi_BBS_2.2.0.6.1_Setup_e_Coop12'
+VERSION='2.2.0.6.2'
+SEQUENCE=2026102408
+PACKAGE='OpenOmsi_BBS_2.2.0.6.2_Setup_e_Coop12'
 OUT=ROOT/'build/release-2206'
 COOP='OpenOmsi Coop 0.3.40'
 # Official 0.3.40 launcher binaries are NOT the Coop12 game executable.
@@ -54,6 +54,9 @@ def main():
  # CI authorization, native tests and executable identity are checked by the release workflow.
  source_evidence=json.loads((a.game/'coop12-source.json').read_text())
  assert source_evidence['protocol']==15 and source_evidence['patch_sha256']==sha((ROOT/'build-support/coop12/cumulative.patch').read_bytes()), 'Native overlay differs from this package source'
+ assert source_evidence['driver_transfer_hotfix_sha256']==sha((ROOT/'build-support/coop12/driver_transfer_hotfix.py').read_bytes()), 'Coop driver transfer exact-path patch differs'
+ handover_evidence=(a.game/'driver-handover-path-regression.log').read_text(encoding='utf-8',errors='replace')
+ assert 'visitor_handover_keeps_exact_absolute_vehicle_path' in handover_evidence and 'test result: ok' in handover_evidence, 'Native handover path test absent'
  clock_evidence=json.loads((a.game/'native-clock-regression.json').read_text())
  assert clock_evidence['passed'] and clock_evidence['protocol']==15, 'Native clock roundtrip did not pass'
  files={n.replace('OpenOmsi Coop 0.3.38/',COOP+'/',1) if n.startswith('OpenOmsi Coop 0.3.38/') else n:b for n,b in files.items()}
@@ -108,7 +111,7 @@ def main():
  assert info['dynamic_sha256'] in script, 'Host installer did not receive new P14 hash'
  files['scripts/atualizar_host_pessoal.ps1']=b'\xef\xbb\xbf'+script.encode()
  files[COOP+'/SHA256.json']=(json.dumps({n[len(COOP)+1:]:sha(b) for n,b in files.items() if n.startswith(COOP+'/') and n!=COOP+'/SHA256.json'},indent=2)+'\n').encode()
- prefix='Bridge-2.2.0.6.1/'
+ prefix='Bridge-2.2.0.6.2/'
  bundle=io.BytesIO()
  with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for n,b in sorted(files.items()):
@@ -158,8 +161,8 @@ def main():
   path=package/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(b)
  for name in ('source','scripts','docs','build-support','.github'):
   shutil.copytree(ROOT/name,package/name,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc','*.exe','*.dll','*.syso','*.zip','assets','node_modules'))
- (package/'LEIA-ME.txt').write_text('OpenOmsi BBS 2.2.0.6.1 + Coop 12\n\n'+(package/'LEIA-ME.txt').read_text(encoding='utf-8')+'\n2.2.0.6.1: Coop12 0.3.40 protocolo 15, prontidao de relogio apos aquecimento nativo, duas buzinadas por cumprimento e mapas ativos com Copiar link no Setup. Mantidas transferencia real, BCS no proprietario, cobrador, personagens e interesse por jogador. Sem remover correcoes anteriores.\nTestes automaticos e nativos Windows; sessao grafica com dois jogadores e avaliacao BCS ainda nao validadas.\n',encoding='utf-8')
- report=dict(official_launcher_040=True,launcher_archive_sha256=OFFICIAL_040_WINDOWS_SHA256,launcher_sha256={name:detail['after'] for name,detail in launcher_evidence.items()},coop_protocol=15,native_clock_readiness_fix=True,double_horn=True,active_map_copy_buttons=True,version=VERSION,sequence=SEQUENCE,updater_sha256=sha((OUT/'Atualizar-Bridge.exe').read_bytes()),installer_size=(OUT/'Atualizar-Bridge.exe').stat().st_size,coop_archive_sha256=spec['sha256'],components_sha256={n:sha(b) for n,b in payload.items()},retained_components_sha256={n:before[n] for n in before if n not in ('Setup.exe','PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe')},base_package_sha256=sha(baseline),world_interest_both_hosts=True,dynamic_p15_sha256=info['dynamic_p15_sha256'],native_candidate_run=int(os.environ.get('NATIVE_CANDIDATE_RUN','0')),windows_gameplay_tested=False)
+ (package/'LEIA-ME.txt').write_text('OpenOmsi BBS 2.2.0.6.2 + Coop 12\n\n'+(package/'LEIA-ME.txt').read_text(encoding='utf-8')+'\n2.2.0.6.2: Coop12 0.3.40 protocolo 15, prontidao de relogio apos aquecimento nativo, duas buzinadas por cumprimento e mapas ativos com Copiar link no Setup. Mantidas transferencia real, BCS no proprietario, cobrador, personagens e interesse por jogador. Sem remover correcoes anteriores.\nTestes automaticos e nativos Windows; sessao grafica com dois jogadores e avaliacao BCS ainda nao validadas.\n',encoding='utf-8')
+ report=dict(driver_handover_path_fixed=True,official_launcher_040=True,launcher_archive_sha256=OFFICIAL_040_WINDOWS_SHA256,launcher_sha256={name:detail['after'] for name,detail in launcher_evidence.items()},coop_protocol=15,native_clock_readiness_fix=True,double_horn=True,active_map_copy_buttons=True,version=VERSION,sequence=SEQUENCE,updater_sha256=sha((OUT/'Atualizar-Bridge.exe').read_bytes()),installer_size=(OUT/'Atualizar-Bridge.exe').stat().st_size,coop_archive_sha256=spec['sha256'],components_sha256={n:sha(b) for n,b in payload.items()},retained_components_sha256={n:before[n] for n in before if n not in ('Setup.exe','PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe')},base_package_sha256=sha(baseline),world_interest_both_hosts=True,dynamic_p15_sha256=info['dynamic_p15_sha256'],native_candidate_run=int(os.environ.get('NATIVE_CANDIDATE_RUN','0')),windows_gameplay_tested=False)
  (OUT/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
 
 def finalize():

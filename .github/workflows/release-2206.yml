@@ -40,8 +40,8 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $id=40103742135
-          $sha='5087474896d18933508073ff92b0179c47c9f074'
+          $id=40110406922
+          $sha='f9f5b625ad44d867e3681527ebd251b5b293f926'
           $deadline=(Get-Date).AddMinutes(65)
           while($true) {
             $run=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id" | ConvertFrom-Json
@@ -56,11 +56,11 @@ jobs:
           $jobs=(gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" | ConvertFrom-Json).jobs
           $matches=@($jobs | Where-Object { $_.name -eq 'native' })
           if ($matches.Count -ne 1 -or $matches[0].conclusion -ne 'success') { throw 'Required native P15 job did not pass' }
-          'NATIVE_CANDIDATE_RUN=40103742135' | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          'NATIVE_CANDIDATE_RUN=40110406922' | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - uses: actions/download-artifact@v8
         with:
           name: coop12-p15-native-evidence
-          run-id: 40103742135
+          run-id: 40110406922
           github-token: ${{ github.token }}
           path: approved-game
       - uses: actions/download-artifact@v8
@@ -101,7 +101,7 @@ jobs:
           # and checks both its exit status and the expected native output.
           @'
           import os, pathlib, subprocess, sys
-          root = pathlib.Path('build/release-2206/OpenOmsi_BBS_2.2.0.6.1_Setup_e_Coop12').resolve()
+          root = pathlib.Path('build/release-2206/OpenOmsi_BBS_2.2.0.6.2_Setup_e_Coop12').resolve()
           env = dict(os.environ, OPENOMSI_COOP_GAME_ONLY='1')
           cases = [
               ('OpenOmsi Coop 0.3.40/programa/openomsi.exe', '0.3.40-coop.12', False),
@@ -141,7 +141,9 @@ jobs:
         run: python scripts/verify_2206_windows.py
       - name: Include actual native clock confirmation evidence
         shell: pwsh
-        run: Copy-Item approved-game/native-clock*.json,approved-game/native-clock*.log build/release-2206/evidence/
+        run: |
+          Copy-Item approved-game/native-clock*.json,approved-game/native-clock*.log build/release-2206/evidence/
+          Copy-Item approved-game/driver-handover-path-regression.log build/release-2206/evidence/
       - name: Finalize complete source-backed portable ZIP
         run: python scripts/build_2206.py --finalize
       - name: Defender scan exact final ZIP and updater
@@ -171,5 +173,5 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           path: |
-            build/release-2206/OpenOmsi_BBS_2.2.0.6.1_Setup_e_Coop12.zip
-            build/release-2206/OpenOmsi_BBS_2.2.0.6.1_Setup_e_Coop12.zip.sha256
+            build/release-2206/OpenOmsi_BBS_2.2.0.6.2_Setup_e_Coop12.zip
+            build/release-2206/OpenOmsi_BBS_2.2.0.6.2_Setup_e_Coop12.zip.sha256

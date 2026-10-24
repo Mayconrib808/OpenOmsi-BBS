@@ -12,7 +12,7 @@ $scanner = if ($platform) { $platform.FullName } else { "$env:ProgramFiles/Windo
 $status = Get-MpComputerStatus
 if (-not $status.AntivirusEnabled) { throw 'Defender antivirus is unavailable.' }
 $report = [ordered]@{ status = 'pending'; timestamp_utc = [DateTime]::UtcNow.ToString('o'); engine = $status.AMEngineVersion; signatures = $status.AntivirusSignatureVersion; archive_scanning_enabled = $true; files = @() }
-foreach ($name in @('OpenOmsi_BBS_2.2.0.6.1_Setup_e_Coop12.zip', 'Atualizar-Bridge.exe')) {
+foreach ($name in @('OpenOmsi_BBS_2.2.0.6.2_Setup_e_Coop12.zip', 'Atualizar-Bridge.exe')) {
     $target = Join-Path $scanDir $name
     Copy-Item (Join-Path $output $name) $target
     $hash = (Get-FileHash $target -Algorithm SHA256).Hash.ToLowerInvariant()

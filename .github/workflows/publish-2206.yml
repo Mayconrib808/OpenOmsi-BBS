@@ -1,4 +1,4 @@
-name: Publish signed Bridge 2.2.0.6.1 Coop12
+name: Publish signed Bridge 2.2.0.6.2 Coop12
 on:
   push:
     branches: ['release/2.2.0.6-coop12-p15']
@@ -25,7 +25,7 @@ jobs:
         run: |
           node - <<'NODE'
           const fs=require('fs'),{execFileSync}=require('child_process'),p=require('./build-support/bridge2206/publication.json');
-          if(p.version!=='2.2.0.6.1'||p.sequence!==2026102407||!Number.isSafeInteger(p.candidate_run_id)||!/^[a-f0-9]{40}$/.test(p.candidate_commit))throw Error('Invalid release request');
+          if(p.version!=='2.2.0.6.2'||p.sequence!==2026102408||!Number.isSafeInteger(p.candidate_run_id)||!/^[a-f0-9]{40}$/.test(p.candidate_commit))throw Error('Invalid release request');
           const r=JSON.parse(execFileSync('gh',['api',`repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${p.candidate_run_id}`],{encoding:'utf8'}));
           if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2206.yml'||r.head_branch!=='release/2.2.0.6-coop12-p15')throw Error('Exact cumulative candidate did not pass');
           fs.appendFileSync(process.env.GITHUB_OUTPUT,`run_id=${p.candidate_run_id}\n`);
@@ -78,6 +78,18 @@ jobs:
           run-id: 39973561655
           github-token: ${{ github.token }}
           path: approved-base
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.6-candidate
+          run-id: 40097453331
+          github-token: ${{ github.token }}
+          path: approved-prior2206
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.6-candidate
+          run-id: 40106329076
+          github-token: ${{ github.token }}
+          path: approved-prior22061
       - name: Verify signature, native evidence, pins and preserved P15 host
         run: node build-support/bridge2206/publication.mjs prepare
       - name: Distribution regression checks
@@ -97,7 +109,7 @@ jobs:
           exit 1
       - uses: actions/upload-artifact@v7
         with:
-          name: Bridge-2.2.0.6.1-live
+          name: Bridge-2.2.0.6.2-live
           path: |
             build-support/bridge2206/publication.json
             build-support/bridge2206/stable.json
