@@ -59,6 +59,7 @@ jobs:
           cargo build --locked --release -p omsi-app --bin openomsi 2>&1 | Tee-Object ../out/build.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           Copy-Item target/release/openomsi.exe ../out/openomsi.exe
+          Copy-Item assets/steam_redist/steam_api64.dll ../out/steam_api64.dll
           @'
           import os,pathlib,subprocess
           exe=pathlib.Path('../out/openomsi.exe').resolve()

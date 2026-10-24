@@ -33,11 +33,13 @@ def main():
   assert (folder/'openomsi.exe').read_bytes()[:2]==b'MZ', 'validated Windows executable missing'
   assert (folder/'self-test.log').is_file() and (folder/'version.log').is_file(), 'native Windows smoke evidence missing'
  files[COOP+'/programa/openomsi.exe']=(a.game/'openomsi.exe').read_bytes()
+ files[COOP+'/programa/steam_api64.dll']=(a.game/'steam_api64.dll').read_bytes()
  # The legacy P14 executable stays available for older sessions; new Coop uses P15.
  for name,data in list(files.items()):
   if name.startswith('app/server-dinamico-p14/'):
    files[name.replace('server-dinamico-p14','server-dinamico-p15')]=data
  files['app/server-dinamico-p15/openomsi.exe']=(a.game/'openomsi.exe').read_bytes()
+ files['app/server-dinamico-p15/steam_api64.dll']=(a.game/'steam_api64.dll').read_bytes()
  for old_file in ('openomsi-coop9-source.zip','openomsi-coop10-source.zip','openomsi-coop11-source.zip'):
   files.pop(COOP+'/source/'+old_file,None)
  files[COOP+'/source/openomsi-coop12-source.zip']=(a.sources/'openomsi-coop12-source.zip').read_bytes()
