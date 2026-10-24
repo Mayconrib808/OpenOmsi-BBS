@@ -39,7 +39,7 @@ def replace_p14_lobby(files: dict, archive: Path) -> dict:
 
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--baseline',type=Path,required=True);p.add_argument('--game',type=Path,required=True);p.add_argument('--old-spec',type=Path,required=True);p.add_argument('--sources',type=Path,required=True);p.add_argument('--official-launcher',type=Path,required=True);a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--baseline',type=Path,required=True);p.add_argument('--game',type=Path,required=True);p.add_argument('--old-spec',type=Path,required=True);p.add_argument('--sources',type=Path,required=True);p.add_argument('--official-launcher',type=Path,required=True);p.add_argument('--closing-wav',type=Path,required=True);a=p.parse_args()
  assert build.VERSION==VERSION
  baseline=a.baseline.read_bytes()
  assert sha(baseline)=='74e1c44bfe88ab10bb16c31daaa36a72794d6a91893994badd03db785604fe45', 'Signed 2.2.0.7 full baseline differs'
@@ -67,6 +67,10 @@ def main():
  for folder in (a.game,):
   assert (folder/'openomsi.exe').read_bytes()[:2]==b'MZ', 'validated Windows executable missing'
   assert (folder/'self-test.log').is_file() and (folder/'version.log').is_file(), 'native Windows smoke evidence missing'
+ # Only the user's approved Fechou recording may replace the original cue.
+ closing_wav=a.closing_wav.read_bytes()
+ assert closing_wav[:4]==b'RIFF' and closing_wav[8:12]==b'WAVE' and sha(closing_wav)=='6121e67ebc203324e8430b9bd91270b458234af5bda8cbf35d9f2d372f84e0b7', 'Approved Fechou WAV differs'
+ files[COOP+'/programa/assets/sounds/coop_turnstile_coin.wav']=closing_wav
  files[COOP+'/programa/openomsi.exe']=(a.game/'openomsi.exe').read_bytes()
  files[COOP+'/programa/steam_api64.dll']=(a.game/'steam_api64.dll').read_bytes()
  # Replace BOTH stale 0.3.38/P14 lobby entrypoints with official 0.3.41/P15.
@@ -168,7 +172,7 @@ def main():
  for name in ('source','scripts','docs','build-support','.github'):
   shutil.copytree(ROOT/name,package/name,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc','*.exe','*.dll','*.syso','*.zip','assets','node_modules'))
  (package/'LEIA-ME.txt').write_text('OpenOmsi BBS 2.2.0.8 + Coop 14\n\n'+(package/'LEIA-ME.txt').read_text(encoding='utf-8')+'\n2.2.0.8: Coop14 0.3.41 protocolo 15. Corrige retorno F4/F1, vinculo de personagens ao chassi local, G em veiculo com direcao cedida, captura e rajadas de sons, nomes e selecao de bilhetes e pintura por nome ao recriar e transferir. Mantem todas as correcoes da 2.2.0.7 e de Coop 12/13.\nTestes automaticos e nativos Windows; sessao grafica com dois jogadores e avaliacao BCS ainda nao validadas.\n',encoding='utf-8')
- report=dict(official_041_p15=True, app_server_native_041=True, custom_closing_signal=True,character_skin_with_vehicle=True,coop14_regressions=True,passive_cabin_alias=True,avatar_camera_return=True,parked_audio_capture_fixed=True,repaint_by_name=True,driver_handover_path_fixed=True,official_launcher_041=True,launcher_archive_sha256=OFFICIAL_041_WINDOWS_SHA256,launcher_sha256={name:detail['after'] for name,detail in launcher_evidence.items()},coop_protocol=15,native_clock_readiness_fix=True,double_horn=True,active_map_copy_buttons=True,version=VERSION,sequence=SEQUENCE,updater_sha256=sha((OUT/'Atualizar-Bridge.exe').read_bytes()),installer_size=(OUT/'Atualizar-Bridge.exe').stat().st_size,coop_archive_sha256=spec['sha256'],components_sha256={n:sha(b) for n,b in payload.items()},retained_components_sha256={n:before[n] for n in before if n not in ('Setup.exe','PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe')},base_package_sha256=sha(baseline),world_interest_both_hosts=True,dynamic_p15_sha256=info['dynamic_p15_sha256'],native_candidate_run=int(os.environ.get('NATIVE_CANDIDATE_RUN','0')),windows_gameplay_tested=False)
+ report=dict(official_041_p15=True, app_server_native_041=True, custom_closing_signal=True, closing_sound_sha256=sha(closing_wav),character_skin_with_vehicle=True,coop14_regressions=True,passive_cabin_alias=True,avatar_camera_return=True,parked_audio_capture_fixed=True,repaint_by_name=True,driver_handover_path_fixed=True,official_launcher_041=True,launcher_archive_sha256=OFFICIAL_041_WINDOWS_SHA256,launcher_sha256={name:detail['after'] for name,detail in launcher_evidence.items()},coop_protocol=15,native_clock_readiness_fix=True,double_horn=True,active_map_copy_buttons=True,version=VERSION,sequence=SEQUENCE,updater_sha256=sha((OUT/'Atualizar-Bridge.exe').read_bytes()),installer_size=(OUT/'Atualizar-Bridge.exe').stat().st_size,coop_archive_sha256=spec['sha256'],components_sha256={n:sha(b) for n,b in payload.items()},retained_components_sha256={n:before[n] for n in before if n not in ('Setup.exe','PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe')},base_package_sha256=sha(baseline),world_interest_both_hosts=True,dynamic_p15_sha256=info['dynamic_p15_sha256'],native_candidate_run=int(os.environ.get('NATIVE_CANDIDATE_RUN','0')),windows_gameplay_tested=False)
  (OUT/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
 
 def finalize():
