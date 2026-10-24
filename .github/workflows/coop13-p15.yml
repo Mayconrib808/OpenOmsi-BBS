@@ -1,0 +1,94 @@
+name: Coop13 cumulative 0.3.40 protocol 15 Windows
+on:
+  push:
+    branches: ['release/2.2.0.7']
+    paths: ['build-support/coop13/**', '.github/workflows/coop13-p15.yml', 'scripts/test_native_clock_2206.py']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: coop13-native-p15
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      OPENOMSI_VERSION: 0.3.40-coop.13
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: support
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: e874276e1bfa22896deb1e00adab0ed7d4f3ce2f
+          path: game
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: coop11-server15-windows-msvc
+          cache-on-failure: true
+          workspaces: game -> target
+      - name: Apply every cumulative Coop feature to 0.3.40
+        run: python support/build-support/coop13/prepare.py
+      - name: Test protocol 15, reliable handover, world interest, voice and greetings
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-net --lib 2>&1 | Tee-Object ../out/protocol15-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-lan --lib vehicle_transfer 2>&1 | Tee-Object ../out/vehicle-transfer-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-sim --lib ai_traffic::greetings 2>&1 | Tee-Object ../out/greetings-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-audio --lib greeting:: 2>&1 | Tee-Object ../out/double-horn-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-app --lib dedicated_612_tiles -- --nocapture 2>&1 | Tee-Object ../out/612-tile-regression.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-app --lib visitor_handover_keeps_exact_absolute_vehicle_path -- --nocapture 2>&1 | Tee-Object ../out/driver-handover-path-regression.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --manifest-path tools/coop-check/Cargo.toml 2>&1 | Tee-Object ../out/coop-regressions.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Regress camera return, paced sound backlog, livery identity and native cabin
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-app --lib coop13 -- --nocapture 2>&1 | Tee-Object ../out/coop13-app-regressions.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-lan --lib coop13 -- --nocapture 2>&1 | Tee-Object ../out/coop13-lan-regressions.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build actual Windows game and dedicated server runtime
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app --bin openomsi 2>&1 | Tee-Object ../out/build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item target/release/openomsi.exe ../out/openomsi.exe
+          Copy-Item assets/steam_redist/steam_api64.dll ../out/steam_api64.dll
+          @'
+          import os,pathlib,subprocess
+          exe=pathlib.Path('../out/openomsi.exe').resolve()
+          for arg,name in [('--version','version.log'),('--self-test','self-test.log'),('--help','help.log')]:
+              p=subprocess.run([str(exe),arg],cwd=exe.parent,env=os.environ,capture_output=True,text=True,errors='replace',timeout=60)
+              text=p.stdout+'\n'+p.stderr
+              (exe.parent/name).write_text(text)
+              print(text,flush=True)
+              assert p.returncode==0,(arg,p.returncode)
+              if arg=='--version':assert '0.3.40-coop.13' in text
+              if arg=='--self-test':assert 'self-test ok' in text.lower()
+              if arg=='--help':assert '--server' in text
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Exercise actual dedicated startup and clock confirmations over HTTP
+        run: python support/scripts/test_native_clock_2206.py --exe out/openomsi.exe --out out
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coop13-p15-native-evidence
+          path: out/*
+          retention-days: 30

@@ -1,0 +1,46 @@
+{
+  "crates/omsi-app/src/app_events/frame/people.rs": {
+    "before": "bd5b93117bcdff571a3d241c86940385b6cee98fb5610ba1c457133a9e8ee6f5",
+    "after": "91a9883ac052ee5a686bc5b2474efc4e4a0e00a21c232f4d4162978f2e513b0e"
+  },
+  "crates/omsi-app/src/app_impl/mouse.rs": {
+    "before": "5b579d48e1442fdb5fa68d3edd6c78f985d347300d7d29b0e4dfb898a3deeed2",
+    "after": "60d300bc20d52b3600af8c33b1926e926598ec6d0e79882966a683e09727d61f"
+  },
+  "crates/omsi-app/src/app_impl/vehicles.rs": {
+    "before": "4a232f7ada85dbe101500e2f3d80f2efb2612ea529c494e8632c666bdaa265ce",
+    "after": "349140a306539f5c12a1964e5650ddf7d56c60ddc5124659188a3ebd2fb5453a"
+  },
+  "crates/omsi-app/src/coop.rs": {
+    "before": "f3858fcebc942fa9e71a9dd68fc047d96c6efe780a0a6094ed17e654a35b1279",
+    "after": "8a4f43bc251b758e93011eaa61ad7d8f77ddddc06f04ed0ef728ad6c0c2a0d8f"
+  },
+  "crates/omsi-app/src/coop_drive.rs": {
+    "before": "214091dc2ba9b71913b24d46ade69b0b77eb5ccbf88f3f9c4caa9563173b10f7",
+    "after": "6442c5f0ff7d98f87f2a8ea911f0c6bd29b018f2b9d4501d3ae67cd562a55962"
+  },
+  "crates/omsi-app/src/on_foot.rs": {
+    "before": "6362fe3dde226ff7f34d3884726b6073794503e10ce8a53c155efe04194f3803",
+    "after": "ec4e8efe945f3c805bd620c6cb2f684fa0218fc9dbbc4f9defd347e03e149ef2"
+  },
+  "crates/omsi-lan/src/game.rs": {
+    "before": "0b92df8768105fb3ffb2e3dfdeaa4dc80f3ae343ceb3e812bfe8796d2ca98d79",
+    "after": "54abca34722164894b8285638accdf4e178ff83aa6a84422f16c87d73d85e33a"
+  },
+  "crates/omsi-lan/src/game/sound_sync.rs": {
+    "before": "a6d8bcbf088644a9cd800ef9498c2f91354e66f81d0d9017423b7cd723fb3a17",
+    "after": "8c136430b5c5c221180eed0bc3d58425e7da89715cdaf62434a1d7632be77901"
+  },
+  "crates/omsi-lan/src/vehicle_transfer.rs": {
+    "before": "6d896098b6bb897de8b45c148ba5012d20bb8077d78df9d9d812e021d946d16c",
+    "after": "f947bca1ee6f2f5fbf7ff7f7fa96d810e7fd72d512931a564d11192401a97750"
+  },
+  "crates/omsi-net/src/sounds.rs": {
+    "before": "3c1250c92d878124f0a8d20f6054d0caa114bb0b9243764f993a4b69034b9442",
+    "after": "c3b5cdbad7743e03e3b636e1c29cf2214f682329e802a7db011c1594b0fecdc6"
+  },
+  "crates/omsi-sim/src/people/buses.rs": {
+    "before": "5bc1db3cfebdcc83108f838f845ab338fa9251ec73522bdaccf81421d9cf23d5",
+    "after": "088d50623b666ca7e85e3f04dc9eeaf6a2707b7a09610391fc81edaac6662f26"
+  }
+}
