@@ -1,7 +1,7 @@
 name: Publish signed Bridge 2.2.0.6.1 Coop12
 on:
   push:
-    branches: ['release/2.2.0.6.1-coop12-p15']
+    branches: ['release/2.2.0.6-coop12-p15']
     paths: ['build-support/bridge2206/stable.json', 'build-support/bridge2206/publication.json']
   workflow_dispatch:
 permissions:
@@ -27,18 +27,18 @@ jobs:
           const fs=require('fs'),{execFileSync}=require('child_process'),p=require('./build-support/bridge2206/publication.json');
           if(p.version!=='2.2.0.6.1'||p.sequence!==2026102407||!Number.isSafeInteger(p.candidate_run_id)||!/^[a-f0-9]{40}$/.test(p.candidate_commit))throw Error('Invalid release request');
           const r=JSON.parse(execFileSync('gh',['api',`repos/${process.env.GITHUB_REPOSITORY}/actions/runs/${p.candidate_run_id}`],{encoding:'utf8'}));
-          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2206.yml'||r.head_branch!=='release/2.2.0.6.1-coop12-p15')throw Error('Exact cumulative candidate did not pass');
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2206.yml'||r.head_branch!=='release/2.2.0.6-coop12-p15')throw Error('Exact cumulative candidate did not pass');
           fs.appendFileSync(process.env.GITHUB_OUTPUT,`run_id=${p.candidate_run_id}\n`);
           NODE
       - uses: actions/download-artifact@v8
         with:
-          name: Bridge-2.2.0.6.1-candidate
+          name: Bridge-2.2.0.6-candidate
           run-id: ${{ steps.candidate.outputs.run_id }}
           github-token: ${{ github.token }}
           path: approved-new
       - uses: actions/download-artifact@v8
         with:
-          name: Bridge-2.2.0.6.1-evidence
+          name: Bridge-2.2.0.6-evidence
           run-id: ${{ steps.candidate.outputs.run_id }}
           github-token: ${{ github.token }}
           path: approved-evidence
