@@ -233,18 +233,18 @@ jobs:
           import zipfile,hashlib
           out=Path('out')
           readme='''OpenOMSI 0.3.41 Coop14 beta / Bridge 2.2.0.8
-PREVIEW ONLY - supplied for user-requested gameplay testing before native regression suite.
-Close the Bridge, HostAgent, server and game. Back up their directories.
-Extract over your existing Bridge root, preserving the hierarchy.
-OpenOmsi Coop 0.3.40/programa is included deliberately so CURRENT Setup keeps its working launcher path.
-OpenOmsi Coop 0.3.41/programa is the new true versioned standalone folder.
-app/server/openomsi.exe and app/server-dinamico-p15/openomsi.exe are authentic 0.3.41-coop.14 P15 binaries.
-app/server-dinamico-p14 stays UNMODIFIED for older P14 sessions.
-Client and server must both run P15. GUI coop and BCS trip require live gameplay verification.
-This BETA does not change the signed production Buscar atualizacoes feed.
-Install the provided Som_Fecho_OpenOMSI_Coop.zip from this chat after installing this BETA,
-until the user-approved WAV has been incorporated in a signed cumulative package.
-'''
+          PREVIEW ONLY - supplied for user-requested gameplay testing before native regression suite.
+          Close the Bridge, HostAgent, server and game. Back up their directories.
+          Extract over your existing Bridge root, preserving the hierarchy.
+          OpenOmsi Coop 0.3.40/programa is included deliberately so CURRENT Setup keeps its working launcher path.
+          OpenOmsi Coop 0.3.41/programa is the new true versioned standalone folder.
+          app/server/openomsi.exe and app/server-dinamico-p15/openomsi.exe are authentic 0.3.41-coop.14 P15 binaries.
+          app/server-dinamico-p14 stays UNMODIFIED for older P14 sessions.
+          Client and server must both run P15. GUI coop and BCS trip require live gameplay verification.
+          This BETA does not change the signed production Buscar atualizacoes feed.
+          Install the provided Som_Fecho_OpenOMSI_Coop.zip from this chat after installing this BETA,
+          until the user-approved WAV has been incorporated in a signed cumulative package.
+          '''
           (out/'LEIA-ME-BETA.txt').write_text(readme,encoding='utf-8')
           with zipfile.ZipFile('OpenOmsi_BBS_2.2.0.8_Coop14_0.3.41_BETA.zip','w',zipfile.ZIP_DEFLATED,compresslevel=6) as z:
               for p in sorted(out.rglob('*')):
