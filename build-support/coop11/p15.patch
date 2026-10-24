@@ -1,0 +1,292 @@
+--- a/crates/omsi-app/src/app.rs
++++ b/crates/omsi-app/src/app.rs
+@@ -1053,6 +1053,10 @@
+     // a LAN host simulates the world around every player: the ground and the roads there
+     if cx.net.lan.as_ref().map(|l| l.role == omsi_net::Role::Host).unwrap_or(false) {
+         centers.extend(cx.net.remotes.remotes.values().map(|r| r.vehicle().position));
++        if let Some(lan) = cx.net.lan.as_ref() {
++            centers.extend(lan.peers().filter(|p| p.has_pose)
++                .flat_map(|p| p.pose.world_interest_centers().map(DVec3::from_array)));
++        }
+     }
+     let (Some(streamer), Some(w), Some(r), Some(scene)) = (
+         cx.gfx.gfx.streamer.as_mut(),
+--- a/crates/omsi-app/src/lan_world.rs
++++ b/crates/omsi-app/src/lan_world.rs
+@@ -461,17 +461,18 @@
+         // where the players are: the world is kept around them too
+         let players: Vec<(u32, DVec3)> = lan
+             .peers()
+-            .filter(|p| p.has_pose && p.pose.has_vehicle())
+-            .map(|p| (p.pose.id, DVec3::new(p.pose.x, p.pose.y, p.pose.z)))
++            .filter(|p| p.has_pose && (p.pose.has_vehicle() || p.pose.walker.is_some()))
++            .map(|p| (p.pose.id, p.pose.walker.map(|w|DVec3::new(w.x,w.y,w.z)).unwrap_or_else(||DVec3::new(p.pose.x,p.pose.y,p.pose.z))))
+             .collect();
+-        let centers: Vec<DVec3> = players.iter().map(|p| p.1).collect();
++        let centers: Vec<DVec3> = lan.peers().filter(|p| p.has_pose)
++            .flat_map(|p| p.pose.world_interest_centers().map(DVec3::from_array)).collect();
+         if let Some(t) = traffic.as_deref_mut() {
+             t.lan_centers = centers.clone();
+             // and what they see: no car may come or go there in front of them either
+             // (the list is kept: no allocation a frame)
+             t.lan_eyes.clear();
+-            t.lan_eyes.extend(lan.peers().filter(|p| p.has_pose && p.pose.has_vehicle()).map(|p| {
+-                let at = DVec3::new(p.pose.x, p.pose.y, p.pose.z);
++            t.lan_eyes.extend(lan.peers().filter(|p| p.has_pose && (p.pose.has_vehicle() || p.pose.walker.is_some())).map(|p| {
++                let at = p.pose.walker.map(|w| DVec3::new(w.x,w.y,w.z)).unwrap_or_else(|| DVec3::new(p.pose.x,p.pose.y,p.pose.z));
+                 crate::traffic::Viewer::lan_player(at, p.pose.heading as f64)
+             }));
+         }
+--- a/crates/omsi-app/src/offscreen/setup.rs
++++ b/crates/omsi-app/src/offscreen/setup.rs
+@@ -34,7 +34,38 @@
+         crate::lights::load_smoke_texture(&mut renderer, &args.root);
+         crate::lights::set_corona_root(&args.root);
+         let mut scene = renderer.new_scene();
+-        let (world, camera) = lan::answering_while(&mut lan_off, args.bus.as_deref(), || load_world(args, &renderer, &mut scene))?;
++        // The ordinary game's window streams tiles, but upstream --server loads
++        // the entire map (radius=0 becomes radius=99). Use exactly the same
++        // streamer on the dedicated host instead of reducing a FIXED radius:
++        // a player spawning on the opposite side of a map must get roads,
++        // AI, stops and collision there too.
++        let dynamic_server = args.server.is_some();
++        let (world, camera, streamer) = if dynamic_server {
++            let (w, cam, entry) = open_world(args)?;
++            let w = Arc::new(w);
++            let centers = [entry];
++            let mut stream = tiles::Streamer::new(
++                w.clone(), &centers, 1350.0, 700.0, crate::release_free_memory,
++            );
++            let began = Instant::now();
++            lan::answering_while(&mut lan_off, args.bus.as_deref(), || -> Result<()> {
++                // Bootstrap only the first neighborhood. Additional neighborhoods
++                // are loaded as players join/drive; never wait for every tile.
++                while stream.initial_progress().is_some() {
++                    stream.update(&renderer, &mut scene, &centers,
++                        std::time::Duration::from_millis(10), None);
++                    std::thread::sleep(std::time::Duration::from_millis(3));
++                }
++                Ok(())
++            })?;
++            log::info!("BBS dynamic server: initial region ready after {:.2} s, {} tiles (entire map NOT preloaded)",
++                began.elapsed().as_secs_f32(), w.loaded_tiles().len());
++            (w, cam, Some(stream))
++        } else {
++            let (w, cam) = lan::answering_while(&mut lan_off, args.bus.as_deref(),
++                || load_world(args, &renderer, &mut scene))?;
++            (Arc::new(w), cam, None)
++        };
+         // the map's own route arrows, with OMSI 2's route arrows
+         world.show_help_arrows(&renderer, &mut scene, settings.nav_arrows);
+         let lan_seed = lan_off.as_ref().map(lan::population_seed);
+@@ -54,7 +85,7 @@
+         } else {
+             None
+         };
+-        if let Some(s) = schedule.as_mut() {
++        if let Some(s) = schedule.as_mut().filter(|_| !dynamic_server) {
+             lan::answering_while(&mut lan_off, args.bus.as_deref(), || {
+                 s.precache(
+                     &world,
+@@ -252,6 +283,7 @@
+             renderer,
+             scene,
+             world,
++            streamer,
+             camera,
+             traffic,
+             schedule,
+@@ -502,3 +534,55 @@
+     }
+     Ok(())
+ }
++
++#[cfg(test)]
++mod dedicated_streaming_tests {
++    use super::*;
++
++    #[test]
++    fn dedicated_612_tiles_keeps_global_data_and_streams_two_moving_regions() {
++        use std::time::{Duration,Instant};
++        let root=std::env::temp_dir().join(format!("bbs-stream-612-{}",std::process::id()));
++        let _=std::fs::remove_dir_all(&root);std::fs::create_dir_all(root.join("maps/Test")).unwrap();
++        struct Cleanup(PathBuf);impl Drop for Cleanup{fn drop(&mut self){let _=std::fs::remove_dir_all(&self.0);}}
++        let _cleanup=Cleanup(root.clone());
++        let mut global=String::from("[name]\nStreaming 612\n");
++        for x in 0..34 { for y in 0..18 {
++            let name=format!("tile_{x}_{y}.map");
++            global.push_str(&format!("[map]\n{x}\n{y}\n{name}\n"));
++            std::fs::write(root.join("maps/Test").join(name),"[terrain]\n").unwrap();
++        }}
++        std::fs::write(root.join("maps/Test/global.cfg"),global).unwrap();
++        let mut args=Args::parse_from(["openomsi","--root",root.to_str().unwrap(),"--map","maps/Test/global.cfg","--all","--radius","1"]);
++        args.server=Some(root.join("server.cfg"));args.traffic=0;args.passengers=false;args.schedule=false;
++        args.cam=Some("150,150,10,0,0".into());args.size="64x36".into();
++        crate::server::SERVER_MODE.store(true,std::sync::atomic::Ordering::Relaxed);
++        let out=root.join("unused.png");
++        let mut run=Offscreen::setup(&args,&out,None,lan::LanGame::default()).unwrap();
++        println!("BBS_STREAM_TEST initial_loaded={} global_tiles={} radius=1 all=true",run.world.loaded_tiles().len(),run.world.global.tiles.len());
++        assert_eq!(run.world.global.tiles.len(),612);
++        assert!(run.streamer.is_some(),"saved radius or --all disabled dedicated streaming");
++        assert!(run.world.loaded_tiles().len()<100,"all map tiles were prepared at startup");
++        let ts=omsi_map::tile_size();
++        let near=DVec3::new(150.,150.,0.);let far=DVec3::new(33.*ts+150.,17.*ts+150.,0.);
++        let started=Instant::now();
++        loop {
++            run.streamer.as_mut().unwrap().update(&run.renderer,&mut run.scene,&[near,far],Duration::from_millis(10),None);
++            let loaded=run.world.loaded_tiles();
++            if loaded.contains(&(0,0))&&loaded.contains(&(33,17)){break;}
++            assert!(started.elapsed()<Duration::from_secs(30),"second player's region never loaded: {loaded:?}");
++            std::thread::sleep(Duration::from_millis(3));
++        }
++        println!("BBS_STREAM_TEST two_distant_regions_loaded={}",run.world.loaded_tiles().len());
++        assert!(run.world.loaded_tiles().len()<612);
++        let started=Instant::now();
++        while run.world.loaded_tiles().contains(&(0,0)) {
++            run.streamer.as_mut().unwrap().update(&run.renderer,&mut run.scene,&[far],Duration::from_millis(10),None);
++            assert!(started.elapsed()<Duration::from_secs(30),"abandoned region never unloaded");
++            std::thread::sleep(Duration::from_millis(3));
++        }
++        println!("BBS_STREAM_TEST after_move_loaded={} old_region_unloaded=true",run.world.loaded_tiles().len());
++        assert!(run.world.loaded_tiles().contains(&(33,17)));
++        assert_eq!(run.world.global.tiles.len(),612,"global map/timetable metadata was discarded");
++    }
++}
+--- a/crates/omsi-app/src/offscreen/stages.rs
++++ b/crates/omsi-app/src/offscreen/stages.rs
+@@ -48,7 +48,7 @@
+             Drive => stage(K::Drive, P::Sim, Role::Player, &[G::Player, G::Input, G::World, G::Traffic], &[G::Player, G::Traffic, G::Gfx, G::Perf]),
+             GroundGap => stage(K::GroundGap, P::Sim, Role::Own, &[G::World, G::Player, G::Traffic, G::Clock], &[G::Perf]),
+             Humans => stage(K::Humans, P::Sim, Role::People, &[G::People, G::Player, G::Traffic, G::Duty, G::Clock, G::World, G::View, G::Net], &[G::People, G::Player, G::Traffic, G::Duty, G::Gfx, G::Perf]),
+-            Lan => stage(K::Lan, P::Sim, Role::Lan, &[G::Net, G::Player, G::Clock, G::Duty, G::View], &[G::Net, G::Traffic, G::People, G::Gfx, G::Sound]),
++            Lan => stage(K::Lan, P::Sim, Role::Lan, &[G::Net, G::Player, G::Clock, G::Duty, G::View, G::World], &[G::Net, G::Traffic, G::People, G::Gfx, G::Sound, G::World]),
+             Surroundings => stage(K::Surroundings, P::Present, Role::Surroundings, &[G::Weather, G::Player, G::Traffic, G::Net, G::View, G::People], &[G::Weather]),
+             Snapshot => stage(K::Snapshot, P::Output, Role::Picture, &[G::Gfx, G::View, G::Traffic, G::Weather], &[G::Gfx, G::Perf]),
+             Record => stage(K::Record, P::Output, Role::Own, &[G::Gfx, G::View, G::Sound], &[G::Gfx, G::Perf]),
+@@ -80,7 +80,7 @@
+             Drive => run.drive_stage(i),
+             GroundGap => run.ground_gap_step(t_s),
+             Humans => run.humans_step(i),
+-            Lan => run.lan_step(),
++            Lan => { run.lan_step(); run.stream_server_step(); },
+             Surroundings => run.surroundings_step(),
+             Snapshot => run.snapshot_step(t_s)?,
+             Record => run.record_step(i, t_s)?,
+--- a/crates/omsi-app/src/offscreen/step.rs
++++ b/crates/omsi-app/src/offscreen/step.rs
+@@ -667,6 +667,7 @@
+             ref srv_admin,
+             ref run_clock,
+             ref remotes_off,
++            ref lan_off,
+             ref mut player,
+             ref mut traffic,
+             ref camera,
+@@ -696,6 +697,9 @@
+                     .remotes
+                     .values()
+                     .map(|r| r.vehicle().position)
++                    .chain(lan_off.iter().flat_map(|lan| lan.peers())
++                        .filter(|p| p.has_pose)
++                        .flat_map(|p| p.pose.world_interest_centers().map(DVec3::from_array)))
+                     .chain(player.as_ref().map(|p| p.vehicle.position))
+                     .collect();
+                 for c in &player_centers {
+@@ -846,6 +850,34 @@
+             }
+             // the other games run in real time (see `RealTime`)
+             std::thread::sleep(real_time.wait(Instant::now(), dt));
++        }
++    }
++
++    /// Dedicated-server equivalent of the ordinary multiplayer host's tile
++    /// streaming. Centers are the LIVE positions of all peers, not the entry
++    /// point fixed at server startup. Headless renderer uploads are no-op.
++    /// Called after LAN receives positions so a new player's region is queued
++    /// even when the players are several kilometers apart.
++    pub(super) fn stream_server_step(&mut self) {
++        let Some(stream) = self.streamer.as_mut() else { return; };
++        let mut centers: Vec<DVec3> = self.remotes_off.remotes.values()
++            .map(|r| r.vehicle().position).collect();
++        if let Some(lan) = self.lan_off.as_ref() {
++            centers.extend(lan.peers().filter(|p| p.has_pose)
++                .flat_map(|p| p.pose.world_interest_centers().map(DVec3::from_array)));
++        }
++        if let Some(p) = self.player.as_ref() { centers.push(p.vehicle.position); }
++        if centers.is_empty() { centers.push(self.center); }
++        let changed = stream.update(&self.renderer, &mut self.scene, &centers,
++            std::time::Duration::from_millis(6), None);
++        if changed {
++            if let Some(t) = self.traffic.as_mut() {
++                // Without this the streamed tiles have scenery but no usable
++                // road lanes, lights, AI traffic or timetable routes.
++                t.add_tiles(&self.world.traffic_inbox);
++            } else {
++                let _ = self.world.traffic_inbox.take();
++            }
+         }
+     }
+ 
+--- a/crates/omsi-app/src/offscreen.rs
++++ b/crates/omsi-app/src/offscreen.rs
+@@ -29,7 +29,8 @@
+     settings: settings::Settings,
+     renderer: Renderer,
+     scene: Scene,
+-    world: World,
++    world: Arc<World>,
++    streamer: Option<tiles::Streamer>,
+     /// the scenery objects' scripts (see `World::scenery_sync`)
+     scenery: omsi_sim::scenery::SceneryState,
+     camera: Camera,
+--- a/crates/omsi-app/src/schedule/fleet.rs
++++ b/crates/omsi-app/src/schedule/fleet.rs
+@@ -143,6 +143,7 @@
+         scene: &mut Scene,
+         day_time: f64,
+     ) {
++        if crate::server::SERVER_MODE.load(std::sync::atomic::Ordering::Relaxed) { return; }
+         let ready = self.fleet_ready.lock().pop();
+         if let Some(key) = ready {
+             if let Some(ty) = self.fleet_reading.remove(&key) {
+--- a/crates/omsi-net/src/lib.rs
++++ b/crates/omsi-net/src/lib.rs
+@@ -847,6 +847,14 @@
+ }
+ 
+ impl Pose {
++    /// Live world interest includes the parked bus AND its walking owner.
++    /// A heartbeat without either must not populate the map origin.
++    pub fn world_interest_centers(&self) -> impl Iterator<Item = [f64; 3]> {
++        self.has_vehicle().then_some([self.x, self.y, self.z]).into_iter()
++            .chain(self.walker.map(|w| [w.x, w.y, w.z]))
++            .filter(|p| p.iter().all(|v| v.is_finite()))
++    }
++
+     /// Does this pose carry a vehicle (rather than being a player's heartbeat)?
+     pub fn has_vehicle(&self) -> bool {
+         self.flags & FLAG_VEHICLE != 0 && !self.bus.is_empty()
+--- a/crates/omsi-net/src/tests.rs
++++ b/crates/omsi-net/src/tests.rs
+@@ -1516,3 +1516,21 @@
+ mod lifecycle;
+ mod traffic;
+ mod voice;
++
++#[test]
++fn world_interest_keeps_walker_and_bus_for_dedicated_and_player_hosts() {
++    let mut p = pose(1000.0);
++    assert_eq!(p.world_interest_centers().collect::<Vec<_>>(), vec![[1000.0,2.0,3.0]]);
++    p.walker = Some(Walker { x:8000.0, y:9000.0, z:4.0, heading:0.0,
++        speed:0.0, course:0.0, seated:false, aboard:None });
++    assert_eq!(p.world_interest_centers().collect::<Vec<_>>(),
++        vec![[1000.0,2.0,3.0], [8000.0,9000.0,4.0]]);
++    p.bus.clear(); p.flags &= !FLAG_VEHICLE;
++    assert_eq!(p.world_interest_centers().collect::<Vec<_>>(), vec![[8000.0,9000.0,4.0]]);
++    p.walker.as_mut().unwrap().x = 12000.0;
++    assert_eq!(p.world_interest_centers().next(), Some([12000.0,9000.0,4.0]));
++    p.walker.as_mut().unwrap().x = f64::NAN;
++    assert_eq!(p.world_interest_centers().count(), 0);
++    p.walker = None;
++    assert_eq!(p.world_interest_centers().count(), 0);
++}

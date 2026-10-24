@@ -1,6 +1,6 @@
 --- /dev/null
 +++ b/crates/omsi-net/src/handover.rs
-@@ -0,0 +1,263 @@
+@@ -0,0 +1,296 @@
 +//! Reliable, ordered, owner-authored handover states. Only names and paths, never audio.
 +use std::collections::{BTreeMap, HashMap, VecDeque};
 +
@@ -11,7 +11,9 @@
 +const WINDOW: u64 = 4;
 +
 +#[derive(Clone, Debug, PartialEq)]
-+pub struct Event { pub data: Vec<u8> }
++pub struct Event {
++    pub data: Vec<u8>,
++}
 +#[derive(Debug)]
 +pub struct Incoming {
 +    pub owner: u32,
@@ -78,8 +80,12 @@
 +    v.resize(HEAD, 0);
 +    v
 +}
-+fn encode(e: &Event) -> Option<Vec<u8>> { (!e.data.is_empty() && e.data.len() <= MAX_SIZE).then(|| e.data.clone()) }
-+fn decode(v: &[u8]) -> Option<Event> { (!v.is_empty() && v.len() <= MAX_SIZE).then(|| Event { data: v.to_vec() }) }
++fn encode(e: &Event) -> Option<Vec<u8>> {
++    (!e.data.is_empty() && e.data.len() <= MAX_SIZE).then(|| e.data.clone())
++}
++fn decode(v: &[u8]) -> Option<Event> {
++    (!v.is_empty() && v.len() <= MAX_SIZE).then(|| Event { data: v.to_vec() })
++}
 +struct Tx {
 +    seq: u64,
 +    data: Vec<u8>,
@@ -244,25 +250,52 @@
 +    }
 +}
 +
-+
-+#[cfg(test)] mod tests {
-+ use super::*;
-+ #[test] fn loss_reorder_and_lost_ack_never_activate_partial_state() {
-+  let mut a=Sync::default();let mut b=Sync::default();
-+  let e=Event{data:(0..200000).map(|i|(i%251)as u8).collect()};a.publish(&[2],e.clone());
-+  let packets=a.tick(14,1,0.0);for p in packets.iter().skip(1).rev(){b.receive(14,2,p);}
-+  assert!(b.take_incoming().is_empty());
-+  for p in a.tick(14,1,0.3).iter().rev(){b.receive(14,2,p);}
-+  assert_eq!(b.take_incoming().remove(0).event,e);
-+  for p in a.tick(14,1,0.3){let ack=b.receive(14,2,&p).unwrap();a.receive(14,1,&ack);}
-+  assert!(b.take_incoming().is_empty());assert!(a.tick(14,1,1.0).is_empty());
-+ }
-+ #[test] fn recipient_protocol_and_bounds_are_checked() {
-+  let mut a=Sync::default();let mut b=Sync::default();a.publish(&[2],Event{data:vec![1,2,3]});let p=a.tick(14,1,0.0).remove(0);
-+  assert!(b.receive(15,2,&p).is_none());assert!(b.receive(14,3,&p).is_none());
-+  for n in 0..p.len(){assert!(b.receive(14,2,&p[..n]).is_none());}
-+  assert!(b.take_incoming().is_empty());assert!(b.receive(14,2,&p).is_some());
-+ }
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn loss_reorder_and_lost_ack_never_activate_partial_state() {
++        let mut a = Sync::default();
++        let mut b = Sync::default();
++        let e = Event {
++            data: (0..200000).map(|i| (i % 251) as u8).collect(),
++        };
++        a.publish(&[2], e.clone());
++        let packets = a.tick(14, 1, 0.0);
++        for p in packets.iter().skip(1).rev() {
++            b.receive(14, 2, p);
++        }
++        assert!(b.take_incoming().is_empty());
++        for p in a.tick(14, 1, 0.3).iter().rev() {
++            b.receive(14, 2, p);
++        }
++        assert_eq!(b.take_incoming().remove(0).event, e);
++        for p in a.tick(14, 1, 0.3) {
++            let ack = b.receive(14, 2, &p).unwrap();
++            a.receive(14, 1, &ack);
++        }
++        assert!(b.take_incoming().is_empty());
++        assert!(a.tick(14, 1, 1.0).is_empty());
++    }
++    #[test]
++    fn recipient_protocol_and_bounds_are_checked() {
++        let mut a = Sync::default();
++        let mut b = Sync::default();
++        a.publish(
++            &[2],
++            Event {
++                data: vec![1, 2, 3],
++            },
++        );
++        let p = a.tick(14, 1, 0.0).remove(0);
++        assert!(b.receive(15, 2, &p).is_none());
++        assert!(b.receive(14, 3, &p).is_none());
++        for n in 0..p.len() {
++            assert!(b.receive(14, 2, &p[..n]).is_none());
++        }
++        assert!(b.take_incoming().is_empty());
++        assert!(b.receive(14, 2, &p).is_some());
++    }
 +}
 --- a/crates/omsi-net/src/lib.rs
 +++ b/crates/omsi-net/src/lib.rs
@@ -351,7 +384,15 @@
      /// Released surfaces of our own vehicle. The transport retains an acknowledged
      /// baseline per subscriber and sends only pixel changes after initialization.
      pub fn set_script_textures(&mut self, table: u32, images: Vec<Option<scripttex::Image>>) {
-@@ -215,6 +239,7 @@
+@@ -208,13 +232,14 @@
+ /// Bind versioned traffic to the freshly issued connection secret. Relays unwrap and
+ /// rewrap for the destination, so old sessions cannot poison a retained peer's state.
+ pub(super) fn session_bound(data: &[u8]) -> bool {
+-    data.first().is_some_and(|b| [sounds::MAGIC, vars::VARS_MAGIC, var_schema::MAGIC, 0xEB].contains(b))
++    data.first().is_some_and(|b| [sounds::MAGIC, handover::MAGIC, vars::VARS_MAGIC, var_schema::MAGIC, 0xEB].contains(b))
+ }
+ 
+ impl LanSession {
      pub(super) fn reset_peer_sync(&mut self, id: u32) {
          let keep: Vec<_> = self.peers.keys().copied().filter(|p| *p != id).collect();
          self.sounds.retain_peers(&keep);
@@ -359,3 +400,33 @@
          self.var_receiver.retain_peers(&keep);
          self.schema_receiver.retain_peers(&keep);
          self.vars_in.retain(|v| v.id != id);
+--- a/crates/omsi-net/src/tests.rs
++++ b/crates/omsi-net/src/tests.rs
+@@ -1532,3 +1532,27 @@
+     p.walker = None;
+     assert_eq!(p.world_interest_centers().count(), 0);
+ }
++
++#[test]
++fn handover_snapshot_is_session_authenticated_and_relayed_between_clients() {
++    let mut host=LanSession::host(0,"host",world("m"),true).unwrap();
++    let at=SocketAddr::from(([127,0,0,1],host.local_addr().unwrap().port()));
++    let mut a=LanSession::join_addr(vec![at],None,"a",world("m")).unwrap();
++    let mut b=LanSession::join_addr(vec![at],None,"b",world("m")).unwrap();
++    let poses=[pose(100.),pose(200.),pose(300.)];
++    pump(&mut [&mut host,&mut a,&mut b],&poses,150,|s|s[1].connected&&s[2].connected&&s[2].peer_count()==2);
++    assert!(a.connected&&b.connected);
++    let mut forged=handover::Sync::default();forged.publish(&[b.my_id],handover::Event{data:vec![7;2000]});
++    for packet in forged.tick(PROTOCOL as u8,a.my_id,0.) {a.socket.send_to(&packet,at).unwrap();}
++    for _ in 0..10{host.tick(0.01,&poses[0]);a.tick(0.01,&poses[1]);b.tick(0.01,&poses[2]);std::thread::sleep(Duration::from_millis(3));}
++    assert!(b.take_handovers().is_empty(),"unwrapped old-session data was accepted");
++    let expected=vec![5;5000];a.publish_handover(b.my_id,expected.clone());
++    let mut received=Vec::new();
++    for _ in 0..100 {
++        host.tick(0.01,&poses[0]);a.tick(0.01,&poses[1]);b.tick(0.01,&poses[2]);
++        received.extend(b.take_handovers());if !received.is_empty(){break;}
++        std::thread::sleep(Duration::from_millis(3));
++    }
++    assert_eq!(received.len(),1);assert_eq!(received[0].owner,a.my_id);assert_eq!(received[0].event.data,expected);
++    assert!(host.take_handovers().is_empty());
++}

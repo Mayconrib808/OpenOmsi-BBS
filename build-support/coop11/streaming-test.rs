@@ -23,6 +23,7 @@ mod dedicated_streaming_tests {
         crate::server::SERVER_MODE.store(true,std::sync::atomic::Ordering::Relaxed);
         let out=root.join("unused.png");
         let mut run=Offscreen::setup(&args,&out,None,lan::LanGame::default()).unwrap();
+        println!("BBS_STREAM_TEST initial_loaded={} global_tiles={} radius=1 all=true",run.world.loaded_tiles().len(),run.world.global.tiles.len());
         assert_eq!(run.world.global.tiles.len(),612);
         assert!(run.streamer.is_some(),"saved radius or --all disabled dedicated streaming");
         assert!(run.world.loaded_tiles().len()<100,"all map tiles were prepared at startup");
@@ -36,6 +37,7 @@ mod dedicated_streaming_tests {
             assert!(started.elapsed()<Duration::from_secs(30),"second player's region never loaded: {loaded:?}");
             std::thread::sleep(Duration::from_millis(3));
         }
+        println!("BBS_STREAM_TEST two_distant_regions_loaded={}",run.world.loaded_tiles().len());
         assert!(run.world.loaded_tiles().len()<612);
         let started=Instant::now();
         while run.world.loaded_tiles().contains(&(0,0)) {
@@ -43,6 +45,7 @@ mod dedicated_streaming_tests {
             assert!(started.elapsed()<Duration::from_secs(30),"abandoned region never unloaded");
             std::thread::sleep(Duration::from_millis(3));
         }
+        println!("BBS_STREAM_TEST after_move_loaded={} old_region_unloaded=true",run.world.loaded_tiles().len());
         assert!(run.world.loaded_tiles().contains(&(33,17)));
         assert_eq!(run.world.global.tiles.len(),612,"global map/timetable metadata was discarded");
     }

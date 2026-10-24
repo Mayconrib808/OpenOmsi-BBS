@@ -1,7 +1,7 @@
 {
   "crates/omsi-net/src/handover.rs": {
     "before": null,
-    "after": "74ecae9bd72de23680b566182c12670d199fe96c404e9b31f0b1787afc9ad8a2"
+    "after": "4e461153f18bd5b89718f22620502a574e8412d78b2693cb28e543fcaacdeaab"
   },
   "crates/omsi-net/src/lib.rs": {
     "before": "9badab2faf910112331f4e00f95b44a406fcf8214d7be300d583f35d9cfa43cb",
@@ -9,6 +9,10 @@
   },
   "crates/omsi-net/src/session_sync.rs": {
     "before": "fe7997219c4edf75b03a3706b6233e5944600fb0dec866dc67fec9218efa95fb",
-    "after": "7b0badd797e6a2e0b251c9a09aa8a40bdf6c4a3602101e43f8c03b625bb89ead"
+    "after": "a2d88def317ff8a31c9cd76773c6c0077a4c7cbab30011204315f8406fe69f63"
+  },
+  "crates/omsi-net/src/tests.rs": {
+    "before": "b076ee9375ee492bf0a4347321dcfb97f3d19ac08a6a60d048f1d43eec1cdde4",
+    "after": "a91bdbf2b05e103174068858c94b7b8fa83bceca89d340d1e88e1601ade283df"
   }
 }

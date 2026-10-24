@@ -1,6 +1,6 @@
 package main
 
-// The updater must activate a managed P14 sidecar as well as copy it. Keep the
+// The updater must activate the matching managed P14/P15 sidecar as well as copy it. Keep the
 // full P15 HostAgent executable and opaque preferences: its source is not here.
 import (
 	"bytes"
@@ -13,6 +13,7 @@ import (
 )
 
 const managedDynamicServer = "app/server-dinamico-p14/openomsi.exe"
+const managedDynamicP15Server = "app/server-dinamico-p15/openomsi.exe"
 
 func hostJSONField(m map[string]json.RawMessage, name string) (string, json.RawMessage) {
 	for key, value := range m {
@@ -29,9 +30,9 @@ func hostJSONString(m map[string]json.RawMessage, name string) string {
 	return s
 }
 
-// Only an automatic P14 choice, or this installation's managed path, is moved.
-// Unknown/custom/P15 selections are preserved, including all map preferences.
-func migrateDynamicHostSettings(data []byte, dir string, standalone bool) ([]byte, bool, error) {
+// Only an automatic choice with an available matching protocol is moved.
+// Unknown/custom selections and all opaque map preferences are preserved.
+func migrateDynamicHostSettings(data []byte, dir string, standalone bool, available ...int) ([]byte, bool, error) {
 	var doc map[string]json.RawMessage
 	if err := json.Unmarshal(bytes.TrimPrefix(data, []byte{0xef, 0xbb, 0xbf}), &doc); err != nil || doc == nil {
 		return nil, false, fmt.Errorf("invalid host settings; no changes made")
@@ -54,11 +55,27 @@ func migrateDynamicHostSettings(data []byte, dir string, standalone bool) ([]byt
 	}
 	_, p := hostJSONField(profile, "protocol")
 	var protocol int
-	if json.Unmarshal(p, &protocol) != nil || protocol != 14 {
+	if json.Unmarshal(p, &protocol) != nil {
 		return data, false, nil
 	}
+	if len(available) == 0 {
+		available = []int{14}
+	}
+	supported := false
+	for _, v := range available {
+		if v == protocol {
+			supported = true
+		}
+	}
+	if !supported || (protocol != 14 && protocol != 15) {
+		return data, false, nil
+	}
+	relative := managedDynamicServer
+	if protocol == 15 {
+		relative = managedDynamicP15Server
+	}
 	selected := hostJSONString(doc, "server")
-	target := filepath.Join(dir, filepath.FromSlash(managedDynamicServer))
+	target := filepath.Join(dir, filepath.FromSlash(relative))
 	if samePath(selected, target) {
 		return data, false, nil
 	}
@@ -72,7 +89,7 @@ func migrateDynamicHostSettings(data []byte, dir string, standalone bool) ([]byt
 	// Previous installers marked managed sidecars custom so the old agent would
 	// not replace them. Recognize those exact package paths even after a move.
 	normalized := strings.ReplaceAll(selected, "\\", "/")
-	if strings.HasSuffix(strings.ToLower(normalized), "/"+managedDynamicServer) {
+	if strings.HasSuffix(strings.ToLower(normalized), "/"+relative) {
 		old, e := os.ReadFile(selected)
 		if os.IsNotExist(e) {
 			managed = true
@@ -99,16 +116,25 @@ func migrateDynamicHostSettings(data []byte, dir string, standalone bool) ([]byt
 // Invoked only after authenticated payload files were written and verified.
 // Both settings files are planned first and rolled back together on any error.
 func activateUpdatedDynamicHost(dir string, payload map[string][]byte) (err error) {
-	server, ok := payload[managedDynamicServer]
-	if !ok {
+	var available []int
+	for protocol, relative := range map[int]string{14: managedDynamicServer, 15: managedDynamicP15Server} {
+		server, ok := payload[relative]
+		if !ok {
+			continue
+		}
+		marker := payload[filepath.ToSlash(filepath.Join(filepath.Dir(relative), "BBS-DYNAMIC-SERVER.json"))]
+		var metadata struct {
+			NativeSHA256 string `json:"native_sha256"`
+			Protocol     int    `json:"protocol"`
+		}
+		if json.Unmarshal(marker, &metadata) != nil || metadata.NativeSHA256 != fmt.Sprintf("%x", sha256.Sum256(server)) ||
+			(metadata.Protocol != 0 && metadata.Protocol != protocol) || (protocol == 15 && metadata.Protocol != 15) {
+			return fmt.Errorf("dynamic server P%d capability manifest does not match the installed executable", protocol)
+		}
+		available = append(available, protocol)
+	}
+	if len(available) == 0 {
 		return nil
-	}
-	marker := payload["app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json"]
-	var metadata struct {
-		NativeSHA256 string `json:"native_sha256"`
-	}
-	if json.Unmarshal(marker, &metadata) != nil || metadata.NativeSHA256 != fmt.Sprintf("%x", sha256.Sum256(server)) {
-		return fmt.Errorf("dynamic server capability manifest does not match the installed executable")
 	}
 	type change struct {
 		path          string
@@ -144,7 +170,7 @@ func activateUpdatedDynamicHost(dir string, payload map[string][]byte) (err erro
 			if len(before) > 4<<20 {
 				return fmt.Errorf("host settings exceed size limit")
 			}
-			after, changed, e := migrateDynamicHostSettings(before, dir, name == "CompanyHost.local.json")
+			after, changed, e := migrateDynamicHostSettings(before, dir, name == "CompanyHost.local.json", available...)
 			if e != nil {
 				return e
 			}

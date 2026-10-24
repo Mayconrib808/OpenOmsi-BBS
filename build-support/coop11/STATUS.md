@@ -11,6 +11,6 @@ Implemented source candidate:
 - Native fare actions are tied to the original passenger transaction; conductor panel events follow the active driver, with owner-side authorization.
 - F1 camera/hit-testing target alignment, active character refresh across content roots, live livery rendering without respawn.
 - Dedicated streaming regardless of saved radius or `--all`; all bus/walker interest centers retained; no global timetable fleet texture warmup. Integrated synthetic 612-tile/two-region loading/unloading regression.
-- Updater activates the managed P14 sidecar transactionally, preserving opaque P15/custom configuration and the original full HostAgent binaries.
+- Independent P14 and P15 dynamic server candidates, based on pinned 0.3.39 and 0.3.40 respectively. The updater activates only the verified sidecar matching the profile protocol, preserving opaque voice/radio/admin/custom preferences and the original full HostAgent binaries.
 
 Not published. This is development source, not an approved gameplay fix. Two-player Windows gameplay with real bus models, BCS trip continuity, conductor tickets/change, articulated bus handover, disconnect/reconnect and active skin changes still require validation. The existing greetings hotfix's Windows candidate passed in run 40021213496.

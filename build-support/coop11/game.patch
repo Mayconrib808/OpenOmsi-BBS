@@ -319,7 +319,7 @@
      /// The real on-foot type is also sent when this player owns no vehicle.
 --- a/crates/omsi-app/src/coop_drive.rs
 +++ b/crates/omsi-app/src/coop_drive.rs
-@@ -1,440 +1,294 @@
+@@ -1,440 +1,1084 @@
 -//! One authorized driver, one live vehicle, one BCS career record.
 -//! Driving is delegated; vehicle/scripts/passengers never move between simulations.
 -use crate::{App, humans::BusId};
@@ -328,14 +328,18 @@
 -use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 +//! Full local vehicle authority. The original owner keeps a passive BCS/passenger
 +//! proxy; the visiting driver owns scripts, physics, normal input, picking and cameras.
-+use crate::{App,Player,Args,World,humans::BusId};
-+use omsi_lan::vehicle_transfer::{Message,Snapshot};
-+use std::{collections::{HashMap,HashSet},time::{Instant,Duration,SystemTime,UNIX_EPOCH},sync::{Arc,mpsc}};
++use crate::{humans::BusId, App, Args, Player, World};
++use omsi_lan::vehicle_transfer::{Message, Snapshot};
++use std::{
++    collections::{HashMap, HashSet},
++    sync::{mpsc, Arc},
++    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
++};
  use winit::keyboard::KeyCode;
 -/// A visual driver seat, never a passenger-seat index.
--pub(crate) const DRIVER_SEAT: u16 = 1023;
+ pub(crate) const DRIVER_SEAT: u16 = 1023;
 -
--struct Owner {
+ struct Owner {
 -    gate: Lease,
 -    offered: Instant,
 -    frame: Frame,
@@ -343,12 +347,32 @@
 -    last_status: Option<Instant>,
 -    sign_seq: u64,
 -    sign_ok: bool,
--}
--struct Visitor {
--    owner: u32,
--    token: u64,
--    active: bool,
--    seen: Instant,
++    peer: u32,
++    token: u64,
++    uid: u64,
++    bus: String,
++    frozen: bool,
++    active: bool,
++    seen: Instant,
++    sent: Instant,
++    triggers: Vec<String>,
+ }
+ struct Visitor {
+     owner: u32,
+     token: u64,
++    uid: u64,
++    bus: String,
++    args: Args,
++    world: Arc<World>,
++    loading: Option<mpsc::Receiver<anyhow::Result<crate::spawn::PreparedPlayer>>>,
++    prepared: Option<crate::spawn::PreparedPlayer>,
++    parked: Option<u64>,
++    foot: Option<crate::on_foot::OnFoot>,
+     active: bool,
++    returning: bool,
++    actors: HashSet<u32>,
++    desk: u32,
+     seen: Instant,
 -    sent: Option<Instant>,
 -    seq: u64,
 -    physical: HashSet<KeyCode>,
@@ -357,51 +381,61 @@
 -    mouse_drive: bool,
 -    analog: crate::controllers::Analog,
 -    sign: Option<(Message, Instant)>,
--}
-+pub(crate) const DRIVER_SEAT:u16=1023;
-+struct Owner {peer:u32,token:u64,uid:u64,bus:String,frozen:bool,active:bool,seen:Instant,sent:Instant,triggers:Vec<String>}
-+struct Visitor {owner:u32,token:u64,uid:u64,bus:String,args:Args,world:Arc<World>,
-+ loading:Option<mpsc::Receiver<anyhow::Result<crate::spawn::PreparedPlayer>>>,
-+ prepared:Option<crate::spawn::PreparedPlayer>,parked:Option<u64>,foot:Option<crate::on_foot::OnFoot>,
-+ active:bool,returning:bool,actors:HashSet<u32>,desk:u32,seen:Instant,sent:Instant,started:Instant}
++    sent: Instant,
++    started: Instant,
+ }
  #[derive(Default)]
--pub(crate) struct DriveState {
+ pub(crate) struct DriveState {
 -    origin: Option<Instant>,
 -    inbox: omsi_lan::drive_share::Inbox,
--    requests: HashMap<u32, (u64, Instant)>,
+     requests: HashMap<u32, (u64, Instant)>,
 -    request: Option<(u32, u64, Instant, Instant)>,
--    owner: Option<Owner>,
--    visitor: Option<Visitor>,
--}
-+pub(crate) struct DriveState {requests:HashMap<u32,(u64,Instant)>,request:Option<(u32,u64,Instant)>,owner:Option<Owner>,visitor:Option<Visitor>}
++    request: Option<(u32, u64, Instant)>,
+     owner: Option<Owner>,
+     visitor: Option<Visitor>,
+ }
  impl DriveState {
 -    pub(crate) fn owner_active(&self) -> bool { self.owner.as_ref().is_some_and(|o| o.gate.active) }
 -    pub(crate) fn visitor_active(&self) -> bool { self.visitor.as_ref().is_some_and(|v| v.active) }
 -    fn clock(&mut self, now: Instant) -> u64 {
 -        now.saturating_duration_since(*self.origin.get_or_insert(now)).as_millis().min(u64::MAX as u128) as u64
--    }
--}
--fn nonce() -> u64 {
++    pub(crate) fn owner_active(&self) -> bool {
++        self.owner.as_ref().is_some_and(|o| o.frozen)
++    }
++    pub(crate) fn visitor_active(&self) -> bool {
++        self.visitor.as_ref().is_some_and(|v| v.active)
++    }
++    pub(crate) fn busy(&self) -> bool {
++        self.owner.is_some() || self.visitor.is_some()
++    }
++    pub(crate) fn visitor_owner(&self) -> Option<u32> {
++        self.visitor.as_ref().filter(|v| v.active).map(|v| v.owner)
+     }
+ }
+ fn nonce() -> u64 {
 -    SystemTime::now().duration_since(UNIX_EPOCH).map_or(1, |d| d.as_nanos() as u64).max(1)
--}
++    SystemTime::now()
++        .duration_since(UNIX_EPOCH)
++        .map_or(1, |d| d.as_nanos() as u64)
++        .max(1)
+ }
 -fn engine_bit(a: omsi_sim::EngineAction) -> u8 {
 -    use omsi_sim::EngineAction::*;
 -    1 << match a { Throttle => 0, ThrottleAmplify => 1, Brake => 2, Clutch => 3,
 -        SteeringLeft => 4, SteeringRight => 5, SteeringNeutral => 6 }
--}
++fn bus_name(app: &App, p: &Player) -> String {
++    let file = &p.vehicle.ty.def.path;
++    omsi_cfg::content_roots()
++        .iter()
++        .chain(std::iter::once(&app.args.root))
++        .find_map(|r| file.strip_prefix(r).ok())
++        .unwrap_or(file)
++        .to_string_lossy()
++        .replace('\\', "/")
+ }
 -
-+ pub(crate) fn owner_active(&self)->bool{self.owner.as_ref().is_some_and(|o|o.frozen)}
-+ pub(crate) fn visitor_active(&self)->bool{self.visitor.as_ref().is_some_and(|v|v.active)}
-+ pub(crate) fn busy(&self)->bool{self.owner.is_some()||self.visitor.is_some()}
-+ pub(crate) fn visitor_owner(&self)->Option<u32>{self.visitor.as_ref().filter(|v|v.active).map(|v|v.owner)}
-+}
-+fn nonce()->u64{SystemTime::now().duration_since(UNIX_EPOCH).map_or(1,|d|d.as_nanos()as u64).max(1)}
-+fn bus_name(app:&App,p:&Player)->String{
-+ let file=&p.vehicle.ty.def.path;
-+ omsi_cfg::content_roots().iter().chain(std::iter::once(&app.args.root)).find_map(|r|file.strip_prefix(r).ok()).unwrap_or(file).to_string_lossy().replace('\\',"/")
-+}
  impl App {
--    fn drive_send(&mut self, to: u32, message: Message) {
+     fn drive_send(&mut self, to: u32, message: Message) {
 -        if message.valid() {
 -            if let Some(lan) = self.net.lan.as_mut() {
 -                for part in omsi_lan::drive_share::fragments(&message, nonce()) { lan.command(to, &part); }
@@ -410,11 +444,26 @@
 -    }
 -    pub(crate) fn drive_requested(&self, peer: u32) -> bool {
 -        self.net.coop.drive.requests.get(&peer).is_some_and(|(_, at)| at.elapsed() < Duration::from_secs(12))
--    }
--    pub(crate) fn drive_peer(&self) -> Option<u32> {
++        if let (Some(lan), Some(bytes)) = (
++            self.net.lan.as_mut(),
++            omsi_lan::vehicle_transfer::encode(&message),
++        ) {
++            lan.publish_handover(to, bytes);
++        }
++    }
++    pub(crate) fn drive_requested(&self, p: u32) -> bool {
++        self.net
++            .coop
++            .drive
++            .requests
++            .get(&p)
++            .is_some_and(|(_, t)| t.elapsed() < Duration::from_secs(30))
+     }
+     pub(crate) fn drive_peer(&self) -> Option<u32> {
 -        self.net.coop.drive.owner.as_ref().map(|o| o.gate.peer)
--    }
--    pub(crate) fn drive_request(&mut self) {
++        self.net.coop.drive.owner.as_ref().map(|o| o.peer)
+     }
+     pub(crate) fn drive_request(&mut self) {
 -        if self.net.coop.drive.visitor.is_some() || self.net.coop.drive.owner.is_some() { return; }
 -        let Some(BusId::Ai(id)) = self.foot_bus() else { return };
 -        let Some(owner) = crate::humans::remote_bus_player(id) else { return };
@@ -423,15 +472,45 @@
 -        self.drive_send(owner, Message::Request { nonce });
 -        self.coop_notice("Pedido enviado. Aguarde o motorista autorizar com o ônibus parado.",
 -            "Request sent. The driver must authorize while stopped.", "Anfrage gesendet. Der Fahrer muss im Stand zustimmen.");
--    }
--    pub(crate) fn drive_grant(&mut self, peer: u32) {
++        if self.net.coop.drive.busy() {
++            return;
++        }
++        let Some(BusId::Ai(id)) = self.foot_bus() else {
++            return;
++        };
++        let Some(owner) = crate::humans::remote_bus_player(id) else {
++            return;
++        };
++        let n = nonce();
++        self.net.coop.drive.request = Some((owner, n, Instant::now()));
++        self.drive_send(owner, Message::Request { nonce: n });
++        self.coop_notice(
++            "Pedido de direção enviado. Aguarde a autorização e o carregamento do ônibus.",
++            "Driver request sent. Waiting for authorization and the full vehicle.",
++            "Fahreranfrage gesendet. Auf Freigabe und vollständiges Fahrzeug warten.",
++        );
+     }
+     pub(crate) fn drive_grant(&mut self, peer: u32) {
 -        if self.net.coop.drive.owner.is_some() || self.net.coop.drive.visitor.is_some()
 -            || !self.drive_requested(peer) || !self.coop_peer_inside(peer, omsi_lan::coop::Target::Player) { return; }
 -        let Some(p) = self.player.as_ref() else { return };
--        if p.vehicle.physics.velocity_kmh().abs() > 0.5 {
++        if self.net.coop.drive.busy()
++            || !self.drive_requested(peer)
++            || !self.coop_peer_inside(peer, omsi_lan::coop::Target::Player)
++        {
++            return;
++        }
++        let Some(p) = self.player.as_ref() else {
++            return;
++        };
+         if p.vehicle.physics.velocity_kmh().abs() > 0.5 {
 -            self.coop_notice("Pare o ônibus antes de autorizar a troca.", "Stop the bus before changing drivers.", "Vor dem Fahrerwechsel anhalten.");return;
 -        }
--        let uid = p.uid;
++            return;
++        }
++        let request = self.net.coop.drive.requests[&peer].0;
++        let token = nonce();
+         let uid = p.uid;
 -        let request = self.net.coop.drive.requests[&peer].0;
 -        let token = nonce();let now=Instant::now();
 -        let clock = self.net.coop.drive.clock(now);
@@ -440,7 +519,46 @@
 -        self.drive_send(peer,Message::Offer {nonce:request,token});
 -    }
 -    /// Voluntary return is stopped-only. A lost connection always cuts throttle and brakes.
--    pub(crate) fn drive_return(&mut self) {
++        let now = Instant::now();
++        let bus = bus_name(self, p);
++        let hof = p
++            .vehicle
++            .host
++            .hof
++            .as_ref()
++            .and_then(|h| h.path.file_stem())
++            .map(|s| s.to_string_lossy().to_string());
++        let paint = p
++            .vehicle
++            .host
++            .paint_scheme
++            .flatten()
++            .and_then(|i| p.vehicle.ty.paint_schemes.get(i))
++            .map(|s| s.name.clone());
++        self.net.coop.drive.owner = Some(Owner {
++            peer,
++            token,
++            uid,
++            bus: bus.clone(),
++            frozen: false,
++            active: false,
++            seen: now,
++            sent: now,
++            triggers: Vec::new(),
++        });
++        self.drive_send(
++            peer,
++            Message::Offer {
++                nonce: request,
++                token,
++                uid,
++                bus,
++                hof,
++                paint,
++            },
++        );
++    }
+     pub(crate) fn drive_return(&mut self) {
 -        let speed = if self.net.coop.drive.owner.is_some() {
 -            self.player.as_ref().map(|p| p.vehicle.physics.velocity_kmh()).unwrap_or(0.)
 -        } else { self.foot_bus().and_then(|b| self.coop_vehicle(b)).map(|v| v.physics.velocity_kmh()).unwrap_or(0.) };
@@ -451,8 +569,52 @@
 -        let own=self.net.coop.drive.owner.is_some();
 -        self.drive_reset(true);
 -        if own && self.session.on_foot.is_none(){self.view="driver".into();}
--    }
--    pub(crate) fn drive_reset(&mut self, notify: bool) {
++        if let Some(o) = self.net.coop.drive.owner.as_ref() {
++            if self
++                .player
++                .as_ref()
++                .is_some_and(|p| p.vehicle.physics.velocity_kmh().abs() <= 0.5)
++            {
++                self.drive_send(o.peer, Message::Abort { token: o.token });
++            } else {
++                self.coop_notice(
++                    "Pare o ônibus antes de retomar a direção.",
++                    "Stop before taking the wheel back.",
++                    "Vor der Rücknahme anhalten.",
++                );
++            }
++            return;
++        }
++        let Some(mut v) = self.net.coop.drive.visitor.take() else {
++            return;
++        };
++        if v.active && !v.returning {
++            if let Some(p) = self.player.as_mut() {
++                if p.vehicle.physics.velocity_kmh().abs() > 0.5 {
++                    self.net.coop.drive.visitor = Some(v);
++                    self.coop_notice(
++                        "Pare o ônibus antes de devolver a direção.",
++                        "Stop before returning the wheel.",
++                        "Vor der Rückgabe anhalten.",
++                    );
++                    return;
++                }
++                p.release();
++                p.authority_remote = true;
++                let state = Snapshot::capture(v.uid, v.bus.clone(), &p.vehicle);
++                v.returning = true;
++                self.drive_send(
++                    v.owner,
++                    Message::Return {
++                        token: v.token,
++                        state,
++                    },
++                );
++            }
++        }
++        self.net.coop.drive.visitor = Some(v);
+     }
+     pub(crate) fn drive_reset(&mut self, notify: bool) {
 -        let owner=self.net.coop.drive.owner.take();
 -        let visitor=self.net.coop.drive.visitor.take();
 -        self.net.coop.drive.request=None;
@@ -481,7 +643,99 @@
 -        let Some(message)=self.net.coop.drive.inbox.receive(from,wire,clock) else {return true;};
 -        let uid=self.player.as_ref().map_or(0,|p|p.uid);
 -        let inside=self.coop_peer_inside(from,omsi_lan::coop::Target::Player);
--        match message {
++        if let Some(o) = self.net.coop.drive.owner.take() {
++            if notify {
++                self.drive_send(o.peer, Message::Abort { token: o.token });
++            }
++            if let Some(p) = self.player.as_mut().filter(|p| p.uid == o.uid) {
++                p.authority_remote = false;
++                p.release();
++                p.axes.throttle = 0.;
++                p.axes.brake = 1.;
++                p.analog = Default::default();
++            }
++            if o.frozen {
++                self.session.on_foot = None;
++                if let Some(h) = self.session.humans.as_mut() {
++                    h.avatar_remove(crate::on_foot::AVATAR_KEY);
++                }
++                self.view = "driver".into();
++                self.cam.look = (0., 0.);
++                self.net.inside_remote = None;
++                self.menus.hover_key = None;
++                if let (Some(p), Some(cam)) = (self.player.as_ref(), self.camera.as_ref()) {
++                    self.camera = Some(p.camera(&self.view, cam));
++                }
++            }
++        }
++        if let Some(mut v) = self.net.coop.drive.visitor.take() {
++            if notify {
++                if v.active {
++                    if let Some(p) = self.player.as_mut() {
++                        p.authority_remote = true;
++                        p.release();
++                        let state = Snapshot::capture(v.uid, v.bus.clone(), &p.vehicle);
++                        self.drive_send(
++                            v.owner,
++                            Message::Suspended {
++                                token: v.token,
++                                state,
++                            },
++                        );
++                    }
++                } else {
++                    self.drive_send(v.owner, Message::Returned { token: v.token });
++                }
++            }
++            if v.active {
++                let borrowed_uid = self.player.as_ref().map_or(0, |p| p.uid);
++                if let Some(mut p) = self.player.take() {
++                    if let (Some(a), Some(mut s)) = (self.sound.audio.as_ref(), p.sounds.take()) {
++                        s.stop_all(a);
++                    }
++                    if let (Some(w), Some(r), Some(scene)) = (
++                        self.world.as_ref(),
++                        self.renderer.as_ref(),
++                        self.scene.as_mut(),
++                    ) {
++                        if let Some(mut d) = p.driver.take() {
++                            d.hide(r, scene);
++                        }
++                        w.release_vehicle(r, scene, p.render);
++                        for t in p.trailer_renders {
++                            w.release_vehicle(r, scene, t);
++                        }
++                    }
++                }
++                self.player = v
++                    .parked
++                    .take()
++                    .and_then(|uid| self.session.placed.iter().position(|p| p.uid == uid))
++                    .map(|i| self.session.placed.remove(i));
++                if let (Some(h), Some(p)) = (self.session.humans.as_mut(), self.player.as_mut()) {
++                    h.player_bus_swapped(borrowed_uid, p.uid, &mut p.vehicle);
++                }
++                self.session.on_foot = v.foot.take();
++                self.view = if self.session.on_foot.is_some() {
++                    "foot"
++                } else {
++                    "driver"
++                }
++                .into();
++            }
++        }
++        self.net.coop.camera = None;
++        self.input.keys.clear();
++        self.input.pad_repeat.clear();
++        self.net.coop.drive.request = None;
++    }
++    // Legacy input replay is intentionally never consumed as vehicle authority.
++    pub(crate) fn drive_receive(&mut self, _from: u32, _text: &str) -> bool {
++        false
++    }
++    fn drive_message(&mut self, from: u32, message: Message) {
++        let now = Instant::now();
+         match message {
 -            Message::Request {nonce} => {
 -                if inside && self.net.coop.drive.owner.is_none() && self.net.coop.drive.visitor.is_none() {
 -                    let fresh=!self.drive_requested(from);
@@ -544,7 +798,136 @@
 -                            local.z -= 1.48;
 -                            let at = bus.world_transform().transform_point3(local).as_dvec3();
 -                            Some((local, at))
--                        });
++            Message::Work { token, actor, wire } => {
++                let valid = self.net.coop.drive.visitor.as_ref().is_some_and(|v| {
++                    v.owner == from && v.token == token && v.active && !v.returning
++                });
++                if !valid || wire.len() > 1024 {
++                    return;
++                }
++                if let Some(v) = self.net.coop.drive.visitor.as_mut() {
++                    v.actors.insert(actor);
++                }
++                match omsi_lan::coop::Message::parse(&wire) {
++                    Some(omsi_lan::coop::Message::Action(a))
++                        if a.target == omsi_lan::coop::Target::Player && a.kind <= 1 =>
++                    {
++                        self.coop_apply_delegated(actor, &a);
++                    }
++                    Some(omsi_lan::coop::Message::Keep(epoch)) => {
++                        self.coop_keep_delegated(actor, epoch);
++                    }
++                    _ => {}
++                }
++            }
++            Message::Request { nonce } => {
++                if !self.net.coop.drive.busy()
++                    && self.coop_peer_inside(from, omsi_lan::coop::Target::Player)
++                {
++                    self.net.coop.drive.requests.insert(from, (nonce, now));
++                    self.coop_notice("Um passageiro pediu a direção. Autorize no Cooperativo com o ônibus parado.","A passenger requested the wheel. Authorize in Cooperative while stopped.","Ein Fahrgast möchte fahren. Im Stand im Koop-Menü freigeben.");
++                }
++            }
++            Message::Offer {
++                nonce,
++                token,
++                uid,
++                bus,
++                hof,
++                paint,
++            } => {
++                let expected = self.net.coop.drive.request.is_some_and(|(p, n, t)| {
++                    p == from && n == nonce && t.elapsed() < Duration::from_secs(60)
++                });
++                if !expected || self.net.coop.drive.visitor.is_some() || uid == 0 || token == 0 {
++                    return;
++                }
++                let Some(BusId::Ai(id)) = self.foot_bus() else {
++                    return;
++                };
++                if crate::humans::remote_bus_player(id) != Some(from) {
++                    return;
++                }
++                // Resolve the actual locally mounted copy, including buses downloaded through mods.
++                let Some(remote) = self
++                    .net
++                    .remotes
++                    .remotes
++                    .get(&from)
++                    .filter(|r| !r.stand_in && !r.fallback)
++                else {
++                    return;
++                };
++                let local = remote.vehicle().ty.def.path.to_string_lossy().to_string();
++                let (Some(world), Some(renderer)) = (self.world.clone(), self.renderer.as_ref())
++                else {
++                    return;
++                };
++                let args = Args {
++                    bus: Some(local),
++                    paint,
++                    hof,
++                    autostart: false,
++                    keep_fuel: true,
++                    situation: None,
++                    situation_vars: Vec::new(),
++                    situation_strvars: Vec::new(),
++                    situation_odometer_km: Some(0.),
++                    situation_others: Vec::new(),
++                    line: None,
++                    tour: None,
++                    trip: None,
++                    triggers: None,
++                    setvar: None,
++                    setstr: None,
++                    ..self.args.clone()
++                };
++                let worker_args = args.clone();
++                let prefetch = world.placement_prefetch(renderer);
++                let (tx, rx) = mpsc::channel();
++                if std::thread::Builder::new()
++                    .name("full-driver-vehicle".into())
++                    .spawn(move || {
++                        let result =
++                            crate::spawn::PreparedPlayer::load(&worker_args).map(|mut p| {
++                                p.prefetch(prefetch, worker_args.paint.as_deref());
++                                p
++                            });
++                        let _ = tx.send(result);
++                    })
++                    .is_err()
++                {
++                    return;
++                }
++                self.net.coop.drive.visitor = Some(Visitor {
++                    owner: from,
++                    token,
++                    uid,
++                    bus,
++                    args,
++                    world,
++                    loading: Some(rx),
++                    prepared: None,
++                    parked: None,
++                    foot: None,
++                    active: false,
++                    returning: false,
++                    actors: HashSet::new(),
++                    desk: 0,
++                    seen: now,
++                    sent: now,
++                    started: now,
++                });
++            }
++            Message::Prepared { token } => {
++                let Some(mut o) = self.net.coop.drive.owner.take() else {
++                    return;
++                };
++                if o.peer == from && o.token == token && !o.frozen {
++                    let valid = self.coop_peer_inside(from, omsi_lan::coop::Target::Player)
++                        && self.player.as_ref().is_some_and(|p| {
++                            p.uid == o.uid && p.vehicle.physics.velocity_kmh().abs() <= 0.5
+                         });
 -                        if let (Some((local, at)), Some(foot)) = (target, self.session.on_foot.as_mut()) {
 -                            foot.seat = None;
 -                            foot.inside = Some((BusId::Ai(id), local));
@@ -567,7 +950,296 @@
 -            Message::Release {token} => {
 -                if self.net.coop.drive.owner.as_ref().is_some_and(|o|o.gate.peer==from&&o.gate.token==token)
 -                    || self.net.coop.drive.visitor.as_ref().is_some_and(|v|v.owner==from&&v.token==token) {
--                    self.drive_reset(false);
++                    if !valid {
++                        self.net.coop.drive.owner = Some(o);
++                        self.drive_reset(true);
++                        return;
++                    }
++                    self.release_vehicle_keys();
++                    self.input.cruise = None;
++                    if self.session.on_foot.is_none() {
++                        let allowed = self.settings.get_up;
++                        self.settings.get_up = true;
++                        self.get_up();
++                        self.settings.get_up = allowed;
++                    }
++                    let bus = self
++                        .player
++                        .as_ref()
++                        .map(|p| bus_name(self, p))
++                        .unwrap_or_default();
++                    if let Some(p) = self.player.as_mut() {
++                        p.release();
++                        p.authority_remote = true;
++                        p.startup = None;
++                        let state = Snapshot::capture(o.uid, bus, &p.vehicle);
++                        o.frozen = true;
++                        o.seen = now;
++                        let commit = Message::Commit { token, state };
++                        if omsi_lan::vehicle_transfer::encode(&commit).is_none() {
++                            p.authority_remote = false;
++                            o.frozen = false;
++                            self.net.coop.drive.owner = Some(o);
++                            self.drive_reset(true);
++                            self.coop_notice("O estado deste modelo excede o limite de transferência. O ônibus continua com você.","This model state exceeds the transfer limit. Your bus remains here.","Fahrzeugzustand überschreitet das Übertragungslimit. Dein Bus bleibt hier.");
++                            return;
++                        }
++                        self.drive_send(from, commit);
++                    }
++                    self.view = if self.session.on_foot.is_some() {
++                        "foot"
++                    } else {
++                        "pax"
++                    }
++                    .into();
++                }
++                self.net.coop.drive.owner = Some(o);
++            }
++            Message::Commit { token, state } => {
++                let Some(mut v) = self.net.coop.drive.visitor.take() else {
++                    return;
++                };
++                if v.owner != from
++                    || v.token != token
++                    || state.uid != v.uid
++                    || state.bus != v.bus
++                    || !state.valid()
++                {
++                    self.net.coop.drive.visitor = Some(v);
++                    return;
++                }
++                if !v.active {
++                    let same_world = self
++                        .world
++                        .as_ref()
++                        .is_some_and(|w| Arc::ptr_eq(w, &v.world));
++                    let (Some(prepared), Some(r), Some(scene), true) = (
++                        v.prepared.take(),
++                        self.renderer.as_ref(),
++                        self.scene.as_mut(),
++                        same_world,
++                    ) else {
++                        self.net.coop.drive.visitor = Some(v);
++                        return;
++                    };
++                    let result =
++                        crate::spawn::spawn_player_prepared(&v.args, &v.world, r, scene, prepared);
++                    let Ok(Some(mut p)) = result else {
++                        self.net.coop.drive.visitor = Some(v);
++                        self.drive_reset(true);
++                        return;
++                    };
++                    if !state.apply(&mut p.vehicle) {
++                        v.world.release_vehicle(r, scene, p.render);
++                        for t in p.trailer_renders {
++                            v.world.release_vehicle(r, scene, t);
++                        }
++                        self.net.coop.drive.visitor = Some(v);
++                        self.drive_reset(true);
++                        return;
++                    }
++                    p.borrowed_from = Some(v.owner);
++                    p.authority_remote = false;
++                    p.vehicle.host.auto_clutch = if self.settings.auto_clutch { 1.0 } else { 0.0 };
++                    p.vehicle.host.capture_sound_triggers = true;
++                    p.vehicle.host.fired_triggers.clear();
++                    p.vehicle.host.fired_trigger_vars.clear();
++                    p.vehicle.host.fired_file_triggers.clear();
++                    p.sync_transforms(r, scene, true, v.world.settings.rain_quality());
++                    if let Some(a) = self.sound.audio.as_ref() {
++                        p.load_sounds(a);
++                    }
++                    if let Some(mut old) = self.player.take() {
++                        old.release();
++                        if let (Some(a), Some(mut sounds)) =
++                            (self.sound.audio.as_ref(), old.sounds.take())
++                        {
++                            sounds.stop_all(a);
++                        }
++                        if let Some(h) = self.session.humans.as_mut() {
++                            h.player_bus_swapped(old.uid, p.uid, &mut p.vehicle);
++                        }
++                        v.parked = Some(old.uid);
++                        self.session.placed.push(old);
++                    }
++                    v.foot = self.session.on_foot.take();
++                    if let Some(h) = self.session.humans.as_mut() {
++                        h.avatar_remove(crate::on_foot::AVATAR_KEY);
++                    }
++                    self.player = Some(p);
++                    v.active = true;
++                    v.seen = now;
++                    self.net.coop.camera = None;
++                    self.net.inside_remote = None;
++                    self.view = "driver".into();
++                    self.cam.look = (0., 0.);
++                    self.menus.hover_key = None;
++                    self.input.keys.clear();
++                    self.input.pad_repeat.clear();
++                    self.net.coop.panel = false;
++                    self.net.coop.drive.request = None;
++                    if let (Some(p), Some(cam)) = (self.player.as_ref(), self.camera.as_ref()) {
++                        self.camera = Some(p.camera(&self.view, cam));
++                    }
++                    self.coop_notice("Você assumiu o ônibus. Os controles, painel e câmeras usam agora o veículo completo.","You now control the full vehicle, its cockpit and cameras.","Du steuerst jetzt das vollständige Fahrzeug, Cockpit und Kameras.");
++                }
++                self.drive_send(from, Message::Active { token });
++                self.net.coop.drive.visitor = Some(v);
++            }
++            Message::Active { token } => {
++                if let Some(o) = self
++                    .net
++                    .coop
++                    .drive
++                    .owner
++                    .as_mut()
++                    .filter(|o| o.peer == from && o.token == token && o.frozen)
++                {
++                    o.active = true;
++                    o.seen = now;
++                }
++            }
++            Message::State {
++                token,
++                desk,
++                state,
++                sounds,
++                coins,
++                ticket,
++                change,
++                take_change,
++            } => {
++                let valid = self.net.coop.drive.owner.as_ref().is_some_and(|o| {
++                    o.peer == from
++                        && o.token == token
++                        && o.frozen
++                        && o.uid == state.uid
++                        && o.bus == state.bus
++                });
++                if valid {
++                    let same_desk = desk != 0 && desk == self.coop_desk(0).id;
++                    if let Some(p) = self.player.as_mut() {
++                        let preserve: Vec<_> = p
++                            .vehicle
++                            .var_index()
++                            .iter()
++                            .filter(|(n, _)| {
++                                passenger_input(n)
++                                    && (!same_desk || !n.eq_ignore_ascii_case("giventicket"))
++                            })
++                            .map(|(n, i)| (n.clone(), p.vehicle.state.vars[*i as usize]))
++                            .collect();
++                        let tt = (
++                            p.vehicle.host.tt_line.clone(),
++                            p.vehicle.host.tt_delay,
++                            p.vehicle.host.tt_stops.clone(),
++                            p.vehicle.host.tt_stop_ids.clone(),
++                            p.vehicle.host.tt_terminus_index,
++                            p.vehicle.host.tt_busstop_index,
++                        );
++                        if state.apply(&mut p.vehicle) {
++                            let h = &mut p.vehicle.host;
++                            h.tt_line = tt.0;
++                            h.tt_delay = tt.1;
++                            h.tt_stops = tt.2;
++                            h.tt_stop_ids = tt.3;
++                            h.tt_terminus_index = tt.4;
++                            h.tt_busstop_index = tt.5;
++                            for (n, value) in preserve {
++                                p.vehicle.set_engine_var(&n, value);
++                            }
++                            for (name, file, values) in &sounds {
++                                if let Some(file) = file {
++                                    if omsi_net::remote_text::freetex_ok(file) {
++                                        p.vehicle
++                                            .host
++                                            .fired_file_triggers
++                                            .push((name.clone(), file.clone()));
++                                    }
++                                } else {
++                                    p.vehicle.host.fired_triggers.push(name.clone());
++                                    if let Some(values) = values {
++                                        p.vehicle
++                                            .host
++                                            .fired_trigger_vars
++                                            .push((name.clone(), values.clone()));
++                                    }
++                                }
++                            }
++                            p.vehicle.host.network_sound_triggers.extend(sounds);
++                            if same_desk {
++                                p.vehicle.host.change_coins.extend(coins);
++                                p.give_ticket |= ticket;
++                                p.give_change |= change;
++                                p.take_change |= take_change;
++                            }
++                            if let Some(o) = self.net.coop.drive.owner.as_mut() {
++                                o.seen = now;
++                                o.active = true;
++                            }
++                        }
++                    }
++                }
++            }
++            Message::Context {
++                token,
++                desk,
++                tt,
++                schedule,
++                vars,
++                humans,
++                paths,
++                seats,
++                triggers,
++            } => {
++                let valid = self.net.coop.drive.visitor.as_ref().is_some_and(|v| {
++                    v.owner == from && v.token == token && v.active && !v.returning
++                });
++                if valid {
++                    if let Some(p) = self.player.as_mut() {
++                        for (n, value) in vars {
++                            if value.is_finite() && passenger_input(&n) {
++                                p.vehicle.set_engine_var(&n, value);
++                            }
++                        }
++                        p.vehicle.host.humans_count = humans;
++                        p.vehicle.host.humans_on_path_link = paths;
++                        p.vehicle.host.humans_on_seat = seats;
++                        let h = &mut p.vehicle.host;
++                        h.tt_line = tt.0;
++                        h.tt_delay = tt.1;
++                        h.tt_stops = tt.2;
++                        h.tt_stop_ids = tt.3;
++                        h.tt_terminus_index = tt.4;
++                        h.tt_busstop_index = tt.5;
++                        h.schedule_active = schedule;
++                        for t in triggers.into_iter().take(128) {
++                            p.vehicle.trigger(&t);
++                        }
++                    }
++                    if let Some(v) = self.net.coop.drive.visitor.as_mut() {
++                        v.seen = now;
++                        v.desk = desk;
++                    }
++                }
++            }
++            Message::Return { token, state } => {
++                let valid = self.net.coop.drive.owner.as_ref().is_some_and(|o| {
++                    o.peer == from
++                        && o.token == token
++                        && o.frozen
++                        && o.uid == state.uid
++                        && o.bus == state.bus
++                });
++                if valid
++                    && state.speed.abs() <= 0.5 / 3.6
++                    && self
++                        .player
++                        .as_mut()
++                        .is_some_and(|p| state.apply(&mut p.vehicle))
++                {
++                    self.drive_send(from, Message::Returned { token });
+                     self.drive_reset(false);
 -                    self.coop_notice("Direção devolvida. O ônibus foi mantido e o acelerador liberado.",
 -                        "Wheel returned. The bus is preserved and throttle released.", "Lenkung zurückgegeben. Bus erhalten und Gas gelöst.");
 -                }
@@ -603,8 +1275,297 @@
 -                }
 -            }
 -        }
--        true
--    }
++                }
++            }
++            Message::Suspended { token, state } => {
++                let valid = self.net.coop.drive.owner.as_ref().is_some_and(|o| {
++                    o.peer == from
++                        && o.token == token
++                        && o.frozen
++                        && o.uid == state.uid
++                        && o.bus == state.bus
++                });
++                if valid
++                    && self
++                        .player
++                        .as_mut()
++                        .is_some_and(|p| state.apply(&mut p.vehicle))
++                {
++                    self.drive_send(from, Message::Returned { token });
++                    self.drive_reset(false);
++                }
++            }
++            Message::Returned { token } => {
++                if self
++                    .net
++                    .coop
++                    .drive
++                    .owner
++                    .as_ref()
++                    .is_some_and(|o| o.peer == from && o.token == token && !o.active)
++                {
++                    self.drive_reset(false);
++                }
++                if self
++                    .net
++                    .coop
++                    .drive
++                    .visitor
++                    .as_ref()
++                    .is_some_and(|v| v.owner == from && v.token == token && v.returning)
++                {
++                    self.drive_reset(false);
++                }
++            }
++            Message::Heartbeat { token } => {
++                if let Some(o) = self
++                    .net
++                    .coop
++                    .drive
++                    .owner
++                    .as_mut()
++                    .filter(|o| o.peer == from && o.token == token)
++                {
++                    o.seen = now;
++                }
++                if let Some(v) = self
++                    .net
++                    .coop
++                    .drive
++                    .visitor
++                    .as_mut()
++                    .filter(|v| v.owner == from && v.token == token)
++                {
++                    v.seen = now;
++                }
++            }
++            Message::Abort { token } => {
++                if self
++                    .net
++                    .coop
++                    .drive
++                    .visitor
++                    .as_ref()
++                    .is_some_and(|v| v.owner == from && v.token == token)
++                {
++                    if let Some(v) = self.net.coop.drive.visitor.as_ref().filter(|v| v.active) {
++                        let (uid, bus, owner) = (v.uid, v.bus.clone(), v.owner);
++                        if let Some(p) = self.player.as_mut() {
++                            p.authority_remote = true;
++                            p.release();
++                            let state = Snapshot::capture(uid, bus, &p.vehicle);
++                            self.drive_send(owner, Message::Suspended { token, state });
++                        }
++                    } else {
++                        self.drive_send(from, Message::Returned { token });
++                    }
++                    self.drive_reset(false);
++                }
++                if self
++                    .net
++                    .coop
++                    .drive
++                    .owner
++                    .as_ref()
++                    .is_some_and(|o| o.peer == from && o.token == token && !o.frozen)
++                {
++                    self.drive_reset(false);
++                }
++            }
++        }
++    }
++    pub(crate) fn drive_tick(&mut self) {
++        let incoming = self
++            .net
++            .lan
++            .as_mut()
++            .map(|l| l.take_handovers())
++            .unwrap_or_default();
++        for m in incoming {
++            if let Some(message) = omsi_lan::vehicle_transfer::decode(&m.event.data) {
++                self.drive_message(m.owner, message);
++            }
++        }
++        if self.session.humans.as_ref().is_some_and(|h| h.stop_request) {
++            self.drive_queue_trigger("int_haltewunsch");
++        }
++        let now = Instant::now();
++        self.net
++            .coop
++            .drive
++            .requests
++            .retain(|_, (_, t)| t.elapsed() < Duration::from_secs(30));
++        if self
++            .net
++            .coop
++            .drive
++            .request
++            .is_some_and(|(_, _, t)| t.elapsed() > Duration::from_secs(60))
++        {
++            self.net.coop.drive.request = None;
++            self.coop_notice(
++                "A troca expirou. Os dois jogadores e o servidor precisam da versão nova.",
++                "Driver change expired. Both players and the server need the new version.",
++                "Fahrerwechsel abgelaufen. Beide Spieler und Server benötigen die neue Version.",
++            );
++        }
++        if let Some(mut o) = self.net.coop.drive.owner.take() {
++            let invalid = self.player.as_ref().is_none_or(|p| p.uid != o.uid)
++                || self
++                    .net
++                    .lan
++                    .as_ref()
++                    .is_none_or(|l| !l.peers().any(|p| p.pose.id == o.peer));
++            // The visitor cuts its authority at 750 ms; only resume after 3 seconds.
++            if !o.frozen && (invalid || o.seen.elapsed() > Duration::from_secs(60)) {
++                self.net.coop.drive.owner = Some(o);
++                self.drive_reset(true);
++                return;
++            }
++            // A frozen owner never resumes on silence alone: a late Commit must not
++            // create a second simulator. Only Return/Suspended confirms the peer stopped.
++            if o.frozen && (invalid || o.seen.elapsed() > Duration::from_secs(3)) {
++                if o.sent.elapsed() > Duration::from_millis(250) {
++                    self.drive_send(o.peer, Message::Abort { token: o.token });
++                    o.sent = now;
++                }
++                self.net.coop.drive.owner = Some(o);
++                return;
++            }
++            if o.sent.elapsed() > Duration::from_millis(150) {
++                self.drive_send(o.peer, Message::Heartbeat { token: o.token });
++                if o.frozen {
++                    if let Some(p) = self.player.as_ref() {
++                        let h = &p.vehicle.host;
++                        let vars = p
++                            .vehicle
++                            .var_index()
++                            .iter()
++                            .filter(|(n, _)| passenger_input(n))
++                            .map(|(n, i)| (n.clone(), p.vehicle.state.vars[*i as usize]))
++                            .collect();
++                        let message = Message::Context {
++                            token: o.token,
++                            desk: self.coop_desk(0).id,
++                            tt: (
++                                h.tt_line.clone(),
++                                h.tt_delay,
++                                h.tt_stops.clone(),
++                                h.tt_stop_ids.clone(),
++                                h.tt_terminus_index,
++                                h.tt_busstop_index,
++                            ),
++                            schedule: h.schedule_active,
++                            vars,
++                            humans: h.humans_count,
++                            paths: h.humans_on_path_link.clone(),
++                            seats: h.humans_on_seat.clone(),
++                            triggers: std::mem::take(&mut o.triggers),
++                        };
++                        self.drive_send(o.peer, message);
++                    }
++                }
++                o.sent = now;
++            }
++            self.net.coop.drive.owner = Some(o);
++        }
++        if let Some(mut v) = self.net.coop.drive.visitor.take() {
++            if !v.active {
++                if let Some(rx) = v.loading.as_ref() {
++                    match rx.try_recv() {
++                        Ok(Ok(p)) => {
++                            v.prepared = Some(p);
++                            v.loading = None;
++                            self.drive_send(v.owner, Message::Prepared { token: v.token });
++                        }
++                        Ok(Err(e)) => {
++                            log::warn!("full vehicle preparation failed: {e:#}");
++                            self.net.coop.drive.visitor = Some(v);
++                            self.drive_reset(true);
++                            return;
++                        }
++                        Err(mpsc::TryRecvError::Disconnected) => {
++                            self.net.coop.drive.visitor = Some(v);
++                            self.drive_reset(true);
++                            return;
++                        }
++                        Err(mpsc::TryRecvError::Empty) => {}
++                    }
++                }
++                if v.started.elapsed() > Duration::from_secs(60) {
++                    self.net.coop.drive.visitor = Some(v);
++                    self.drive_reset(true);
++                    return;
++                }
++            } else if v.seen.elapsed() > Duration::from_millis(750) {
++                // No self-reactivation after a network stall: the owner's lease may resume.
++                if let Some(p) = self.player.as_mut() {
++                    p.authority_remote = true;
++                    p.release();
++                    let state = Snapshot::capture(v.uid, v.bus.clone(), &p.vehicle);
++                    self.drive_send(
++                        v.owner,
++                        Message::Suspended {
++                            token: v.token,
++                            state,
++                        },
++                    );
++                }
++                self.net.coop.drive.visitor = Some(v);
++                self.drive_reset(false);
++                return;
++            }
++            if v.sent.elapsed() > Duration::from_millis(100) {
++                if v.active && !v.returning {
++                    if let Some(p) = self.player.as_mut() {
++                        let state = Snapshot::capture(v.uid, v.bus.clone(), &p.vehicle);
++                        let message = Message::State {
++                            token: v.token,
++                            desk: v.desk,
++                            state,
++                            sounds: std::mem::take(&mut p.vehicle.host.network_sound_triggers),
++                            coins: std::mem::take(&mut p.vehicle.host.change_coins),
++                            ticket: std::mem::take(&mut p.give_ticket),
++                            change: std::mem::take(&mut p.give_change),
++                            take_change: std::mem::take(&mut p.take_change),
++                        };
++                        self.drive_send(v.owner, message);
++                    }
++                } else {
++                    self.drive_send(v.owner, Message::Heartbeat { token: v.token });
++                }
++                v.sent = now;
++            }
++            self.net.coop.drive.visitor = Some(v);
++        }
++    }
++    pub(crate) fn drive_delegated_actor(&self, actor: u32) -> bool {
++        self.net
++            .coop
++            .drive
++            .visitor
++            .as_ref()
++            .is_some_and(|v| v.active && v.actors.contains(&actor))
++    }
++    pub(crate) fn drive_forward_coop(
++        &mut self,
++        actor: u32,
++        message: &omsi_lan::coop::Message,
++    ) -> bool {
++        let Some(o) = self.net.coop.drive.owner.as_ref().filter(|o| o.frozen) else {
++            return false;
++        };
++        let (peer, token) = (o.peer, o.token);
++        self.drive_send(
++            peer,
++            Message::Work {
++                token,
++                actor,
++                wire: message.encode(),
++            },
++        );
+         true
+     }
 -    pub(crate) fn drive_tick(&mut self) {
 -        let now=Instant::now();let clock=self.net.coop.drive.clock(now);
 -        self.net.coop.drive.requests.retain(|_,(_,at)|now.duration_since(*at)<Duration::from_secs(12));
@@ -758,8 +1719,51 @@
 -        if self.net.coop.drive.owner_active(){
 -            return !matches!(code,KeyCode::Escape|KeyCode::F1|KeyCode::F2|KeyCode::F3|KeyCode::F4|KeyCode::F12|KeyCode::Slash|KeyCode::KeyV);
 -        }
--        false
--    }
++    pub(crate) fn drive_queue_trigger(&mut self, name: &str) -> bool {
++        if let Some(o) = self.net.coop.drive.owner.as_mut().filter(|o| o.frozen) {
++            if o.triggers.len() < 128 {
++                o.triggers.push(name.to_owned());
++            }
++            true
++        } else {
++            false
++        }
++    }
++    pub(crate) fn shared_drive_key(
++        &mut self,
++        code: KeyCode,
++        _pressed: bool,
++        _repeat: bool,
++    ) -> bool {
++        self.net.coop.drive.owner_active()
++            && self.session.on_foot.is_none()
++            && !matches!(
++                code,
++                KeyCode::Escape
++                    | KeyCode::F1
++                    | KeyCode::F2
++                    | KeyCode::F3
++                    | KeyCode::F4
++                    | KeyCode::F12
++                    | KeyCode::Slash
++                    | KeyCode::KeyV
++            )
++    }
++    pub(crate) fn drive_pad(
++        &mut self,
++        _a: crate::controllers::Analog,
++        _b: &[(String, bool)],
++    ) -> bool {
++        self.net.coop.drive.owner_active()
++    }
++    pub(crate) fn drive_lost_focus(&mut self) {}
++    pub(crate) fn drive_sign(
++        &mut self,
++        _form: &crate::game_panels::DestForm,
++        _clear: bool,
++    ) -> bool {
+         false
+     }
 -    pub(crate) fn drive_pad(&mut self, analog:crate::controllers::Analog,actions:&[(String,bool)])->bool {
 -        if let Some(v)=self.net.coop.drive.visitor.as_mut().filter(|v|v.active){
 -            v.analog=analog;
@@ -781,274 +1785,21 @@
 -        if message.valid(){let owner=v.owner;v.sign=Some((message.clone(),Instant::now()));self.drive_send(owner,message);}
 -        true
 -    }
--}
-+ fn drive_send(&mut self,to:u32,message:Message){
-+  if let (Some(lan),Some(bytes))=(self.net.lan.as_mut(),omsi_lan::vehicle_transfer::encode(&message)){lan.publish_handover(to,bytes);}
-+ }
-+ pub(crate) fn drive_requested(&self,p:u32)->bool{self.net.coop.drive.requests.get(&p).is_some_and(|(_,t)|t.elapsed()<Duration::from_secs(30))}
-+ pub(crate) fn drive_peer(&self)->Option<u32>{self.net.coop.drive.owner.as_ref().map(|o|o.peer)}
-+ pub(crate) fn drive_request(&mut self){
-+  if self.net.coop.drive.busy(){return;}let Some(BusId::Ai(id))=self.foot_bus()else{return;};
-+  let Some(owner)=crate::humans::remote_bus_player(id)else{return;};let n=nonce();
-+  self.net.coop.drive.request=Some((owner,n,Instant::now()));self.drive_send(owner,Message::Request{nonce:n});
-+  self.coop_notice("Pedido de direção enviado. Aguarde a autorização e o carregamento do ônibus.","Driver request sent. Waiting for authorization and the full vehicle.","Fahreranfrage gesendet. Auf Freigabe und vollständiges Fahrzeug warten.");
-+ }
-+ pub(crate) fn drive_grant(&mut self,peer:u32){
-+  if self.net.coop.drive.busy()||!self.drive_requested(peer)||!self.coop_peer_inside(peer,omsi_lan::coop::Target::Player){return;}
-+  let Some(p)=self.player.as_ref()else{return;};if p.vehicle.physics.velocity_kmh().abs()>0.5{return;}
-+  let request=self.net.coop.drive.requests[&peer].0;let token=nonce();let uid=p.uid;let now=Instant::now();
-+  let bus=bus_name(self,p);let hof=p.vehicle.host.hof.as_ref().and_then(|h|h.path.file_stem()).map(|s|s.to_string_lossy().to_string());
-+  let paint=p.vehicle.host.paint_scheme.flatten().and_then(|i|p.vehicle.ty.paint_schemes.get(i)).map(|s|s.name.clone());
-+  self.net.coop.drive.owner=Some(Owner{peer,token,uid,bus:bus.clone(),frozen:false,active:false,seen:now,sent:now,triggers:Vec::new()});
-+  self.drive_send(peer,Message::Offer{nonce:request,token,uid,bus,hof,paint});
-+ }
-+ pub(crate) fn drive_return(&mut self){
-+  if let Some(o)=self.net.coop.drive.owner.as_ref(){
-+   if self.player.as_ref().is_some_and(|p|p.vehicle.physics.velocity_kmh().abs()<=0.5){self.drive_send(o.peer,Message::Abort{token:o.token});}
-+   else{self.coop_notice("Pare o ônibus antes de retomar a direção.","Stop before taking the wheel back.","Vor der Rücknahme anhalten.");}return;
-+  }
-+  let Some(mut v)=self.net.coop.drive.visitor.take()else{return;};
-+  if v.active&&!v.returning {
-+   if let Some(p)=self.player.as_mut(){
-+    if p.vehicle.physics.velocity_kmh().abs()>0.5 {self.net.coop.drive.visitor=Some(v);self.coop_notice("Pare o ônibus antes de devolver a direção.","Stop before returning the wheel.","Vor der Rückgabe anhalten.");return;}
-+    p.release();p.authority_remote=true;
-+    let state=Snapshot::capture(v.uid,v.bus.clone(),&p.vehicle);v.returning=true;
-+    self.drive_send(v.owner,Message::Return{token:v.token,state});
-+   }
-+  }
-+  self.net.coop.drive.visitor=Some(v);
-+ }
-+ pub(crate) fn drive_reset(&mut self,notify:bool){
-+  if let Some(o)=self.net.coop.drive.owner.take(){
-+   if notify{self.drive_send(o.peer,Message::Abort{token:o.token});}
-+   if let Some(p)=self.player.as_mut().filter(|p|p.uid==o.uid){p.authority_remote=false;p.release();p.axes.throttle=0.;p.axes.brake=1.;p.analog=Default::default();}
-+   if o.frozen {
-+    self.session.on_foot=None;if let Some(h)=self.session.humans.as_mut(){h.avatar_remove(crate::on_foot::AVATAR_KEY);}
-+    self.view="driver".into();self.cam.look=(0.,0.);self.net.inside_remote=None;self.menus.hover_key=None;
-+    if let (Some(p),Some(cam))=(self.player.as_ref(),self.camera.as_ref()){self.camera=Some(p.camera(&self.view,cam));}
-+   }
-+  }
-+  if let Some(mut v)=self.net.coop.drive.visitor.take(){
-+   if notify {
-+    if v.active {
-+     if let Some(p)=self.player.as_mut(){p.authority_remote=true;p.release();let state=Snapshot::capture(v.uid,v.bus.clone(),&p.vehicle);self.drive_send(v.owner,Message::Suspended{token:v.token,state});}
-+    }else{self.drive_send(v.owner,Message::Returned{token:v.token});}
-+   }
-+   if v.active {
-+    let borrowed_uid=self.player.as_ref().map_or(0,|p|p.uid);
-+    if let Some(mut p)=self.player.take(){
-+     if let (Some(a),Some(mut s))=(self.sound.audio.as_ref(),p.sounds.take()){s.stop_all(a);}
-+     if let (Some(w),Some(r),Some(scene))=(self.world.as_ref(),self.renderer.as_ref(),self.scene.as_mut()){
-+      if let Some(mut d)=p.driver.take(){d.hide(r,scene);}w.release_vehicle(r,scene,p.render);for t in p.trailer_renders{w.release_vehicle(r,scene,t);}
-+     }
-+    }
-+    self.player=v.parked.take().and_then(|uid|self.session.placed.iter().position(|p|p.uid==uid)).map(|i|self.session.placed.remove(i));
-+    if let (Some(h),Some(p))=(self.session.humans.as_mut(),self.player.as_mut()){h.player_bus_swapped(borrowed_uid,p.uid,&mut p.vehicle);}
-+    self.session.on_foot=v.foot.take();self.view=if self.session.on_foot.is_some(){"foot"}else{"driver"}.into();
-+   }
-+  }
-+  self.net.coop.camera=None;self.input.keys.clear();self.input.pad_repeat.clear();self.net.coop.drive.request=None;
-+ }
-+ // Legacy input replay is intentionally never consumed as vehicle authority.
-+ pub(crate) fn drive_receive(&mut self,_from:u32,_text:&str)->bool{false}
-+ fn drive_message(&mut self,from:u32,message:Message){
-+  let now=Instant::now();
-+  match message {
-+   Message::Work{token,actor,wire}=>{
-+    let valid=self.net.coop.drive.visitor.as_ref().is_some_and(|v|v.owner==from&&v.token==token&&v.active&&!v.returning);
-+    if !valid||wire.len()>1024{return;}
-+    if let Some(v)=self.net.coop.drive.visitor.as_mut(){v.actors.insert(actor);}
-+    match omsi_lan::coop::Message::parse(&wire){
-+     Some(omsi_lan::coop::Message::Action(a)) if a.target==omsi_lan::coop::Target::Player && a.kind<=1=>{self.coop_apply_delegated(actor,&a);},
-+     Some(omsi_lan::coop::Message::Keep(epoch))=>{self.coop_keep_delegated(actor,epoch);},
-+     _=>{},
-+    }
-+   },
-+   Message::Request{nonce}=>{if !self.net.coop.drive.busy()&&self.coop_peer_inside(from,omsi_lan::coop::Target::Player){self.net.coop.drive.requests.insert(from,(nonce,now));self.coop_notice("Um passageiro pediu a direção. Autorize no Cooperativo com o ônibus parado.","A passenger requested the wheel. Authorize in Cooperative while stopped.","Ein Fahrgast möchte fahren. Im Stand im Koop-Menü freigeben.");}},
-+   Message::Offer{nonce,token,uid,bus,hof,paint}=>{
-+    let expected=self.net.coop.drive.request.is_some_and(|(p,n,t)|p==from&&n==nonce&&t.elapsed()<Duration::from_secs(60));
-+    if !expected||self.net.coop.drive.visitor.is_some()||uid==0||token==0{return;}
-+    let Some(BusId::Ai(id))=self.foot_bus()else{return;};if crate::humans::remote_bus_player(id)!=Some(from){return;}
-+    // Resolve the actual locally mounted copy, including buses downloaded through mods.
-+    let Some(remote)=self.net.remotes.remotes.get(&from).filter(|r|!r.stand_in&&!r.fallback)else{return;};
-+    let local=remote.vehicle().ty.def.path.to_string_lossy().to_string();
-+    let (Some(world),Some(renderer))=(self.world.clone(),self.renderer.as_ref())else{return;};
-+    let args=Args{bus:Some(local),paint,hof,autostart:false,keep_fuel:true,situation:None,situation_vars:Vec::new(),situation_strvars:Vec::new(),situation_odometer_km:Some(0.),situation_others:Vec::new(),line:None,tour:None,trip:None,triggers:None,setvar:None,setstr:None,..self.args.clone()};
-+    let worker_args=args.clone();let prefetch=world.placement_prefetch(renderer);let(tx,rx)=mpsc::channel();
-+    if std::thread::Builder::new().name("full-driver-vehicle".into()).spawn(move||{let result=crate::spawn::PreparedPlayer::load(&worker_args).map(|mut p|{p.prefetch(prefetch,worker_args.paint.as_deref());p});let _=tx.send(result);}).is_err(){return;}
-+    self.net.coop.drive.visitor=Some(Visitor{owner:from,token,uid,bus,args,world,loading:Some(rx),prepared:None,parked:None,foot:None,active:false,returning:false,actors:HashSet::new(),desk:0,seen:now,sent:now,started:now});
-+   },
-+   Message::Prepared{token}=>{
-+    let Some(mut o)=self.net.coop.drive.owner.take()else{return;};
-+    if o.peer==from&&o.token==token&&!o.frozen {
-+     let valid=self.coop_peer_inside(from,omsi_lan::coop::Target::Player)&&self.player.as_ref().is_some_and(|p|p.uid==o.uid&&p.vehicle.physics.velocity_kmh().abs()<=0.5);
-+     if !valid{self.net.coop.drive.owner=Some(o);self.drive_reset(true);return;}
-+     self.release_vehicle_keys();self.input.cruise=None;
-+     if self.session.on_foot.is_none(){let allowed=self.settings.get_up;self.settings.get_up=true;self.get_up();self.settings.get_up=allowed;}
-+     let bus=self.player.as_ref().map(|p|bus_name(self,p)).unwrap_or_default();
-+     if let Some(p)=self.player.as_mut(){p.release();p.authority_remote=true;p.startup=None;
-+      let state=Snapshot::capture(o.uid,bus,&p.vehicle);o.frozen=true;o.seen=now;
-+      let commit=Message::Commit{token,state};
-+      if omsi_lan::vehicle_transfer::encode(&commit).is_none(){p.authority_remote=false;o.frozen=false;
-+       self.net.coop.drive.owner=Some(o);self.drive_reset(true);
-+       self.coop_notice("O estado deste modelo excede o limite de transferência. O ônibus continua com você.","This model state exceeds the transfer limit. Your bus remains here.","Fahrzeugzustand überschreitet das Übertragungslimit. Dein Bus bleibt hier.");return;
-+      }
-+      self.drive_send(from,commit);
-+     }
-+     self.view=if self.session.on_foot.is_some(){"foot"}else{"pax"}.into();
-+    }
-+    self.net.coop.drive.owner=Some(o);
-+   },
-+   Message::Commit{token,state}=>{
-+    let Some(mut v)=self.net.coop.drive.visitor.take()else{return;};
-+    if v.owner!=from||v.token!=token||state.uid!=v.uid||state.bus!=v.bus||!state.valid(){self.net.coop.drive.visitor=Some(v);return;}
-+    if !v.active {
-+     let same_world=self.world.as_ref().is_some_and(|w|Arc::ptr_eq(w,&v.world));
-+     let (Some(prepared),Some(r),Some(scene),true)=(v.prepared.take(),self.renderer.as_ref(),self.scene.as_mut(),same_world)else{self.net.coop.drive.visitor=Some(v);return;};
-+     let result=crate::spawn::spawn_player_prepared(&v.args,&v.world,r,scene,prepared);
-+     let Ok(Some(mut p))=result else{self.net.coop.drive.visitor=Some(v);self.drive_reset(true);return;};
-+     if !state.apply(&mut p.vehicle){v.world.release_vehicle(r,scene,p.render);for t in p.trailer_renders{v.world.release_vehicle(r,scene,t);}self.net.coop.drive.visitor=Some(v);self.drive_reset(true);return;}
-+     p.borrowed_from=Some(v.owner);p.authority_remote=false;p.vehicle.host.capture_sound_triggers=true;
-+     p.vehicle.host.fired_triggers.clear();p.vehicle.host.fired_trigger_vars.clear();p.vehicle.host.fired_file_triggers.clear();
-+     p.sync_transforms(r,scene,true,v.world.settings.rain_quality());
-+     if let Some(a)=self.sound.audio.as_ref(){p.load_sounds(a);}
-+     if let Some(mut old)=self.player.take(){
-+      old.release();if let (Some(a),Some(mut sounds))=(self.sound.audio.as_ref(),old.sounds.take()){sounds.stop_all(a);}
-+      if let Some(h)=self.session.humans.as_mut(){h.player_bus_swapped(old.uid,p.uid,&mut p.vehicle);}
-+      v.parked=Some(old.uid);self.session.placed.push(old);
-+     }
-+     v.foot=self.session.on_foot.take();
-+     if let Some(h)=self.session.humans.as_mut(){h.avatar_remove(crate::on_foot::AVATAR_KEY);}
-+     self.player=Some(p);v.active=true;v.seen=now;
-+     self.net.coop.camera=None;self.net.inside_remote=None;self.view="driver".into();self.cam.look=(0.,0.);self.menus.hover_key=None;
-+     self.input.keys.clear();self.input.pad_repeat.clear();self.net.coop.panel=false;self.net.coop.drive.request=None;
-+     if let (Some(p),Some(cam))=(self.player.as_ref(),self.camera.as_ref()){self.camera=Some(p.camera(&self.view,cam));}
-+     self.coop_notice("Você assumiu o ônibus. Os controles, painel e câmeras usam agora o veículo completo.","You now control the full vehicle, its cockpit and cameras.","Du steuerst jetzt das vollständige Fahrzeug, Cockpit und Kameras.");
-+    }
-+    self.drive_send(from,Message::Active{token});self.net.coop.drive.visitor=Some(v);
-+   },
-+   Message::Active{token}=>{if let Some(o)=self.net.coop.drive.owner.as_mut().filter(|o|o.peer==from&&o.token==token&&o.frozen){o.active=true;o.seen=now;}},
-+   Message::State{token,desk,state,sounds,coins,ticket,change,take_change}=>{
-+    let valid=self.net.coop.drive.owner.as_ref().is_some_and(|o|o.peer==from&&o.token==token&&o.frozen&&o.uid==state.uid&&o.bus==state.bus);
-+    if valid {
-+     let same_desk=desk!=0 && desk==self.coop_desk(0).id;
-+     if let Some(p)=self.player.as_mut(){
-+      let preserve:Vec<_>=p.vehicle.var_index().iter().filter(|(n,_)|passenger_input(n)&&(!same_desk||!n.eq_ignore_ascii_case("giventicket"))).map(|(n,i)|(n.clone(),p.vehicle.state.vars[*i as usize])).collect();
-+      if state.apply(&mut p.vehicle){
-+       for(n,value)in preserve{p.vehicle.set_engine_var(&n,value);}
-+       for(name,file,values)in &sounds {
-+        if let Some(file)=file {if omsi_net::remote_text::freetex_ok(file){p.vehicle.host.fired_file_triggers.push((name.clone(),file.clone()));}}
-+        else{p.vehicle.host.fired_triggers.push(name.clone());if let Some(values)=values{p.vehicle.host.fired_trigger_vars.push((name.clone(),values.clone()));}}
-+       }
-+       p.vehicle.host.network_sound_triggers.extend(sounds);
-+       if same_desk{p.vehicle.host.change_coins.extend(coins);p.give_ticket|=ticket;p.give_change|=change;p.take_change|=take_change;}
-+       if let Some(o)=self.net.coop.drive.owner.as_mut(){o.seen=now;o.active=true;}
-+      }
-+     }
-+    }
-+   },
-+   Message::Context{token,desk,vars,humans,paths,seats,triggers}=>{
-+    let valid=self.net.coop.drive.visitor.as_ref().is_some_and(|v|v.owner==from&&v.token==token&&v.active&&!v.returning);
-+    if valid {if let Some(p)=self.player.as_mut(){
-+     for(n,value)in vars{if value.is_finite()&&passenger_input(&n){p.vehicle.set_engine_var(&n,value);}}
-+     p.vehicle.host.humans_count=humans;p.vehicle.host.humans_on_path_link=paths;p.vehicle.host.humans_on_seat=seats;
-+     for t in triggers.into_iter().take(128){p.vehicle.trigger(&t);}
-+    }if let Some(v)=self.net.coop.drive.visitor.as_mut(){v.seen=now;v.desk=desk;}}
-+   },
-+   Message::Return{token,state}=>{
-+    let valid=self.net.coop.drive.owner.as_ref().is_some_and(|o|o.peer==from&&o.token==token&&o.frozen&&o.uid==state.uid&&o.bus==state.bus);
-+    if valid&&state.speed.abs()<=0.5/3.6&&self.player.as_mut().is_some_and(|p|state.apply(&mut p.vehicle)){
-+     self.drive_send(from,Message::Returned{token});self.drive_reset(false);
-+    }
-+   },
-+   Message::Suspended{token,state}=>{
-+    let valid=self.net.coop.drive.owner.as_ref().is_some_and(|o|o.peer==from&&o.token==token&&o.frozen&&o.uid==state.uid&&o.bus==state.bus);
-+    if valid&&self.player.as_mut().is_some_and(|p|state.apply(&mut p.vehicle)){self.drive_send(from,Message::Returned{token});self.drive_reset(false);}
-+   },
-+   Message::Returned{token}=>{
-+    if self.net.coop.drive.owner.as_ref().is_some_and(|o|o.peer==from&&o.token==token&&!o.active){self.drive_reset(false);}
-+    if self.net.coop.drive.visitor.as_ref().is_some_and(|v|v.owner==from&&v.token==token&&v.returning){self.drive_reset(false);}},
-+   Message::Heartbeat{token}=>{
-+    if let Some(o)=self.net.coop.drive.owner.as_mut().filter(|o|o.peer==from&&o.token==token){o.seen=now;}
-+    if let Some(v)=self.net.coop.drive.visitor.as_mut().filter(|v|v.owner==from&&v.token==token){v.seen=now;}
-+   },
-+   Message::Abort{token}=>{
-+    if self.net.coop.drive.visitor.as_ref().is_some_and(|v|v.owner==from&&v.token==token){
-+     if let Some(v)=self.net.coop.drive.visitor.as_ref().filter(|v|v.active){
-+      let (uid,bus,owner)=(v.uid,v.bus.clone(),v.owner);
-+      if let Some(p)=self.player.as_mut(){p.authority_remote=true;p.release();let state=Snapshot::capture(uid,bus,&p.vehicle);self.drive_send(owner,Message::Suspended{token,state});}
-+     }else{self.drive_send(from,Message::Returned{token});}
-+     self.drive_reset(false);
-+    }
-+    if self.net.coop.drive.owner.as_ref().is_some_and(|o|o.peer==from&&o.token==token&&!o.frozen){self.drive_reset(false);}
-+   },
-+  }
-+ }
-+ pub(crate) fn drive_tick(&mut self){
-+  let incoming=self.net.lan.as_mut().map(|l|l.take_handovers()).unwrap_or_default();
-+  for m in incoming{if let Some(message)=omsi_lan::vehicle_transfer::decode(&m.event.data){self.drive_message(m.owner,message);}}
-+  if self.session.humans.as_ref().is_some_and(|h|h.stop_request) { self.drive_queue_trigger("int_haltewunsch"); }
-+  let now=Instant::now();self.net.coop.drive.requests.retain(|_,(_,t)|t.elapsed()<Duration::from_secs(30));
-+  if self.net.coop.drive.request.is_some_and(|(_,_,t)|t.elapsed()>Duration::from_secs(60)){self.net.coop.drive.request=None;self.coop_notice("A troca expirou. Os dois jogadores e o servidor precisam da versão nova.","Driver change expired. Both players and the server need the new version.","Fahrerwechsel abgelaufen. Beide Spieler und Server benötigen die neue Version.");}
-+  if let Some(mut o)=self.net.coop.drive.owner.take(){
-+   let invalid=self.player.as_ref().is_none_or(|p|p.uid!=o.uid)||self.net.lan.as_ref().is_none_or(|l|!l.peers().any(|p|p.pose.id==o.peer));
-+   // The visitor cuts its authority at 750 ms; only resume after 3 seconds.
-+   if !o.frozen && (invalid||o.seen.elapsed()>Duration::from_secs(60)){self.net.coop.drive.owner=Some(o);self.drive_reset(true);return;}
-+   // A frozen owner never resumes on silence alone: a late Commit must not
-+   // create a second simulator. Only Return/Suspended confirms the peer stopped.
-+   if o.frozen && (invalid||o.seen.elapsed()>Duration::from_secs(3)) {
-+    if o.sent.elapsed()>Duration::from_millis(250){self.drive_send(o.peer,Message::Abort{token:o.token});o.sent=now;}
-+    self.net.coop.drive.owner=Some(o);return;
-+   }
-+   if o.sent.elapsed()>Duration::from_millis(150){
-+    self.drive_send(o.peer,Message::Heartbeat{token:o.token});
-+    if o.frozen {if let Some(p)=self.player.as_ref(){let h=&p.vehicle.host;
-+     let vars=p.vehicle.var_index().iter().filter(|(n,_)|passenger_input(n)).map(|(n,i)|(n.clone(),p.vehicle.state.vars[*i as usize])).collect();
-+     let message=Message::Context{token:o.token,desk:self.coop_desk(0).id,vars,humans:h.humans_count,paths:h.humans_on_path_link.clone(),seats:h.humans_on_seat.clone(),triggers:std::mem::take(&mut o.triggers)};
-+     self.drive_send(o.peer,message);
-+    }}o.sent=now;
-+   }
-+   self.net.coop.drive.owner=Some(o);
-+  }
-+  if let Some(mut v)=self.net.coop.drive.visitor.take(){
-+   if !v.active {
-+    if let Some(rx)=v.loading.as_ref(){match rx.try_recv(){Ok(Ok(p))=>{v.prepared=Some(p);v.loading=None;self.drive_send(v.owner,Message::Prepared{token:v.token});},Ok(Err(e))=>{log::warn!("full vehicle preparation failed: {e:#}");self.net.coop.drive.visitor=Some(v);self.drive_reset(true);return;},Err(mpsc::TryRecvError::Disconnected)=>{self.net.coop.drive.visitor=Some(v);self.drive_reset(true);return;},Err(mpsc::TryRecvError::Empty)=>{}}}
-+    if v.started.elapsed()>Duration::from_secs(60){self.net.coop.drive.visitor=Some(v);self.drive_reset(true);return;}
-+   }else if v.seen.elapsed()>Duration::from_millis(750){
-+    // No self-reactivation after a network stall: the owner's lease may resume.
-+    if let Some(p)=self.player.as_mut(){p.authority_remote=true;p.release();
-+     let state=Snapshot::capture(v.uid,v.bus.clone(),&p.vehicle);self.drive_send(v.owner,Message::Suspended{token:v.token,state});
-+    }
-+    self.net.coop.drive.visitor=Some(v);self.drive_reset(false);return;
-+   }
-+   if v.sent.elapsed()>Duration::from_millis(100){
-+    if v.active&&!v.returning {if let Some(p)=self.player.as_mut(){
-+     let state=Snapshot::capture(v.uid,v.bus.clone(),&p.vehicle);
-+     let message=Message::State{token:v.token,desk:v.desk,state,sounds:std::mem::take(&mut p.vehicle.host.network_sound_triggers),coins:std::mem::take(&mut p.vehicle.host.change_coins),ticket:std::mem::take(&mut p.give_ticket),change:std::mem::take(&mut p.give_change),take_change:std::mem::take(&mut p.take_change)};
-+     self.drive_send(v.owner,message);
-+    }}else{self.drive_send(v.owner,Message::Heartbeat{token:v.token});}v.sent=now;
-+   }
-+   self.net.coop.drive.visitor=Some(v);
-+  }
-+ }
-+ pub(crate) fn drive_delegated_actor(&self,actor:u32)->bool {self.net.coop.drive.visitor.as_ref().is_some_and(|v|v.active&&v.actors.contains(&actor))}
-+ pub(crate) fn drive_forward_coop(&mut self,actor:u32,message:&omsi_lan::coop::Message)->bool {
-+  let Some(o)=self.net.coop.drive.owner.as_ref().filter(|o|o.frozen)else{return false;};
-+  let(peer,token)=(o.peer,o.token);self.drive_send(peer,Message::Work{token,actor,wire:message.encode()});true
-+ }
-+ pub(crate) fn drive_queue_trigger(&mut self,name:&str)->bool {
-+  if let Some(o)=self.net.coop.drive.owner.as_mut().filter(|o|o.frozen){if o.triggers.len()<128{o.triggers.push(name.to_owned());}true}else{false}
-+ }
-+ pub(crate) fn shared_drive_key(&mut self,code:KeyCode,_pressed:bool,_repeat:bool)->bool{
-+  self.net.coop.drive.owner_active() && self.session.on_foot.is_none()
-+   && !matches!(code,KeyCode::Escape|KeyCode::F1|KeyCode::F2|KeyCode::F3|KeyCode::F4|KeyCode::F12|KeyCode::Slash|KeyCode::KeyV)
-+ }
-+ pub(crate) fn drive_pad(&mut self,_a:crate::controllers::Analog,_b:&[(String,bool)])->bool{self.net.coop.drive.owner_active()}
-+ pub(crate) fn drive_lost_focus(&mut self){}
-+ pub(crate) fn drive_sign(&mut self,_form:&crate::game_panels::DestForm,_clear:bool)->bool{false}
-+}
-+fn passenger_input(name:&str)->bool {
-+ let n=name.to_ascii_lowercase();(n.starts_with("pax_")&&(n.ends_with("_req")||n.ends_with("_busy")||n.contains("place")))||matches!(n.as_str(),"giventicket"|"ticket_request"|"ticket_type"|"ticket_value"|"ticket_count"|"ticket_paid"|"humans_count"|"schedule_active")
+ }
++fn passenger_input(name: &str) -> bool {
++    let n = name.to_ascii_lowercase();
++    (n.starts_with("pax_") && (n.ends_with("_req") || n.ends_with("_busy") || n.contains("place")))
++        || matches!(
++            n.as_str(),
++            "giventicket"
++                | "ticket_request"
++                | "ticket_type"
++                | "ticket_value"
++                | "ticket_count"
++                | "ticket_paid"
++                | "humans_count"
++                | "schedule_active"
++        )
 +}
 --- a/crates/omsi-app/src/game_lists/menu_pages.rs
 +++ b/crates/omsi-app/src/game_lists/menu_pages.rs
@@ -1130,6 +1881,16 @@
                  KeyCode::F3 if self.input.key_left_free(code, "view_set_outside") => self.view = "outside".into(),
                  KeyCode::F4 if self.input.key_left_free(code, "view_set_map") => {
                      // the free camera starts where the current view is looking
+--- a/crates/omsi-app/src/lib.rs
++++ b/crates/omsi-app/src/lib.rs
+@@ -990,3 +990,7 @@
+         }
+     }
+ }
++
++// The shared cooperative picking tests use the standalone harness module name.
++#[cfg(test)]
++use omsi_lan::coop as protocol;
 --- a/crates/omsi-app/src/offscreen/step.rs
 +++ b/crates/omsi-app/src/offscreen/step.rs
 @@ -769,6 +769,7 @@
@@ -1276,123 +2037,418 @@
 +pub mod vehicle_transfer;
 --- /dev/null
 +++ b/crates/omsi-lan/src/vehicle_transfer.rs
-@@ -0,0 +1,117 @@
+@@ -0,0 +1,412 @@
 +//! Live vehicle state; applying never runs init, physics, fuel pumps or scripts.
-+use serde::{Serialize,Deserialize};
 +use omsi_sim::VehicleInstance;
++use serde::{Deserialize, Serialize};
 +use std::io::Read;
-+#[derive(Clone,Debug,Serialize,Deserialize)]
++#[derive(Clone, Debug, Serialize, Deserialize)]
 +pub struct Snapshot {
-+ pub uid:u64, pub bus:String, pub paint:Option<String>,
-+ pub vars:Vec<(String,f32)>,pub strings:Vec<(String,String)>,
-+ pub pos:[f64;3],pub heading:f64,pub pitch:f32,pub bank:f32,
-+ pub physics:omsi_sim::physics::VehiclePhysics,
-+ pub clock:(i32,i32,f64,f32,bool,f64),pub vm:([f32;8],[f32;10],[String;8],u64),
-+ pub rigid_state:Option<omsi_sim::rigid::RigidBody>,pub trailer_state:Vec<omsi_sim::vehicle::TrailerHandover>,
-+ pub speed:f32,pub steer:f32,pub odometer:f64,pub dirt:f32,pub crashes:u32,
-+ pub rigid:Option<([f64;3],[f32;4],[f32;3],[f32;3])>,
-+ pub trailers:Vec<([f64;3],f64)>,
-+ pub images:Vec<(u32,u32,bool,Vec<u8>)>,
-+ pub timetable:(String,f32,Vec<(String,f32,f32)>,Vec<i64>,i32,i32),
++    pub uid: u64,
++    pub bus: String,
++    pub paint: Option<String>,
++    pub vars: Vec<(String, f32)>,
++    pub strings: Vec<(String, String)>,
++    pub pos: [f64; 3],
++    pub heading: f64,
++    pub pitch: f32,
++    pub bank: f32,
++    pub physics: omsi_sim::physics::VehiclePhysics,
++    pub clock: (i32, i32, f64, f32, bool, f64),
++    pub vm: ([f32; 8], [f32; 10], [String; 8], u64),
++    pub rigid_state: Option<omsi_sim::rigid::RigidBody>,
++    pub trailer_state: Vec<omsi_sim::vehicle::TrailerHandover>,
++    pub speed: f32,
++    pub steer: f32,
++    pub odometer: f64,
++    pub dirt: f32,
++    pub crashes: u32,
++    pub rigid: Option<([f64; 3], [f32; 4], [f32; 3], [f32; 3])>,
++    pub trailers: Vec<([f64; 3], f64)>,
++    pub images: Vec<(u32, u32, bool, Vec<u8>)>,
++    pub timetable: (String, f32, Vec<(String, f32, f32)>, Vec<i64>, i32, i32),
 +}
 +impl Snapshot {
-+ pub fn capture(uid:u64,bus:String,v:&VehicleInstance)->Self {
-+  let mut vars:Vec<_>=v.var_index().iter().map(|(n,i)|(n.clone(),v.state.vars[*i as usize])).collect();vars.sort_by(|a,b|a.0.cmp(&b.0));
-+  let h=&v.host;
-+  Self{uid,bus,paint:h.paint_scheme.flatten().and_then(|i|v.ty.paint_schemes.get(i)).map(|s|s.name.clone()),vars,
-+   strings:v.ty.program.str_var_names.iter().enumerate().filter_map(|(i,n)|v.state.str_vars.get(i).map(|s|(n.clone(),s.clone()))).collect(),
-+   physics:v.physics.clone(),clock:(h.clock.year,h.clock.day_of_year,h.clock.time,h.clock.timegap,h.clock.paused,h.clock.run_time),vm:v.vm.export_handover(),rigid_state:v.rigid.clone(),trailer_state:v.trailers.iter().map(|t|t.export_handover()).collect(),
-+   pos:v.position.to_array(),heading:v.heading,pitch:v.pitch,bank:v.bank,speed:v.physics.speed,steer:v.physics.steer_deg,
-+   odometer:v.odometer_km(),dirt:v.dirt,crashes:v.crashes,
-+   rigid:v.rigid.as_ref().map(|r|(r.position.to_array(),r.orientation.to_array(),r.velocity.to_array(),r.omega.to_array())),
-+   trailers:v.trailers.iter().map(|t|(t.position.to_array(),t.heading)).collect(),
-+   images:h.script_textures.iter().map(|t|(t.width,t.height,t.mipmaps,t.rgba.clone())).collect(),
-+   timetable:(h.tt_line.clone(),h.tt_delay,h.tt_stops.clone(),h.tt_stop_ids.clone(),h.tt_terminus_index,h.tt_busstop_index)}
-+ }
-+ pub fn valid(&self)->bool {
-+  self.uid!=0 && !self.bus.is_empty() && self.bus.len()<1024 && self.vars.len()<65536 && self.strings.len()<65536
-+   && self.pos.iter().all(|v|v.is_finite()) && self.heading.is_finite() && self.pitch.is_finite() && self.bank.is_finite()
-+   && self.speed.is_finite() && self.steer.is_finite() && self.odometer.is_finite() && self.dirt.is_finite()
-+   && self.vars.iter().all(|(n,v)|n.len()<256&&v.is_finite())
-+   && self.strings.iter().all(|(n,v)|n.len()<256&&v.len()<131072)
-+   && self.trailers.len()<32 && self.trailers.iter().all(|(p,h)|p.iter().all(|v|v.is_finite())&&h.is_finite())
-+   && self.rigid.as_ref().is_none_or(|(p,q,v,o)|p.iter().all(|v|v.is_finite())&&q.iter().chain(v).chain(o).all(|v|v.is_finite()))
-+   && self.images.len()<=64 && self.images.iter().map(|i|i.3.len()).sum::<usize>()<=16*1024*1024
-+   && self.images.iter().all(|(w,h,_,p)|*w<=4096&&*h<=4096&&p.len()==(*w as usize)*(*h as usize)*4)
-+ }
-+ pub fn apply(&self,v:&mut VehicleInstance)->bool {
-+  if !self.valid() || self.trailers.len()!=v.trailers.len() || self.images.len()!=v.host.script_textures.len(){return false;}
-+  if self.physics.wheels.len()!=v.physics.wheels.len() || self.trailer_state.len()!=v.trailers.len()
-+   || !self.trailer_state.iter().zip(&v.trailers).all(|(s,t)|t.accepts_handover(s)) {return false;}
-+  if self.rigid_state.as_ref().is_some_and(|r|r.wheels.len()>128||r.coupled.len()>32) {return false;}
-+  let names:std::collections::HashSet<_>=self.vars.iter().map(|(n,_)|n.as_str()).collect();
-+  if v.ty.program.var_names.iter().any(|n|!names.contains(n.to_ascii_lowercase().as_str())){return false;}
-+  let paint=match &self.paint {None=>None,Some(name)=>match v.ty.paint_schemes.iter().position(|s|s.name.eq_ignore_ascii_case(name)){Some(i)=>Some(i),None=>return false}};
-+  // All validation precedes the first write; incompatible scripts never partly apply.
-+  for (n,value) in &self.vars{v.set_engine_var(n,*value);}
-+  for(n,value)in &self.strings{if let Some(i)=v.ty.program.str_var(n){v.state.str_vars[i as usize]=value.clone();}}
-+  for t in &mut v.text_textures { t.last_text=None; }
-+  v.physics=self.physics.clone();v.rigid=self.rigid_state.clone();v.vm.import_handover(&self.vm);
-+  let (year,day,time,gap,paused,run)=self.clock;v.host.clock=omsi_sim::SimClock{year,day_of_year:day,time,timegap:gap,paused,run_time:run};
-+  for(t,s)in v.trailers.iter_mut().zip(&self.trailer_state){t.import_handover(s);}
++    pub fn capture(uid: u64, bus: String, v: &VehicleInstance) -> Self {
++        let mut vars: Vec<_> = v
++            .var_index()
++            .iter()
++            .map(|(n, i)| (n.clone(), v.state.vars[*i as usize]))
++            .collect();
++        vars.sort_by(|a, b| a.0.cmp(&b.0));
++        let h = &v.host;
++        Self {
++            uid,
++            bus,
++            paint: h
++                .paint_scheme
++                .flatten()
++                .and_then(|i| v.ty.paint_schemes.get(i))
++                .map(|s| s.name.clone()),
++            vars,
++            strings: v
++                .ty
++                .program
++                .str_var_names
++                .iter()
++                .enumerate()
++                .filter_map(|(i, n)| v.state.str_vars.get(i).map(|s| (n.clone(), s.clone())))
++                .collect(),
++            physics: v.physics.clone(),
++            clock: (
++                h.clock.year,
++                h.clock.day_of_year,
++                h.clock.time,
++                h.clock.timegap,
++                h.clock.paused,
++                h.clock.run_time,
++            ),
++            vm: v.vm.export_handover(),
++            rigid_state: v.rigid.clone(),
++            trailer_state: v.trailers.iter().map(|t| t.export_handover()).collect(),
++            pos: v.position.to_array(),
++            heading: v.heading,
++            pitch: v.pitch,
++            bank: v.bank,
++            speed: v.physics.speed,
++            steer: v.physics.steer_deg,
++            odometer: v.odometer_km(),
++            dirt: v.dirt,
++            crashes: v.crashes,
++            rigid: v.rigid.as_ref().map(|r| {
++                (
++                    r.position.to_array(),
++                    r.orientation.to_array(),
++                    r.velocity.to_array(),
++                    r.omega.to_array(),
++                )
++            }),
++            trailers: v
++                .trailers
++                .iter()
++                .map(|t| (t.position.to_array(), t.heading))
++                .collect(),
++            images: h
++                .script_textures
++                .iter()
++                .map(|t| (t.width, t.height, t.mipmaps, t.rgba.clone()))
++                .collect(),
++            timetable: (
++                h.tt_line.clone(),
++                h.tt_delay,
++                h.tt_stops.clone(),
++                h.tt_stop_ids.clone(),
++                h.tt_terminus_index,
++                h.tt_busstop_index,
++            ),
++        }
++    }
++    pub fn valid(&self) -> bool {
++        self.uid != 0
++            && !self.bus.is_empty()
++            && self.bus.len() < 1024
++            && self.vars.len() < 65536
++            && self.strings.len() < 65536
++            && self.pos.iter().all(|v| v.is_finite())
++            && self.heading.is_finite()
++            && self.pitch.is_finite()
++            && self.bank.is_finite()
++            && self.speed.is_finite()
++            && self.steer.is_finite()
++            && self.odometer.is_finite()
++            && self.dirt.is_finite()
++            && self
++                .vars
++                .iter()
++                .all(|(n, v)| n.len() < 256 && v.is_finite())
++            && self
++                .strings
++                .iter()
++                .all(|(n, v)| n.len() < 256 && v.len() < 131072)
++            && self.trailers.len() < 32
++            && self
++                .trailers
++                .iter()
++                .all(|(p, h)| p.iter().all(|v| v.is_finite()) && h.is_finite())
++            && self.rigid.as_ref().is_none_or(|(p, q, v, o)| {
++                p.iter().all(|v| v.is_finite()) && q.iter().chain(v).chain(o).all(|v| v.is_finite())
++            })
++            && self.images.len() <= 64
++            && self.images.iter().map(|i| i.3.len()).sum::<usize>() <= 16 * 1024 * 1024
++            && self.images.iter().all(|(w, h, _, p)| {
++                *w <= 4096 && *h <= 4096 && p.len() == (*w as usize) * (*h as usize) * 4
++            })
++    }
++    pub fn apply(&self, v: &mut VehicleInstance) -> bool {
++        if !self.valid()
++            || self.trailers.len() != v.trailers.len()
++            || self.images.len() != v.host.script_textures.len()
++        {
++            return false;
++        }
++        if self.physics.wheels.len() != v.physics.wheels.len()
++            || self.trailer_state.len() != v.trailers.len()
++            || !self
++                .trailer_state
++                .iter()
++                .zip(&v.trailers)
++                .all(|(s, t)| t.accepts_handover(s))
++        {
++            return false;
++        }
++        if self
++            .rigid_state
++            .as_ref()
++            .is_some_and(|r| r.wheels.len() > 128 || r.coupled.len() > 32)
++        {
++            return false;
++        }
++        let names: std::collections::HashSet<_> =
++            self.vars.iter().map(|(n, _)| n.as_str()).collect();
++        if v.ty
++            .program
++            .var_names
++            .iter()
++            .any(|n| !names.contains(n.to_ascii_lowercase().as_str()))
++        {
++            return false;
++        }
++        let paint = match &self.paint {
++            None => None,
++            Some(name) => match v
++                .ty
++                .paint_schemes
++                .iter()
++                .position(|s| s.name.eq_ignore_ascii_case(name))
++            {
++                Some(i) => Some(i),
++                None => return false,
++            },
++        };
++        // All validation precedes the first write; incompatible scripts never partly apply.
++        for (n, value) in &self.vars {
++            v.set_engine_var(n, *value);
++        }
++        for (n, value) in &self.strings {
++            if let Some(i) = v.ty.program.str_var(n) {
++                v.state.str_vars[i as usize] = value.clone();
++            }
++        }
++        for t in &mut v.text_textures {
++            t.last_text = None;
++        }
++        v.physics = self.physics.clone();
++        v.rigid = self.rigid_state.clone();
++        v.vm.import_handover(&self.vm);
++        let (year, day, time, gap, paused, run) = self.clock;
++        v.host.clock = omsi_sim::SimClock {
++            year,
++            day_of_year: day,
++            time,
++            timegap: gap,
++            paused,
++            run_time: run,
++        };
++        for (t, s) in v.trailers.iter_mut().zip(&self.trailer_state) {
++            t.import_handover(s);
++        }
 +
-+  v.position=glam::DVec3::from_array(self.pos);v.heading=self.heading;v.pitch=self.pitch;v.bank=self.bank;
-+  v.physics.speed=self.speed;v.physics.steer_deg=self.steer;v.set_odometer_km(self.odometer);v.dirt=self.dirt;v.crashes=self.crashes;
-+  if let (Some((p,q,vel,o)),Some(r))=(&self.rigid,v.rigid.as_mut()){r.position=glam::DVec3::from_array(*p);r.orientation=glam::Quat::from_array(*q);r.velocity=glam::Vec3::from_array(*vel);r.omega=glam::Vec3::from_array(*o);}
-+  v.host.paint_scheme=Some(paint);
-+  for (t,(w,h,m,p)) in v.host.script_textures.iter_mut().zip(&self.images){t.apply_network(*w,*h,*m,p);}
-+  let h=&mut v.host;let(line,delay,stops,ids,term,stop)=&self.timetable;
-+  h.tt_line=line.clone();h.tt_delay=*delay;h.tt_stops=stops.clone();h.tt_stop_ids=ids.clone();h.tt_terminus_index=*term;h.tt_busstop_index=*stop;
-+  true
-+ }
++        v.position = glam::DVec3::from_array(self.pos);
++        v.heading = self.heading;
++        v.pitch = self.pitch;
++        v.bank = self.bank;
++        v.physics.speed = self.speed;
++        v.physics.steer_deg = self.steer;
++        v.set_odometer_km(self.odometer);
++        v.dirt = self.dirt;
++        v.crashes = self.crashes;
++        if let (Some((p, q, vel, o)), Some(r)) = (&self.rigid, v.rigid.as_mut()) {
++            r.position = glam::DVec3::from_array(*p);
++            r.orientation = glam::Quat::from_array(*q);
++            r.velocity = glam::Vec3::from_array(*vel);
++            r.omega = glam::Vec3::from_array(*o);
++        }
++        v.host.paint_scheme = Some(paint);
++        for (t, (w, h, m, p)) in v.host.script_textures.iter_mut().zip(&self.images) {
++            t.apply_network(*w, *h, *m, p);
++        }
++        let h = &mut v.host;
++        let (line, delay, stops, ids, term, stop) = &self.timetable;
++        h.tt_line = line.clone();
++        h.tt_delay = *delay;
++        h.tt_stops = stops.clone();
++        h.tt_stop_ids = ids.clone();
++        h.tt_terminus_index = *term;
++        h.tt_busstop_index = *stop;
++        true
++    }
 +}
-+#[derive(Clone,Debug,Serialize,Deserialize)]
++#[derive(Clone, Debug, Serialize, Deserialize)]
 +pub enum Message {
-+ Work{token:u64,actor:u32,wire:String},Request{nonce:u64},Offer{nonce:u64,token:u64,uid:u64,bus:String,hof:Option<String>,paint:Option<String>},
-+ Prepared{token:u64},Commit{token:u64,state:Snapshot},Active{token:u64},
-+ State{token:u64,desk:u32,state:Snapshot,sounds:Vec<(String,Option<String>,Option<Vec<f32>>)>,coins:Vec<usize>,ticket:bool,change:bool,take_change:bool},
-+ Context{token:u64,desk:u32,vars:Vec<(String,f32)>,humans:f32,paths:Vec<u32>,seats:Vec<u32>,triggers:Vec<String>},
-+ Suspended{token:u64,state:Snapshot},Return{token:u64,state:Snapshot},Returned{token:u64},Heartbeat{token:u64},Abort{token:u64},
++    Work {
++        token: u64,
++        actor: u32,
++        wire: String,
++    },
++    Request {
++        nonce: u64,
++    },
++    Offer {
++        nonce: u64,
++        token: u64,
++        uid: u64,
++        bus: String,
++        hof: Option<String>,
++        paint: Option<String>,
++    },
++    Prepared {
++        token: u64,
++    },
++    Commit {
++        token: u64,
++        state: Snapshot,
++    },
++    Active {
++        token: u64,
++    },
++    State {
++        token: u64,
++        desk: u32,
++        state: Snapshot,
++        sounds: Vec<(String, Option<String>, Option<Vec<f32>>)>,
++        coins: Vec<usize>,
++        ticket: bool,
++        change: bool,
++        take_change: bool,
++    },
++    Context {
++        token: u64,
++        desk: u32,
++        tt: (String, f32, Vec<(String, f32, f32)>, Vec<i64>, i32, i32),
++        schedule: f32,
++        vars: Vec<(String, f32)>,
++        humans: f32,
++        paths: Vec<u32>,
++        seats: Vec<u32>,
++        triggers: Vec<String>,
++    },
++    Suspended {
++        token: u64,
++        state: Snapshot,
++    },
++    Return {
++        token: u64,
++        state: Snapshot,
++    },
++    Returned {
++        token: u64,
++    },
++    Heartbeat {
++        token: u64,
++    },
++    Abort {
++        token: u64,
++    },
 +}
-+pub fn encode(m:&Message)->Option<Vec<u8>>{
-+ let raw=rmp_serde::to_vec(m).ok()?;if raw.len()>64*1024*1024{return None;}
-+ let zip=zstd::stream::encode_all(raw.as_slice(),1).ok()?;(zip.len()<=512*1024).then_some(zip)
++pub fn encode(m: &Message) -> Option<Vec<u8>> {
++    let raw = rmp_serde::to_vec(m).ok()?;
++    if raw.len() > 64 * 1024 * 1024 {
++        return None;
++    }
++    let zip = zstd::stream::encode_all(raw.as_slice(), 1).ok()?;
++    (zip.len() <= 512 * 1024).then_some(zip)
 +}
-+pub fn decode(data:&[u8])->Option<Message>{
-+ if data.len()>512*1024{return None;}let mut out=Vec::new();
-+ zstd::stream::read::Decoder::new(data).ok()?.take(64*1024*1024+1).read_to_end(&mut out).ok()?;
-+ if out.len()>64*1024*1024{return None;}rmp_serde::from_slice(&out).ok()
++pub fn decode(data: &[u8]) -> Option<Message> {
++    if data.len() > 512 * 1024 {
++        return None;
++    }
++    let mut out = Vec::new();
++    zstd::stream::read::Decoder::new(data)
++        .ok()?
++        .take(64 * 1024 * 1024 + 1)
++        .read_to_end(&mut out)
++        .ok()?;
++    if out.len() > 64 * 1024 * 1024 {
++        return None;
++    }
++    rmp_serde::from_slice(&out).ok()
 +}
 +
-+#[cfg(test)] mod tests {
-+ use super::*;
-+ use std::sync::Arc;
-+ fn bus()->VehicleInstance {
-+  let program=omsi_script::compile(&omsi_script::CompileInput{
-+   builtin_vars:vec!["fuel".into(),"door".into(),"PAX_Entry0_Req".into()],
-+   builtin_str_vars:vec!["number".into(),"destination".into()],..Default::default()});
-+  let ty=omsi_sim::VehicleType{def:Default::default(),model:Default::default(),model_dir:Default::default(),program:Arc::new(program),meshes:vec![],paint_schemes:vec![],texchanges:vec![],wheel_meshes:vec![],suspension_axles:vec![],missing_packs:vec![],mesh_bounds:vec![],mesh_boxes:vec![]};
-+  VehicleInstance::new(Arc::new(ty),omsi_sim::VehicleHost::new(Default::default()))
-+ }
-+ #[test] fn full_state_preserves_vehicle_scripts_clock_and_physics_without_a_frame(){
-+  let mut a=bus();a.set_var("fuel",34.5);a.set_var("door",1.0);a.set_odometer_km(12345.67);
-+  a.position=glam::DVec3::new(1234.,5678.,90.);a.heading=123.;a.physics.speed=0.1;a.vm.stacks.reg[2]=19.;a.host.clock.run_time=1234.5;
-+  let i=a.ty.program.str_var("destination").unwrap() as usize;a.state.str_vars[i]="Linha 123".into();
-+  let state=Snapshot::capture(9,"Vehicles/test.bus".into(),&a);assert!(state.valid());
-+  let mut b=bus();assert!(state.apply(&mut b));assert_eq!(b.var("fuel"),Some(34.5));assert_eq!(b.var("door"),Some(1.));
-+  assert_eq!(b.position,a.position);assert_eq!(b.heading,a.heading);assert_eq!(b.physics.speed,0.1);assert_eq!(b.odometer_km(),12345.67);
-+  assert_eq!(b.vm.stacks.reg[2],19.);assert_eq!(b.host.clock.run_time,1234.5);assert_eq!(b.state.str_vars[i],"Linha 123");
-+  let wire=encode(&Message::Commit{token:71,state}).unwrap();let Some(Message::Commit{token,state})=decode(&wire)else{panic!("not decoded")};
-+  assert_eq!(token,71);assert!(state.apply(&mut b));assert_eq!(b.var("fuel"),Some(34.5));
-+ }
-+ #[test] fn incompatible_or_nonfinite_snapshots_never_partly_modify_the_bus(){
-+  let a=bus();let mut b=bus();b.set_var("fuel",22.);
-+  let mut state=Snapshot::capture(9,"Vehicles/test.bus".into(),&a);state.vars.iter_mut().find(|(n,_)|n=="fuel").unwrap().1=f32::NAN;
-+  assert!(!state.apply(&mut b));assert_eq!(b.var("fuel"),Some(22.));
-+  let mut state=Snapshot::capture(9,"Vehicles/test.bus".into(),&a);state.vars.retain(|(n,_)|n!="door");
-+  assert!(!state.apply(&mut b));assert_eq!(b.var("fuel"),Some(22.));
-+  assert!(decode(&[1,2,3]).is_none());
-+ }
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::sync::Arc;
++    fn bus() -> VehicleInstance {
++        let program = omsi_script::compile(&omsi_script::CompileInput {
++            builtin_vars: vec!["fuel".into(), "door".into(), "PAX_Entry0_Req".into()],
++            builtin_str_vars: vec!["number".into(), "destination".into()],
++            ..Default::default()
++        });
++        let ty = omsi_sim::VehicleType {
++            def: Default::default(),
++            model: Default::default(),
++            model_dir: Default::default(),
++            program: Arc::new(program),
++            meshes: vec![],
++            paint_schemes: vec![],
++            texchanges: vec![],
++            wheel_meshes: vec![],
++            suspension_axles: vec![],
++            missing_packs: vec![],
++            mesh_bounds: vec![],
++            mesh_boxes: vec![],
++        };
++        VehicleInstance::new(Arc::new(ty), omsi_sim::VehicleHost::new(Default::default()))
++    }
++    #[test]
++    fn full_state_preserves_vehicle_scripts_clock_and_physics_without_a_frame() {
++        let mut a = bus();
++        a.set_var("fuel", 34.5);
++        a.set_var("door", 1.0);
++        a.set_odometer_km(12345.67);
++        a.position = glam::DVec3::new(1234., 5678., 90.);
++        a.heading = 123.;
++        a.physics.speed = 0.1;
++        a.vm.stacks.reg[2] = 19.;
++        a.host.clock.run_time = 1234.5;
++        let i = a.ty.program.str_var("destination").unwrap() as usize;
++        a.state.str_vars[i] = "Linha 123".into();
++        let state = Snapshot::capture(9, "Vehicles/test.bus".into(), &a);
++        assert!(state.valid());
++        let mut b = bus();
++        assert!(state.apply(&mut b));
++        assert_eq!(b.var("fuel"), Some(34.5));
++        assert_eq!(b.var("door"), Some(1.));
++        assert_eq!(b.position, a.position);
++        assert_eq!(b.heading, a.heading);
++        assert_eq!(b.physics.speed, 0.1);
++        assert_eq!(b.odometer_km(), 12345.67);
++        assert_eq!(b.vm.stacks.reg[2], 19.);
++        assert_eq!(b.host.clock.run_time, 1234.5);
++        assert_eq!(b.state.str_vars[i], "Linha 123");
++        let wire = encode(&Message::Commit { token: 71, state }).unwrap();
++        let Some(Message::Commit { token, state }) = decode(&wire) else {
++            panic!("not decoded")
++        };
++        assert_eq!(token, 71);
++        assert!(state.apply(&mut b));
++        assert_eq!(b.var("fuel"), Some(34.5));
++    }
++    #[test]
++    fn incompatible_or_nonfinite_snapshots_never_partly_modify_the_bus() {
++        let a = bus();
++        let mut b = bus();
++        b.set_var("fuel", 22.);
++        let mut state = Snapshot::capture(9, "Vehicles/test.bus".into(), &a);
++        state.vars.iter_mut().find(|(n, _)| n == "fuel").unwrap().1 = f32::NAN;
++        assert!(!state.apply(&mut b));
++        assert_eq!(b.var("fuel"), Some(22.));
++        let mut state = Snapshot::capture(9, "Vehicles/test.bus".into(), &a);
++        state.vars.retain(|(n, _)| n != "door");
++        assert!(!state.apply(&mut b));
++        assert_eq!(b.var("fuel"), Some(22.));
++        assert!(decode(&[1, 2, 3]).is_none());
++    }
 +}
 --- a/crates/omsi-scene/src/driver.rs
 +++ b/crates/omsi-scene/src/driver.rs

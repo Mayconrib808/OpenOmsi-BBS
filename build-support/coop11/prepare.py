@@ -5,9 +5,9 @@ support=Path(__file__).resolve().parent
 root=support.parents[2];game=root/'game'
 sha=lambda b:hashlib.sha256(b).hexdigest()
 mode=sys.argv[1] if len(sys.argv)>1 else 'game'
-assert mode in ('game','server')
+assert mode in ('game','server','server15')
 applied={}
-for group in (('shared','game') if mode=='game' else ('shared',)):
+for group in (('shared','game') if mode=='game' else (('p15',) if mode=='server15' else ('shared',))):
  spec=json.loads((support/(group+'-source.json')).read_text())
  for name,item in spec.items():
   p=game/name

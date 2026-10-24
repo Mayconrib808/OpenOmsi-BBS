@@ -45,7 +45,7 @@
   },
   "crates/omsi-app/src/coop_drive.rs": {
     "before": "fa59af19bb04279c93ed7172a4af48a31e64d5d0db13b38be565d0510d830fec",
-    "after": "579077d6365be1ccf2dd4b782bc88b27e19d7fd2f6ca695c20cb66a8d2007af7"
+    "after": "a3372b69c2d2971a4789d82a516c2817e1cc1f69145c56e6bbf7ba3cfe6daa47"
   },
   "crates/omsi-app/src/game_lists/menu_pages.rs": {
     "before": "43e34100d197b8e0b66f354677dacbb35448bbbb0b29f9c5561e9071ab277f8a",
@@ -62,6 +62,10 @@
   "crates/omsi-app/src/input_script.rs": {
     "before": "18728ad06a7ad63864b71e84323dc8a7b88abc5847a6bcf3ef4be902712b360c",
     "after": "f302f4f80766de6104f29c5ec80fb52e1ccaf0046d413b4572c94bfcf9b4f37c"
+  },
+  "crates/omsi-app/src/lib.rs": {
+    "before": "01597cc0ccb85ee7792da8e537b782113baa386bda523b325a07de7867edc484",
+    "after": "97d1749cffb9c44b2998909c723ec83eac8084c5204e6a3d49553138b8996feb"
   },
   "crates/omsi-app/src/offscreen/step.rs": {
     "before": "8665a41c24fec4a0c9a9ad653bb26b13e2e447a011451a58b1f2f41c6d199524",
@@ -97,7 +101,7 @@
   },
   "crates/omsi-lan/src/vehicle_transfer.rs": {
     "before": null,
-    "after": "ac03419e426600cb93b94646573d64090a32dd5530490c7ed1175b7bbf7ffc54"
+    "after": "6d896098b6bb897de8b45c148ba5012d20bb8077d78df9d9d812e021d946d16c"
   },
   "crates/omsi-scene/src/driver.rs": {
     "before": "3c50af7868ea7c88d2a76f09a0736f9553f48c12f4173676ba51c60df79f6f72",

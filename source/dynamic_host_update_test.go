@@ -90,3 +90,37 @@ func TestDynamicHostActivationValidatesBytesAndSettingsBeforeWriting(t *testing.
 		t.Fatal("not idempotent", e)
 	}
 }
+
+func TestDynamicHostP15RequiresItsOwnVerifiedRuntimeAndRetainsAllOptions(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", t.TempDir())
+	path := filepath.Join(managedDataDir(dir), "HostAgent.local.json")
+	os.MkdirAll(filepath.Dir(path), 0700)
+	original := []byte(`{"server":"old.exe","company":{"protocol":15,"clock":{"time_zone":"Europe/Berlin"}},"maps":{"a":{"voice":true,"voice_radio":true,"voice_range":300,"public_server":false,"require_hardware_id":true,"admin_password":"local"}}}`)
+	os.WriteFile(path, original, 0600)
+	payload := map[string][]byte{managedDynamicP15Server: []byte("p15-server")}
+	marker := "app/server-dinamico-p15/BBS-DYNAMIC-SERVER.json"
+	payload[marker] = []byte(fmt.Sprintf(`{"protocol":14,"native_sha256":"%x"}`, sha256.Sum256(payload[managedDynamicP15Server])))
+	if activateUpdatedDynamicHost(dir, payload) == nil {
+		t.Fatal("P14 runtime was allowed to replace P15")
+	}
+	payload[marker] = []byte(fmt.Sprintf(`{"protocol":15,"native_sha256":"%x"}`, sha256.Sum256(payload[managedDynamicP15Server])))
+	if e := activateUpdatedDynamicHost(dir, payload); e != nil {
+		t.Fatal(e)
+	}
+	actual, _ := os.ReadFile(path)
+	var before, after map[string]json.RawMessage
+	json.Unmarshal(original, &before)
+	json.Unmarshal(actual, &after)
+	if hostJSONString(after, "server") != filepath.Join(dir, filepath.FromSlash(managedDynamicP15Server)) {
+		t.Fatal(string(actual))
+	}
+	var a, b any
+	json.Unmarshal(before["maps"], &a)
+	json.Unmarshal(after["maps"], &b)
+	aa, _ := json.Marshal(a)
+	bb, _ := json.Marshal(b)
+	if !bytes.Equal(aa, bb) {
+		t.Fatal("P15 controls were dropped")
+	}
+}

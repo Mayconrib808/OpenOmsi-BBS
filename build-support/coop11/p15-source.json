@@ -1,0 +1,38 @@
+{
+  "crates/omsi-app/src/app.rs": {
+    "before": "98a88b24bc34b9e55248ff56039220558ca45e922f75f846a622ea1e2a52a831",
+    "after": "c8842620c1faa10fa342a6c05c54b36a4bda7a5e8ea40585822ddd853ba95d02"
+  },
+  "crates/omsi-app/src/lan_world.rs": {
+    "before": "50ae95ba5486c4b8b5e3c544c33c5fd0b2bba09a99de0f68c068808114152318",
+    "after": "e3a6b35248fbeb102e646ba2d2250f96497376326ad5b23148a69080cd5a8207"
+  },
+  "crates/omsi-app/src/offscreen/setup.rs": {
+    "before": "e25862a6f35bc52172f2c4600a1a36a21bc1c2f4491970d38b07634a690be39c",
+    "after": "f9cf82229fd6bd9720abdc0047ddc1b0f5e5db99d6394d4ba98a01e1700390e7"
+  },
+  "crates/omsi-app/src/offscreen/stages.rs": {
+    "before": "fb1b9016c1d961fa7c927e10dc2120a01231c854c12028d80b11c0e93966faef",
+    "after": "c7c60d31f46ffb54bdfe842d494fb4d38e6b2bba6e0b1c9f65d46ec13d2c9e03"
+  },
+  "crates/omsi-app/src/offscreen/step.rs": {
+    "before": "38b9375188b2bda2b681fbb0dcfdab0821dfa00b70da0cba8d1c682ca176f996",
+    "after": "f99c02741930012324d001f46495063e065fa19d4ad9f87d0d7166a15bbd9fa7"
+  },
+  "crates/omsi-app/src/offscreen.rs": {
+    "before": "6b9fb5713401867b4d1824ac95b95276d9def6330387da604b4304b22f1dbe85",
+    "after": "3350355b666e41418c82d01cbff3afb23627c684af9ec1b7f83c583e29940ed7"
+  },
+  "crates/omsi-app/src/schedule/fleet.rs": {
+    "before": "e4dd122b9d5b1d9c804dc56a8522a630e3f6c6acd7e4099fb6199b1760e0aa5c",
+    "after": "101e3544ffbaddb5b30cee774580447ecda04ec95d7170b055839faf4f8c5c00"
+  },
+  "crates/omsi-net/src/lib.rs": {
+    "before": "ffea44745ae081cb25bfbe3648931ed91eeac5b8f2476d52524b158d3609f749",
+    "after": "2d8a43aa25c3087069b385ff07d90b2d05a0845a3f9f5f67e75114a5213bee81"
+  },
+  "crates/omsi-net/src/tests.rs": {
+    "before": "f65fe0b2717ef0a9d4ca33fe09ae0f5cdaa39ff96266777965f59c3223fe40ac",
+    "after": "67fb1054c0da7cc7ef43ff5e2950d0ee9535162e78673ca0273325b8bbde2392"
+  }
+}
