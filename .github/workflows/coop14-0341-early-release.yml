@@ -1,0 +1,247 @@
+name: Publish experimental OpenOMSI 0.3.41 Coop14 before gameplay tests
+on:
+  push:
+    branches: ['release/2.2.0.8-candidate']
+    paths: ['.github/workflows/coop14-0341-early-release.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: coop14-0341-experimental-publish
+  cancel-in-progress: true
+jobs:
+  port:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      OPENOMSI_VERSION: 0.3.41-coop.14
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+      GIT_OPTIONAL_LOCKS: '0'
+    steps:
+      - name: Checkout cumulative Bridge 2.2.0.7 source
+        uses: actions/checkout@v7
+        with:
+          path: support
+          persist-credentials: false
+      - name: Checkout REAL upstream openOMSI 0.3.41 including history for three-way patch merge
+        uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: v0.3.41
+          fetch-depth: 0
+          path: game
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: coop14-0341-windows
+          cache-on-failure: true
+          workspaces: game -> target
+      - name: Verify authentic upstream release and preserve protocol 14 separately
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if ((git -C game describe --tags --exact-match) -ne 'v0.3.41') { throw 'NOT the actual official 0.3.41 tag' }
+          New-Item -ItemType Directory -Force out | Out-Null
+          git -C game rev-parse HEAD | Out-File -Encoding utf8 out/upstream-commit.txt
+          Write-Host 'P14 remains from 2.2.0.7 and must not be overwritten by this P15 probe.'
+      - name: Merge ALL previously cumulative Coop12 features into 0.3.41
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git -C game apply --3way --binary --whitespace=nowarn ../support/build-support/coop12/cumulative.patch
+          if ($LASTEXITCODE -ne 0) {
+            # Two independently additive conflicts; preserve BOTH upstream 0.3.41 and cumulative Coop.
+            @'
+          from pathlib import Path
+          import re,subprocess
+          root=Path('game')
+          expected={
+            'crates/omsi-app/src/lib.rs': ('mod auto_announce;', 'mod coop;'),
+            'crates/omsi-render/src/render.rs': ('fn street_light(', 'fn set_visibility('),
+          }
+          conflicts=set(subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],cwd=root,text=True).splitlines())
+          assert conflicts==set(expected),f'Unexpected conflicts: {conflicts}'
+          for name,(left,right) in expected.items():
+              p=root/name
+              raw=p.read_text(encoding='utf-8')
+              sections=list(re.finditer(r'(?m)^<<<<<<< ours\n(.*?)^=======\n(.*?)^>>>>>>> theirs\n',raw,re.S))
+              assert len(sections)==1,(name,len(sections))
+              m=sections[0]
+              ours,theirs=m.group(1),m.group(2)
+              assert left in ours and right in theirs,(name,ours[:200],theirs[:200])
+              merged=raw[:m.start()]+ours+theirs+raw[m.end():]
+              assert not any(x in merged for x in ('<<<<<<<','=======\n','>>>>>>>'))
+              p.write_text(merged,encoding='utf-8',newline='\n')
+              print('Preserved BOTH official 0.3.41 and Coop changes:',name,flush=True)
+          subprocess.run(['git','add','-A'],cwd=root,check=True)
+          assert not subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],cwd=root,text=True).strip()
+          '@ | python -
+            if ($LASTEXITCODE -ne 0) { throw 'Unsafe non-additive merge: stop, no publication' }
+          }
+      - name: Reapply Coop12 horn and driver-transfer hotfixes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          from pathlib import Path
+          import sys
+          root=Path.cwd()
+          sys.path.insert(0,str((root/'support/build-support/coop12').resolve()))
+          from audio_horn_hotfix import apply_hotfix as horn
+          from driver_transfer_hotfix import apply_hotfix as handover
+          horn((root/'game').resolve())
+          handover((root/'game').resolve())
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C game add -A
+          git -C game -c user.name=Coop14Probe -c user.email=probe@localhost commit -m "Port cumulative fixes onto 0.3.41 (probe)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Merge Coop13 fixes for F1/F4, G, interaction, skins and sound queue
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git -C game apply --reject --binary --whitespace=nowarn ../support/build-support/coop13/fixes.patch
+          if ($LASTEXITCODE -ne 0) {
+            # Exactly three overlapping hunks were audited against the real 0.3.41 files:
+            # prefer additive integration; preserve upstream Sender.full rate-limiting.
+            @'
+          from pathlib import Path
+          root=Path('game')
+          found={str(p.relative_to(root)).replace('\\','/') for p in root.rglob('*.rej')}
+          expected={
+            'crates/omsi-app/src/app_impl/vehicles.rs.rej',
+            'crates/omsi-net/src/sounds.rs.rej'
+          }
+          assert found==expected,f'Unknown patches rejected: {found}'
+          for path in root.rglob('*.rej'):
+              data=path.read_text(encoding='utf-8')
+              if path.name=='vehicles.rs.rej':
+                  assert 'let paint = paint.or_else' in data and 'let bus = bus.to_string()' in data
+              else:
+                  assert 'credit: f32' in data and 's.dropped' in data
+          def edit(file,needle,replacement):
+              p=root/file
+              data=p.read_text(encoding='utf-8')
+              assert data.count(needle)==1,(file,needle[:80],data.count(needle))
+              p.write_text(data.replace(needle,replacement),encoding='utf-8',newline='\n')
+          edit('crates/omsi-app/src/app_impl/vehicles.rs',
+               '        let bus = bus.to_string();',
+               """        let paint = paint.or_else(|| self.player.as_ref().filter(|p| {
+                      let path = p.vehicle.ty.def.path.to_string_lossy().replace('\\\\', "/").to_lowercase();
+                      path.ends_with(&bus.replace('\\\\', "/").to_lowercase())
+                  }).and_then(|p| p.vehicle.host.paint_scheme.map(|scheme| scheme
+                      .and_then(|i| p.vehicle.ty.paint_schemes.get(i)).map(|p| p.name.clone())
+                      .unwrap_or_default())));
+                  let bus = bus.to_string();""")
+          edit('crates/omsi-net/src/sounds.rs',
+               '    queue: VecDeque<Tx>,\n    full: bool,',
+               '    queue: VecDeque<Tx>,\n    full: bool,\n    credit: f32,\n    dropped: u64,')
+          edit('crates/omsi-net/src/sounds.rs',
+               """            if s.queue.len() >= 512 {
+                          if !std::mem::replace(&mut s.full, true) {
+                              log::warn!("LAN sound events awaiting acknowledgement from {peer}: queue full");
+                          }
+                          continue;
+                      }""",
+               """            if s.queue.len() >= 512 {
+                          s.dropped = s.dropped.saturating_add(1);
+                          if !std::mem::replace(&mut s.full, true) || s.dropped.is_power_of_two() {
+                              log::warn!("LAN sound events awaiting acknowledgement from {peer}: queue full ({} dropped)", s.dropped);
+                          }
+                          continue;
+                      }""")
+          for path in root.rglob('*.rej'):path.unlink()
+          print('Reconciled exactly three Coop13 hunks, preserving official 0.3.41 behavior.',flush=True)
+          '@ | python -
+            if ($LASTEXITCODE -ne 0) { throw 'Unknown Coop13 changes; no publication' }
+          }
+      - name: Connect custom Fechou button sound to both driver and conductor
+        shell: pwsh
+        run: |
+          python support/build-support/coop14/close_signal.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Port new 0.3.41 road aerodynamics and AI LOD meshes to Coop serializer
+        shell: pwsh
+        run: |
+          python support/build-support/coop14/compat_0341.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Compile real Coop14 native binary WITHOUT regression tests (user requested experimental release first)
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app --bin openomsi
+          if ($LASTEXITCODE -ne 0) { throw 'No executable was produced; cannot publish a renamed stock binary' }
+      - name: Stage actual 0.3.41 versioned client and both P15 server copies
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          from pathlib import Path
+          import hashlib,os,subprocess,shutil,json
+          exe=Path('game/target/release/openomsi.exe')
+          assert exe.is_file() and exe.stat().st_size>1_000_000 and exe.read_bytes()[:2]==b'MZ'
+          version=subprocess.run([str(exe.resolve()),'--version'],capture_output=True,text=True,timeout=60,env=os.environ)
+          output=version.stdout+'\\n'+version.stderr
+          assert version.returncode==0 and '0.3.41-coop.14' in output,(version.returncode,output)
+          root=Path('out');root.mkdir(exist_ok=True)
+          (root/'native-version.log').write_text(output,encoding='utf-8')
+          for folder in ('OpenOmsi Coop 0.3.41/programa','app/server','app/server-dinamico-p15'):
+              dest=root/folder
+              dest.mkdir(parents=True,exist_ok=True)
+              shutil.copy2(exe,dest/'openomsi.exe')
+              steam=Path('game/assets/steam_redist/steam_api64.dll')
+              if steam.is_file():shutil.copy2(steam,dest/'steam_api64.dll')
+          audio=Path('game/assets/sounds/coop_turnstile_coin.wav')
+          if audio.exists():
+              dest=root/'OpenOmsi Coop 0.3.41/programa/assets/sounds'
+              dest.mkdir(parents=True,exist_ok=True)
+              shutil.copy2(audio,dest/audio.name)
+          digest=hashlib.sha256(exe.read_bytes()).hexdigest()
+          for dest in ('app/server/openomsi.exe','app/server-dinamico-p15/openomsi.exe'):
+              assert hashlib.sha256((root/dest).read_bytes()).hexdigest()==digest
+          (root/'EXPERIMENTAL-README.txt').write_text(
+              'OpenOMSI 0.3.41-coop.14 EXPERIMENTAL - protocolo 15\\n'
+              'Bridge candidata 2.2.0.8. Nao executou regressao de jogo com 2 pessoas.\\n'
+              'Copias do mesmo executavel em app/server e app/server-dinamico-p15.\\n'
+              'Backupe a pasta da Bridge antes de extrair. Nao substitua server-dinamico-p14.\\n'
+              'Para o som Fechou personalizado, use o pacote de audio fornecido separadamente.\\n'
+              'O botao Buscar atualizacoes usa pacote assinado diferente deste beta manual.\\n',
+              encoding='utf-8'
+          )
+          (root/'native-sha256.txt').write_text(digest+'  openomsi.exe\\n',encoding='utf-8')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package experimental binary payload
+        shell: pwsh
+        run: |
+          Compress-Archive -Path out/* -DestinationPath OpenOmsi_BBS_2.2.0.8_Coop14_0.3.41_EXPERIMENTAL.zip -CompressionLevel Optimal
+          if (!(Test-Path OpenOmsi_BBS_2.2.0.8_Coop14_0.3.41_EXPERIMENTAL.zip)) { throw 'No archive produced' }
+      - name: Publish opt-in GitHub prerelease now, gameplay tests afterwards
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $tag='v2.2.0.8-beta.1'
+          $asset='OpenOmsi_BBS_2.2.0.8_Coop14_0.3.41_EXPERIMENTAL.zip'
+          gh release view $tag --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload $tag $asset --repo $env:GITHUB_REPOSITORY --clobber
+          } else {
+            gh release create $tag $asset --repo $env:GITHUB_REPOSITORY --target $env:GITHUB_SHA --prerelease --title '2.2.0.8 beta.1 - OpenOMSI 0.3.41 Coop14 experimental' --notes 'Build nativa real 0.3.41, protocolo P15, cliente e servidor em app/server e app/server-dinamico-p15. Lançamento experimental a pedido do usuário ANTES dos testes de jogabilidade. Faça backup. Não integra automaticamente o Buscar atualizações assinado. O pacote do áudio Fechou personalizado é separado.'
+          }
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub prerelease publication failed' }
+          gh release view $tag --repo $env:GITHUB_REPOSITORY --json url,tagName,isPrerelease,assets
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload experiment build artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coop14-0341-early-release
+          path: |
+            out/**
+            OpenOmsi_BBS_2.2.0.8_Coop14_0.3.41_EXPERIMENTAL.zip
+          retention-days: 14
+          if-no-files-found: warn
