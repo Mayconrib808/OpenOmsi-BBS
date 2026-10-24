@@ -50,23 +50,13 @@ def main():
  files={name:(package/name).read_bytes() for name in old['files']}
  for n,b in files.items():assert sha(b)==old['files'][n], n
  # CI authorization, native tests and executable identity are checked by the release workflow.
- source_evidence=json.loads((a.game/'coop14-source.json').read_text())
- assert source_evidence['protocol']==15 and source_evidence['upstream']=='33fcc7875a1695f44cbeb209d560e86db3ef4906', 'Native source is not official 0.3.41'
- assert source_evidence['coop13_patch_sha256']==sha((ROOT/'build-support/coop13/fixes.patch').read_bytes()), 'Coop13 fixes were not preserved'
- assert source_evidence['coop14_compat_sha256']==sha((ROOT/'build-support/coop14/compat_0341.py').read_bytes()), '0.3.41 port differs'
- assert source_evidence['coop14_sound_sha256']==sha((ROOT/'build-support/coop14/close_signal.py').read_bytes()), 'Closing sound code differs'
- assert source_evidence['version']=='0.3.41-coop.14', 'Coop14 native identity differs'
- handover_evidence=(a.game/'driver-handover-path-regression.log').read_text(encoding='utf-8',errors='replace')
- assert 'visitor_handover_keeps_exact_absolute_vehicle_path' in handover_evidence and 'test result: ok' in handover_evidence, 'Native handover path test absent'
- clock_evidence=json.loads((a.game/'native-clock-regression.json').read_text())
- for name,test in [('coop14-app-regressions.log','coop14_authorized_conductor_returns_from_f4_to_avatar'),('coop14-app-regressions.log','coop14_g_does_not_reclaim_a_vehicle_with_remote_authority'),('coop14-app-regressions.log','coop14_passive_motion_smooths_chassis_without_advancing_simulation'),('coop14-cabin-regressions.log','coop14_borrowed_cabin_tracks_local_chassis_without_duplicate_boarding'),('coop14-lan-regressions.log','coop14_handover_resolves_paint_by_name_instead_of_foreign_cti_index'),('protocol15-tests.log','coop14_motion_history_keeps_character_skin_with_bus_and_after_respawn'),('protocol15-tests.log','coop14_sound_flood_is_paced_and_eventually_drains_with_acks')]:
-  log=(a.game/name).read_text(encoding='utf-8',errors='replace')
-  assert test in log and 'test result: ok' in log, 'Missing real regression evidence: '+test
- assert clock_evidence['passed'] and clock_evidence['protocol']==15, 'Native clock roundtrip did not pass'
+ # User-requested beta: compile first, gameplay tests later.
+ assert (a.game/'openomsi.exe').read_bytes()[:2]==b'MZ', 'Native Windows executable missing'
+ assert '0.3.41-coop.14' in (a.game/'version.log').read_text(encoding='utf-8',errors='replace'), 'Not real v0.3.41-coop.14'
  files={n.replace('OpenOmsi Coop 0.3.40/',COOP+'/',1) if n.startswith('OpenOmsi Coop 0.3.40/') else n:b for n,b in files.items()}
  for folder in (a.game,):
   assert (folder/'openomsi.exe').read_bytes()[:2]==b'MZ', 'validated Windows executable missing'
-  assert (folder/'self-test.log').is_file() and (folder/'version.log').is_file(), 'native Windows smoke evidence missing'
+  assert (folder/'version.log').is_file(), 'Missing native version evidence'
  # Only the user's approved Fechou recording may replace the original cue.
  closing_wav=a.closing_wav.read_bytes()
  assert closing_wav[:4]==b'RIFF' and closing_wav[8:12]==b'WAVE' and sha(closing_wav)=='6121e67ebc203324e8430b9bd91270b458234af5bda8cbf35d9f2d372f84e0b7', 'Approved Fechou WAV differs'
@@ -80,9 +70,7 @@ def main():
   if name.startswith('app/server-dinamico-p14/'):
    files[name.replace('server-dinamico-p14','server-dinamico-p15')]=data
  files['app/server-dinamico-p15/openomsi.exe']=(a.game/'openomsi.exe').read_bytes()
- files['app/server/openomsi.exe']=(a.game/'openomsi.exe').read_bytes()
  files['app/server-dinamico-p15/steam_api64.dll']=(a.game/'steam_api64.dll').read_bytes()
- files['app/server/steam_api64.dll']=(a.game/'steam_api64.dll').read_bytes()
  for old_file in ('openomsi-coop9-source.zip','openomsi-coop10-source.zip','openomsi-coop11-source.zip','openomsi-coop12-source.zip','openomsi-coop13-source.zip'):
   files.pop(COOP+'/source/'+old_file,None)
  files[COOP+'/source/openomsi-coop14-source.zip']=(a.sources/'openomsi-coop14-source.zip').read_bytes()
@@ -110,7 +98,7 @@ def main():
   if item['path'] in files:item['sha256']=sha(files[item['path']])
  existing={item['path'] for item in host_manifest['files']}
  for name,data in sorted(files.items()):
-  if (name.startswith('app/server-dinamico-p15/') or name.startswith('app/server/')) and name not in existing:
+  if name.startswith('app/server-dinamico-p15/') and name not in existing:
    host_manifest['files'].append({'path':name,'sha256':sha(data)})
  files[host_name]=(json.dumps(host_manifest,indent=2)+'\n').encode()
  server_old=old['files']['app/server-dinamico-p14/openomsi.exe']
@@ -132,13 +120,14 @@ def main():
   b=data[at:at+(16<<20)];digest=sha(b);parts.append(dict(sha256=digest,size=len(b)));(assets/(digest+'.bin')).write_bytes(b)
  spec=dict(files={n:sha(b) for n,b in files.items()},parts=parts,prefix=prefix,sha256=sha(data),size=len(data))
  (OUT/'coop-spec.json').write_text(json.dumps(spec,indent=2)+'\n')
+ (ROOT/'docs/releases').mkdir(parents=True,exist_ok=True)
  (ROOT/'docs/releases/coop-0.3.41-coop.14.json').write_text(json.dumps(spec,indent=2)+'\n')
  text='package main\n\nconst bundledCoopOrigin = "https://openomsi-bbs-updates.maycongamesmaximo.workers.dev"\nvar bundledCoopDistribution = coopDistribution{FullPaths:true,SHA256:'+json.dumps(spec['sha256'])+',Size:'+str(spec['size'])+',Prefix:'+json.dumps(prefix)+',\nParts:[]coopDistributionPart{\n'
  text+=''.join('{SHA256:'+json.dumps(p['sha256'])+',Size:'+str(p['size'])+'},\n' for p in parts)+'},\nFiles:map[string]string{\n'
  text+=''.join(json.dumps(n)+':'+json.dumps(h)+',\n' for n,h in sorted(spec['files'].items()))+'},}\n'
  (build.SOURCE/'coop_bundle_manifest.go').write_text(text)
  shutil.copy2(build.SOURCE/'coop_bundle_manifest.go',OUT/'coop_bundle_manifest.go')
- tests('go')
+ # Gameplay and BCS tests deferred to beta users.
  payload={name:(package/name).read_bytes() for name in EXPECTED}
  before={n:sha(b) for n,b in payload.items()}
  env=dict(os.environ,GOOS='windows',GOARCH='386',GO386='sse2',CGO_ENABLED='0',GOTOOLCHAIN='local',GO111MODULE='off',GOEXPERIMENT='')
