@@ -103,12 +103,58 @@ jobs:
           $ErrorActionPreference='Stop'
           git -C game apply --reject --binary --whitespace=nowarn ../support/build-support/coop13/fixes.patch
           if ($LASTEXITCODE -ne 0) {
-            Write-Host 'Coop13 partial merge requires manual review:'
-            Get-ChildItem game -Filter *.rej -Recurse | ForEach-Object {
-              Write-Host ('===== PATCH REJECTION: ' + $_.FullName)
-              Get-Content $_.FullName
-            }
-            throw 'Coop13 has rejected hunks; no build or publication until reconciled'
+            # Exactly three overlapping hunks were audited against the real 0.3.41 files:
+            # prefer additive integration; preserve upstream Sender.full rate-limiting.
+            @'
+          from pathlib import Path
+          root=Path('game')
+          found={str(p.relative_to(root)).replace('\\','/') for p in root.rglob('*.rej')}
+          expected={
+            'crates/omsi-app/src/app_impl/vehicles.rs.rej',
+            'crates/omsi-net/src/sounds.rs.rej'
+          }
+          assert found==expected,f'Unknown patches rejected: {found}'
+          for path in root.rglob('*.rej'):
+              data=path.read_text(encoding='utf-8')
+              if path.name=='vehicles.rs.rej':
+                  assert 'let paint = paint.or_else' in data and 'let bus = bus.to_string()' in data
+              else:
+                  assert 'credit: f32' in data and 's.dropped' in data
+          def edit(file,needle,replacement):
+              p=root/file
+              data=p.read_text(encoding='utf-8')
+              assert data.count(needle)==1,(file,needle[:80],data.count(needle))
+              p.write_text(data.replace(needle,replacement),encoding='utf-8',newline='\n')
+          edit('crates/omsi-app/src/app_impl/vehicles.rs',
+               '        let bus = bus.to_string();',
+               """        let paint = paint.or_else(|| self.player.as_ref().filter(|p| {
+                      let path = p.vehicle.ty.def.path.to_string_lossy().replace('\\\\', "/").to_lowercase();
+                      path.ends_with(&bus.replace('\\\\', "/").to_lowercase())
+                  }).and_then(|p| p.vehicle.host.paint_scheme.map(|scheme| scheme
+                      .and_then(|i| p.vehicle.ty.paint_schemes.get(i)).map(|p| p.name.clone())
+                      .unwrap_or_default())));
+                  let bus = bus.to_string();""")
+          edit('crates/omsi-net/src/sounds.rs',
+               '    queue: VecDeque<Tx>,\n    full: bool,',
+               '    queue: VecDeque<Tx>,\n    full: bool,\n    credit: f32,\n    dropped: u64,')
+          edit('crates/omsi-net/src/sounds.rs',
+               """            if s.queue.len() >= 512 {
+                          if !std::mem::replace(&mut s.full, true) {
+                              log::warn!("LAN sound events awaiting acknowledgement from {peer}: queue full");
+                          }
+                          continue;
+                      }""",
+               """            if s.queue.len() >= 512 {
+                          s.dropped = s.dropped.saturating_add(1);
+                          if !std::mem::replace(&mut s.full, true) || s.dropped.is_power_of_two() {
+                              log::warn!("LAN sound events awaiting acknowledgement from {peer}: queue full ({} dropped)", s.dropped);
+                          }
+                          continue;
+                      }""")
+          for path in root.rglob('*.rej'):path.unlink()
+          print('Reconciled exactly three Coop13 hunks, preserving official 0.3.41 behavior.',flush=True)
+          '@ | python -
+            if ($LASTEXITCODE -ne 0) { throw 'Unknown Coop13 changes; no publication' }
           }
       - name: Compile and test real native 0.3.41 coop game and P15 server
         working-directory: game
