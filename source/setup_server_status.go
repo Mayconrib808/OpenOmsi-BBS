@@ -90,28 +90,38 @@ func checkSetupServerStatus(ctx context.Context, client *http.Client, dir string
 	defer cancel()
 	var host setupHostSettings
 	err := readSetupStatusJSON(setupHostSettingsPath(dir), &host)
+	localFailure := ""
 	if err == nil {
 		if host.ControlPort < 1024 || host.ControlPort > 65535 || len(host.ControlKey) != 32 {
-			return setupServerStatus{Key: "server_unavailable"}
-		}
-		var local setupAgentStatus
-		address := fmt.Sprintf("http://127.0.0.1:%d/status", host.ControlPort)
-		if err := companyDirectoryHTTP(ctx, client, http.MethodGet, address, host.ControlKey, nil, &local); err != nil || !local.Running {
-			return setupServerStatus{Key: "server_agent_offline"}
-		}
-		if local.DirectoryError != "" {
-			return setupServerStatus{Key: "server_unavailable"}
-		}
-		var ids []string
-		for _, session := range local.Sessions {
-			if session.State != "disabled" && session.State != "error" && companyIDPattern.MatchString(session.SessionID) {
-				ids = append(ids, session.SessionID)
+			localFailure = "server_unavailable"
+		} else {
+			var local setupAgentStatus
+			address := fmt.Sprintf("http://127.0.0.1:%d/status", host.ControlPort)
+			if err := companyDirectoryHTTP(ctx, client, http.MethodGet, address, host.ControlKey, nil, &local); err != nil || !local.Running {
+				localFailure = "server_agent_offline"
+			} else if local.DirectoryError != "" {
+				localFailure = "server_unavailable"
+			} else {
+				var ids []string
+				for _, session := range local.Sessions {
+					if session.State != "disabled" && session.State != "error" && companyIDPattern.MatchString(session.SessionID) {
+						ids = append(ids, session.SessionID)
+					}
+				}
+				return nameSetupServers(checkSetupDirectoryStatus(ctx, client, host.Company.DirectoryURL, ids), host.Company)
 			}
 		}
-		return nameSetupServers(checkSetupDirectoryStatus(ctx, client, host.Company.DirectoryURL, ids), host.Company)
+	} else if !os.IsNotExist(err) {
+		localFailure = "server_unavailable"
 	}
-	if !os.IsNotExist(err) {
-		return setupServerStatus{Key: "server_unavailable"}
+	// A participant may have a stale HostAgent.local.json from an earlier host
+	// setup. Never mistake that stopped LOCAL agent for the remote company's
+	// availability: fall back to the safely enrolled, cached directory profile.
+	fallback := func() setupServerStatus {
+		if localFailure != "" {
+			return setupServerStatus{Key: localFailure}
+		}
+		return setupServerStatus{Key: "server_unconfigured"}
 	}
 	// Player PCs may monitor the configured company's agent remotely. Prefer
 	// the enrolled local copy, avoiding a multi-megabyte profile fetch every 5s.
@@ -121,18 +131,18 @@ func checkSetupServerStatus(ctx context.Context, client *http.Client, dir string
 		source = c.CompanyProfileSource
 	}
 	if source == "" {
-		return setupServerStatus{Key: "server_unconfigured"}
+		return fallback()
 	}
 	if strings.Contains(source, "://") {
 		if c.CompanyID == "" {
-			return setupServerStatus{Key: "server_unconfigured"}
+			return fallback()
 		}
 		source = filepath.Join(managedCompanyCacheDir(dir), c.CompanyID+".json")
 	} else if !filepath.IsAbs(source) {
 		source = filepath.Join(dir, source)
 	}
 	if err := readSetupStatusJSON(source, &profile); err != nil || (c.CompanyID != "" && profile.CompanyID != c.CompanyID) {
-		return setupServerStatus{Key: "server_unconfigured"}
+		return fallback()
 	}
 	ids := make([]string, 0, len(profile.Sessions))
 	for _, session := range profile.Sessions {
@@ -150,6 +160,7 @@ func checkSetupDirectoryStatus(ctx context.Context, client *http.Client, directo
 	}
 	result := setupServerStatus{Key: "server_no_maps"}
 	failed := false
+	offlineHost := false
 	seen := map[string]bool{}
 	for _, id := range ids {
 		if seen[id] {
@@ -166,7 +177,8 @@ func checkSetupDirectoryStatus(ctx context.Context, client *http.Client, directo
 			continue
 		}
 		if !reply.HostOnline {
-			return setupServerStatus{Key: "server_agent_offline"}
+			offlineHost = true
+			continue
 		}
 		switch reply.Session.State {
 		case "online":
@@ -190,6 +202,9 @@ func checkSetupDirectoryStatus(ctx context.Context, client *http.Client, directo
 	}
 	if !result.Ready && failed {
 		return setupServerStatus{Key: "server_unavailable"}
+	}
+	if !result.Ready && offlineHost {
+		return setupServerStatus{Key: "server_agent_offline"}
 	}
 	return result
 }
