@@ -156,6 +156,15 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	for name, data := range payload {
 		files[name] = data
 	}
+	// In P15, the standard app/server path must use the same authenticated
+	// binary as the managed dynamic P15 server. Avoid a second 76 MB copy in
+	// the downloaded ZIP: copy only AFTER the signed bundle is verified.
+	if native, ok := payload[managedDynamicP15Server]; ok {
+		files["app/server/openomsi.exe"] = native
+		if steam, ok := payload["app/server-dinamico-p15/steam_api64.dll"]; ok {
+			files["app/server/steam_api64.dll"] = steam
+		}
+	}
 	files["docs/PATCH-PLAYER-SHA256.txt"] = automaticBridgeBinaryManifest(payload)
 	// The cumulative installer carries the complete seven-file runtime. Its
 	// own checksums are the new runtime inventory, even if an older package
