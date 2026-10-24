@@ -22,15 +22,13 @@ once(mesh,
      "                lod_meshes.push(VehicleMesh {\n                    def_index: first + i,",
      "                lod_meshes.push(VehicleMesh {\n                    pick_geometry: Default::default(),\n                    def_index: first + i,")
 # Native Coop tests instantiate vehicles without the newer 0.3.41 LOD cache.
-for test_file in (
-    "crates/omsi-app/src/coop_drive.rs",
-    "crates/omsi-app/src/coop_view.rs",
-):
-    p=root/test_file
-    data=p.read_text(encoding="utf-8")
-    anchor="            meshes: Vec::new(),\n" if "coop_view.rs" in test_file else "            meshes: vec![],\n"
-    assert data.count(anchor)==1,(test_file,anchor,data.count(anchor))
-    p.write_text(data.replace(anchor,anchor+"            lod_meshes: Vec::new(),\n"),encoding="utf-8",newline="\n")
+# Two regression fixtures, with their existing layouts kept exactly intact.
+once(root/"crates/omsi-app/src/coop_drive.rs",
+     "program: Arc::new(program), meshes: vec![], paint_schemes: vec![],",
+     "program: Arc::new(program), meshes: vec![], lod_meshes: vec![], paint_schemes: vec![],")
+once(root/"crates/omsi-app/src/coop_view.rs",
+     "            meshes: Vec::new(),\n",
+     "            meshes: Vec::new(),\n            lod_meshes: Vec::new(),\n")
 # 0.3.41 adds far-distance rendering instances.
 render=root/"crates/omsi-app/src/spawn.rs"
 once(render,
