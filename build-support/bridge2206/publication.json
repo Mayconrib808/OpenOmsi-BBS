@@ -1,10 +1,10 @@
 {
-  "version": "2.2.0.6",
-  "sequence": 2026102406,
-  "candidate_run_id": 40097453331,
-  "candidate_commit": "a26ea771309d8841bec264dbc651989698f70de9",
-  "installer_sha256": "7badf9f6d57790f93a8493a79eb63cc333e089533b275129a451877515c921c2",
+  "version": "2.2.0.6.1",
+  "sequence": 2026102407,
+  "candidate_run_id": 40106329076,
+  "candidate_commit": "4db0685a8c7bb0b350300fd7be3206bcd641bb58",
+  "installer_sha256": "9720f8d8ed8265aa259230eb487dfafafbbe667ca9e34ec152e49f6659e5a674",
   "installer_size": 24482304,
-  "full_package_sha256": "fe001e7894954ba809200df9a60ecd6a1f05b49f47abd80f4c4aa708cf84ac73",
-  "coop_archive_sha256": "c86864c4fe27f5b34d381e3c5a0b4222ba2625aa009a52d82df569b6b4b893f6"
+  "full_package_sha256": "8c49a58e1e4fa22b1f8e8b48c1b5495b23829f9ae45e3835d963bdef9ad70e15",
+  "coop_archive_sha256": "e2bb6243001a55978270c7c6da35347bf76b2b6349153e715d833c20ae3a97f4"
 }
