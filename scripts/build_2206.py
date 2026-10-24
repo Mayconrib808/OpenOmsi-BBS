@@ -10,10 +10,38 @@ SEQUENCE=2026102407
 PACKAGE='OpenOmsi_BBS_2.2.0.6.1_Setup_e_Coop12'
 OUT=ROOT/'build/release-2206'
 COOP='OpenOmsi Coop 0.3.40'
+# Official 0.3.40 launcher binaries are NOT the Coop12 game executable.
+# v0.3.38 launchers send players to a P14 lobby even alongside a P15 game.
+OFFICIAL_040_WINDOWS_SHA256='698f25ec97085550a26c59f0b846f30b5ab49380e03cec8a495984e2a543b316'
+LAUNCHERS=('openomsi-launcher-app.exe','openomsi-launcher.exe')
 sha=lambda b:hashlib.sha256(b).hexdigest()
 
+def replace_p14_lobby(files: dict, archive: Path) -> dict:
+ data=archive.read_bytes()
+ if sha(data) != OFFICIAL_040_WINDOWS_SHA256:
+  raise ValueError('Official openOMSI 0.3.40 Windows x64 launcher archive SHA256 differs')
+ replaced={}
+ with zipfile.ZipFile(io.BytesIO(data)) as z:
+  for name in LAUNCHERS:
+   # Exactly one entry, independent of whether upstream adds a root folder.
+   matches=[p for p in z.namelist() if not p.endswith('/') and p.replace('\\','/').split('/')[-1].lower()==name]
+   if len(matches)!=1:
+    raise ValueError(f'Official 0.3.40 {name}: expected one executable, found {matches}')
+   binary=z.read(matches[0])
+   if not binary.startswith(b'MZ') or len(binary)<65536:
+    raise ValueError('Official 0.3.40 launcher is not a complete Windows PE executable: '+name)
+   target=COOP+'/programa/'+name
+   if target not in files or not files[target].startswith(b'MZ'):
+    raise ValueError('Coop baseline missing previous P14 launcher: '+target)
+   if sha(binary)==sha(files[target]):
+    raise ValueError('Coop P14 launcher was accidentally reused: '+name)
+   replaced[target]=dict(before=sha(files[target]),after=sha(binary),source=matches[0])
+   files[target]=binary
+ return replaced
+
+
 def main():
- p=argparse.ArgumentParser();p.add_argument('--baseline',type=Path,required=True);p.add_argument('--game',type=Path,required=True);p.add_argument('--old-spec',type=Path,required=True);p.add_argument('--sources',type=Path,required=True);a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--baseline',type=Path,required=True);p.add_argument('--game',type=Path,required=True);p.add_argument('--old-spec',type=Path,required=True);p.add_argument('--sources',type=Path,required=True);p.add_argument('--official-launcher',type=Path,required=True);a=p.parse_args()
  assert build.VERSION==VERSION
  baseline=a.baseline.read_bytes()
  assert sha(baseline)=='14cf70b2721d6ce62d6a662f2a88e3929c30d1a795ff1d9c805b4aba50ce5e1c', '2.2.0.5 full baseline differs'
@@ -34,6 +62,8 @@ def main():
   assert (folder/'self-test.log').is_file() and (folder/'version.log').is_file(), 'native Windows smoke evidence missing'
  files[COOP+'/programa/openomsi.exe']=(a.game/'openomsi.exe').read_bytes()
  files[COOP+'/programa/steam_api64.dll']=(a.game/'steam_api64.dll').read_bytes()
+ # Replace BOTH stale 0.3.38/P14 lobby entrypoints with official 0.3.40/P15.
+ launcher_evidence=replace_p14_lobby(files,a.official_launcher)
  # The legacy P14 executable stays available for older sessions; new Coop uses P15.
  for name,data in list(files.items()):
   if name.startswith('app/server-dinamico-p14/'):
@@ -48,6 +78,7 @@ def main():
   for path in folder.iterdir():
    if path.is_file() and path.suffix in ('.log','.json'):
     files[COOP+'/validation/'+label+'-'+path.name]=path.read_bytes()
+ files[COOP+'/validation/official-040-launcher.json']=(json.dumps(dict(upstream_release='v0.3.40',upstream_archive_sha256=OFFICIAL_040_WINDOWS_SHA256,binaries=launcher_evidence),indent=2)+'\n').encode()
  info=dict(version='0.3.40-coop.12',protocol=15,game_sha256=sha(files[COOP+'/programa/openomsi.exe']),dynamic_version='0.3.39-bbs-stream.4-dev.1',dynamic_sha256=sha(files['app/server-dinamico-p14/openomsi.exe']),dynamic_p15_version='0.3.40-coop.12',dynamic_p15_sha256=sha(files['app/server-dinamico-p15/openomsi.exe']),two_player_gameplay_tested=False,world_interest='bus and walker positions on both hosts')
  files[COOP+'/source/BUILD-INFO.json']=(json.dumps(info,indent=2)+'\n').encode()
  files[COOP+'/LEIA-ME.txt']=(b'OpenOMSI Coop12 0.3.40 - protocolo 15. Atualize TODOS os participantes e o servidor.\nDuas buzinadas curtas por cumprimento, prontidao nativa apos aquecimento e links por mapa no Setup.\n'+files[COOP+'/LEIA-ME.txt'])
@@ -128,7 +159,7 @@ def main():
  for name in ('source','scripts','docs','build-support','.github'):
   shutil.copytree(ROOT/name,package/name,dirs_exist_ok=True,ignore=shutil.ignore_patterns('__pycache__','*.pyc','*.exe','*.dll','*.syso','*.zip','assets','node_modules'))
  (package/'LEIA-ME.txt').write_text('OpenOmsi BBS 2.2.0.6.1 + Coop 12\n\n'+(package/'LEIA-ME.txt').read_text(encoding='utf-8')+'\n2.2.0.6.1: Coop12 0.3.40 protocolo 15, prontidao de relogio apos aquecimento nativo, duas buzinadas por cumprimento e mapas ativos com Copiar link no Setup. Mantidas transferencia real, BCS no proprietario, cobrador, personagens e interesse por jogador. Sem remover correcoes anteriores.\nTestes automaticos e nativos Windows; sessao grafica com dois jogadores e avaliacao BCS ainda nao validadas.\n',encoding='utf-8')
- report=dict(coop_protocol=15,native_clock_readiness_fix=True,double_horn=True,active_map_copy_buttons=True,version=VERSION,sequence=SEQUENCE,updater_sha256=sha((OUT/'Atualizar-Bridge.exe').read_bytes()),installer_size=(OUT/'Atualizar-Bridge.exe').stat().st_size,coop_archive_sha256=spec['sha256'],components_sha256={n:sha(b) for n,b in payload.items()},retained_components_sha256={n:before[n] for n in before if n not in ('Setup.exe','PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe')},base_package_sha256=sha(baseline),world_interest_both_hosts=True,dynamic_p15_sha256=info['dynamic_p15_sha256'],native_candidate_run=int(os.environ.get('NATIVE_CANDIDATE_RUN','0')),windows_gameplay_tested=False)
+ report=dict(official_launcher_040=True,launcher_archive_sha256=OFFICIAL_040_WINDOWS_SHA256,launcher_sha256={name:detail['after'] for name,detail in launcher_evidence.items()},coop_protocol=15,native_clock_readiness_fix=True,double_horn=True,active_map_copy_buttons=True,version=VERSION,sequence=SEQUENCE,updater_sha256=sha((OUT/'Atualizar-Bridge.exe').read_bytes()),installer_size=(OUT/'Atualizar-Bridge.exe').stat().st_size,coop_archive_sha256=spec['sha256'],components_sha256={n:sha(b) for n,b in payload.items()},retained_components_sha256={n:before[n] for n in before if n not in ('Setup.exe','PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe')},base_package_sha256=sha(baseline),world_interest_both_hosts=True,dynamic_p15_sha256=info['dynamic_p15_sha256'],native_candidate_run=int(os.environ.get('NATIVE_CANDIDATE_RUN','0')),windows_gameplay_tested=False)
  (OUT/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
 
 def finalize():
