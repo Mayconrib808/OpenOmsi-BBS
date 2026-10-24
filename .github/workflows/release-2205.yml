@@ -88,7 +88,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $root='build/release-2205/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11'
+          $root=(Resolve-Path 'build/release-2205/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11').Path
           foreach($name in @('OpenOmsi Coop 0.3.38/programa/openomsi.exe','app/server-dinamico-p14/openomsi.exe','app/server-dinamico-p15/openomsi.exe')) {
             $exe=Join-Path $root $name
             if(!(Test-Path $exe)){throw ('Missing bundled native executable: '+$name)}
