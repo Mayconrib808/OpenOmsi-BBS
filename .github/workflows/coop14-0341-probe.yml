@@ -1,0 +1,122 @@
+name: Probe real openOMSI 0.3.41 + cumulative Coop features (no publication)
+on:
+  push:
+    branches: ['upgrade/openomsi-0.3.41-p15']
+    paths: ['.github/workflows/coop14-0341-probe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: coop14-0341-upstream-probe
+  cancel-in-progress: true
+jobs:
+  port:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      OPENOMSI_VERSION: 0.3.41-coop.14
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+    steps:
+      - name: Checkout cumulative Bridge 2.2.0.7 source
+        uses: actions/checkout@v7
+        with:
+          path: support
+          persist-credentials: false
+      - name: Checkout REAL upstream openOMSI 0.3.41 including history for three-way patch merge
+        uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: v0.3.41
+          fetch-depth: 0
+          path: game
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: coop14-0341-windows
+          cache-on-failure: true
+          workspaces: game -> target
+      - name: Verify authentic upstream release and preserve protocol 14 separately
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          if ((git -C game describe --tags --exact-match) -ne 'v0.3.41') { throw 'NOT the actual official 0.3.41 tag' }
+          New-Item -ItemType Directory -Force out | Out-Null
+          git -C game rev-parse HEAD | Out-File -Encoding utf8 out/upstream-commit.txt
+          Write-Host 'P14 remains from 2.2.0.7 and must not be overwritten by this P15 probe.'
+      - name: Merge ALL previously cumulative Coop12 features into 0.3.41
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git -C game apply --3way --binary --whitespace=nowarn ../support/build-support/coop12/cumulative.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Cumulative Coop12 patch needs manual port to 0.3.41; DO NOT publish stock renamed binary' }
+      - name: Reapply Coop12 horn and driver-transfer hotfixes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          from pathlib import Path
+          import sys
+          root=Path.cwd()
+          sys.path.insert(0,str((root/'support/build-support/coop12').resolve()))
+          from audio_horn_hotfix import apply_hotfix as horn
+          from driver_transfer_hotfix import apply_hotfix as handover
+          horn((root/'game').resolve())
+          handover((root/'game').resolve())
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C game add -A
+          git -C game -c user.name=Coop14Probe -c user.email=probe@localhost commit -m "Port cumulative fixes onto 0.3.41 (probe)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Merge Coop13 fixes for F1/F4, G, interaction, skins and sound queue
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          git -C game apply --3way --binary --whitespace=nowarn ../support/build-support/coop13/fixes.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Coop13 compatibility conflict; DO NOT replace 0.3.40 with falsely relabeled 0.3.41' }
+      - name: Compile and test real native 0.3.41 coop game and P15 server
+        working-directory: game
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          cargo test --locked --release -p omsi-app --lib coop13
+          if ($LASTEXITCODE -ne 0) { throw 'Coop13 regression failed' }
+          cargo test --locked --release -p omsi-lan --lib coop13
+          if ($LASTEXITCODE -ne 0) { throw 'LAN regression failed' }
+          cargo test --locked --release -p omsi-net --lib
+          if ($LASTEXITCODE -ne 0) { throw 'Protocol regression failed' }
+          cargo build --locked --release -p omsi-app --bin openomsi
+          if ($LASTEXITCODE -ne 0) { throw 'Native compilation failed' }
+      - name: Verify real executable version; stage BOTH client and app/server P15
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          @'
+          import os, pathlib, subprocess, shutil
+          root=pathlib.Path('out')
+          root.mkdir(exist_ok=True)
+          exe=pathlib.Path('game/target/release/openomsi.exe')
+          for arg in ('--version','--self-test','--help'):
+              p=subprocess.run([str(exe.resolve()),arg],capture_output=True,text=True,errors='replace',timeout=60,env=os.environ)
+              output=p.stdout+'\n'+p.stderr
+              (root/('native-'+arg[2:]+'.log')).write_text(output)
+              assert p.returncode==0,(arg,p.returncode,output)
+              if arg=='--version': assert '0.3.41-coop.14' in output,output
+              if arg=='--self-test': assert 'self-test ok' in output.lower(),output
+              if arg=='--help': assert '--server' in output,output
+          for folder in ('OpenOmsi Coop 0.3.41/programa','app/server','app/server-dinamico-p15'):
+              target=root/folder
+              target.mkdir(parents=True,exist_ok=True)
+              shutil.copyfile(exe,target/'openomsi.exe')
+          assert (root/'app/server/openomsi.exe').read_bytes()==(root/'OpenOmsi Coop 0.3.41/programa/openomsi.exe').read_bytes()
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload authentic binaries and diagnostics (NOT signed/published)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: coop14-0341-port-probe
+          path: out/**
+          retention-days: 14
+          if-no-files-found: warn
