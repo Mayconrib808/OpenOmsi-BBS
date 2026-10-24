@@ -2,7 +2,7 @@ name: Coop12 cumulative 0.3.40 protocol 15 Windows
 on:
   push:
     branches: ['release/2.2.0.6-coop12-p15']
-    paths: ['build-support/coop12/**', '.github/workflows/coop12-p15.yml']
+    paths: ['build-support/coop12/**', '.github/workflows/coop12-p15.yml', 'scripts/test_native_clock_2206.py']
   workflow_dispatch:
 permissions:
   contents: read
@@ -73,6 +73,8 @@ jobs:
               if arg=='--help':assert '--server' in text
           '@ | python -
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Exercise actual dedicated startup and clock confirmations over HTTP
+        run: python support/scripts/test_native_clock_2206.py --exe out/openomsi.exe --out out
       - uses: actions/upload-artifact@v7
         if: always()
         with:

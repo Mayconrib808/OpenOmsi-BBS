@@ -9404,14 +9404,16 @@ index 905d5efe..9d4fb702 100644
      }
 diff --git a/crates/omsi-net/src/handover.rs b/crates/omsi-net/src/handover.rs
 new file mode 100644
-index 00000000..ccaee2e8
+index 00000000..2d635d0b
 --- /dev/null
 +++ b/crates/omsi-net/src/handover.rs
-@@ -0,0 +1,296 @@
+@@ -0,0 +1,298 @@
 +//! Reliable, ordered, owner-authored handover states. Only names and paths, never audio.
 +use std::collections::{BTreeMap, HashMap, VecDeque};
 +
-+pub const MAGIC: u8 = 0xBA;
++// Protocol 15 reserves 0xBA/0xBB for the optimized traffic table and 0xBC
++// for voice. Handover needs its own discriminator on this same transport.
++pub const MAGIC: u8 = 0xBD;
 +const HEAD: usize = 36;
 +const CHUNK: usize = 1024;
 +const MAX_SIZE: usize = 512 * 1024;
@@ -9827,10 +9829,10 @@ index 045488db..0aab8b46 100644
          self.schema_receiver.retain_peers(&keep);
          self.vars_in.retain(|v| v.id != id);
 diff --git a/crates/omsi-net/src/tests.rs b/crates/omsi-net/src/tests.rs
-index 3c02c64b..556f91d2 100644
+index 3c02c64b..a2409fdd 100644
 --- a/crates/omsi-net/src/tests.rs
 +++ b/crates/omsi-net/src/tests.rs
-@@ -1514,5 +1514,47 @@ fn a_player_without_a_bus_sends_a_heartbeat() {
+@@ -1514,5 +1514,50 @@ fn a_player_without_a_bus_sends_a_heartbeat() {
  mod connections;
  
  mod lifecycle;
@@ -9855,6 +9857,9 @@ index 3c02c64b..556f91d2 100644
 +
 +#[test]
 +fn handover_snapshot_is_session_authenticated_and_relayed_between_clients() {
++    assert_ne!(handover::MAGIC, traffic_table::wire::MAGIC);
++    assert_ne!(handover::MAGIC, traffic_table::wire::ACK_MAGIC);
++    assert_ne!(handover::MAGIC, voice_net::MAGIC);
 +    let mut host=LanSession::host(0,"host",world("m"),true).unwrap();
 +    let at=SocketAddr::from(([127,0,0,1],host.local_addr().unwrap().port()));
 +    let mut a=LanSession::join_addr(vec![at],None,"a",world("m")).unwrap();
