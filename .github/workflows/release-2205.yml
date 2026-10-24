@@ -98,17 +98,21 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $root=(Resolve-Path 'build/release-2205/OpenOmsi_BBS_2.2.0.5_Setup_e_Coop11').Path
+          $env:OPENOMSI_COOP_GAME_ONLY='1'
           foreach($name in @('OpenOmsi Coop 0.3.38/programa/openomsi.exe','app/server-dinamico-p14/openomsi.exe','app/server-dinamico-p15/openomsi.exe')) {
             $exe=Join-Path $root $name
             if(!(Test-Path $exe)){throw ('Missing bundled native executable: '+$name)}
-            & $exe --version
-            if($LASTEXITCODE -ne 0){throw ('Bundled version check failed: '+$name)}
-            & $exe --self-test
-            if($LASTEXITCODE -ne 0){throw ('Bundled native self-test failed: '+$name)}
-            if($name -match 'server-dinamico') {
-              $helpText=(& $exe --help 2>&1) -join "`n"
-              if($LASTEXITCODE -ne 0 -or $helpText -notmatch '--server'){throw ('Bundled dynamic server is not capable: '+$name)}
-            }
+            Push-Location (Split-Path $exe -Parent)
+            try {
+              & $exe --version
+              if($LASTEXITCODE -ne 0){throw ('Bundled version check failed: '+$name+' exit='+$LASTEXITCODE)}
+              & $exe --self-test
+              if($LASTEXITCODE -ne 0){throw ('Bundled native self-test failed: '+$name+' exit='+$LASTEXITCODE)}
+              if($name -match 'server-dinamico') {
+                $helpText=(& $exe --help 2>&1) -join "`n"
+                if($LASTEXITCODE -ne 0 -or $helpText -notmatch '--server'){throw ('Bundled dynamic server is not capable: '+$name)}
+              }
+            } finally { Pop-Location }
           }
       - name: Test native Setup, live status lamp and full host preferences
         run: python scripts/verify_2205_windows.py
