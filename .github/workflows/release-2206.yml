@@ -88,7 +88,7 @@ jobs:
           # and checks both its exit status and the expected native output.
           @'
           import os, pathlib, subprocess, sys
-          root = pathlib.Path('build/release-2206/OpenOmsi_BBS_2.2.0.6_Setup_e_Coop12').resolve()
+          root = pathlib.Path('build/release-2206/OpenOmsi_BBS_2.2.0.6.1_Setup_e_Coop12').resolve()
           env = dict(os.environ, OPENOMSI_COOP_GAME_ONLY='1')
           cases = [
               ('OpenOmsi Coop 0.3.40/programa/openomsi.exe', '0.3.40-coop.12', False),
@@ -148,5 +148,5 @@ jobs:
           retention-days: 30
           if-no-files-found: error
           path: |
-            build/release-2206/OpenOmsi_BBS_2.2.0.6_Setup_e_Coop12.zip
-            build/release-2206/OpenOmsi_BBS_2.2.0.6_Setup_e_Coop12.zip.sha256
+            build/release-2206/OpenOmsi_BBS_2.2.0.6.1_Setup_e_Coop12.zip
+            build/release-2206/OpenOmsi_BBS_2.2.0.6.1_Setup_e_Coop12.zip.sha256
