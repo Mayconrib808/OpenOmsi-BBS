@@ -20,7 +20,12 @@ for name, item in spec.items():
 subprocess.run(['git', 'apply', '--binary', '--whitespace=nowarn', '-'], cwd=game,
                input=(support / 'cumulative.patch').read_bytes(), check=True)
 for name, item in spec.items():
-    assert sha((game / name).read_bytes()) == item['after'], name
+    p = game / name
+    data = p.read_bytes()
+    if b'\x00' not in data:
+        data = data.replace(b'\r\n', b'\n')
+        p.write_bytes(data)
+    assert sha(data) == item['after'], name
 out = root / 'out'
 out.mkdir(exist_ok=True)
 (out / 'coop12-source.json').write_text(json.dumps(dict(upstream=base, protocol=15,
