@@ -26,8 +26,13 @@ for name, item in spec.items():
         data = data.replace(b'\r\n', b'\n')
         p.write_bytes(data)
     assert sha(data) == item['after'], name
+# Apply the small post-baseline fix after validating all cumulative hashes.
+# Keep earlier Coop features bit-for-bit intact.
+from audio_horn_hotfix import apply_hotfix
+apply_hotfix(game)
+audio_hotfix_sha256 = sha((support / 'audio_horn_hotfix.py').read_bytes())
 out = root / 'out'
 out.mkdir(exist_ok=True)
 (out / 'coop12-source.json').write_text(json.dumps(dict(upstream=base, protocol=15,
-    patch_sha256=sha((support / 'cumulative.patch').read_bytes()), files=spec), indent=2) + '\n')
+    patch_sha256=sha((support / 'cumulative.patch').read_bytes()), audio_hotfix_sha256=audio_hotfix_sha256, files=spec), indent=2) + '\n')
 print('Coop12: complete cumulative 0.3.40/P15 source, native startup clock fix, two horn taps.')
