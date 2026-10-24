@@ -25,6 +25,15 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - name: Preflight Python builders, source overlay and publisher syntax
+        shell: pwsh
+        run: |
+          python -m py_compile scripts/build_2205.py scripts/verify_2205_windows.py scripts/package_coop11_source.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/package_coop11_source.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check build-support/bridge2205/publication.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Await and authenticate all four exact Coop11 native and Bridge jobs
         env:
           GH_TOKEN: ${{ github.token }}
