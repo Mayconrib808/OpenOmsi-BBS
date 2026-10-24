@@ -1,0 +1,44 @@
+name: Audit real 0.3.41 Coop patch conflicts (no publication)
+on:
+  push:
+    branches: ['upgrade/openomsi-0.3.41-p15']
+    paths: ['.github/workflows/coop14-0341-merge-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: support
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: v0.3.41
+          fetch-depth: 0
+          path: game
+      - name: Audit cumulative Coop patch against actual 0.3.41
+        shell: bash
+        run: |
+          set -uo pipefail
+          mkdir -p out
+          git -C game describe --tags --exact-match | tee out/version.txt
+          git -C game apply --3way --binary --whitespace=nowarn ../support/build-support/coop12/cumulative.patch > out/coop12-apply.stdout 2> out/coop12-apply.stderr
+          result=$?
+          echo "cumulative_patch_exit_code=$result" | tee out/result.txt
+          git -C game diff --name-only --diff-filter=U | tee out/conflicts.txt
+          git -C game status --short | tee out/worktree.txt
+          cat out/coop12-apply.stderr
+          if [ "$result" != "0" ]; then
+            echo "PATCH PORT REQUIRED: original v0.3.41 is genuine, but cumulative Coop features are not fully merged." | tee -a out/result.txt
+          fi
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coop14-0341-merge-conflicts
+          path: out/**
+          retention-days: 14
+          if-no-files-found: warn
