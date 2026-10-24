@@ -17,6 +17,9 @@ jobs:
       OPENOMSI_VERSION: 0.3.40-coop.13
       OPENOMSI_COOP_GAME_ONLY: '1'
       CARGO_TERM_COLOR: never
+      # Build metadata reads git status; keep that read from refreshing the index
+      # and forcing the entire application to relink between test filters.
+      GIT_OPTIONAL_LOCKS: '0'
     steps:
       - uses: actions/checkout@v7
         with:
