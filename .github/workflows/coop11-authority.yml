@@ -1,0 +1,113 @@
+name: Coop11 full vehicle authority and dedicated streaming candidate
+on:
+  push:
+    branches: ['work/coop11-real-vehicle-authority']
+    paths: ['build-support/coop11/**', '.github/workflows/coop11-authority.yml', 'source/dynamic_host_update*', 'source/bridge_update.go']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - mode: game
+            base: 866c60de268f3fc8737287b8e2d13993c49b1f1f
+            version: 0.3.38-coop.11-dev.1
+            cache: coop6-windows-msvc
+          - mode: server
+            base: 9eaf95d4caafabe041edcdfc37931b5259c30c8a
+            version: 0.3.39-bbs-stream.4-dev.1
+            cache: coop9-server-windows-msvc
+    env:
+      OPENOMSI_VERSION: ${{ matrix.version }}
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: support
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: ${{ matrix.base }}
+          path: game
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.cache }}
+          cache-on-failure: true
+          workspaces: |
+            game -> target
+            game/tools/coop-check -> target
+      - name: Preserve all cumulative fixes
+        shell: pwsh
+        run: |
+          if ('${{ matrix.mode }}' -eq 'game') {
+            python support/build-support/coop6/prepare.py
+            python support/build-support/driver-share/prepare.py
+            python support/build-support/character/prepare.py
+            python support/build-support/greetings/prepare.py
+            python support/build-support/coop10/prepare.py
+          } else {
+            python support/build-support/greetings-server/prepare.py
+            python support/build-support/coop10/world_centers.py
+          }
+          python support/build-support/greetings-hotfix/prepare.py
+          python support/build-support/coop11/dynamic.py
+          python support/build-support/coop11/prepare.py '${{ matrix.mode }}'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Regressions on the real native libraries
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-net --lib handover 2>&1 | Tee-Object ../out/handover-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-sim --lib ai_traffic::greetings 2>&1 | Tee-Object ../out/greetings-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-net --lib world_interest 2>&1 | Tee-Object ../out/world-interest-tests.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ('${{ matrix.mode }}' -eq 'game') {
+            cargo test --locked --release -p omsi-lan --lib vehicle_transfer 2>&1 | Tee-Object ../out/vehicle-transfer-tests.log
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            cargo test --locked --manifest-path tools/coop-check/Cargo.toml 2>&1 | Tee-Object ../out/coop-regressions.log
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          cargo test --locked --release -p omsi-app --lib dedicated_612_tiles 2>&1 | Tee-Object ../out/612-tile-regression.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build actual Windows executable and run native self-test
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo build --locked --release --target x86_64-pc-windows-msvc -p omsi-app --bin openomsi 2>&1 | Tee-Object ../out/build.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item target/x86_64-pc-windows-msvc/release/openomsi.exe ../out/openomsi.exe
+          & ../out/openomsi.exe --version 2>&1 | Tee-Object ../out/version.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & ../out/openomsi.exe --self-test 2>&1 | Tee-Object ../out/self-test.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: coop11-${{ matrix.mode }}-development-evidence
+          retention-days: 30
+          path: out/*
+  bridge:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v6
+        with:
+          go-version: 1.23.2
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Preserve Bridge and migration regressions
+        shell: pwsh
+        run: |
+          python -c "import sys;sys.path.insert(0,'scripts');from build_2203 import tests;tests('go')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -249,6 +249,10 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 		}
 	}
 
+	if err = activateUpdatedDynamicHost(dir, payload); err != nil {
+		return state, err
+	}
+
 	// BCS next-trip preparation is best-effort. A missing/moved/new BCS must not
 	// roll back a successfully repaired Bridge. Setup can repair/reconfigure the
 	// BCS integration after reopening.
