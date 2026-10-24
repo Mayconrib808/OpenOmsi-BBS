@@ -14,7 +14,9 @@ for name,pin in spec.items():
  (game/name).write_bytes(data)
 subprocess.run(['git','apply','--binary','--whitespace=nowarn','-'],cwd=game,input=(support/'fixes.patch').read_bytes(),check=True)
 for name,pin in spec.items():
- assert sha((game/name).read_bytes())==pin['after'], 'Coop13 result differs: '+name
+ data=(game/name).read_bytes().replace(b'\r\n',b'\n')
+ (game/name).write_bytes(data)
+ assert sha(data)==pin['after'], 'Coop13 result differs: '+name
 out=root/'out'
 out.mkdir(exist_ok=True)
 (out/'coop13-source.json').write_text(json.dumps(dict(upstream='e874276e1bfa22896deb1e00adab0ed7d4f3ce2f',protocol=15,version='0.3.40-coop.13',patch_sha256=sha((support/'fixes.patch').read_bytes()),files=spec),indent=2)+'\n')
