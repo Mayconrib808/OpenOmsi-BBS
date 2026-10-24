@@ -2,7 +2,7 @@ name: Probe real openOMSI 0.3.41 + cumulative Coop features (no publication)
 on:
   push:
     branches: ['upgrade/openomsi-0.3.41-p15']
-    paths: ['.github/workflows/coop14-0341-probe.yml']
+    paths: ['.github/workflows/coop14-0341-probe.yml', 'build-support/coop14/**']
   workflow_dispatch:
 permissions:
   contents: read
@@ -17,6 +17,7 @@ jobs:
       OPENOMSI_VERSION: 0.3.41-coop.14
       OPENOMSI_COOP_GAME_ONLY: '1'
       CARGO_TERM_COLOR: never
+      GIT_OPTIONAL_LOCKS: '0'
     steps:
       - name: Checkout cumulative Bridge 2.2.0.7 source
         uses: actions/checkout@v7
