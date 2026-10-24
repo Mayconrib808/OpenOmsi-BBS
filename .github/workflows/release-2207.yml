@@ -1,0 +1,177 @@
+name: Assemble cumulative Bridge 2.2.0.7 with Coop13
+on:
+  push:
+    branches: ['release/2.2.0.7']
+    paths: ['.github/workflows/release-2207.yml', 'scripts/build_2207.py', 'scripts/verify_2207_windows.py', 'scripts/scan_2207.ps1', 'scripts/package_coop13_source.py']
+  workflow_dispatch:
+concurrency:
+  group: Bridge-2207-release
+  cancel-in-progress: true
+permissions:
+  contents: read
+  actions: read
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Preflight Python builders, source overlay and publisher syntax
+        shell: pwsh
+        run: |
+          python -m py_compile scripts/build_2207.py scripts/verify_2207_windows.py scripts/package_coop13_source.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python scripts/package_coop13_source.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --check build-support/bridge2207/publication.mjs
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Await and authenticate the exact cumulative Coop13 native build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $id=40119950951
+          $sha='e731fc1c5ff8707649fb416ea051f3b264992f1e'
+          $deadline=(Get-Date).AddMinutes(65)
+          while($true) {
+            $run=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id" | ConvertFrom-Json
+            if ($run.head_sha -ne $sha -or $run.path -ne '.github/workflows/coop13-p15.yml' -or $run.head_branch -ne 'release/2.2.0.7') { throw 'Native candidate identity differs' }
+            if ($run.status -eq 'completed') {
+              if ($run.conclusion -ne 'success') { throw 'Coop13 native candidate did not pass; no release permitted' }
+              break
+            }
+            if ((Get-Date) -gt $deadline) { throw 'Native validation timed out' }
+            Start-Sleep -Seconds 20
+          }
+          $jobs=(gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" | ConvertFrom-Json).jobs
+          $matches=@($jobs | Where-Object { $_.name -eq 'native' })
+          if ($matches.Count -ne 1 -or $matches[0].conclusion -ne 'success') { throw 'Required native P15 job did not pass' }
+          'NATIVE_CANDIDATE_RUN=40119950951' | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - uses: actions/download-artifact@v8
+        with:
+          name: coop13-p15-native-evidence
+          run-id: 40119950951
+          github-token: ${{ github.token }}
+          path: approved-game
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.6-complete
+          run-id: 40110829067
+          github-token: ${{ github.token }}
+          path: approved-previous-full
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.0.6-candidate
+          run-id: 40110829067
+          github-token: ${{ github.token }}
+          path: approved-previous
+      - name: Download and SHA256-pin the official openOMSI 0.3.40 Windows x64 launcher
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force official-openomsi | Out-Null
+          gh release download v0.3.40 --repo openOMSI-org/openOMSI --pattern 'openOMSI-0.3.40-windows-x64.zip' --dir official-openomsi
+          if ($LASTEXITCODE -ne 0) { throw 'Official launcher download failed' }
+          $zip='official-openomsi/openOMSI-0.3.40-windows-x64.zip'
+          $actual=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected='698f25ec97085550a26c59f0b846f30b5ab49380e03cec8a495984e2a543b316'
+          if ($actual -ne $expected) { throw "Official openOMSI 0.3.40 archive hash mismatch: $actual" }
+      - name: Package public corresponding source patches and pinned upstream IDs
+        run: python scripts/package_coop13_source.py
+      - name: Build cumulative signed-update candidate with Coop13 and P14/P15
+        run: python scripts/build_2207.py --baseline approved-previous-full/OpenOmsi_BBS_2.2.0.6.2_Setup_e_Coop12.zip --old-spec approved-previous/coop-spec.json --game approved-game --sources out --official-launcher official-openomsi/openOMSI-0.3.40-windows-x64.zip
+      - name: Smoke-test actual bundled Coop13 game and P14/P15 server files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          # GUI-subsystem Windows executables can leave $LASTEXITCODE unset when
+          # invoked directly by PowerShell. Python waits for the actual process
+          # and checks both its exit status and the expected native output.
+          @'
+          import os, pathlib, subprocess, sys
+          root = pathlib.Path('build/release-2207/OpenOmsi_BBS_2.2.0.7_Setup_e_Coop13').resolve()
+          env = dict(os.environ, OPENOMSI_COOP_GAME_ONLY='1')
+          cases = [
+              ('OpenOmsi Coop 0.3.40/programa/openomsi.exe', '0.3.40-coop.13', False),
+              ('app/server-dinamico-p14/openomsi.exe', '0.3.39-bbs-stream.4-dev.1', True),
+              ('app/server-dinamico-p15/openomsi.exe', '0.3.40-coop.13', True),
+          ]
+          # Fail the release if ANY stale 0.3.38 lobby binary remains.
+          evidence = __import__('json').loads((root/'OpenOmsi Coop 0.3.40/validation/official-040-launcher.json').read_text())
+          if evidence['upstream_archive_sha256'] != '698f25ec97085550a26c59f0b846f30b5ab49380e03cec8a495984e2a543b316':
+              raise RuntimeError('Launcher provenance differs from pinned official archive')
+          for target,info in evidence['binaries'].items():
+              blob = (root/target).read_bytes()
+              if not blob.startswith(b'MZ') or __import__('hashlib').sha256(blob).hexdigest()!=info['after']:
+                  raise RuntimeError('Stale or corrupt P14 launcher: '+target)
+          if len(evidence['binaries'])!=2:
+              raise RuntimeError('Both GUI and CLI launcher must be migrated')
+          for name, version, dedicated in cases:
+              exe = root / name
+              if not exe.is_file() or exe.read_bytes()[:2] != b'MZ':
+                  raise RuntimeError(f'Missing Windows PE executable: {name}')
+              for arg in ('--version', '--self-test', '--help') if dedicated else ('--version', '--self-test'):
+                  p = subprocess.run([str(exe), arg], cwd=str(exe.parent), env=env,
+                                     capture_output=True, text=True, errors='replace', timeout=45)
+                  output = p.stdout + '\n' + p.stderr
+                  print(f'{name} {arg}: exit={p.returncode}\n{output}', flush=True)
+                  if p.returncode != 0:
+                      raise RuntimeError(f'Native command failed: {name} {arg}, exit={p.returncode}')
+                  if arg == '--version' and version not in output:
+                      raise RuntimeError(f'Bundled native version mismatch: {name}')
+                  if arg == '--self-test' and 'self-test ok' not in output.lower():
+                      raise RuntimeError(f'Bundled native self-test missing success marker: {name}')
+                  if arg == '--help' and '--server' not in output:
+                      raise RuntimeError(f'Bundled dedicated server capability missing: {name}')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test native Setup, active map copy buttons, status lamp and full host preferences
+        run: python scripts/verify_2207_windows.py
+      - name: Include actual native clock confirmation evidence
+        shell: pwsh
+        run: |
+          Copy-Item approved-game/native-clock*.json,approved-game/native-clock*.log build/release-2207/evidence/
+          Copy-Item approved-game/*regressions.log,approved-game/protocol15-tests.log,approved-game/driver-handover-path-regression.log build/release-2207/evidence/
+      - name: Finalize complete source-backed portable ZIP
+        run: python scripts/build_2207.py --finalize
+      - name: Defender scan exact final ZIP and updater
+        shell: pwsh
+        run: scripts/scan_2207.ps1
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Bridge-2.2.0.7-evidence
+          retention-days: 30
+          if-no-files-found: warn
+          path: build/release-2207/evidence/**
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.7-candidate
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            build/release-2207/Atualizar-Bridge.exe
+            build/release-2207/build-report.json
+            build/release-2207/coop-spec.json
+            build/release-2207/coop_bundle_manifest.go
+            build/release-2207/coop-assets/**
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Bridge-2.2.0.7-complete
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            build/release-2207/OpenOmsi_BBS_2.2.0.7_Setup_e_Coop13.zip
+            build/release-2207/OpenOmsi_BBS_2.2.0.7_Setup_e_Coop13.zip.sha256
