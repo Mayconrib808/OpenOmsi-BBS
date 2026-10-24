@@ -50,6 +50,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --locked --release -p omsi-app --lib dedicated_612_tiles -- --nocapture 2>&1 | Tee-Object ../out/612-tile-regression.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked --release -p omsi-app --lib visitor_handover_keeps_exact_absolute_vehicle_path -- --nocapture 2>&1 | Tee-Object ../out/driver-handover-path-regression.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           cargo test --locked --manifest-path tools/coop-check/Cargo.toml 2>&1 | Tee-Object ../out/coop-regressions.log
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Build actual Windows game and dedicated server runtime
