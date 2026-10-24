@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-const bundledCoopFolder = "OpenOmsi Coop 0.3.38"
+const bundledCoopFolder = "OpenOmsi Coop 0.3.40"
 
 func bundledCoopExecutable(dir string) string {
 	path := filepath.Join(dir, bundledCoopFolder, "programa", "openomsi.exe")

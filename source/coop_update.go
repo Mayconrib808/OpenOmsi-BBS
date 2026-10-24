@@ -228,7 +228,7 @@ func loadBundledCoopUpdate(ctx context.Context, dir string, progress func(int64,
 	}
 	client := bridgeUpdateClient()
 	client.Timeout = 0 // The cancellable operation sets the overall deadline.
-	data, err := downloadCoopDistribution(ctx, client, bundledCoopOrigin, bundledCoopDistribution, filepath.Join(cache, "OpenOmsi-BBS", "Coop-0.3.38"), progress)
+	data, err := downloadCoopDistribution(ctx, client, bundledCoopOrigin, bundledCoopDistribution, filepath.Join(cache, "OpenOmsi-BBS", "Coop-0.3.40"), progress)
 	if err != nil {
 		return nil, err
 	}

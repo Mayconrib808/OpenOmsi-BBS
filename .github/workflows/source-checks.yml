@@ -2,7 +2,7 @@ name: Source checks
 
 on:
   push:
-    branches-ignore: ['release/2.2.0.4', 'release/2.2.0.3', 'codex/2.0.5-dev.3-timeout', 'codex/official-server-adapter', 'hotfix/2.1.8-protocol7', 'release/2.1.9-bcs-5.0.2.0', 'release/2.1.9.1', 'release/2.1.9.2', 'release/2.1.9.3', 'release/2.1.9.4', 'release/2.1.9.5', 'release/2.1.9.6', 'release/2.1.9.7', 'release/2.1.9.8', 'release/2.2.0']
+    branches-ignore: ['release/2.2.0.6-coop12-p15', 'release/2.2.0.4', 'release/2.2.0.3', 'codex/2.0.5-dev.3-timeout', 'codex/official-server-adapter', 'hotfix/2.1.8-protocol7', 'release/2.1.9-bcs-5.0.2.0', 'release/2.1.9.1', 'release/2.1.9.2', 'release/2.1.9.3', 'release/2.1.9.4', 'release/2.1.9.5', 'release/2.1.9.6', 'release/2.1.9.7', 'release/2.1.9.8', 'release/2.2.0']
   pull_request:
   workflow_dispatch:
 
