@@ -34,28 +34,32 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           node --check build-support/bridge2206/publication.mjs
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-      - name: Await and authenticate the exact cumulative Coop12 native build
+      - name: Authenticate already-completed cumulative Coop12 Windows build
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: \${{ github.token }}
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
           $id=40110406922
           $sha='f9f5b625ad44d867e3681527ebd251b5b293f926'
-          $deadline=(Get-Date).AddMinutes(65)
-          while($true) {
-            $run=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id" | ConvertFrom-Json
-            if ($run.head_sha -ne $sha -or $run.path -ne '.github/workflows/coop12-p15.yml' -or $run.head_branch -ne 'release/2.2.0.6-coop12-p15') { throw 'Native candidate identity differs' }
-            if ($run.status -eq 'completed') {
-              if ($run.conclusion -ne 'success') { throw 'Coop12 native candidate did not pass; no release permitted' }
-              break
+          $headers=@{Authorization="Bearer $env:GH_TOKEN";Accept='application/vnd.github+json'}
+          $api="https://api.github.com/repos/$env:GITHUB_REPOSITORY/actions/runs/$id"
+          $run=$null
+          for($attempt=1;$attempt -le 5;$attempt++) {
+            try {
+              $run=Invoke-RestMethod -Uri $api -Headers $headers -TimeoutSec 25
+              if($run.status -eq 'completed') { break }
+            } catch {
+              if($attempt -eq 5) { throw }
             }
-            if ((Get-Date) -gt $deadline) { throw 'Native validation timed out' }
-            Start-Sleep -Seconds 20
+            Start-Sleep -Seconds 6
           }
-          $jobs=(gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$id/jobs?per_page=100" | ConvertFrom-Json).jobs
-          $matches=@($jobs | Where-Object { $_.name -eq 'native' })
-          if ($matches.Count -ne 1 -or $matches[0].conclusion -ne 'success') { throw 'Required native P15 job did not pass' }
+          if($null -eq $run -or $run.head_sha -ne $sha -or $run.path -ne '.github/workflows/coop12-p15.yml' -or $run.head_branch -ne 'release/2.2.0.6-coop12-p15' -or $run.status -ne 'completed' -or $run.conclusion -ne 'success') {
+            throw 'Pinned Coop12 Windows candidate not successful; no release permitted'
+          }
+          $jobs=(Invoke-RestMethod -Uri ($api+'/jobs?per_page=100') -Headers $headers -TimeoutSec 25).jobs
+          $matches=@($jobs | Where-Object { $_.name -eq 'native' -and $_.conclusion -eq 'success' })
+          if($matches.Count -ne 1) { throw 'Native P15 job must be successful' }
           'NATIVE_CANDIDATE_RUN=40110406922' | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
       - uses: actions/download-artifact@v8
         with:
