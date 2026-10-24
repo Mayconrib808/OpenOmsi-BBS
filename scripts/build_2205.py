@@ -45,9 +45,9 @@ def main():
  files[COOP+'/source/BUILD-INFO.json']=(json.dumps(info,indent=2)+'\n').encode()
  files[COOP+'/LEIA-ME.txt']+=b'\nCoop 11: transferencia nativa integral do estado do veiculo; BCS permanece no proprietario.\nMotorista visitante com fisica/scripts/camera/F1; atualizacao dinamica de regioes e IA ao redor de onibus e pessoas.\nServidores dinamicos P14 e P15 separados; HostAgent/CompanyHost originais mantidos.\nTestes de dois jogadores reais e viagem completa BCS ainda pendentes.\n'
  marker=json.loads(files['app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json'])
- marker.update(bridge_line=VERSION,protocol=14,native_version=info['dynamic_version'],native_sha256=info['dynamic_sha256'],world_interest='buses_and_walkers',build_commit=os.environ.get('GITHUB_SHA'),build_run=os.environ.get('GITHUB_RUN_ID'))
+ marker.update(bridge_line=VERSION,protocol=14,native_version=info['dynamic_version'],native_sha256=info['dynamic_sha256'],source='docs/source/OpenOMSI_P14_P15_Coop11_patches.zip',source_commit='9eaf95d4caafabe041edcdfc37931b5259c30c8a',world_interest='buses_and_walkers',build_commit=os.environ.get('GITHUB_SHA'),build_run=os.environ.get('GITHUB_RUN_ID'))
  files['app/server-dinamico-p14/BBS-DYNAMIC-SERVER.json']=(json.dumps(marker,indent=2)+'\n').encode()
- marker15=dict(marker,protocol=15,native_version=info['dynamic_p15_version'],native_sha256=info['dynamic_p15_sha256'])
+ marker15=dict(marker,protocol=15,native_version=info['dynamic_p15_version'],native_sha256=info['dynamic_p15_sha256'],source_commit='e874276e1bfa22896deb1e00adab0ed7d4f3ce2f')
  files['app/server-dinamico-p15/BBS-DYNAMIC-SERVER.json']=(json.dumps(marker15,indent=2)+'\n').encode()
  # Keep the personal-host activation route consistent with the new server bytes.
  host_name='docs/HOST-PESSOAL-2.2.0.3.json'
