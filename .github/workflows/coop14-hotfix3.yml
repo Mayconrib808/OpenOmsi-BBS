@@ -1,0 +1,93 @@
+name: Hotfix 3 - restore complete P15 host and verify real controls
+'on':
+  push:
+    branches:
+    - hotfix/2.2.0.8.1
+    paths:
+    - scripts/build_2208_hotfix3.py
+    - scripts/patch_complete_host_clock.py
+    - scripts/test_complete_host_ui.py
+    - .github/workflows/coop14-hotfix3.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        path: support
+    - uses: actions/setup-go@v6
+      with:
+        go-version: 1.23.2
+        cache: false
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.0.8-hotfix1-candidate
+        run-id: 40149656930
+        github-token: ${{ github.token }}
+        path: support/prior
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.0.7-complete
+        run-id: 40121432530
+        github-token: ${{ github.token }}
+        path: support/old-complete
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.0.7-candidate
+        run-id: 40121432530
+        github-token: ${{ github.token }}
+        path: support/old-candidate
+    - name: Replay stalled clock and all Bridge regressions
+      working-directory: support
+      shell: pwsh
+      run: 'python scripts/build_2203.py --tests-only
+
+        if ($LASTEXITCODE -ne 0) { throw ''Regressions failed'' }'
+    - name: Reuse authenticated Coop14 binaries and Fechou audio
+      working-directory: support
+      shell: pwsh
+      run: "@'\nimport io,json,hashlib,zipfile\nfrom pathlib import Path\np=Path('prior');spec=json.loads((p/'coop-spec.json').read_text());parts=[]\n\
+        for item in spec['parts']:\n b=(p/'coop-assets'/(item['sha256']+'.bin')).read_bytes()\n\
+        \ assert hashlib.sha256(b).hexdigest()==item['sha256'];parts.append(b)\ndata=b''.join(parts);assert\
+        \ hashlib.sha256(data).hexdigest()==spec['sha256']\nwith zipfile.ZipFile(io.BytesIO(data))\
+        \ as z:\n def read(n):\n  b=z.read(spec['prefix']+n);assert hashlib.sha256(b).hexdigest()==spec['files'][n];return\
+        \ b\n game=Path('approved-game');game.mkdir()\n for n in ('openomsi.exe','steam_api64.dll'):\
+        \ (game/n).write_bytes(read('OpenOmsi Coop 0.3.41/programa/'+n))\n (game/'version.log').write_text('Reused\
+        \ exact approved 0.3.41-coop.14-hotfix.1 native binary from run 40149656930')\n\
+        \ Path('fecho-user.wav').write_bytes(read('OpenOmsi Coop 0.3.41/programa/assets/sounds/coop_turnstile_coin.wav'))\n\
+        \ out=Path('out');out.mkdir();(out/'openomsi-coop14-source.zip').write_bytes(read('OpenOmsi\
+        \ Coop 0.3.41/source/openomsi-coop14-source.zip'))\n'@ | python -\nif ($LASTEXITCODE\
+        \ -ne 0) { throw 'Reuse verification failed' }\ngh release download v0.3.41\
+        \ --repo openOMSI-org/openOMSI --pattern 'openOMSI-0.3.41-windows-x64.zip'\
+        \ --dir official\nif ($LASTEXITCODE -ne 0) { throw 'Launcher download failed'\
+        \ }"
+      env:
+        GH_TOKEN: ${{ github.token }}
+    - name: Build supervisor repair and cumulative updater
+      working-directory: support
+      shell: pwsh
+      run: 'python scripts/build_2208_hotfix3.py --baseline old-complete/OpenOmsi_BBS_2.2.0.7_Setup_e_Coop13.zip
+        --old-spec old-candidate/coop-spec.json --game approved-game --sources out
+        --official-launcher official/openOMSI-0.3.41-windows-x64.zip --closing-wav
+        fecho-user.wav
+
+        if ($LASTEXITCODE -ne 0) { throw "Packaging failed" }
+
+        Get-Content build/release-2208-hotfix3/build-report.json'
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.0.8-hotfix3-candidate
+        path: 'support/build/release-2208-hotfix3/Atualizar-Bridge.exe
+
+          support/build/release-2208-hotfix3/build-report.json
+
+          support/build/release-2208-hotfix3/coop-spec.json
+
+          support/build/release-2208-hotfix3/coop-assets/**'
+        if-no-files-found: error
+        retention-days: 30
