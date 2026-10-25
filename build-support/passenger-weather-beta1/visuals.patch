@@ -101,7 +101,7 @@ index 6a7ca0c52..a6121cf70 100644
          text.push_str(&format!("character_models={}\n", self.character_models));
          text.push_str(&format!("units={}\n", self.units));
 diff --git a/crates/omsi-app/src/view_sync/people.rs b/crates/omsi-app/src/view_sync/people.rs
-index 82ba07320..f473d1430 100644
+index 82ba07320..792927df7 100644
 --- a/crates/omsi-app/src/view_sync/people.rs
 +++ b/crates/omsi-app/src/view_sync/people.rs
 @@ -26,6 +26,7 @@ use std::path::PathBuf;
@@ -156,7 +156,7 @@ index 82ba07320..f473d1430 100644
      /// A jump of the person's place within a bus (onto the seat, as Omsi.exe puts them
      /// there) drawn as a glide instead: what is left of it in the bus's frame, the same in
      /// the world for the drawing, and the place last frame (the bus, where).
-@@ -580,6 +590,19 @@ impl PeopleView {
+@@ -580,6 +590,22 @@ impl PeopleView {
          }
          let n_due = due.iter().filter(|d| **d).count();
          let enhanced = self.enhanced_poses;
@@ -164,19 +164,22 @@ index 82ba07320..f473d1430 100644
 +        let hail_map=extras::map_enabled(&extra_config.maps,&world.map_dir.to_string_lossy());
 +        // Expensive hand preparation is shared once per human type, never per frame.
 +        if enhanced&&(extra_config.umbrellas||extra_config.hail){
++            let mut prepared=0;
 +            for (p,st) in frame.people.iter().zip(states.iter_mut()){
 +                if (p.position-from).length_squared()>6400. || p.hidden.is_some(){continue}
 +                let ty=st.avatar.as_ref().unwrap_or(&p.ty);
 +                let key=Arc::as_ptr(ty) as usize;
++                if !self.extra_hands.contains_key(&key){if prepared>=1{continue}prepared+=1;}
 +                let rest=self.extra_hands.entry(key).or_insert_with(||Arc::new(extras::HandRest::new(ty))).clone();
 +                st.extra.rest=Some(rest);
 +            }
 +        }
++        self.extra_renders.new_this_frame=0;
 +        let cosmetic_time=frame.time;
          let buses: HashMap<_, _> = if enhanced {
              frame.buses.iter().map(|b| (b.id, b)).collect()
          } else {
-@@ -592,11 +615,13 @@ impl PeopleView {
+@@ -592,11 +618,13 @@ impl PeopleView {
              let ty = st.avatar.clone().unwrap_or_else(|| p.ty.clone());
              let dt = st.since_posed_secs.max(sdt).min(0.25);
              // Preserve the OMSI-original pose unless the enhanced A/B mode is requested.
@@ -191,7 +194,7 @@ index 82ba07320..f473d1430 100644
              // an avatar's face near the eye: blinks, looks, expressions, the lips
              // (from the camera the picture is drawn from: a face is seen from there)
              let near = ty.face.is_some() && (p.position - camera).length() < avatars::FACE_DISTANCE;
-@@ -638,7 +663,7 @@ impl PeopleView {
+@@ -638,7 +666,7 @@ impl PeopleView {
                      f.live = false;
                  }
              }
@@ -200,7 +203,7 @@ index 82ba07320..f473d1430 100644
              *pose_changed = false;
              if bones.iter().any(|b| !b.is_finite()) && !skins.is_empty() {
                  // keep the last good mesh (the rest pose would be the file's T-pose)
-@@ -646,7 +671,7 @@ impl PeopleView {
+@@ -646,7 +674,7 @@ impl PeopleView {
              }
              // (the same bones as the mesh was made with: nothing to skin or upload - unless
              // the face moves, or has just gone back to rest)
@@ -209,7 +212,7 @@ index 82ba07320..f473d1430 100644
                  return;
              }
              skins.resize_with(ty.meshes.len(), Default::default);
-@@ -657,6 +682,7 @@ impl PeopleView {
+@@ -657,6 +685,7 @@ impl PeopleView {
                      None => skin(m, &bones, pos, nrm),
                  }
              }
@@ -217,7 +220,7 @@ index 82ba07320..f473d1430 100644
              *skin_bones = Some(bones);
              *pose_changed = true;
          };
-@@ -722,6 +748,7 @@ impl PeopleView {
+@@ -722,6 +751,7 @@ impl PeopleView {
                  renderer.set_transform(scene, *inst, at, xf);
                  renderer.set_interior(scene, *inst, st.lit * 0.5);
              }
@@ -227,10 +230,10 @@ index 82ba07320..f473d1430 100644
              }
 diff --git a/crates/omsi-app/src/view_sync/people/extras.rs b/crates/omsi-app/src/view_sync/people/extras.rs
 new file mode 100644
-index 000000000..b1751cdf1
+index 000000000..e10a0f641
 --- /dev/null
 +++ b/crates/omsi-app/src/view_sync/people/extras.rs
-@@ -0,0 +1,104 @@
+@@ -0,0 +1,105 @@
 +//! Optional local cosmetics. No boarding decisions or network messages are changed.
 +use super::*;
 +use glam::{Affine3A,Vec2};
@@ -286,7 +289,7 @@ index 000000000..b1751cdf1
 + if !enabled||!c.hail||!hail_map {self.hail=0.;}
 + self.hail_side=if self.arm>0.05{0}else{1};self.finger=(time as f32*8.+p.id as f32).sin()*0.28;
 + if self.arm>0.001{
-+ let wrist=Vec3::new(0.23*ty.rig.scale,0.23*ty.rig.scale,ty.rig.shoulder[1].z-0.25*ty.rig.scale);
++ let wrist=Vec3::new(0.23*ty.rig.scale,0.23*ty.rig.scale,ty.rig.shoulder[1].z-(0.55-0.30*self.open)*ty.rig.scale);
 + accessory_arm(&ty.rig,bones,1,wrist,self.arm,true,0.);
 + let rest=self.rest.as_ref().map_or(ty.rig.wrist[1],|r|r.grip[1]);self.grip=bones[hand_slot(1)].transform_point3(rest);
 + }
@@ -308,7 +311,7 @@ index 000000000..b1751cdf1
 + }
 +}
 +#[derive(Default)]
-+pub(super) struct Renders{meshes:Option<(MeshId,MeshId,Vec<MaterialId>,Vec<Vec<MaterialId>>)>,live:HashMap<u32,(usize,usize)>,spare:Vec<(usize,usize)>}
++pub(super) struct Renders{meshes:Option<(MeshId,MeshId,Vec<MaterialId>,Vec<Vec<MaterialId>>)>,live:HashMap<u32,(usize,usize)>,spare:Vec<(usize,usize)>,pub new_this_frame:usize}
 +impl Renders{
 + pub fn retire(&mut self,id:u32,hidden:&mut Vec<usize>){if let Some((a,b))=self.live.remove(&id){hidden.extend([a,b]);self.spare.push((a,b));}}
 + pub fn rename(&mut self,from:u32,to:u32){if let Some(pair)=self.live.remove(&from){self.live.insert(to,pair);}}
@@ -324,7 +327,8 @@ index 000000000..b1751cdf1
 + }
 + let (cap,shaft,body_mats,palettes)=self.meshes.as_ref().unwrap();let palette=(p.id%5)as usize;
 + let pair=if let Some(pair)=self.live.get(&p.id){*pair}else{
-+ if self.live.len()>=48{return}
++ if self.live.len()>=48||self.new_this_frame>=4{return}
++ self.new_this_frame+=1;
 + let pair=self.spare.pop().unwrap_or_else(||(renderer.add_instance(scene,*shaft,at,Mat4::IDENTITY,body_mats.clone()),renderer.add_instance(scene,*cap,at,Mat4::IDENTITY,palettes[palette].clone())));
 + // A pooled instance keeps its original palette; variation is cosmetic only.
 + self.live.insert(p.id,pair);pair};
@@ -466,7 +470,7 @@ index 93fdf3442..139c69922 100644
  mod motion;
  mod rig;
 diff --git a/crates/omsi-sim/src/view_events.rs b/crates/omsi-sim/src/view_events.rs
-index 704b5e829..f67ce0c04 100644
+index 704b5e829..1dc566668 100644
 --- a/crates/omsi-sim/src/view_events.rs
 +++ b/crates/omsi-sim/src/view_events.rs
 @@ -265,6 +265,10 @@ pub struct PersonFrame {
@@ -490,12 +494,15 @@ index 704b5e829..f67ce0c04 100644
              id: p.id,
              ty: p.ty.clone(),
              position: p.position,
-@@ -293,6 +298,14 @@ impl crate::people::PeopleSim {
+@@ -292,7 +297,16 @@ impl crate::people::PeopleSim {
+             puppet: p.puppet.is_some(),
              hidden: self.avatar_hidden.get(&p.id).copied(),
              facts: p.pose_facts(),
-             state: p.state.name(),
+-            state: p.state.name(),
++            state: if p.remote && self.mirror_wait.contains_key(&p.id) {"WaitingForBus"}else{p.state.name()},
 +            hail_target: match &p.state {
 +                crate::people::State::Pax(x) if x.inside.is_none() && x.task == crate::people::pax::Task::WaitingForBus => x.stop.and_then(|stop|self.bus_for(i,stop,&self.last_buses,&bus_ix)).and_then(|(id,_)|bus_ix.get(&id)).map(|i|self.last_buses[*i].pos),
++                _ if p.remote => self.mirror_wait.get(&p.id).and_then(|(stop,_)|self.stops.get(stop)).and_then(|s|s.buses.iter().filter_map(|(id,_)|bus_ix.get(id).map(|i|&self.last_buses[*i])).min_by(|a,b|(a.pos-p.position).length_squared().total_cmp(&(b.pos-p.position).length_squared()))).map(|b|b.pos),
 +                _=>None,
 +            },
 +            close_umbrella: match &p.state {
