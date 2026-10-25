@@ -285,6 +285,11 @@ jobs:
         retention-days: 30
         if-no-files-found: warn
     if: github.event_name != 'push' || github.event.head_commit.message != 'Stop redundant hotfix packaging'
+  cleanup:
+    if: github.event_name == 'push' && github.event.head_commit.message == 'Stop redundant hotfix packaging'
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo 'The verified published candidate is retained; redundant compilation is cancelled by workflow concurrency.'
 'on':
   push:
     branches:
