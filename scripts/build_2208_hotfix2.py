@@ -115,10 +115,12 @@ def main():
   target=package/name
   flags='-s -w'+('' if name=='CompanyHost.exe' else ' -H=windowsgui')
   subprocess.run(['go','build','-trimpath','-buildvcs=false','-ldflags='+flags,'-o',str(target),*build.PROGRAMS[name],'config.go','paths.go'],cwd=build.SOURCE,env=host_env,check=True)
-  files[name]=target.read_bytes()
+  # Core host executables travel in the signed updater, outside the Coop asset budget.
+  files.pop(name,None)
  manifest=json.loads(files['docs/HOST-PESSOAL-2.2.0.3.json'])
  for item in manifest['files']:
-  if item['path'] in files:item['sha256']=sha(files[item['path']])
+  if item['path'] in ('HostAgent.exe','CompanyHost.exe'):item['sha256']=sha((package/item['path']).read_bytes())
+  elif item['path'] in files:item['sha256']=sha(files[item['path']])
  files['docs/HOST-PESSOAL-2.2.0.3.json']=(json.dumps(manifest,indent=2)+'\n').encode()
  prefix='Bridge-2.2.0.8.2/'
  bundle=io.BytesIO()
