@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "2.2.0.8.3"
+const bridgeVersion = "2.2.1"
 const bridgeAuthor = "Mayconrib808"
 
 // Large maps can take several minutes on first load. All startup watchers share one limit.
@@ -60,3 +60,4 @@ func bugReportNotice(lang string) string {
 		"\nBUG REPORTS — DISCORD CONTACT\nReport any bug on Discord to: .zmaycon.\nIMPORTANT: The dot (.) at the start and the dot at the end are part of the username. Include BOTH dots when adding this contact and sending a message. Copy the complete username exactly as shown, including both dots.\nDescribe what happened and include the map and line. Attach the log ZIP created with Setup option 5, preferably while the issue is happening.\n",
 		"\nFEHLER MELDEN — DISCORD-KONTAKT\nMelde jeden Fehler über Discord an: .zmaycon.\nWICHTIG: Der Punkt (.) am Anfang und der Punkt am Ende gehören zum Benutzernamen. Beide Punkte sind nötig, um den Kontakt hinzuzufügen und eine Nachricht zu senden. Kopiere den vollständigen Namen genau wie angegeben, einschließlich beider Punkte.\nBeschreibe das Problem und gib Karte und Linie an. Füge die mit Setup-Option 5 erstellte Protokoll-ZIP-Datei bei, möglichst während das Problem auftritt.\n")
 }
+
