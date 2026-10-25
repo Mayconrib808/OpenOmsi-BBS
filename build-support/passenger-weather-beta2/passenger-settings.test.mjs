@@ -1,0 +1,14 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+const root = process.argv[2] || 'game';
+const source = fs.readFileSync(root + '/launcher/ui/js/pages/passenger-settings.js', 'utf8');
+const { mapKey, enabledMaps, withMap } = await import('data:text/javascript;base64,' + Buffer.from(source).toString('base64'));
+assert.equal(mapKey('F:\\OMSI 2\\maps\\Carrao City\\GLOBAL.CFG'), 'carrao city');
+assert.equal(mapKey('maps/Grundorf/global.cfg/'), 'grundorf');
+assert.equal(mapKey('Ruhrau V2'), 'ruhrau v2');
+assert.deepEqual([...enabledMaps('Grundorf;maps/Carrao City/global.cfg')], ['grundorf', 'carrao city']);
+const list = 'Grundorf;maps/Carrao City/global.cfg;ruhrau v2';
+assert.equal(withMap(list, 'CARrao city', false), 'Grundorf;ruhrau v2');
+assert.equal(withMap(list, 'CARrao city', true), 'Grundorf;ruhrau v2;carrao city');
+assert.equal(withMap('', 'maps/Fikcyjny Szczecin/global.cfg', true), 'fikcyjny szczecin');
+console.log('Passenger lobby map selection: Windows paths, normalization and unrelated choices preserved.');

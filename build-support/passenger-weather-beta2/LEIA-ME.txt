@@ -1,0 +1,43 @@
+BETA PARTICULAR 2 - PASSAGEIROS: GUARDA-CHUVA E SINAL AO ONIBUS
+Base preservada: OpenOMSI 0.3.41 + Coop14 + Hotfix1 + Passageiros Beta1, protocolo 15.
+Entrega particular para Maycon. Sem publicacao no Buscar atualizacoes.
+
+INSTALAR
+1. Feche o jogo e o launcher openOMSI.
+2. Extraia o ZIP inteiro e execute Instalar-Beta.cmd.
+3. Selecione o openomsi.exe do JOGO Coop na pasta programa. Nao selecione o servidor.
+4. Abra o lobby/launcher > Configuracoes > Jogabilidade > Passageiros.
+5. Em Animacoes dos passageiros selecione Natural (procedural).
+6. Ative Guarda-chuvas na chuva e Passageiros dao sinal ao onibus.
+7. Na lista de mapas abaixo, ative o sinal somente nos mapas desejados.
+8. Inicie uma nova sessao. Essas escolhas aparecem somente no lobby.
+
+O instalador atualiza o jogo e os dois executaveis do launcher da mesma pasta.
+Ele cria backup dos tres arquivos antes de copiar e restaura em caso de erro.
+Para voltar aos arquivos anteriores: feche jogo e launcher, execute Restaurar-Jogo.cmd e selecione o mesmo jogo.
+Os backups da Beta1 continuam preservados. A restauracao da Beta2 retorna ao estado imediatamente anterior a ela.
+
+MUDANCAS
+- Guarda-chuva centralizado acima da cabeca real animada de cada modelo, com margem para o tecido.
+- Mao elevada durante a abertura; haste ligada ao cabo e a cobertura acompanha a altura do personagem.
+- Todos os passageiros proximos ao ar livre podem usar guarda-chuva na chuva, inclusive os sentados fora do onibus.
+- Removidas a selecao de 65% e a trava de 48 guarda-chuvas. Preparacao escalonada, malhas compartilhadas e instancias reutilizadas.
+- Abertura gradual ao comecar a chuva; fechamento ao se aproximar da porta ou parar a chuva.
+- Agua escorrendo sobre o tecido e gotas caindo do guarda-chuva fechado enquanto ainda estiver molhado.
+- Sinal de parada preservado durante os estados de espera e aproximacao ao onibus, com gesto inicial imediato.
+- Quem segura o guarda-chuva usa o outro braco para dar sinal. O gesto tambem funciona sem chuva.
+- Opcoes de guarda-chuva, sinal e mapas transferidas do menu durante a partida para o lobby, junto da animacao nativa.
+
+VALIDACAO E LIMITES
+Executaveis compilados no Windows; integridade do pacote conferida. O teste visual dentro do seu mapa continua necessario.
+Efeitos locais: cada jogador precisa instalar e ativar a beta para enxergar os efeitos. Nenhuma alteracao de protocolo.
+Permanece a deteccao existente de onibus compativel; nao muda as decisoes de embarque ou de linha.
+A deteccao de cobertura de telhados/abrigos ainda nao faz parte desta beta.
+Dedos, roupas e articulacoes diferem entre addons; observe o encaixe nos modelos usados por voce.
+Os efeitos detalhados ficam no raio visual proximo de 80m. A populacao configurada no jogo permanece como estava.
+HostAgent, CompanyHost, servidores P14/P15, BCS, configuracoes pessoais e os demais recursos Coop nao sao substituidos.
+
+CODIGO
+source/visuals-beta1.patch: base exata da primeira beta.
+source/visuals-beta2.patch: correcoes desta beta, aplicadas depois da primeira.
+BUILD.json: versao, commit e hashes dos executaveis incluidos.
