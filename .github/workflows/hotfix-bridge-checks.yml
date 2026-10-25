@@ -1,0 +1,23 @@
+name: Bridge hotfix regressions on Linux
+'on':
+  push:
+    branches:
+    - hotfix/2.2.0.8.1
+    paths:
+    - .github/workflows/hotfix-bridge-checks.yml
+    - source/**
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  bridge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-go@v6
+      with:
+        go-version: 1.23.2
+        cache: false
+    - name: "Existing Bridge regressions including Carr\xE3o, midnight, startup and host preferences"
+      run: python scripts/build_2203.py --tests-only
