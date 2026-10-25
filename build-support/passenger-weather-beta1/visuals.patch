@@ -230,7 +230,7 @@ index 82ba07320..792927df7 100644
              }
 diff --git a/crates/omsi-app/src/view_sync/people/extras.rs b/crates/omsi-app/src/view_sync/people/extras.rs
 new file mode 100644
-index 000000000..e10a0f641
+index 000000000..408b54788
 --- /dev/null
 +++ b/crates/omsi-app/src/view_sync/people/extras.rs
 @@ -0,0 +1,105 @@
@@ -282,12 +282,12 @@ index 000000000..e10a0f641
 + let carry=eligible&&c.umbrellas&&self.carried&&p.facts.activity!=omsi_sim::human::Activity::Sit&&p.facts.activity!=omsi_sim::human::Activity::Pay;
 + self.arm+=(if carry{1.}else{0.}-self.arm).clamp(-dt*3.,dt*3.);
 + if !enabled||!c.umbrellas {self.open=0.;self.arm=0.;}
-+ let phase=(time as f32+p.id as f32*0.618).rem_euclid(6.2);
++ let phase=(time as f32+(p.id%997) as f32*0.618).rem_euclid(6.2);
 + let bus_near=p.hail_target.is_some_and(|b|{let d=(b-p.position).length();d>6.&&d<55.});
 + let hail=eligible&&c.hail&&hail_map&&outside&&p.state=="WaitingForBus"&&bus_near&&p.id%3!=0&&phase<3.5;
 + self.hail+=(if hail{1.}else{0.}-self.hail).clamp(-dt*2.8,dt*2.8);
 + if !enabled||!c.hail||!hail_map {self.hail=0.;}
-+ self.hail_side=if self.arm>0.05{0}else{1};self.finger=(time as f32*8.+p.id as f32).sin()*0.28;
++ self.hail_side=if self.arm>0.05{0}else{1};self.finger=(time as f32*8.+(p.id%53) as f32).sin()*0.28;
 + if self.arm>0.001{
 + let wrist=Vec3::new(0.23*ty.rig.scale,0.23*ty.rig.scale,ty.rig.shoulder[1].z-(0.55-0.30*self.open)*ty.rig.scale);
 + accessory_arm(&ty.rig,bones,1,wrist,self.arm,true,0.);
@@ -317,7 +317,7 @@ index 000000000..e10a0f641
 + pub fn rename(&mut self,from:u32,to:u32){if let Some(pair)=self.live.remove(&from){self.live.insert(to,pair);}}
 + pub fn draw(&mut self,p:&PersonFrame,st:&State,at:DVec3,xf:Mat4,allowed:bool,renderer:&Renderer,scene:&mut Scene){
 + let show=allowed&&st.arm>0.02&&p.hidden.is_none()&&st.carried;
-+ if !show{if let Some((a,b))=self.live.get(&p.id){renderer.set_params(scene,*a,&[],false,&[]);renderer.set_params(scene,*b,&[],false,&[]);}return}
++ if !show{if let Some((a,b))=self.live.remove(&p.id){renderer.set_params(scene,a,&[],false,&[]);renderer.set_params(scene,b,&[],false,&[]);self.spare.push((a,b));}return}
 + if self.meshes.is_none(){
 + let material=|scene:&mut Scene,color:[f32;4]|renderer.add_material_extra(scene,None,AlphaMode::Opaque,color,false,None,None,None,None,[0.;3],omsi_render::MaterialExtra{solid:true,..Default::default()});
 + let metal=material(scene,[0.32,0.34,0.37,1.]);let handle=material(scene,[0.035,0.025,0.02,1.]);
