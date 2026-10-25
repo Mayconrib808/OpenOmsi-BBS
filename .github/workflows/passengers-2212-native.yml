@@ -4,7 +4,7 @@ permissions:
   actions: read
 concurrency:
   group: passengers2212-native
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   game:
     runs-on: windows-latest
@@ -207,7 +207,19 @@ jobs:
 
         cargo test --locked --release -p omsi-sim --lib hail_look_2212_tests
 
-        if ($LASTEXITCODE -ne 0) { throw ''Gaze direction regression'' }'
+        if ($LASTEXITCODE -ne 0) { throw ''Gaze direction regression'' }
+
+        cargo test --locked --release -p omsi-sim --lib full_hail_2212_tests
+
+        if ($LASTEXITCODE -ne 0) { throw ''Full bus hailing regression'' }
+
+        cargo test --locked --release -p omsi-sim --lib hail_range_2212_tests
+
+        if ($LASTEXITCODE -ne 0) { throw ''Hail distance regression'' }
+
+        cargo test --locked --release -p omsi-net --lib world::tests
+
+        if ($LASTEXITCODE -ne 0) { throw ''Legacy world descriptor regression'' }'
     - name: Preserve compiled game and CLI independently of lobby build
       shell: pwsh
       run: "@'\nfrom pathlib import Path\nimport shutil,subprocess,json,os\nout=Path('native');out.mkdir()\nfor name in ('openomsi.exe','openomsi-launcher.exe'):\n shutil.copy2(Path('game/target/release')/name,out/name)\nv=subprocess.run([str(Path('game/target/release/openomsi.exe').resolve()),'--version'],capture_output=True,text=True,timeout=30)\nassert v.returncode==0 and '0.3.41-coop.14-2.2.1.2' in v.stdout+v.stderr\n(out/'VERSAO.txt').write_text(v.stdout+v.stderr,encoding='utf-8')\n(out/'SOURCE.json').write_text(json.dumps({'commit':os.environ['GITHUB_SHA']}),encoding='utf-8')\n'@ | python -\nif ($LASTEXITCODE -ne 0) { throw 'Beta build preparation failed' }"
