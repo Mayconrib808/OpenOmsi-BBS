@@ -146,4 +146,5 @@ jobs:
     - hotfix/2.2.0.8.1
     paths:
     - build-support/bridge2208-hotfix2/stable.json
+    - build-support/bridge2208-hotfix2/publication.mjs
   workflow_dispatch: {}
