@@ -28,6 +28,8 @@ import (
 const companyHostPollInterval = 5 * time.Second
 const companyHostMaxGap = 12 * time.Hour
 const companyHostClockTolerance = 90 * time.Second
+// Model/region loading can pause the simulation while HTTP still serves its last clock.
+const companyHostRecoveryGrace = 3 * time.Minute
 
 var companyHostExecutableMu sync.Mutex
 
@@ -341,7 +343,7 @@ func postCompanyHostClock(ctx context.Context, client *http.Client, base, passwo
 type companyHostMonitor struct {
 	serverCivil, sampledAt time.Time
 	pending                bool
-	failures               int
+	unsyncedSince          time.Time
 	lastGood               time.Time
 }
 
@@ -386,12 +388,14 @@ func (m *companyHostMonitor) observe(sampledAt, target time.Time, clock string) 
 	}
 	synced := gap > -companyHostClockTolerance && gap < companyHostClockTolerance
 	if m.pending && !synced {
-		m.failures++
-		if m.failures >= 2 {
+		if m.unsyncedSince.IsZero() {
+			m.unsyncedSince = sampledAt
+		}
+		if sampledAt.Sub(m.unsyncedSince) >= companyHostRecoveryGrace {
 			return false, fmt.Errorf("the server accepted clock commands but did not synchronize; stopping the session")
 		}
 	} else if synced {
-		m.failures = 0
+		m.unsyncedSince = time.Time{}
 		m.lastGood = sampledAt
 	}
 	m.serverCivil, m.sampledAt = observed, sampledAt
@@ -584,7 +588,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	monitor := companyHostMonitor{serverCivil: civil, sampledAt: started}
 	deadline := started.Add(startupTimeout)
 	ready := false
-	badStatus := 0
+	var statusUnavailableSince time.Time
 	ticker := time.NewTicker(companyHostPollInterval)
 	defer ticker.Stop()
 	fmt.Fprintf(output, "Servidor da empresa %s / %s iniciando. Relógio %s %+d min.\n", profile.CompanyName, session.Name, profile.Clock.TimeZone, profile.Clock.ShiftMinutes)
@@ -617,14 +621,16 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 			status, err := readCompanyHostStatus(ctx, client, base)
 			if err != nil {
 				if ready {
-					badStatus++
-					if badStatus >= 3 {
+					if statusUnavailableSince.IsZero() {
+						statusUnavailableSince = time.Now()
+					}
+					if time.Since(statusUnavailableSince) >= companyHostRecoveryGrace {
 						return fmt.Errorf("local server status became unavailable; stopping the session")
 					}
 				}
 				continue
 			}
-			badStatus = 0
+			statusUnavailableSince = time.Time{}
 			status, err = gateway.adaptStatus(status)
 			if err != nil {
 				return err
@@ -657,8 +663,16 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 					fmt.Fprintln(output, "Ainda aguardando o endereço HTTPS do túnel para gerar o perfil dos outros jogadores. Se o túnel estiver desativado, este servidor fica disponível pelo endereço configurado.")
 				}
 			}
-			if err := postCompanyHostClock(ctx, client, base, password, target); err != nil {
-				return err
+			if !monitor.pending || !synced {
+				if err := postCompanyHostClock(ctx, client, base, password, target); err != nil {
+					if !ready {
+						continue // A busy simulation may not yet accept administration.
+					}
+					if monitor.unsyncedSince.IsZero() {
+						monitor.unsyncedSince = sampled
+					}
+					continue // observe bounds recovery; a transient request cannot kill the child.
+				}
 			}
 			if options.onStatus != nil {
 				options.onStatus(status, ready && synced)

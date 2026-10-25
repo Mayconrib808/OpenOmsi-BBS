@@ -255,7 +255,7 @@ func TestCompanyHostAdminIsLocalAuthenticatedAndVerified(t *testing.T) {
 	if synced, err := monitor.observe(target.Add(5*time.Second), target.Add(5*time.Second), "20:14"); synced || err != nil {
 		t.Fatalf("first unexecuted command should wait: %t %v", synced, err)
 	}
-	if _, err := monitor.observe(target.Add(10*time.Second), target.Add(10*time.Second), "20:14"); err == nil {
+	if _, err := monitor.observe(target.Add(5*time.Second+companyHostRecoveryGrace), target.Add(5*time.Second+companyHostRecoveryGrace), "20:14"); err == nil {
 		t.Fatal("accepted queued clock commands that were never executed")
 	}
 }
@@ -371,4 +371,27 @@ func TestCompanyHostPortPrecheckDoesNotReuseRunningServer(t *testing.T) {
 	if err := ensureCompanyHostPortsFree(companyHostConfig{WebPort: listener.Addr().(*net.TCPAddr).Port, Port: 27015}); err == nil {
 		t.Fatal("accepted a occupied web port")
 	}
+}
+
+// Replay a stale minute-precision status during the join-time 53-second stall.
+func TestCompanyHostMonitorSurvivesJoinStallAndResetsRecovery(t *testing.T) {
+ start := time.Date(2026, 10, 25, 6, 2, 43, 0, time.UTC)
+ m := companyHostMonitor{serverCivil:start, sampledAt:start, pending:true}
+ for _, sec := range []int{5, 10, 53, 58, 63, 68} {
+  now := start.Add(time.Duration(sec)*time.Second)
+  if _, err := m.observe(now, now, "06:02"); err != nil { t.Fatalf("killed recoverable join at %ds: %v", sec, err) }
+ }
+ now := start.Add(75*time.Second)
+ if synced, err := m.observe(now, now, "06:03"); !synced || err != nil { t.Fatalf("failed recovery: %v %v", synced, err) }
+ if !m.unsyncedSince.IsZero() { t.Fatal("recovery deadline was not reset") }
+}
+func TestCompanyHostMonitorStillRejectsPersistentlyFrozenClock(t *testing.T) {
+ start := time.Date(2026,10,25,6,2,0,0,time.UTC)
+ m := companyHostMonitor{serverCivil:start,sampledAt:start,pending:true}
+ for sec:=5; sec<=265; sec+=5 {
+  now:=start.Add(time.Duration(sec)*time.Second)
+  if _,err:=m.observe(now,now,"06:02");err!=nil {t.Fatalf("premature shutdown at %d: %v",sec,err)}
+ }
+ now:=start.Add(270*time.Second)
+ if _,err:=m.observe(now,now,"06:02");err==nil {t.Fatal("persistently frozen clock must remain bounded")}
 }
