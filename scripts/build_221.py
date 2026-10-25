@@ -64,8 +64,10 @@ def main():
  info_name=COOP+'/source/BUILD-INFO.json';info=json.loads(files[info_name])
  info.update(version='0.3.41-coop.14-2.2.1',bridge_version=VERSION,game_sha256=sha(files[COOP+'/programa/openomsi.exe']),native_candidate_run=inputs['run_id'],native_candidate_commit=inputs['commit'],passenger_effects_defaults=True)
  files[info_name]=(json.dumps(info,indent=2)+'\n').encode()
+ checksum_name=COOP+'/SHA256.json'
+ files[checksum_name]=(json.dumps({n[len(COOP)+1:]:sha(b) for n,b in files.items() if n.startswith(COOP+'/') and n!=checksum_name},indent=2)+'\n').encode()
  # Complete P14/P15 servers, custom sounds and all unrelated bundled files must be byte-identical.
- permitted={COOP+'/programa/'+name for name in replacements}|{info_name}
+ permitted={COOP+'/programa/'+name for name in replacements}|{info_name,checksum_name}
  for name,h in before.items():
   if name not in permitted:assert sha(files[name])==h,('Unrelated bundled file changed',name)
  servers={n:before[n] for n in before if n.startswith(('app/server-dinamico-p14/','app/server-dinamico-p15/'))}
@@ -73,6 +75,10 @@ def main():
  package=out/'runtime';package.mkdir()
  for name,b in payload.items():
   target=package/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(b)
+ # Save validates the selected server path. Stage the actual authenticated servers
+ # alongside the retained hosts for UI testing; they remain in the Coop archive.
+ for name in servers:
+  target=package/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(files[name])
  # Real windows test against the actual complete host executables, not rebuilt old Go hosts.
  subprocess.run(['python',str(ROOT/'scripts/test_complete_host_ui.py'),str(package)],check=True)
  prefix='Bridge-2.2.1/'
