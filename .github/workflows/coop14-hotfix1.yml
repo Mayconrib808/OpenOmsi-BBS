@@ -4,7 +4,7 @@ permissions:
   actions: read
 concurrency:
   group: coop14-hotfix1-native
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   build:
     runs-on: windows-latest

@@ -1,5 +1,5 @@
 diff --git a/crates/omsi-app/src/lan_world.rs b/crates/omsi-app/src/lan_world.rs
-index 2e1ee0a57..50dc91fe4 100644
+index 2e1ee0a57..8a7ae5be1 100644
 --- a/crates/omsi-app/src/lan_world.rs
 +++ b/crates/omsi-app/src/lan_world.rs
 @@ -166,7 +166,7 @@ struct Upstream {
@@ -68,7 +68,7 @@ index 2e1ee0a57..50dc91fe4 100644
          for (id, track) in &m.people {
              let Some((a, b, k)) = track.around(render_ms) else {
                  continue;
-@@ -1257,12 +1269,20 @@ impl Mirror {
+@@ -1257,12 +1269,22 @@ impl Mirror {
              let Some(ty) = h.type_by_file(file) else {
                  continue;
              };
@@ -86,7 +86,9 @@ index 2e1ee0a57..50dc91fe4 100644
          }
 +        // Replay in the same operation order, once per batch. This also avoids
 +        // repeatedly warming every human type for each individual passenger.
-+        crate::view_sync::apply_people(h, &mut view.people, world, renderer, scene);
++        if spawned > 0 {
++            crate::view_sync::apply_people(h, &mut view.people, world, renderer, scene);
++        }
          let claims = h.take_claims();
          if !claims.is_empty() {
              log::info!("LAN: our bus stands at a stop: asking the host for waiting passengers {claims:?}");
