@@ -35,3 +35,8 @@ once(render,
      "        window_wipers: None, instances: vec![], own_materials: vec![], set: None,",
      "        window_wipers: None, instances: vec![], far: vec![], own_materials: vec![], set: None,")
 print("Coop14: v0.3.41 aerodynamics, LOD mesh picking, test helpers and far render integrated.")
+
+# The existing full-state handover test uses a pre-0.3.41 vehicle fixture.
+once(root/"crates/omsi-lan/src/vehicle_transfer.rs",
+     "            meshes: vec![],\n            paint_schemes: vec![],",
+     "            meshes: vec![],\n            lod_meshes: vec![],\n            paint_schemes: vec![],")

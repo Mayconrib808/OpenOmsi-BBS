@@ -154,7 +154,7 @@ jobs:
         }
 
         '
-    - name: Native transport and existing handover/camera/skin regressions
+    - name: Native transport and complete 0.3.41 handover/camera/skin regressions
       shell: pwsh
       working-directory: game
       run: '$ErrorActionPreference=''Stop''
