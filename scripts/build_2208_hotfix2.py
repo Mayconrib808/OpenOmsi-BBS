@@ -114,7 +114,7 @@ def main():
  for name in ('HostAgent.exe','CompanyHost.exe'):
   target=package/name
   flags='-s -w'+('' if name=='CompanyHost.exe' else ' -H=windowsgui')
-  subprocess.run(['go','build','-trimpath','-buildvcs=false','-ldflags='+flags,'-o',str(target),*build.PROGRAMS[name]],cwd=build.SOURCE,env=host_env,check=True)
+  subprocess.run(['go','build','-trimpath','-buildvcs=false','-ldflags='+flags,'-o',str(target),*build.PROGRAMS[name],'config.go','paths.go'],cwd=build.SOURCE,env=host_env,check=True)
   files[name]=target.read_bytes()
  manifest=json.loads(files['docs/HOST-PESSOAL-2.2.0.3.json'])
  for item in manifest['files']:
