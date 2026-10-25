@@ -43,7 +43,7 @@ func TestCoop15MigrationKeepsAllHostPreferencesAndChoosesMatchingServer(t *testi
 		}
 		var company map[string]json.RawMessage
 		json.Unmarshal(got["company"], &company)
-		if string(company["protocol"]) != "15" || hostJSONString(company, "openomsi_version") != "0.3.40" || hostJSONString(company, "opaque") != "preserved" {
+		if string(company["protocol"]) != "15" || hostJSONString(company, "openomsi_version") != "0.3.41" || hostJSONString(company, "opaque") != "preserved" {
 			t.Fatal(string(got["company"]))
 		}
 		if hostJSONString(got, "server") != filepath.Join(dir, filepath.FromSlash(managedDynamicP15Server)) {

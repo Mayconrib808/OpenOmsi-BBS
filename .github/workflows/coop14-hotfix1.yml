@@ -225,7 +225,7 @@ jobs:
         if ($LASTEXITCODE -ne 0) { throw ''Cumulative hotfix packaging failed'' }
 
         '
-    - name: Bridge startup, timetable, company and updater regressions
+    - name: Bridge startup, timetable, company and 0.3.41 updater regressions
       shell: pwsh
       working-directory: support
       run: '@''
