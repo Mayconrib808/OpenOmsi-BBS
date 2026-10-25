@@ -21,6 +21,12 @@ mesh=root/"crates/omsi-sim/src/vehicle/types.rs"
 once(mesh,
      "                lod_meshes.push(VehicleMesh {\n                    def_index: first + i,",
      "                lod_meshes.push(VehicleMesh {\n                    pick_geometry: Default::default(),\n                    def_index: first + i,")
+# Coop13 adds a CPU-side picking cache to VehicleMesh. The upstream 0.3.41
+# trolley-pole test fixture must initialize it too, otherwise cargo test fails
+# even though the release executable itself compiles.
+once(mesh,
+     "    fn mesh(def_index: usize) -> VehicleMesh {\n        VehicleMesh {\n            def_index,",
+     "    fn mesh(def_index: usize) -> VehicleMesh {\n        VehicleMesh {\n            pick_geometry: Default::default(),\n            def_index,")
 # Native Coop tests instantiate vehicles without the newer 0.3.41 LOD cache.
 # Two regression fixtures, with their existing layouts kept exactly intact.
 once(root/"crates/omsi-app/src/coop_drive.rs",
