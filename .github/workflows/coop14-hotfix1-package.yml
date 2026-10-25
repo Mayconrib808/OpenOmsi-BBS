@@ -284,6 +284,7 @@ jobs:
           support/build/release-2208-hotfix1/build-report.json'
         retention-days: 30
         if-no-files-found: warn
+    if: github.event_name != 'push' || github.event.head_commit.message != 'Stop redundant hotfix packaging'
 'on':
   push:
     branches:
