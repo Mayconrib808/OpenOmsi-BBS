@@ -67,7 +67,9 @@ def main():
  checksum_name=COOP+'/SHA256.json'
  files[checksum_name]=(json.dumps({n[len(COOP)+1:]:sha(b) for n,b in files.items() if n.startswith(COOP+'/') and n!=checksum_name},indent=2)+'\n').encode()
  # Complete P14/P15 servers, custom sounds and all unrelated bundled files must be byte-identical.
- permitted={COOP+'/programa/'+name for name in replacements}|{info_name,checksum_name}
+ # This generated version marker necessarily changes with the replacement native game.
+ # Keep the preservation audit strict for every other inherited file.
+ permitted={COOP+'/programa/'+name for name in replacements}|{info_name,checksum_name,COOP+'/validation/passengers-221-version.txt'}
  for name,h in before.items():
   if name not in permitted:assert sha(files[name])==h,('Unrelated bundled file changed',name)
  servers={n:before[n] for n in before if n.startswith(('app/server-dinamico-p14/','app/server-dinamico-p15/'))}
