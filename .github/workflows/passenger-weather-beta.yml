@@ -1,0 +1,224 @@
+name: Private passenger visual beta - compile only
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: passenger-visual-beta
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      OPENOMSI_VERSION: 0.3.41-coop.14-hotfix.1-pax-beta.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+      GIT_OPTIONAL_LOCKS: '0'
+    steps:
+    - name: Checkout cumulative Bridge 2.2.0.7 source
+      uses: actions/checkout@v7
+      with:
+        path: support
+        persist-credentials: false
+    - name: Checkout REAL upstream openOMSI 0.3.41 including history for three-way
+        patch merge
+      uses: actions/checkout@v7
+      with:
+        repository: openOMSI-org/openOMSI
+        ref: v0.3.41
+        fetch-depth: 0
+        path: game
+        persist-credentials: false
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: coop14-0341-windows
+        cache-on-failure: true
+        workspaces: game -> target
+    - name: Verify authentic upstream release and preserve protocol 14 separately
+      shell: pwsh
+      run: '$ErrorActionPreference=''Stop''
+
+        if ((git -C game describe --tags --exact-match) -ne ''v0.3.41'') { throw ''NOT
+        the actual official 0.3.41 tag'' }
+
+        New-Item -ItemType Directory -Force out | Out-Null
+
+        git -C game rev-parse HEAD | Out-File -Encoding utf8 out/upstream-commit.txt
+
+        Write-Host ''P14 remains from 2.2.0.7 and must not be overwritten by this
+        P15 probe.''
+
+        '
+    - name: Merge ALL previously cumulative Coop12 features into 0.3.41
+      shell: pwsh
+      run: "$ErrorActionPreference='Stop'\ngit -C game apply --3way --binary --whitespace=nowarn\
+        \ ../support/build-support/coop12/cumulative.patch\nif ($LASTEXITCODE -ne\
+        \ 0) {\n  # Two independently additive conflicts; preserve BOTH upstream 0.3.41\
+        \ and cumulative Coop.\n  @'\nfrom pathlib import Path\nimport re,subprocess\n\
+        root=Path('game')\nexpected={\n  'crates/omsi-app/src/lib.rs': ('mod auto_announce;',\
+        \ 'mod coop;'),\n  'crates/omsi-render/src/render.rs': ('fn street_light(',\
+        \ 'fn set_visibility('),\n}\nconflicts=set(subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],cwd=root,text=True).splitlines())\n\
+        assert conflicts==set(expected),f'Unexpected conflicts: {conflicts}'\nfor\
+        \ name,(left,right) in expected.items():\n    p=root/name\n    raw=p.read_text(encoding='utf-8')\n\
+        \    sections=list(re.finditer(r'(?m)^<<<<<<< ours\\n(.*?)^=======\\n(.*?)^>>>>>>>\
+        \ theirs\\n',raw,re.S))\n    assert len(sections)==1,(name,len(sections))\n\
+        \    m=sections[0]\n    ours,theirs=m.group(1),m.group(2)\n    assert left\
+        \ in ours and right in theirs,(name,ours[:200],theirs[:200])\n    merged=raw[:m.start()]+ours+theirs+raw[m.end():]\n\
+        \    assert not any(x in merged for x in ('<<<<<<<','=======\\n','>>>>>>>'))\n\
+        \    p.write_text(merged,encoding='utf-8',newline='\\n')\n    print('Preserved\
+        \ BOTH official 0.3.41 and Coop changes:',name,flush=True)\nsubprocess.run(['git','add','-A'],cwd=root,check=True)\n\
+        assert not subprocess.check_output(['git','diff','--name-only','--diff-filter=U'],cwd=root,text=True).strip()\n\
+        '@ | python -\n  if ($LASTEXITCODE -ne 0) { throw 'Unsafe non-additive merge:\
+        \ stop, no publication' }\n}\n"
+    - name: Reapply Coop12 horn and driver-transfer hotfixes
+      shell: pwsh
+      run: '$ErrorActionPreference=''Stop''
+
+        @''
+
+        from pathlib import Path
+
+        import sys
+
+        root=Path.cwd()
+
+        sys.path.insert(0,str((root/''support/build-support/coop12'').resolve()))
+
+        from audio_horn_hotfix import apply_hotfix as horn
+
+        from driver_transfer_hotfix import apply_hotfix as handover
+
+        horn((root/''game'').resolve())
+
+        handover((root/''game'').resolve())
+
+        ''@ | python -
+
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        git -C game add -A
+
+        git -C game -c user.name=Coop14Beta -c user.email=probe@localhost commit -m
+        "Port cumulative fixes onto 0.3.41 (probe)"
+
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        '
+    - name: Merge Coop13 fixes for F1/F4, G, interaction, skins and sound queue
+      shell: pwsh
+      run: "$ErrorActionPreference='Stop'\ngit -C game apply --reject --binary --whitespace=nowarn\
+        \ ../support/build-support/coop13/fixes.patch\nif ($LASTEXITCODE -ne 0) {\n\
+        \  # Exactly three overlapping hunks were audited against the real 0.3.41\
+        \ files:\n  # prefer additive integration; preserve upstream Sender.full rate-limiting.\n\
+        \  @'\nfrom pathlib import Path\nroot=Path('game')\nfound={str(p.relative_to(root)).replace('\\\
+        \\','/') for p in root.rglob('*.rej')}\nexpected={\n  'crates/omsi-app/src/app_impl/vehicles.rs.rej',\n\
+        \  'crates/omsi-net/src/sounds.rs.rej'\n}\nassert found==expected,f'Unknown\
+        \ patches rejected: {found}'\nfor path in root.rglob('*.rej'):\n    data=path.read_text(encoding='utf-8')\n\
+        \    if path.name=='vehicles.rs.rej':\n        assert 'let paint = paint.or_else'\
+        \ in data and 'let bus = bus.to_string()' in data\n    else:\n        assert\
+        \ 'credit: f32' in data and 's.dropped' in data\ndef edit(file,needle,replacement):\n\
+        \    p=root/file\n    data=p.read_text(encoding='utf-8')\n    assert data.count(needle)==1,(file,needle[:80],data.count(needle))\n\
+        \    p.write_text(data.replace(needle,replacement),encoding='utf-8',newline='\\\
+        n')\nedit('crates/omsi-app/src/app_impl/vehicles.rs',\n     '        let bus\
+        \ = bus.to_string();',\n     \"\"\"        let paint = paint.or_else(|| self.player.as_ref().filter(|p|\
+        \ {\n            let path = p.vehicle.ty.def.path.to_string_lossy().replace('\\\
+        \\\\\\', \"/\").to_lowercase();\n            path.ends_with(&bus.replace('\\\
+        \\\\\\', \"/\").to_lowercase())\n        }).and_then(|p| p.vehicle.host.paint_scheme.map(|scheme|\
+        \ scheme\n            .and_then(|i| p.vehicle.ty.paint_schemes.get(i)).map(|p|\
+        \ p.name.clone())\n            .unwrap_or_default())));\n        let bus =\
+        \ bus.to_string();\"\"\")\nedit('crates/omsi-net/src/sounds.rs',\n     ' \
+        \   queue: VecDeque<Tx>,\\n    full: bool,',\n     '    queue: VecDeque<Tx>,\\\
+        n    full: bool,\\n    credit: f32,\\n    dropped: u64,')\nedit('crates/omsi-net/src/sounds.rs',\n\
+        \     \"\"\"            if s.queue.len() >= 512 {\n                if !std::mem::replace(&mut\
+        \ s.full, true) {\n                    log::warn!(\"LAN sound events awaiting\
+        \ acknowledgement from {peer}: queue full\");\n                }\n       \
+        \         continue;\n            }\"\"\",\n     \"\"\"            if s.queue.len()\
+        \ >= 512 {\n                s.dropped = s.dropped.saturating_add(1);\n   \
+        \             if !std::mem::replace(&mut s.full, true) || s.dropped.is_power_of_two()\
+        \ {\n                    log::warn!(\"LAN sound events awaiting acknowledgement\
+        \ from {peer}: queue full ({} dropped)\", s.dropped);\n                }\n\
+        \                continue;\n            }\"\"\")\nfor path in root.rglob('*.rej'):path.unlink()\n\
+        print('Reconciled exactly three Coop13 hunks, preserving official 0.3.41 behavior.',flush=True)\n\
+        '@ | python -\n  if ($LASTEXITCODE -ne 0) { throw 'Unknown Coop13 changes;\
+        \ no publication' }\n}\n"
+    - name: Connect custom Fechou button sound to both driver and conductor
+      shell: pwsh
+      run: 'python support/build-support/coop14/close_signal.py
+
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        '
+    - name: Port new 0.3.41 road aerodynamics and AI LOD meshes to Coop serializer
+      shell: pwsh
+      run: 'python support/build-support/coop14/compat_0341.py
+
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        '
+    - name: Apply focused passenger fixes without changing map loader or handover
+      shell: pwsh
+      run: '$ErrorActionPreference=''Stop''
+
+        git -C game add -A
+
+        git -C game -c user.name=Coop14Hotfix -c user.email=build@localhost commit
+        -m "Exact Coop14 cumulative base"
+
+        if ($LASTEXITCODE -ne 0) { throw ''Cannot record cumulative base'' }
+
+        git -C game apply --check ../support/build-support/coop14-hotfix1/fixes.patch
+
+        if ($LASTEXITCODE -ne 0) { throw ''Hotfix base changed'' }
+
+        git -C game apply ../support/build-support/coop14-hotfix1/fixes.patch
+
+        if ($LASTEXITCODE -ne 0) { throw ''Hotfix application failed'' }
+
+        $changed=@(git -C game diff --name-only)
+
+        $expected=@(''crates/omsi-app/src/lan_world.rs'',''crates/omsi-net/src/lib.rs'',''crates/omsi-net/src/tests.rs'')
+
+        if (@(Compare-Object $changed $expected).Count -ne 0) { throw ''Unexpected
+        native changes: map loader, timetable or handover may not be changed'' }
+
+        '
+    - name: Apply opt-in local passenger visual beta
+      shell: pwsh
+      run: 'git -C game apply ../support/build-support/passenger-weather-beta1/visuals.patch
+
+        if ($LASTEXITCODE -ne 0) { throw ''Visual beta patch failed'' }'
+    - name: Compile private beta only - no release test suites
+      shell: pwsh
+      working-directory: game
+      run: 'cargo build --locked --release -p omsi-app --bin openomsi
+
+        if ($LASTEXITCODE -ne 0) { throw ''Beta compilation failed'' }'
+    - name: Package reversible client-only beta
+      shell: pwsh
+      run: "@'\nfrom pathlib import Path\nimport shutil,zipfile,hashlib,subprocess,json,os\n\
+        out=Path('beta/Passageiros-Beta1');(out/'programa').mkdir(parents=True)\n\
+        exe=Path('game/target/release/openomsi.exe');shutil.copy2(exe,out/'programa/openomsi.exe')\n\
+        for name in ('LEIA-ME.txt','Instalar-Beta.ps1','Instalar-Beta.cmd','Restaurar-Jogo.cmd'):shutil.copy2('support/build-support/passenger-weather-beta1/'+name,out/name)\n\
+        (out/'source').mkdir();shutil.copy2('support/build-support/passenger-weather-beta1/visuals.patch',out/'source/visuals.patch')\n\
+        v=subprocess.run([str(exe.resolve()),'--version'],capture_output=True,text=True,timeout=30)\n\
+        assert v.returncode==0 and 'pax-beta.1' in v.stdout+v.stderr\n(out/'VERSAO.txt').write_text(v.stdout+v.stderr)\n\
+        (out/'BUILD.json').write_text(json.dumps(dict(version=os.environ['OPENOMSI_VERSION'],sha256=hashlib.sha256(exe.read_bytes()).hexdigest(),commit=os.environ['GITHUB_SHA'],run=os.environ['GITHUB_RUN_ID'],release_tests_run=False,live_gameplay_tested=False,protocol=15,host_replaced=False),indent=2))\n\
+        with zipfile.ZipFile('beta/OpenOMSI_Passageiros_Beta1_Maycon.zip','w',zipfile.ZIP_DEFLATED,compresslevel=9)\
+        \ as z:\n for p in out.rglob('*'):\n  if p.is_file():z.write(p,p.relative_to(out.parent))\n\
+        print('PRIVATE BETA READY',hashlib.sha256(Path('beta/OpenOMSI_Passageiros_Beta1_Maycon.zip').read_bytes()).hexdigest())\n\
+        '@ | python -\nif ($LASTEXITCODE -ne 0) { throw 'Beta packaging failed' }"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: OpenOMSI-Passageiros-Beta1-Maycon
+        path: beta/OpenOMSI_Passageiros_Beta1_Maycon.zip
+        retention-days: 30
+        if-no-files-found: error
+'on':
+  push:
+    branches:
+    - beta/passenger-weather-1
+    paths:
+    - build-support/passenger-weather-beta1/**
+    - .github/workflows/passenger-weather-beta.yml
+  workflow_dispatch: {}

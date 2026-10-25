@@ -1,0 +1,507 @@
+diff --git a/crates/omsi-app/src/game_lists/dropdowns.rs b/crates/omsi-app/src/game_lists/dropdowns.rs
+index 72b56b0a9..16b01b3f0 100644
+--- a/crates/omsi-app/src/game_lists/dropdowns.rs
++++ b/crates/omsi-app/src/game_lists/dropdowns.rs
+@@ -415,6 +415,10 @@ pub(super) fn sync_live(app: &mut App) {
+     if let Some(r) = app.renderer.as_mut() {
+         r.options.street_light = street_light;
+     }
++    let natural=app.settings.passenger_animation=="enhanced";
++    let extras=crate::view_sync::people::extras::Config::of(&app.settings);
++    app.gfx.sim_view.people.enhanced_poses=natural;
++    app.gfx.sim_view.people.extra_config=extras;
+     let s = &app.settings;
+     if let Some(w) = app.world.as_ref() {
+         w.settings.set_sound_scenery(s.vol_scenery);
+diff --git a/crates/omsi-app/src/game_lists/menu_pages.rs b/crates/omsi-app/src/game_lists/menu_pages.rs
+index e5b8ff17e..144ed060f 100644
+--- a/crates/omsi-app/src/game_lists/menu_pages.rs
++++ b/crates/omsi-app/src/game_lists/menu_pages.rs
+@@ -33,6 +33,10 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
+         switch_row(app, "pax_bad_driving", "Passengers react to bad driving", "They complain about rough driving and may get off at the next stop"),
+         switch_row(app, "auto_announce", "Arrival announcements at the stop", "On depot files that keep two recordings per stop (the Chinese maps), the arrival one is played as the bus reaches the stop: the IBIS's next stop key, pressed as the driver would"),
+         pick("boarding", "Boarding", "How passengers get their tickets"),
++        switch_row(app,"pax_natural","Animacao natural (procedural)","Beta: as animacoes abaixo funcionam somente neste modo"),
++        switch_row(app,"pax_umbrellas","Guarda-chuvas na chuva (beta)","Modelo 3D com abertura e fechamento antes da porta; ate 48 guarda-chuvas proximos"),
++        switch_row(app,"pax_hailing","Passageiros pedem parada (beta)","Braco e indicador; apenas nos mapas habilitados abaixo"),
++        switch_row(app,"pax_hailing_map","Pedir parada neste mapa",&format!("Ativa/desativa apenas {}. A escolha fica salva por mapa.",crate::view_sync::people::extras::map_key(&app.args.map))),
+         pick("standing_chance", "Standing passengers", "The chance a passenger stands although a seat is free"),
+         pick("maintenance", "Maintenance", later),
+         pick("ai_unsched_factor", "Random traffic", later),
+diff --git a/crates/omsi-app/src/game_lists/options.rs b/crates/omsi-app/src/game_lists/options.rs
+index 009330d7d..ea52f74b5 100644
+--- a/crates/omsi-app/src/game_lists/options.rs
++++ b/crates/omsi-app/src/game_lists/options.rs
+@@ -384,6 +384,10 @@ pub(super) fn option_set(app: &mut App, verb: &str, arg: &str, v: f32) -> Option
+ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
+     let s = &app.settings;
+     Some(match id {
++        "pax_natural"=>s.passenger_animation=="enhanced",
++        "pax_umbrellas"=>s.passenger_umbrellas,
++        "pax_hailing"=>s.passenger_hailing,
++        "pax_hailing_map"=>crate::view_sync::people::extras::map_enabled(&s.passenger_hailing_maps,&app.args.map),
+         "navigator" => if app.vr_active() { app.vr_nav_profile().enabled } else { app.menus.navigator.as_ref().is_some_and(|n| n.enabled) },
+         "nav_ai" => app.menus.navigator.as_ref().map_or(s.nav_ai, |n| n.show_ai),
+         "nav_surface" => app.menus.navigator.as_ref().map_or(s.nav_surface, |n| n.show_surface),
+@@ -481,6 +485,14 @@ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
+ pub(super) fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String)> {
+     let bit = (on as u8).to_string();
+     match id {
++        "pax_natural"=>{app.settings.passenger_animation=if on{"enhanced"}else{"original"}.into();Some(("passenger_animation",app.settings.passenger_animation.clone()))},
++        "pax_umbrellas"=>{app.settings.passenger_umbrellas=on;Some(("passenger_umbrellas",bit))},
++        "pax_hailing"=>{app.settings.passenger_hailing=on;Some(("passenger_hailing",bit))},
++        "pax_hailing_map"=>{
++            let key=crate::view_sync::people::extras::map_key(&app.args.map);
++            let mut maps:Vec<String>=app.settings.passenger_hailing_maps.split(';').filter(|s|!s.trim().is_empty()).map(str::to_string).filter(|s|crate::view_sync::people::extras::map_key(s)!=key).collect();
++            if on{maps.push(key);}app.settings.passenger_hailing_maps=maps.join(";");Some(("passenger_hailing_maps",app.settings.passenger_hailing_maps.clone()))
++        },
+         "navigator" => {
+             if app.vr_active() {
+                 if app.vr_nav_profile().enabled != on { app.vr_nav_adjust("enabled", 1.0); }
+diff --git a/crates/omsi-app/src/settings.rs b/crates/omsi-app/src/settings.rs
+index 6a7ca0c52..a6121cf70 100644
+--- a/crates/omsi-app/src/settings.rs
++++ b/crates/omsi-app/src/settings.rs
+@@ -41,6 +41,9 @@ pub struct Settings {
+     pub standing_chance: f32,
+     /// Passenger poses: `original` (the OMSI animation, default) or `enhanced` (experimental IK).
+     pub passenger_animation: String,
++    pub passenger_umbrellas: bool,
++    pub passenger_hailing: bool,
++    pub passenger_hailing_maps: String,
+     /// The photo mode's panel: "simple" (a few settings, the look) or "advanced" (a camera's
+     /// body: the exposure triangle, metering, white balance in kelvin, tilt-shift, ...).
+     pub photo_mode: String,
+@@ -520,7 +523,7 @@ impl Settings {
+     }
+     /// The defaults of a computer.
+     fn desktop() -> Self {
+-        Self { msaa: 4, anisotropy: 8, ssao: true, shadows: true, shadow_size: 2048, shadow_blobs: true, navigator: true, ui_opacity: 0.85, notes: true, ui_scale: 1.0, ui_scale_window: true, navigator_corner: "bottom-left".into(), boarding: "auto".into(), passenger_animation: "original".into(), units: "metric".into(), photo_mode: "simple".into(), character_models: "original".into(), standing_chance: 0.05, ambient: true, vol_ambient: 0.8, radio_fx: Default::default(), detail_textures: true, exact_fare: true, pax_bad_driving: true, auto_announce: false, enhanced: false, graphics: "vanilla_plus".into(), triple: Default::default(), triple_span: true, triple_hud_center: true, vr: false, vr_scale: 0.65, vr_head_smoothing_ms: 0.0, vr_mirror_rate: 16.0, vr_desktop_mirror: true, fullscreen: false, vsync: true, volume: 0.6, drive_keys: "simple".into(), touch_door_mode: "standard".into(), touch_pedal_length: 1.0, touch_pedal_deadzone: 0.15, post_aa: "fxaa".into(), render_scale: 0.0, upscaler: "default".into(), fsr_quality: "quality".into(), fsr_sharpness: 0.8, language: "ENG".into(), pax_voices: "all".into(), nav_arrows: false, nav_ai: true, nav_surface: true, nav_light: false, nav_3d: true, nav_widget: true, milezero: false, nav_size: 1.0, get_up: false, trip_summary: true, full_tank: true, sim_thread: false, texture_compression: true, gpu_texture_compression: true, video_memory: 0, auto_clutch: true, momentary_gears: false, auto_shift: false, min_obj_size: 0.013, max_obj_dist: -1.0, max_fps: 0, chat: true, chat_size: 1.0, tooltips: true, name_tags: true, show_fps: false, perf_overlay: "off".into(), clouds: true, cloud_quality: "high".into(), street_light: "off".into(), rain_quality: "high".into(), vehicle_smoke: "all".into(), puddles: "high".into(), windy_trees: true, pax_density: 1.0, vol_ai: 1.0, vol_scenery: 1.0, mirror_size: 256, mirror_hud: 0, mirror_hud_every_frame: false, mirror_refresh: "full".into(), mirror_quality: "standard".into(), mirror_shadows: false, mirror_particles: false, doppler: true, driver: true, maintenance: 0, ai_unsched_factor: 1.0, ai_max_scheduled: 0, ai_max_parked: 0, ai_max_humans: 200, ai_wait_timed_stops_only: false, collision_vehicles: true, collision_objects: true, collision_pedestrians: true, realistic_road_physics: false, head_movement: true, driverview_smooth: true, hands_in_cab: false, alt_view: true, precision_zoom: false, time_speed: 1.0, time_sync: false, metar_sync: false, metar_station: String::new(), machine_translation: false, shadow_casters: "all".into(), ctrl_deadzone: 0.0, right_stick_look: true, ctrl_background: false, pad_steer_smooth: 120.0, pad_steer_linear: false, pad_steer_speed: 2.0, pad_deadzone: 0.08, pad_type: "auto".into(), pad_buttons: true, arrows_switch_cams: true, ctrl_off: String::new(), steering_linear: false, old_steering: false, red_steer_spd: false, reflections: 1.0, led_glow: 6, led_mips: 1.3, night_brightness: 0.0, mouse_sens: 1.0, mouse_pedal_strength: 1.0, graphics_api: "auto".into(), ff_invert: false, ff_enabled: true, ff_road_vib: 1.0, ff_engine_vib: 1.0, ff_fade: 0.28, brake_hold: true, mouse_steering: false, mouse_right_off: false, mouse_smooth: true, mouse_hold: true, mouse_pedals: true, key_pedal_speed: 1.0, look_sens: 1.0, look_smoothing_ms: 0.0, blinker_cancel: true, wheel_range: 900.0, wheel_lock: 0.0, fov: 0.0, camera_collision: true, steer_look: false, steer_look_angle: 30.0, steer_look_response: 0.25, head_idle: 0.0, head_idle_pace: 1.0, pedal_throttle: 1.0, pedal_brake: 1.0, seat: [0.0; 3], seat_pitch_deg: 0.0, head_tracking: false, head_tracking_port: 4242, head_tracking_invert: String::new(), head_tracking_yaw_sens: 100.0, head_tracking_pitch_sens: 100.0, head_tracking_roll_sens: 100.0, head_tracking_x_sens: 100.0, head_tracking_y_sens: 100.0, head_tracking_z_sens: 100.0, head_tracking_invert_yaw: false, head_tracking_invert_pitch: false, head_tracking_invert_roll: false, head_tracking_invert_x: false, head_tracking_invert_y: false, head_tracking_invert_z: false, head_tracking_source: "auto".into(), tobii_edges: false, head_tracking_smoothing: 0.5, head_tracking_dead_zone: 0.1, discord_status: true, discord_app_id: String::new(), voice_enabled: false, voice_mode: "ptt".into(), voice_mic_gain: 1.0, voice_threshold_db: -45.0, voice_input_device: String::new(), voice_volume: 1.0, voice_volume_nearby: 1.0, voice_volume_radio: 1.0, voice_range: 75.0, voice_talker_list: true, voice_all_off: false, info_bar: false, hud_sizes: [1.0; 3] }
++        Self { msaa: 4, anisotropy: 8, ssao: true, shadows: true, shadow_size: 2048, shadow_blobs: true, navigator: true, ui_opacity: 0.85, notes: true, ui_scale: 1.0, ui_scale_window: true, navigator_corner: "bottom-left".into(), boarding: "auto".into(), passenger_animation: "original".into(), passenger_umbrellas: false, passenger_hailing: false, passenger_hailing_maps: String::new(), units: "metric".into(), photo_mode: "simple".into(), character_models: "original".into(), standing_chance: 0.05, ambient: true, vol_ambient: 0.8, radio_fx: Default::default(), detail_textures: true, exact_fare: true, pax_bad_driving: true, auto_announce: false, enhanced: false, graphics: "vanilla_plus".into(), triple: Default::default(), triple_span: true, triple_hud_center: true, vr: false, vr_scale: 0.65, vr_head_smoothing_ms: 0.0, vr_mirror_rate: 16.0, vr_desktop_mirror: true, fullscreen: false, vsync: true, volume: 0.6, drive_keys: "simple".into(), touch_door_mode: "standard".into(), touch_pedal_length: 1.0, touch_pedal_deadzone: 0.15, post_aa: "fxaa".into(), render_scale: 0.0, upscaler: "default".into(), fsr_quality: "quality".into(), fsr_sharpness: 0.8, language: "ENG".into(), pax_voices: "all".into(), nav_arrows: false, nav_ai: true, nav_surface: true, nav_light: false, nav_3d: true, nav_widget: true, milezero: false, nav_size: 1.0, get_up: false, trip_summary: true, full_tank: true, sim_thread: false, texture_compression: true, gpu_texture_compression: true, video_memory: 0, auto_clutch: true, momentary_gears: false, auto_shift: false, min_obj_size: 0.013, max_obj_dist: -1.0, max_fps: 0, chat: true, chat_size: 1.0, tooltips: true, name_tags: true, show_fps: false, perf_overlay: "off".into(), clouds: true, cloud_quality: "high".into(), street_light: "off".into(), rain_quality: "high".into(), vehicle_smoke: "all".into(), puddles: "high".into(), windy_trees: true, pax_density: 1.0, vol_ai: 1.0, vol_scenery: 1.0, mirror_size: 256, mirror_hud: 0, mirror_hud_every_frame: false, mirror_refresh: "full".into(), mirror_quality: "standard".into(), mirror_shadows: false, mirror_particles: false, doppler: true, driver: true, maintenance: 0, ai_unsched_factor: 1.0, ai_max_scheduled: 0, ai_max_parked: 0, ai_max_humans: 200, ai_wait_timed_stops_only: false, collision_vehicles: true, collision_objects: true, collision_pedestrians: true, realistic_road_physics: false, head_movement: true, driverview_smooth: true, hands_in_cab: false, alt_view: true, precision_zoom: false, time_speed: 1.0, time_sync: false, metar_sync: false, metar_station: String::new(), machine_translation: false, shadow_casters: "all".into(), ctrl_deadzone: 0.0, right_stick_look: true, ctrl_background: false, pad_steer_smooth: 120.0, pad_steer_linear: false, pad_steer_speed: 2.0, pad_deadzone: 0.08, pad_type: "auto".into(), pad_buttons: true, arrows_switch_cams: true, ctrl_off: String::new(), steering_linear: false, old_steering: false, red_steer_spd: false, reflections: 1.0, led_glow: 6, led_mips: 1.3, night_brightness: 0.0, mouse_sens: 1.0, mouse_pedal_strength: 1.0, graphics_api: "auto".into(), ff_invert: false, ff_enabled: true, ff_road_vib: 1.0, ff_engine_vib: 1.0, ff_fade: 0.28, brake_hold: true, mouse_steering: false, mouse_right_off: false, mouse_smooth: true, mouse_hold: true, mouse_pedals: true, key_pedal_speed: 1.0, look_sens: 1.0, look_smoothing_ms: 0.0, blinker_cancel: true, wheel_range: 900.0, wheel_lock: 0.0, fov: 0.0, camera_collision: true, steer_look: false, steer_look_angle: 30.0, steer_look_response: 0.25, head_idle: 0.0, head_idle_pace: 1.0, pedal_throttle: 1.0, pedal_brake: 1.0, seat: [0.0; 3], seat_pitch_deg: 0.0, head_tracking: false, head_tracking_port: 4242, head_tracking_invert: String::new(), head_tracking_yaw_sens: 100.0, head_tracking_pitch_sens: 100.0, head_tracking_roll_sens: 100.0, head_tracking_x_sens: 100.0, head_tracking_y_sens: 100.0, head_tracking_z_sens: 100.0, head_tracking_invert_yaw: false, head_tracking_invert_pitch: false, head_tracking_invert_roll: false, head_tracking_invert_x: false, head_tracking_invert_y: false, head_tracking_invert_z: false, head_tracking_source: "auto".into(), tobii_edges: false, head_tracking_smoothing: 0.5, head_tracking_dead_zone: 0.1, discord_status: true, discord_app_id: String::new(), voice_enabled: false, voice_mode: "ptt".into(), voice_mic_gain: 1.0, voice_threshold_db: -45.0, voice_input_device: String::new(), voice_volume: 1.0, voice_volume_nearby: 1.0, voice_volume_radio: 1.0, voice_range: 75.0, voice_talker_list: true, voice_all_off: false, info_bar: false, hud_sizes: [1.0; 3] }
+     }
+ }
+ 
+@@ -626,6 +629,9 @@ impl Settings {
+                 "boarding" => s.boarding = v.to_ascii_lowercase(),
+                 "standing_chance" => s.standing_chance = v.trim_end_matches('%').parse::<f32>().ok().filter(|x| x.is_finite()).map(|x| (x / 100.0).clamp(0.0, 1.0)).unwrap_or(s.standing_chance),
+                 "photo_mode" => s.photo_mode = if v.eq_ignore_ascii_case("advanced") { "advanced" } else { "simple" }.into(),
++                "passenger_umbrellas" => s.passenger_umbrellas = b(v),
++                "passenger_hailing" => s.passenger_hailing = b(v),
++                "passenger_hailing_maps" => s.passenger_hailing_maps = v.to_string(),
+                 "passenger_animation" => s.passenger_animation = if v.eq_ignore_ascii_case("enhanced") { "enhanced" } else { "original" }.into(),
+                 "character_models" => s.character_models = if v.eq_ignore_ascii_case("improved") { "improved" } else { "original" }.into(),
+                 "detail_textures" | "fractal" => s.detail_textures = b(v),
+@@ -987,7 +993,7 @@ impl Settings {
+         text.push_str(&format!("rain_quality={}\n", self.rain_quality));
+         text.push_str(&format!("puddles={}\n", self.puddles));
+         text.push_str(&format!("gpu_texture_compression={}\n", self.gpu_texture_compression as u8));
+-        text.push_str(&format!("passenger_animation={}\n", self.passenger_animation));
++        text.push_str(&format!("passenger_animation={}\npassenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n", self.passenger_animation,self.passenger_umbrellas as u8,self.passenger_hailing as u8,self.passenger_hailing_maps));
+         text.push_str(&format!("photo_mode={}\n", self.photo_mode));
+         text.push_str(&format!("character_models={}\n", self.character_models));
+         text.push_str(&format!("units={}\n", self.units));
+diff --git a/crates/omsi-app/src/view_sync/people.rs b/crates/omsi-app/src/view_sync/people.rs
+index 82ba07320..f473d1430 100644
+--- a/crates/omsi-app/src/view_sync/people.rs
++++ b/crates/omsi-app/src/view_sync/people.rs
+@@ -26,6 +26,7 @@ use std::path::PathBuf;
+ use std::sync::Arc;
+ 
+ mod animation;
++pub(crate) mod extras;
+ mod avatars;
+ pub(crate) use avatars::{set_hour, speak};
+ 
+@@ -58,6 +59,9 @@ pub(crate) struct PeopleView {
+     pub(crate) sync_frame: u32,
+     /// Animation choice for this session, refreshed on Android in-process launches.
+     pub(crate) enhanced_poses: bool,
++    pub(crate) extra_config: extras::Config,
++    extra_renders: extras::Renders,
++    extra_hands: HashMap<usize,Arc<extras::HandRest>>,
+     pub(crate) mirror_hz: Option<f32>,
+     /// The people are drawn with the avatars of "Character models: High quality" (this
+     /// session's choice; see `avatars`).
+@@ -90,6 +94,9 @@ impl PeopleView {
+             frame: PeopleFrame::default(),
+             sync_frame: 0,
+             enhanced_poses: animation::enabled(),
++            extra_config: extras::Config::of(&crate::settings::Settings::load()),
++            extra_renders: Default::default(),
++            extra_hands: Default::default(),
+             mirror_hz: None,
+             avatars: avatars::enabled(),
+             last_sync: 0.0,
+@@ -207,6 +214,7 @@ impl PeopleView {
+     /// Person `id` has gone: their meshes hidden and kept for the next person of the type
+     /// (`tkey`) dressed alike (`variant`).
+     fn retire_meshes(&mut self, id: u32, tkey: usize, variant: usize) {
++        self.extra_renders.retire(id,&mut self.hidden);
+         let person = self.people.remove(&id);
+         // (an avatar's meshes go to the next person drawn with the same avatar)
+         let (tkey, variant) = match person.as_ref().and_then(|p| p.avatar.as_ref()) {
+@@ -222,6 +230,7 @@ impl PeopleView {
+ 
+     /// Person `from` is called `to` from now on.
+     fn rename(&mut self, from: u32, to: u32) {
++        self.extra_renders.rename(from,to);
+         if let Some(m) = self.people.remove(&from) {
+             self.people.insert(to, m);
+         }
+@@ -439,6 +448,7 @@ pub(crate) struct PersonView {
+     pub(super) ankles: [Vec3; 2],
+     /// The earlier IK/foot-planted animation, allocated only for the enhanced poses.
+     pub(super) procedural: Option<omsi_sim::human::Pose>,
++    extra: extras::State,
+     /// A jump of the person's place within a bus (onto the seat, as Omsi.exe puts them
+     /// there) drawn as a glide instead: what is left of it in the bus's frame, the same in
+     /// the world for the drawing, and the place last frame (the bus, where).
+@@ -580,6 +590,19 @@ impl PeopleView {
+         }
+         let n_due = due.iter().filter(|d| **d).count();
+         let enhanced = self.enhanced_poses;
++        let extra_config=self.extra_config.clone();
++        let hail_map=extras::map_enabled(&extra_config.maps,&world.map_dir.to_string_lossy());
++        // Expensive hand preparation is shared once per human type, never per frame.
++        if enhanced&&(extra_config.umbrellas||extra_config.hail){
++            for (p,st) in frame.people.iter().zip(states.iter_mut()){
++                if (p.position-from).length_squared()>6400. || p.hidden.is_some(){continue}
++                let ty=st.avatar.as_ref().unwrap_or(&p.ty);
++                let key=Arc::as_ptr(ty) as usize;
++                let rest=self.extra_hands.entry(key).or_insert_with(||Arc::new(extras::HandRest::new(ty))).clone();
++                st.extra.rest=Some(rest);
++            }
++        }
++        let cosmetic_time=frame.time;
+         let buses: HashMap<_, _> = if enhanced {
+             frame.buses.iter().map(|b| (b.id, b)).collect()
+         } else {
+@@ -592,11 +615,13 @@ impl PeopleView {
+             let ty = st.avatar.clone().unwrap_or_else(|| p.ty.clone());
+             let dt = st.since_posed_secs.max(sdt).min(0.25);
+             // Preserve the OMSI-original pose unless the enhanced A/B mode is requested.
+-            let bones = if enhanced && !p.puppet {
++            let mut bones = if enhanced && !p.puppet {
+                 animation::bones(p, &ty, st, dt, world, &buses)
+             } else {
+                 omsi_sim::human::slots_from_omsi(&p.anim.bones(&ty.omsi))
+             };
++            let near_extras=(p.position-from).length_squared()<6400.;
++            st.extra.advance(p,&ty,dt,cosmetic_time,&extra_config,enhanced,near_extras,hail_map,&mut bones);
+             // an avatar's face near the eye: blinks, looks, expressions, the lips
+             // (from the camera the picture is drawn from: a face is seen from there)
+             let near = ty.face.is_some() && (p.position - camera).length() < avatars::FACE_DISTANCE;
+@@ -638,7 +663,7 @@ impl PeopleView {
+                     f.live = false;
+                 }
+             }
+-            let PersonView { skins, skin_bones, pose_changed, face, .. } = &mut **st;
++            let PersonView { skins, skin_bones, pose_changed, face, extra, .. } = &mut **st;
+             *pose_changed = false;
+             if bones.iter().any(|b| !b.is_finite()) && !skins.is_empty() {
+                 // keep the last good mesh (the rest pose would be the file's T-pose)
+@@ -646,7 +671,7 @@ impl PeopleView {
+             }
+             // (the same bones as the mesh was made with: nothing to skin or upload - unless
+             // the face moves, or has just gone back to rest)
+-            if !face_now && !(face_was && !near) && skins.len() == ty.meshes.len() && skin_bones.as_ref().is_some_and(|b| b.iter().zip(&bones).all(|(a, c)| a.abs_diff_eq(*c, 1e-6))) {
++            if extra.arm<0.001 && extra.hail<0.001 && !face_now && !(face_was && !near) && skins.len() == ty.meshes.len() && skin_bones.as_ref().is_some_and(|b| b.iter().zip(&bones).all(|(a, c)| a.abs_diff_eq(*c, 1e-6))) {
+                 return;
+             }
+             skins.resize_with(ty.meshes.len(), Default::default);
+@@ -657,6 +682,7 @@ impl PeopleView {
+                     None => skin(m, &bones, pos, nrm),
+                 }
+             }
++            extra.skin(&bones,skins);
+             *skin_bones = Some(bones);
+             *pose_changed = true;
+         };
+@@ -722,6 +748,7 @@ impl PeopleView {
+                 renderer.set_transform(scene, *inst, at, xf);
+                 renderer.set_interior(scene, *inst, st.lit * 0.5);
+             }
++            self.extra_renders.draw(p,&st.extra,at,xf,enhanced&&extra_config.umbrellas&&(p.position-from).length_squared()<6400.,renderer,scene);
+             if p.hidden.is_some() && omsi_cfg::flags::OMSI_DEBUG_FOOT.is_set() && self.sync_frame % 30 == 0 {
+                 log::info!("avatar drawn at ({:.2}, {:.2}, {:.2}) heading {:.0} place {:?} go {}", at.x, at.y, at.z, heading, matches!(p.place, Place::Ground), go);
+             }
+diff --git a/crates/omsi-app/src/view_sync/people/extras.rs b/crates/omsi-app/src/view_sync/people/extras.rs
+new file mode 100644
+index 000000000..b1751cdf1
+--- /dev/null
++++ b/crates/omsi-app/src/view_sync/people/extras.rs
+@@ -0,0 +1,104 @@
++//! Optional local cosmetics. No boarding decisions or network messages are changed.
++use super::*;
++use glam::{Affine3A,Vec2};
++use omsi_sim::human::{accessory_arm,grip_centres,hand_slot};
++use std::sync::atomic::{AtomicBool,Ordering};
++mod geometry;
++static RAIN:AtomicBool=AtomicBool::new(false);
++pub(crate) fn weather(w:&omsi_content::weather::Weather){RAIN.store(w.precip.first().copied().unwrap_or(0.).round() as i32==1&&w.precip.get(1).copied().unwrap_or(0.)>2.,Ordering::Relaxed);}
++pub(crate) fn map_key(s:&str)->String{s.replace('\\',"/").trim_end_matches('/').trim_end_matches("/global.cfg").rsplit('/').next().unwrap_or(s).trim().to_lowercase()}
++pub(crate) fn map_enabled(list:&str,map:&str)->bool{let key=map_key(map);list.split(';').any(|s|!s.trim().is_empty()&&map_key(s)==key)}
++#[derive(Clone,Default)]
++pub(crate) struct Config{pub umbrellas:bool,pub hail:bool,pub maps:String}
++impl Config{pub fn of(s:&crate::settings::Settings)->Self{Self{umbrellas:s.passenger_umbrellas,hail:s.passenger_hailing,maps:s.passenger_hailing_maps.clone()}}}
++#[derive(Default)]
++pub(super) struct State{
++ pub open:f32,pub arm:f32,pub hail:f32,pub carried:bool,pub grip:Vec3,pub finger:f32,pub hail_side:usize,
++ wet:f32,dry:f32,pub rest:Option<Arc<HandRest>>,
++}
++pub(super) struct HandVertex{mesh:usize,index:usize,pos:Vec3,nrm:Vec3,point:Vec3,original:Vec3,original_nrm:Vec3,index_finger:bool}
++pub(super) struct HandRest{vertices:[Vec<HandVertex>;2],pub grip:[Vec3;2],knuckle:[Vec3;2]}
++impl HandRest{
++ pub fn new(ty:&HumanType)->Self{
++ let curled=omsi_sim::human::curl_hands(ty,0.008);let grip=grip_centres(ty,0.008);
++ let mut out=Self{vertices:[Vec::new(),Vec::new()],grip:[Vec3::ZERO;2],knuckle:[Vec3::ZERO;2]};
++ for side in 0..2{let w=ty.rig.wrist[side];let u=(w-ty.rig.elbow[side]).normalize_or(Vec3::X);let len=(ty.joints.finger-ty.joints.hand).length().clamp(0.12,0.3);
++ let knuckle=w+u*len*0.53;out.knuckle[side]=knuckle;out.grip[side]=grip[side].unwrap_or(w+u*len*0.5);
++ for (mi,m) in ty.meshes.iter().enumerate(){for(i,inf)in m.skin.iter().enumerate(){
++ if (0..inf.n as usize).any(|k|inf.slot[k] as usize==hand_slot(side)&&inf.weight[k]>0.5){let p=m.data.positions[i];let rel=p-knuckle;
++ // The index is a strip beside the thumb; models without separated fingers retain a hand wave.
++ let across=rel.dot(u.cross(Vec3::Z).normalize_or(Vec3::Y));let index_finger=rel.dot(u)>0.&&across>len*0.02&&across<len*0.19;
++ out.vertices[side].push(HandVertex{mesh:mi,index:i,pos:curled[mi].0[i],nrm:curled[mi].1[i],point:p,original:p,original_nrm:m.data.normals[i],index_finger});
++ }}}
++ }out
++ }
++}
++impl State{
++ pub fn advance(&mut self,p:&PersonFrame,ty:&HumanType,dt:f32,time:f64,c:&Config,enabled:bool,near:bool,hail_map:bool,bones:&mut[Affine3A;omsi_sim::human::SLOTS]){
++ let outside=matches!(p.place,Place::Ground);let ordinary=p.hidden.is_none()&&!p.puppet;
++ let eligible=enabled&&ordinary&&near;let owns=p.id.wrapping_mul(2654435761)%100<65;
++ let raining=RAIN.load(Ordering::Relaxed);
++ if raining{self.wet+=dt;self.dry=0.;}else{self.wet=0.;self.dry+=dt;}
++ if eligible&&c.umbrellas&&owns&&outside&&raining&&self.wet>(p.id%37)as f32*0.08{self.carried=true;}
++ let want_open=eligible&&c.umbrellas&&self.carried&&outside&&!p.close_umbrella&&(raining||self.dry<8.+(p.id%40)as f32*0.15);
++ self.open+=(if want_open{1.}else{0.}-self.open).clamp(-dt*2.5,dt*1.4);
++ if !outside{self.open=0.;}
++ let carry=eligible&&c.umbrellas&&self.carried&&p.facts.activity!=omsi_sim::human::Activity::Sit&&p.facts.activity!=omsi_sim::human::Activity::Pay;
++ self.arm+=(if carry{1.}else{0.}-self.arm).clamp(-dt*3.,dt*3.);
++ if !enabled||!c.umbrellas {self.open=0.;self.arm=0.;}
++ let phase=(time as f32+p.id as f32*0.618).rem_euclid(6.2);
++ let bus_near=p.hail_target.is_some_and(|b|{let d=(b-p.position).length();d>6.&&d<55.});
++ let hail=eligible&&c.hail&&hail_map&&outside&&p.state=="WaitingForBus"&&bus_near&&p.id%3!=0&&phase<3.5;
++ self.hail+=(if hail{1.}else{0.}-self.hail).clamp(-dt*2.8,dt*2.8);
++ if !enabled||!c.hail||!hail_map {self.hail=0.;}
++ self.hail_side=if self.arm>0.05{0}else{1};self.finger=(time as f32*8.+p.id as f32).sin()*0.28;
++ if self.arm>0.001{
++ let wrist=Vec3::new(0.23*ty.rig.scale,0.23*ty.rig.scale,ty.rig.shoulder[1].z-0.25*ty.rig.scale);
++ accessory_arm(&ty.rig,bones,1,wrist,self.arm,true,0.);
++ let rest=self.rest.as_ref().map_or(ty.rig.wrist[1],|r|r.grip[1]);self.grip=bones[hand_slot(1)].transform_point3(rest);
++ }
++ if self.hail>0.001{
++ let side=self.hail_side;let sign=if side==0{-1.}else{1.};let target=Vec3::new(sign*0.28*ty.rig.scale,0.2*ty.rig.scale,ty.rig.head_pivot.z+0.14*ty.rig.scale);
++ accessory_arm(&ty.rig,bones,side,target,self.hail,false,self.finger*0.22);
++ }
++ }
++ pub fn skin(&self,bones:&[Affine3A;omsi_sim::human::SLOTS],skins:&mut[(Vec<Vec3>,Vec<Vec3>)]){
++ let Some(rest)=&self.rest else{return};
++ for side in 0..2{let carry=side==1&&self.arm>0.05;let point=side==self.hail_side&&self.hail>0.05;if !carry&&!point{continue}
++ let b=bones[hand_slot(side)];
++ for v in &rest.vertices[side]{let Some((pos,nrm))=skins.get_mut(v.mesh)else{continue};
++ let (mut p,n)=if point&&v.index_finger{let r=glam::Quat::from_rotation_y(self.finger);(rest.knuckle[side]+r*(v.point-rest.knuckle[side]),r*v.original_nrm)}else{(v.pos,v.nrm)};
++ let blend=if point{self.hail}else{self.arm};p=v.original.lerp(p,blend.clamp(0.,1.));
++ pos[v.index]=b.transform_point3(p);nrm[v.index]=b.transform_vector3(n).normalize_or(Vec3::Z);
++ }
++ }
++ }
++}
++#[derive(Default)]
++pub(super) struct Renders{meshes:Option<(MeshId,MeshId,Vec<MaterialId>,Vec<Vec<MaterialId>>)>,live:HashMap<u32,(usize,usize)>,spare:Vec<(usize,usize)>}
++impl Renders{
++ pub fn retire(&mut self,id:u32,hidden:&mut Vec<usize>){if let Some((a,b))=self.live.remove(&id){hidden.extend([a,b]);self.spare.push((a,b));}}
++ pub fn rename(&mut self,from:u32,to:u32){if let Some(pair)=self.live.remove(&from){self.live.insert(to,pair);}}
++ pub fn draw(&mut self,p:&PersonFrame,st:&State,at:DVec3,xf:Mat4,allowed:bool,renderer:&Renderer,scene:&mut Scene){
++ let show=allowed&&st.arm>0.02&&p.hidden.is_none()&&st.carried;
++ if !show{if let Some((a,b))=self.live.get(&p.id){renderer.set_params(scene,*a,&[],false,&[]);renderer.set_params(scene,*b,&[],false,&[]);}return}
++ if self.meshes.is_none(){
++ let material=|scene:&mut Scene,color:[f32;4]|renderer.add_material_extra(scene,None,AlphaMode::Opaque,color,false,None,None,None,None,[0.;3],omsi_render::MaterialExtra{solid:true,..Default::default()});
++ let metal=material(scene,[0.32,0.34,0.37,1.]);let handle=material(scene,[0.035,0.025,0.02,1.]);
++ let colors=[[0.025,0.028,0.04,1.],[0.025,0.06,0.16,1.],[0.35,0.045,0.15,1.],[0.15,0.055,0.28,1.],[0.65,0.08,0.04,1.],[0.06,0.3,0.12,1.],[0.65,0.4,0.025,1.],[0.025,0.22,0.4,1.]];
++ let mats:Vec<_>=colors.into_iter().map(|c|material(scene,c)).collect();let palettes=(0..5).map(|i|{let mut v=(0..8).map(|j|mats[if i==4{j}else{i}]).collect::<Vec<_>>();v.push(metal);v}).collect();
++ let cap=renderer.add_mesh(scene,&geometry::canopy());let shaft=renderer.add_mesh(scene,&geometry::shaft());self.meshes=Some((cap,shaft,vec![metal,handle],palettes));
++ }
++ let (cap,shaft,body_mats,palettes)=self.meshes.as_ref().unwrap();let palette=(p.id%5)as usize;
++ let pair=if let Some(pair)=self.live.get(&p.id){*pair}else{
++ if self.live.len()>=48{return}
++ let pair=self.spare.pop().unwrap_or_else(||(renderer.add_instance(scene,*shaft,at,Mat4::IDENTITY,body_mats.clone()),renderer.add_instance(scene,*cap,at,Mat4::IDENTITY,palettes[palette].clone())));
++ // A pooled instance keeps its original palette; variation is cosmetic only.
++ self.live.insert(p.id,pair);pair};
++ let base=at+xf.transform_vector3(st.grip).as_dvec3();
++ renderer.set_transform(scene,pair.0,base,xf);renderer.set_params(scene,pair.0,&[],true,&[]);
++ let open=st.open.clamp(0.,1.);let diameter=0.04+0.96*open;let size=0.88+(p.id%15)as f32*0.012;
++ let cap_xf=xf*Mat4::from_translation(Vec3::Z*0.78)*Mat4::from_scale(Vec3::new(diameter*size,diameter*size,1.9-0.9*open));
++ renderer.set_transform(scene,pair.1,base,cap_xf);renderer.set_params(scene,pair.1,&[],true,&[]);
++ }
++}
+diff --git a/crates/omsi-app/src/view_sync/people/extras/geometry.rs b/crates/omsi-app/src/view_sync/people/extras/geometry.rs
+new file mode 100644
+index 000000000..27169aa1a
+--- /dev/null
++++ b/crates/omsi-app/src/view_sync/people/extras/geometry.rs
+@@ -0,0 +1,38 @@
++//! Original, low-poly umbrella: eight fabric gores, metal ribs and hooked handle.
++//! Reference photos are documented in the beta notes; no downloaded meshes/textures.
++use glam::{Vec2,Vec3};
++use omsi_geometry::MeshData;
++use std::f32::consts::TAU;
++fn tri(m:&mut MeshData,a:Vec3,b:Vec3,c:Vec3,slot:u32){
++ let n=(b-a).cross(c-a).normalize_or(Vec3::Z);let base=m.positions.len() as u32;
++ m.positions.extend([a,b,c]);m.normals.extend([n;3]);
++ m.uvs.extend([Vec2::ZERO,Vec2::X,Vec2::Y]);m.indices.extend([base,base+1,base+2]);
++ let start=m.indices.len() as u32-3;
++ if let Some((_,count,s))=m.ranges.last_mut(){if *s==slot{*count+=3;return}}
++ m.ranges.push((start,3,slot));
++}
++fn tube(m:&mut MeshData,a:Vec3,b:Vec3,r:f32,slot:u32){
++ let axis=(b-a).normalize_or(Vec3::Z);let u=axis.cross(Vec3::X).normalize_or(Vec3::Y)*r;let v=axis.cross(u).normalize_or(Vec3::X)*r;
++ for i in 0..6 {let f=|k:usize|{let t=k as f32*TAU/6.;u*t.cos()+v*t.sin()};let x=f(i);let y=f(i+1);
++ tri(m,a+x,b+x,b+y,slot);tri(m,a+x,b+y,a+y,slot);}
++}
++fn roof(r:f32,angle:f32)->Vec3{
++ // A convex sewn panel, slightly scalloped between rib tips.
++ let sag=(angle*4.).sin().abs()*0.018*r;
++ Vec3::new(0.55*r*angle.cos(),0.55*r*angle.sin(),-0.27*r*r-sag)
++}
++pub fn canopy()->MeshData{
++ let mut m=MeshData::default();
++ for gore in 0..8 {for ring in 0..3{for j in 0..4{
++ let a=(gore as f32+j as f32/4.)*TAU/8.;let b=a+TAU/32.;let r0=ring as f32/3.;let r1=(ring+1) as f32/3.;
++ tri(&mut m,roof(r0,a),roof(r1,a),roof(r1,b),gore);if ring>0{tri(&mut m,roof(r0,a),roof(r1,b),roof(r0,b),gore);}
++ }}}
++ for rib in 0..8{let a=rib as f32*TAU/8.;for ring in 0..3{let p=roof(ring as f32/3.,a)-Vec3::Z*0.004;let q=roof((ring+1) as f32/3.,a)-Vec3::Z*0.004;tube(&mut m,p,q,0.003,8);}}
++ m
++}
++pub fn shaft()->MeshData{
++ let mut m=MeshData::default();tube(&mut m,Vec3::new(0.,0.,-0.055),Vec3::new(0.,0.,0.805),0.006,0);
++ tube(&mut m,Vec3::new(0.,0.,-0.055),Vec3::new(0.,0.,-0.13),0.013,1);
++ let f=|i:usize|{let a=i as f32*std::f32::consts::PI/12.;Vec3::new(0.045-0.045*a.cos(),0.,-0.13-0.045*a.sin())};
++ for i in 0..12{tube(&mut m,f(i),f(i+1),0.013,1);}m
++}
+diff --git a/crates/omsi-app/src/weather_setup.rs b/crates/omsi-app/src/weather_setup.rs
+index fde986e27..943ec5578 100644
+--- a/crates/omsi-app/src/weather_setup.rs
++++ b/crates/omsi-app/src/weather_setup.rs
+@@ -429,6 +429,7 @@ pub(crate) fn weather_lighting(
+     shadows: bool,
+     sky: &SkyState,
+ ) -> omsi_render::Lighting {
++    crate::view_sync::people::extras::weather(w);
+     let mut lighting = lights::lighting_from(daylight, w.fog.0);
+     lighting.enhanced = sky.look.enhanced;
+     lighting.classic = sky.look.classic;
+diff --git a/crates/omsi-launcher-core/src/lib.rs b/crates/omsi-launcher-core/src/lib.rs
+index 15475c53e..cfc484f29 100644
+--- a/crates/omsi-launcher-core/src/lib.rs
++++ b/crates/omsi-launcher-core/src/lib.rs
+@@ -2226,6 +2226,9 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
+     }
+     // Human posing; the original OMSI behavior remains the default.
+     v["passenger_animation"] = json!("original");
++    v["passenger_umbrellas"]=json!(false);
++    v["passenger_hailing"]=json!(false);
++    v["passenger_hailing_maps"]=json!("");
+     v["photo_mode"] = json!("simple");
+     // the people as drawn: the content's own, or the Rocketbox avatars (this computer only)
+     v["character_models"] = json!("original");
+@@ -2324,6 +2327,8 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
+             "touch_door_mode" => v[&k] = json!(if val.eq_ignore_ascii_case("direct") { "direct" } else { "standard" }),
+             "update_channel" => v[&k] = json!(if val.eq_ignore_ascii_case("beta") { "beta" } else { "stable" }),
+             "photo_mode" => v[&k] = json!(if val.eq_ignore_ascii_case("advanced") { "advanced" } else { "simple" }),
++            "passenger_umbrellas" | "passenger_hailing" => v[&k]=json!(b(val)),
++            "passenger_hailing_maps" => v[&k]=json!(val),
+             "passenger_animation" => v[&k] = json!(if val.eq_ignore_ascii_case("enhanced") { "enhanced" } else { "original" }),
+             "character_models" => v[&k] = json!(if val.eq_ignore_ascii_case("improved") { "improved" } else { "original" }),
+             "units" => v[&k] = json!(units_setting(val)),
+@@ -2794,6 +2799,7 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
+     text.push_str(&format!("triple_left_angle_deg={}\ntriple_right_angle_deg={}\ntriple_eye_height_mm={}\n", f("triple_left_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_right_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_eye_height_mm", 0.0).clamp(-500.0, 500.0)));
+     text.push_str(&format!("photo_mode={}\n", if v.get("photo_mode").and_then(|x| x.as_str()) == Some("advanced") { "advanced" } else { "simple" }));
+     text.push_str(&format!("passenger_animation={}\n", if v.get("passenger_animation").and_then(|x| x.as_str()) == Some("enhanced") { "enhanced" } else { "original" }));
++    text.push_str(&format!("passenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n",b("passenger_umbrellas",false),b("passenger_hailing",false),v.get("passenger_hailing_maps").and_then(|x|x.as_str()).unwrap_or("").replace(['\r','\n'],"")));
+     text.push_str(&format!("character_models={}\n", if v.get("character_models").and_then(|x| x.as_str()) == Some("improved") { "improved" } else { "original" }));
+     text.push_str(&format!("units={}\n", units_setting(v.get("units").and_then(|x| x.as_str()).unwrap_or("metric"))));
+     text.push_str(&format!(
+diff --git a/crates/omsi-sim/src/human/gesture.rs b/crates/omsi-sim/src/human/gesture.rs
+new file mode 100644
+index 000000000..623622d26
+--- /dev/null
++++ b/crates/omsi-sim/src/human/gesture.rs
+@@ -0,0 +1,24 @@
++//! Local visual arm IK for optional passenger accessories (no simulation state).
++use super::*;
++
++pub fn accessory_arm(rig: &Rig, bones: &mut [Affine3A; SLOTS], side: usize, target: Vec3, amount: f32, grip: bool, wave: f32) {
++    let side=side.min(1);
++    let sh=bones[MAIN].transform_point3(rig.shoulder[side]);
++    let old=bones[HAND[side]].transform_point3(rig.wrist[side]);
++    let target=old.lerp(target,amount.clamp(0.0,1.0));
++    let pole=Vec3::new(SIDE[side]*0.75,-0.2,-0.8);
++    let (el,wr,_)=two_bone(sh,rig.upper_arm,rig.forearm,target,pole);
++    let a=(el-sh).normalize_or(-Vec3::Z);
++    let c=(wr-el).normalize_or(-Vec3::Z);
++    let front=(c-a*a.dot(c)).normalize_or(Vec3::Y);
++    let bend=a.dot(c).clamp(-1.0,1.0).acos();
++    let fore_front=front*bend.cos()-a*bend.sin();
++    let upper=bone_rot(rig.elbow[side]-rig.shoulder[side],Vec3::Y,a,front);
++    let fore=bone_rot(rig.wrist[side]-rig.elbow[side],Vec3::Y,c,fore_front);
++    // Hold the shaft upright: the rest fingers point along X, palm towards -Z.
++    let hand=if grip { bone_rot(rig.wrist[side]-rig.elbow[side],-Vec3::Z,Vec3::Y,Vec3::X*SIDE[side]) }
++        else { fore*Mat3A::from_rotation_y(wave) };
++    bones[UPPER[side]]=joint_xf(rig.shoulder[side],sh,upper);
++    bones[FORE[side]]=joint_xf(rig.elbow[side],el,fore);
++    bones[HAND[side]]=joint_xf(rig.wrist[side],wr,hand);
++}
+diff --git a/crates/omsi-sim/src/human/mod.rs b/crates/omsi-sim/src/human/mod.rs
+index 93fdf3442..139c69922 100644
+--- a/crates/omsi-sim/src/human/mod.rs
++++ b/crates/omsi-sim/src/human/mod.rs
+@@ -34,6 +34,8 @@ mod contact_tests;
+ 
+ pub mod avatar;
+ mod bones;
++mod gesture;
++pub use gesture::accessory_arm;
+ pub mod face;
+ mod motion;
+ mod rig;
+diff --git a/crates/omsi-sim/src/view_events.rs b/crates/omsi-sim/src/view_events.rs
+index 704b5e829..f67ce0c04 100644
+--- a/crates/omsi-sim/src/view_events.rs
++++ b/crates/omsi-sim/src/view_events.rs
+@@ -265,6 +265,10 @@ pub struct PersonFrame {
+     pub facts: crate::people::PoseFacts,
+     /// The state's name (`OMSI_TRACE_PAX`).
+     pub state: &'static str,
++    /// Visual-only compatible bus approaching this waiting passenger.
++    pub hail_target: Option<glam::DVec3>,
++    /// Close a carried umbrella while approaching the entry threshold.
++    pub close_umbrella: bool,
+     /// `OMSI_CHECK_TPOSE`: the person's label and state, and a passenger's details.
+     pub debug: Option<[String; 2]>,
+ }
+@@ -278,7 +282,8 @@ impl crate::people::PeopleSim {
+         out.eye = self.eye;
+         out.buses = self.last_buses.clone();
+         out.people.clear();
+-        out.people.extend(self.people.iter().map(|p| PersonFrame {
++        let bus_ix: hashbrown::HashMap<_,_> = self.last_buses.iter().enumerate().map(|(i,b)|(b.id,i)).collect();
++        out.people.extend(self.people.iter().enumerate().map(|(i,p)| PersonFrame {
+             id: p.id,
+             ty: p.ty.clone(),
+             position: p.position,
+@@ -293,6 +298,14 @@ impl crate::people::PeopleSim {
+             hidden: self.avatar_hidden.get(&p.id).copied(),
+             facts: p.pose_facts(),
+             state: p.state.name(),
++            hail_target: match &p.state {
++                crate::people::State::Pax(x) if x.inside.is_none() && x.task == crate::people::pax::Task::WaitingForBus => x.stop.and_then(|stop|self.bus_for(i,stop,&self.last_buses,&bus_ix)).and_then(|(id,_)|bus_ix.get(&id)).map(|i|self.last_buses[*i].pos),
++                _=>None,
++            },
++            close_umbrella: match &p.state {
++                crate::people::State::Pax(x) => x.inside.is_some() || (x.task == crate::people::pax::Task::WalkingToBus && x.bus.and_then(|id|bus_ix.get(&id)).is_some_and(|i| self.last_buses[*i].cabin.entries.iter().any(|d|(self.last_buses[*i].world(d.outside)-p.position).length()<4.5))),
++                _=>false,
++            },
+             debug: debug.then(|| {
+                 let pax = match &p.state {
+                     crate::people::State::Pax(x) => format!("pax_state {} speed {:.2} seat_h {:.2} room {:.2} st {}", x.pax_state, x.speed, x.seat_h, x.room, x.st),

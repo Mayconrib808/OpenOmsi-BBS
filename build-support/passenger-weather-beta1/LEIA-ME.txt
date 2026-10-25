@@ -1,0 +1,35 @@
+BETA PARTICULAR 1 - PASSAGEIROS: GUARDA-CHUVA E SINAL DE PARADA
+Base: OpenOMSI 0.3.41 + Coop14 + Hotfix1; compativel com a Bridge 2.2.0.8 Hotfix3, protocolo15.
+Nao publicada no Buscar atualizacoes. So o jogo e substituido, com backup.
+
+1. Feche o jogo e execute Instalar-Beta.cmd. Escolha o openomsi.exe da pasta do jogo Coop/programa; nao escolha o servidor.
+2. Abra normalmente pelo BCS/Bridge ou pelo jogo.
+3. Dentro do jogo: Esc > Opcoes > Jogo. Procure as quatro opcoes seguidas:
+   Animacao natural (procedural)
+   Guarda-chuvas na chuva (beta)
+   Passageiros pedem parada (beta)
+   Pedir parada neste mapa
+4. As duas animacoes comecam DESLIGADAS. Ative Natural e as animacoes que quiser. A escolha e local e pode ser desligada durante o jogo.
+5. Ative Pedir parada neste mapa somente nos mapas desejados; repita ao entrar em outro mapa. A lista fica salva. Nao tentamos adivinhar o pais do mapa.
+6. Teste primeiro com poucos passageiros; depois aumente a densidade. Para guarda-chuva, escolha CHUVA real nas opcoes de clima (nao apenas ceu nublado/piso molhado).
+7. Para voltar ao jogo anterior, feche-o e execute Restaurar-Jogo.cmd, escolhendo o mesmo openomsi.exe.
+
+O QUE ESTA NESTA BETA
+- Guarda-chuva 3D original, tecido em oito gomos, varetas metalicas, haste e cabo curvo; cores preta, azul, vinho, roxa e multicolorida.
+- Abre gradualmente com chuva, fecha ao se aproximar da entrada e fica fechado dentro do onibus. A mao acompanha o cabo; enquanto segura guarda-chuva, sinaliza com a outra mao.
+- Nem todos carregam guarda-chuva; abertura escalonada, raio visual de80m e limite de48 guarda-chuvas ativos para reduzir custo. Geometria compartilhada.
+- Passageiros esperando por um onibus compativel levantam o braco e movimentam a mao/indicador. Variacao por pessoa. Sem sinal para onibus de outra linha quando a simulacao conhece a linha/destino.
+- Modelo original de passageiro continua disponivel; os novos efeitos sao apenas para Natural/procedural.
+
+LIMITACOES PARA VOCE TESTAR
+- Beta compilada, sem a rodada completa de testes automaticos de release, conforme solicitado. O teste visual e de jogabilidade e seu proximo passo.
+- Dedos dos modelos OMSI nem sempre sao separados; em alguns o indicador pode mover parte da mao. Ajuste fino do encaixe, dedo, cotovelo, abertura e fechamento depende do teste visual nos modelos que voce usa.
+- Detecao de cobertura de abrigo/telhado ainda nao implementada: pessoas ao ar livre sob abrigos podem abrir o guarda-chuva.
+- Modelos de crianca, roupas e articulacoes diferentes precisam ser observados. Nao ha gravacao/replay das novas poses.
+- Os efeitos sao visuais locais: so quem instala e ativa os ve; nenhum protocolo ou dado novo e exigido do servidor. O gesto em passageiros espelhados depende dos dados de espera disponiveis no cliente e precisa ser validado em multiplayer.
+- Nao altera HostAgent/CompanyHost, servidor, BCS, embarque, bilhetes, clima, limites de passageiros ou configuracoes graficas existentes. O travamento de carregamento de veiculo de53s nao e corrigido aqui.
+
+REFERENCIAS VISUAIS (somente fotos de referencia; nenhuma malha/textura baixada e incorporada)
+https://www.bclatacado.com.br/guarda-ch-c-curvo-portaria-8v-jl-ref-7160-3-6931627000040
+https://www.startatacado.com.br/guarda-chuva-16-varetas-arco-iris
+Geometria e animacao criadas para esta beta. Codigo-fonte do delta em source/visuals.patch.
