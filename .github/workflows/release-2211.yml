@@ -36,13 +36,13 @@ jobs:
     - uses: actions/download-artifact@v8
       with:
         name: Bridge-2.2.1.1-native-game
-        run-id: 40238210284
+        run-id: 40240856338
         github-token: ${{ github.token }}
         path: native
     - uses: actions/download-artifact@v8
       with:
         name: Bridge-2.2.1.1-native-launcher
-        run-id: 40238210284
+        run-id: 40240856338
         github-token: ${{ github.token }}
         path: lobby
     - name: Existing Bridge and updater regressions
