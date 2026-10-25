@@ -31,7 +31,8 @@ def apply(game: Path):
 '''            // The owner hears exactly the same custom cue the conductor hears
             // on first ACK; later retransmissions do not replay either side.
             self.coop_play_close_cue();''')
-    replace_exact(p, 'assets/sounds/coop_turnstile_coin.wav', 'assets/sounds/coop_fecho.mp3')
+    # The signed bundle installs the approved recording at this WAV path.
+    assert p.read_text(encoding="utf-8").count("assets/sounds/coop_turnstile_coin.wav") == 2
     print("Custom close signal: playback on owner acceptance and authorized conductor ACK.")
 if __name__ == "__main__":
     apply(Path("game"))

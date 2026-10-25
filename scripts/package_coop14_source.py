@@ -5,9 +5,9 @@ ROOT=Path(__file__).resolve().parents[1]
 paths=[
  'build-support/coop6','build-support/driver-share','build-support/character',
  'build-support/greetings','build-support/greetings-hotfix','build-support/greetings-server',
- 'build-support/coop10','build-support/coop11','build-support/coop12','build-support/coop13','build-support/coop14',
+ 'build-support/coop10','build-support/coop11','build-support/coop12','build-support/coop13','build-support/coop14','build-support/coop14-hotfix1',
  'source/dynamic_host_update.go','source/company_gateway.go',
- 'source/bridge_update.go','.github/workflows/coop14-p15.yml'
+ 'source/bridge_update.go','.github/workflows/coop14-hotfix1.yml'
 ]
 output=ROOT/'out/openomsi-coop14-source.zip'
 output.parent.mkdir(parents=True,exist_ok=True)
@@ -18,7 +18,7 @@ Pinned upstream bases:
  server P14 (0.3.39) 9eaf95d4caafabe041edcdfc37931b5259c30c8a
  server P15 (0.3.41) 33fcc7875a1695f44cbeb209d560e86db3ef4906
 For Coop14, start from official v0.3.41 and apply the full Coop12 cumulative patch, two targeted hotfixes, Coop13 fixes and Coop14 port scripts. The Windows CI workflow records the merge procedure and SHA-256 checks.
-The complete Windows recipe is .github/workflows/coop14-0341-probe.yml,
+The complete Windows recipe is .github/workflows/coop14-hotfix1.yml,
 at the pinned repository commit from the validated GitHub Actions run.
 This ZIP contains patches and scripts, not upstream source contents. Full
 corresponding sources are the pinned public upstream tree plus these overlays.

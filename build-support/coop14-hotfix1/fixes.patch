@@ -1,0 +1,252 @@
+diff --git a/crates/omsi-app/src/lan_world.rs b/crates/omsi-app/src/lan_world.rs
+index 2e1ee0a57..50dc91fe4 100644
+--- a/crates/omsi-app/src/lan_world.rs
++++ b/crates/omsi-app/src/lan_world.rs
+@@ -166,7 +166,7 @@ struct Upstream {
+ struct UpView {
+     acc: f32,
+     sent: HashMap<u32, ([i64; 4], f32)>,
+-    described: HashSet<u32>,
++    described: HashMap<u32, f32>,
+     gone: Vec<(u32, f32)>,
+ }
+ 
+@@ -251,6 +251,9 @@ impl LanWorld {
+         }
+         let v = &mut self.up_view;
+         v.acc += dt;
++        for age in v.described.values_mut() {
++            *age += dt;
++        }
+         for s in v.sent.values_mut() {
+             s.1 += dt;
+         }
+@@ -269,13 +272,18 @@ impl LanWorld {
+         };
+         let mut frame = WorldFrame::default();
+         let mut seen: HashSet<u32> = HashSet::new();
++        // At most 80 descriptions/s at the 10 Hz world cadence. Repeat after
++        // five seconds so a lost UDP description cannot hide a person forever.
++        let mut describe_left = 8usize;
+         for p in h.lan_people(me, PERSON_RADIUS) {
+             if p.aboard.is_some() {
+                 continue;
+             }
+             let id = wire(p.id);
+             seen.insert(id);
+-            if v.described.insert(id) {
++            if describe_left > 0 && v.described.get(&id).is_none_or(|age| *age >= 5.0) {
++                v.described.insert(id, 0.0);
++                describe_left -= 1;
+                 lan.send_desc_up(&Desc::Person {
+                     id,
+                     file: Humans::type_file(&p.ty),
+@@ -309,7 +317,9 @@ impl LanWorld {
+             let Some((_, l, lh, seat)) = p.aboard else { continue };
+             let id = wire(p.id);
+             seen.insert(id);
+-            if v.described.insert(id) {
++            if describe_left > 0 && v.described.get(&id).is_none_or(|age| *age >= 5.0) {
++                v.described.insert(id, 0.0);
++                describe_left -= 1;
+                 lan.send_desc_up(&Desc::Person {
+                     id,
+                     file: Humans::type_file(&p.ty),
+@@ -335,6 +345,7 @@ impl LanWorld {
+             v.sent.insert(id, (q, 0.0));
+             frame.people.push(st);
+         }
++        v.described.retain(|id, _| seen.contains(id));
+         let gone: Vec<u32> = v.sent.keys().filter(|k| !seen.contains(*k)).copied().collect();
+         for k in gone {
+             v.sent.remove(&k);
+@@ -1234,6 +1245,7 @@ impl Mirror {
+             h.mirror_remove(id);
+             m.drawn_people.remove(&id);
+         }
++        let mut spawned = 0usize;
+         for (id, track) in &m.people {
+             let Some((a, b, k)) = track.around(render_ms) else {
+                 continue;
+@@ -1257,12 +1269,20 @@ impl Mirror {
+             let Some(ty) = h.type_by_file(file) else {
+                 continue;
+             };
++            // Existing people keep updating; new ones remain queued in m.people
++            // and enter over following frames instead of blocking a crowded stop.
++            if spawned >= 12 {
++                continue;
++            }
+             let added = h.mirror_add(world, *id, ty, &pose);
+-            crate::view_sync::apply_people(h, &mut view.people, world, renderer, scene);
+             if added {
++                spawned += 1;
+                 m.drawn_people.insert(*id);
+             }
+         }
++        // Replay in the same operation order, once per batch. This also avoids
++        // repeatedly warming every human type for each individual passenger.
++        crate::view_sync::apply_people(h, &mut view.people, world, renderer, scene);
+         let claims = h.take_claims();
+         if !claims.is_empty() {
+             log::info!("LAN: our bus stands at a stop: asking the host for waiting passengers {claims:?}");
+diff --git a/crates/omsi-net/src/lib.rs b/crates/omsi-net/src/lib.rs
+index 70f0d8132..e0c7954a3 100644
+--- a/crates/omsi-net/src/lib.rs
++++ b/crates/omsi-net/src/lib.rs
+@@ -200,6 +200,11 @@ const TEXTURE_RATE: (f32, f32) = (2048.0, 2048.0);
+ const SOUND_RATE: (f32, f32) = (512.0, 2048.0);
+ use voice_net::VOICE_RATE;
+ const MESSAGE_RATE: (f32, f32) = (10.0, 20.0);
++// Boarding a crowd sends one description per person plus CLAIM/WANT packets.
++// Keep each bounded independently: none may consume vehicle poses or commands.
++const PERSON_DESC_RATE: (f32, f32) = (128.0, 256.0);
++const PERSON_CONTROL_RATE: (f32, f32) = (64.0, 128.0);
++const PERSON_WORLD_RATE: (f32, f32) = (128.0, 128.0);
+ const CHAT_RATE: (f32, f32) = (1.0, 3.0);
+ // ---------------------------------------------------------------------------------------
+ // session codes
+@@ -1131,6 +1136,9 @@ enum PeerTraffic {
+     Sounds,
+     Voice,
+     Tack,
++    PersonDescription,
++    PersonControl,
++    PersonWorld,
+     Message,
+ }
+ 
+@@ -1183,6 +1191,9 @@ pub struct Peer {
+     voice: Bucket,
+     tacks: Bucket,
+     messages: Bucket,
++    person_descriptions: Bucket,
++    person_control: Bucket,
++    person_world: Bucket,
+     chat: Bucket,
+     /// Datagrams of this player the host threw away (too many at once).
+     pub dropped: u32,
+@@ -1227,6 +1238,9 @@ impl Peer {
+             voice: Bucket::new(VOICE_RATE.1),
+             tacks: Bucket::new(traffic_net::TACK_RATE.1),
+             messages: Bucket::new(MESSAGE_RATE.1),
++            person_descriptions: Bucket::new(PERSON_DESC_RATE.1),
++            person_control: Bucket::new(PERSON_CONTROL_RATE.1),
++            person_world: Bucket::new(PERSON_WORLD_RATE.1),
+             chat: Bucket::new(CHAT_RATE.1),
+             dropped: 0,
+             history: std::collections::VecDeque::new(),
+@@ -2595,7 +2609,7 @@ impl LanSession {
+                     else {
+                         continue;
+                     };
+-                    if self.checked_peer(id, from, STATE_RATE, PeerTraffic::State).is_none() {
++                    if self.checked_peer(id, from, PERSON_WORLD_RATE, PeerTraffic::PersonWorld).is_none() {
+                         continue;
+                     }
+                     if let Some(mut f) = world::decode(&data, PROTOCOL as u8) {
+@@ -2726,7 +2740,7 @@ impl LanSession {
+                     let Some(id) = field(&parts, 1).parse::<u32>().ok() else {
+                         continue;
+                     };
+-                    if self.checked_peer(id, from, MESSAGE_RATE, PeerTraffic::Message).is_none() {
++                    if self.checked_peer(id, from, PERSON_CONTROL_RATE, PeerTraffic::PersonControl).is_none() {
+                         continue;
+                     }
+                     if parts[0] == "WANT" {
+@@ -2754,7 +2768,7 @@ impl LanSession {
+                     else {
+                         continue;
+                     };
+-                    if self.checked_peer(id, from, MESSAGE_RATE, PeerTraffic::Message).is_none() {
++                    if self.checked_peer(id, from, PERSON_DESC_RATE, PeerTraffic::PersonDescription).is_none() {
+                         continue;
+                     }
+                     if let Some(d @ world::Desc::Person { .. }) = world::Desc::decode(&parts) {
+@@ -2838,12 +2852,15 @@ impl LanSession {
+             PeerTraffic::Voice => peer.voice.take(rate),
+             PeerTraffic::Tack => peer.tacks.take(rate),
+             PeerTraffic::Message => peer.messages.take(rate),
++            PeerTraffic::PersonDescription => peer.person_descriptions.take(rate),
++            PeerTraffic::PersonControl => peer.person_control.take(rate),
++            PeerTraffic::PersonWorld => peer.person_world.take(rate),
+         };
+         if !ok {
+             peer.dropped += 1;
+             if peer.dropped.is_power_of_two() {
+                 log::warn!(
+-                    "LAN: player {id} sends too much; {} datagram(s) dropped so far",
++                    "LAN: player {id} sends too much ({traffic:?}); {} datagram(s) dropped so far",
+                     peer.dropped
+                 );
+             }
+diff --git a/crates/omsi-net/src/tests.rs b/crates/omsi-net/src/tests.rs
+index a2409fdd7..2b3984b8f 100644
+--- a/crates/omsi-net/src/tests.rs
++++ b/crates/omsi-net/src/tests.rs
+@@ -1561,3 +1561,65 @@ fn handover_snapshot_is_session_authenticated_and_relayed_between_clients() {
+ }
+ mod traffic;
+ mod voice;
++
++#[test]
++fn coop14_hotfix_boarding_burst_preserves_people_commands_and_vehicle_budget() {
++    let mut host = LanSession::host(0, "host", world("m"), true).unwrap();
++    let addr = SocketAddr::from(([127, 0, 0, 1], host.local_addr().unwrap().port()));
++    let mut client = LanSession::join_addr(vec![addr], None, "c", world("m")).unwrap();
++    let poses = [pose(100.0), pose(200.0)];
++    pump(&mut [&mut host, &mut client], &poses, 150, |s| s[1].connected);
++    assert!(client.connected);
++    host.take_descs_up();
++    host.take_world_up();
++    let id = client.my_id;
++    let before = host.peers[&id].dropped;
++    for person in 1..=89 {
++        client.send_desc_up(&world::Desc::Person {
++            id: person,
++            file: "Humans/aXYZ/man01.hum".into(),
++        });
++        host.receive(&mut Vec::new());
++    }
++    let descriptions = host.take_descs_up();
++    assert_eq!(descriptions.len(), 89, "the recorded boarding burst must arrive intact");
++    let claimed: Vec<u32> = (1..=89).collect();
++    client.claim(&claimed);
++    host.receive(&mut Vec::new());
++    let claims = host.take_claims();
++    assert_eq!(claims.iter().map(|(_, ids)| ids.len()).sum::<usize>(), 89);
++    for person in 1..=80 {
++        client.send_world_up(&world::WorldFrame {
++            gone: vec![(true, person)],
++            ..Default::default()
++        });
++        host.receive(&mut Vec::new());
++    }
++    assert_eq!(host.take_world_up().len(), 80, "people frames must not consume vehicle state capacity");
++    assert_eq!(host.peers[&id].dropped, before);
++    let peer = host.peers.get_mut(&id).unwrap();
++    assert!(peer.states.take(STATE_RATE));
++    assert!(peer.messages.take(MESSAGE_RATE));
++}
++
++#[test]
++fn coop14_hotfix_person_channels_remain_limited_and_sender_bound() {
++    let mut host = LanSession::host(0, "host", world("m"), true).unwrap();
++    let from: SocketAddr = "127.0.0.1:29001".parse().unwrap();
++    let other: SocketAddr = "127.0.0.1:29002".parse().unwrap();
++    let mut peer = Peer::new(Some(from), pose(1.0));
++    peer.person_descriptions.tokens = 0.0;
++    peer.person_control.tokens = 0.0;
++    peer.person_world.tokens = 0.0;
++    host.peers.insert(7, peer);
++    for (rate, channel) in [
++        (PERSON_DESC_RATE, PeerTraffic::PersonDescription),
++        (PERSON_CONTROL_RATE, PeerTraffic::PersonControl),
++        (PERSON_WORLD_RATE, PeerTraffic::PersonWorld),
++    ] {
++        assert!(host.checked_peer(7, other, rate, channel).is_none());
++        assert!(host.checked_peer(7, from, rate, channel).is_none());
++    }
++    assert!(host.checked_peer(7, from, MESSAGE_RATE, PeerTraffic::Message).is_some());
++    assert!(host.checked_peer(7, from, STATE_RATE, PeerTraffic::State).is_some());
++}
