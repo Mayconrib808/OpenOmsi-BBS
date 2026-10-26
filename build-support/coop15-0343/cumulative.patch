@@ -10753,16 +10753,16 @@ index 00000000..0e5e8ef8
 +}
 diff --git a/crates/omsi-net/src/handover.rs b/crates/omsi-net/src/handover.rs
 new file mode 100644
-index 00000000..2d635d0b
+index 00000000..a776a726
 --- /dev/null
 +++ b/crates/omsi-net/src/handover.rs
 @@ -0,0 +1,298 @@
 +//! Reliable, ordered, owner-authored handover states. Only names and paths, never audio.
 +use std::collections::{BTreeMap, HashMap, VecDeque};
 +
-+// Protocol 15 reserves 0xBA/0xBB for the optimized traffic table and 0xBC
-+// for voice. Handover needs its own discriminator on this same transport.
-+pub const MAGIC: u8 = 0xBD;
++// Protocol 15 reserves 0xBA/0xBB for traffic, 0xBC for voice and, since
++// upstream 0.3.43, 0xBD for freetex. Coop handover must use its own byte.
++pub const MAGIC: u8 = 0xBE;
 +const HEAD: usize = 36;
 +const CHUNK: usize = 1024;
 +const MAX_SIZE: usize = 512 * 1024;
@@ -11352,10 +11352,10 @@ index 6cd0d0ab..604911bb 100644
          let mut a = Sync::default();
          let mut b = Sync::default();
 diff --git a/crates/omsi-net/src/tests.rs b/crates/omsi-net/src/tests.rs
-index 19d9562d..c08b5824 100644
+index 19d9562d..3062dc5e 100644
 --- a/crates/omsi-net/src/tests.rs
 +++ b/crates/omsi-net/src/tests.rs
-@@ -1515,5 +1515,113 @@ fn a_player_without_a_bus_sends_a_heartbeat() {
+@@ -1515,5 +1515,114 @@ fn a_player_without_a_bus_sends_a_heartbeat() {
  mod connections;
  
  mod lifecycle;
@@ -11380,6 +11380,7 @@ index 19d9562d..c08b5824 100644
 +
 +#[test]
 +fn handover_snapshot_is_session_authenticated_and_relayed_between_clients() {
++    assert_ne!(handover::MAGIC, freetex::MAGIC);
 +    assert_ne!(handover::MAGIC, traffic_table::wire::MAGIC);
 +    assert_ne!(handover::MAGIC, traffic_table::wire::ACK_MAGIC);
 +    assert_ne!(handover::MAGIC, voice_net::MAGIC);
@@ -12043,10 +12044,10 @@ index cfdd8bea..224976b9 100644
              - d(2.2) * (self.shift / (0.03 * rig.scale)) * still * (1.0 - s_ease);
 diff --git a/crates/omsi-sim/src/human/gesture.rs b/crates/omsi-sim/src/human/gesture.rs
 new file mode 100644
-index 00000000..82265d62
+index 00000000..c04eb394
 --- /dev/null
 +++ b/crates/omsi-sim/src/human/gesture.rs
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,137 @@
 +//! Local visual arm IK for optional passenger accessories (no simulation state).
 +use super::*;
 +
@@ -12092,6 +12093,8 @@ index 00000000..82265d62
 +    let sh=bones[MAIN].transform_point3(rig.shoulder[side]);
 +    let old_el=bones[FORE[side]].transform_point3(rig.elbow[side]);
 +    let old_wr=bones[HAND[side]].transform_point3(rig.wrist[side]);
++    let old_fore=bones[FORE[side]].to_scale_rotation_translation().1;
++    let old_hand=bones[HAND[side]].to_scale_rotation_translation().1;
 +    let target=accessory_head(rig,bones)+forward*(0.23*scale)
 +        +right*(SIDE[side]*0.21*scale)+Vec3::Z*((0.03+wave*0.15)*scale);
 +    let target=old_wr.lerp(target,amount);
@@ -12109,8 +12112,10 @@ index 00000000..82265d62
 +    let desired=(forward+Vec3::Z*(0.3+wave)).normalize();
 +    let turn=Quat::from_rotation_arc(c,desired);
 +    let angle=turn.to_axis_angle().1.abs();
-+    let share=(55f32.to_radians()/angle.max(1e-6)).min(1.)*amount;
-+    let hand=Mat3A::from_quat(Quat::IDENTITY.slerp(turn,share))*fore;
++    let share=(55f32.to_radians()/angle.max(1e-6)).min(1.);
++    let pointing=Mat3A::from_quat(Quat::IDENTITY.slerp(turn,share))*fore;
++    let natural=Quat::from_mat3a(&fore)*old_fore.conjugate()*old_hand;
++    let hand=Mat3A::from_quat(natural.slerp(Quat::from_mat3a(&pointing),amount));
 +    bones[UPPER[side]]=joint_xf(rig.shoulder[side],sh,upper);
 +    bones[FORE[side]]=joint_xf(rig.elbow[side],el,fore);
 +    bones[HAND[side]]=joint_xf(rig.wrist[side],wr,hand);
@@ -12162,6 +12167,21 @@ index 00000000..82265d62
 +            let mut bones=[Affine3A::IDENTITY;SLOTS];
 +            accessory_hail_arm(&r,&mut bones,0,dir,amount,f32::NAN);
 +            assert!(bones.iter().all(|b|b.abs_diff_eq(Affine3A::IDENTITY,1e-6)));
++        }
++    }
++    #[test] fn hand_direction_matches_the_actual_smoothed_neck_and_body_turn(){
++        let r=rig();
++        for degrees in [-150f32,-90.,0.,90.,150.] {
++            let bus=Quat::from_rotation_z(degrees.to_radians())*Vec3::Y;
++            let mut look=HailLook::default();
++            let mut bones=[Affine3A::IDENTITY;SLOTS];
++            for _ in 0..240 {
++                bones=[Affine3A::IDENTITY;SLOTS];
++                look.advance(&r,&mut bones,Some(bus*40.+Vec3::Z*1.7),1.,1./60.);
++            }
++            accessory_hail_arm(&r,&mut bones,1,look.direction(),1.,0.);
++            let index=bones[HAND[1]].transform_vector3(r.wrist[1]-r.elbow[1]).normalize();
++            assert!(index.dot(bus)>0.2,"hand aimed behind the approaching bus at {degrees}: {index:?}");
 +        }
 +    }
 +}
