@@ -58,7 +58,7 @@ def main():
   z.writestr('native-input.json',json.dumps(inputs,indent=2))
   z.writestr('port-0344-prepare.py',(ROOT/'build-support/coop15-0344/prepare.py').read_bytes())
   z.writestr('port-0344-source.json',(ROOT/'build-support/coop15-0344/source.json').read_bytes())
-  z.writestr('README.txt','Apply cumulative.patch to official openOMSI v0.3.44 (8248fe452ad4e2d420a99a482b84badb10d82ce6). All previously shipped Coop/passenger changes plus the street-facing hailing arm. Full corresponding source available from the exact upstream tag and this patch.\n')
+  z.writestr('README.txt','Apply cumulative.patch to pinned official openOMSI v0.3.43, then use port-0344-prepare.py plus the pinned v0.3.44 source to merge the seven official 0.3.44 changes. All previously shipped Coop/passenger changes plus the street-facing hailing arm. Full corresponding source available from the exact upstream tag and this patch.\n')
  files[COOP+'/source/passengers-2.2.1.6-source.zip']=sources.getvalue()
  server_name='app/server-dinamico-p15/openomsi.exe'
  files[server_name]=files[COOP+'/programa/openomsi.exe']
@@ -88,7 +88,10 @@ def main():
  servers={n:sha(files[n]) for n in before if n.startswith(('app/server-dinamico-p14/','app/server-dinamico-p15/'))}
  p14={n:h for n,h in before.items() if n.startswith('app/server-dinamico-p14/')}
  assert p14 and all(sha(files[n])==h for n,h in p14.items())
- assert servers and all(sha(files[n])==h for n,h in servers.items())
+ assert servers
+ # P15 game and its capability marker must be replaced together; every other
+ # existing dedicated-server asset (including all P14) is byte-identical.
+ assert all(sha(files[n])==h for n,h in servers.items() if n not in (server_name,marker_name))
  assert server_hash!=previous['dynamic_p15_sha256']
  # Validate actual adapter-generated fuel arguments against the new Windows CLI.
  check=out/'native-cli';check.mkdir()
