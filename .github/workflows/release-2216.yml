@@ -53,13 +53,13 @@ jobs:
     - uses: actions/download-artifact@v8
       with:
         name: Bridge-2.2.1.6-native-game
-        run-id: 40397689094
+        run-id: 40403227838
         github-token: ${{ github.token }}
         path: native
     - uses: actions/download-artifact@v8
       with:
         name: Bridge-2.2.1.6-native-launcher
-        run-id: 40397689094
+        run-id: 40403227838
         github-token: ${{ github.token }}
         path: lobby
     - name: Assemble and verify native 0.3.44, complete hosts, old P14, custom sound and BCS commands
