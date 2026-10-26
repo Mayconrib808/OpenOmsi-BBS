@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"debug/pe"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strconv"
