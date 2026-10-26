@@ -38,19 +38,23 @@ jobs:
     - &id004
       uses: dtolnay/rust-toolchain@stable
     - &id005
-      uses: Swatinem/rust-cache@v2
-      with:
-        key: coop14-0341-windows
-        cache-on-failure: true
-        workspaces: 'game -> target
-
-          game/launcher/src-tauri -> target'
-    - &id006
       name: Apply audited cumulative Coop15 port to exact official 0.3.43
       shell: pwsh
       run: 'python support/build-support/coop15-0343/prepare.py
 
         if ($LASTEXITCODE -ne 0) {throw ''Source identity or cumulative port failed''}'
+    - name: Retained installed-map aliases and independent passenger choices
+      shell: pwsh
+      run: 'node support/build-support/passengers221/lobby.test.mjs game
+
+        if ($LASTEXITCODE -ne 0) {throw ''Passenger UI regression''}'
+    - &id006
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: coop14-0341-windows
+        cache-on-failure: true
+        workspaces: game -> target
+        cache-workspace-crates: false
     - name: Compile all retained native test harnesses before running long simulations
       shell: pwsh
       working-directory: game
@@ -96,7 +100,6 @@ jobs:
     - *id003
     - *id004
     - *id005
-    - *id006
     - name: Reconcile only required cumulative dependency edges in launcher lock
       shell: pwsh
       working-directory: game
@@ -107,6 +110,7 @@ jobs:
         \ and new[name]-old[name]]\nassert not changes,('Existing dependency pins unexpectedly changed',changes)\nprint('Launcher lock\
         \ reconciled without replacing existing registry/git dependency pins.')\n'@ | python -\nif ($LASTEXITCODE -ne 0) { throw 'Beta\
         \ build preparation failed' }"
+    - *id006
     - name: Build 0.3.43 desktop lobby with retained passenger and ticket settings
       shell: pwsh
       working-directory: game
