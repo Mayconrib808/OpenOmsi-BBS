@@ -1,0 +1,7 @@
+{
+  "version": "2.2.1.3",
+  "run_id": 40253950601,
+  "commit": "8693cbaec8337a5945c0df5215f07d6769df581c",
+  "patch_sha256": "71a0eb4ae338032940b5ede4b128ccee65f9897785ad0bb0f7930ae2196cd30c",
+  "native_version": "0.3.41-coop.14-2.2.1.2-neck-fix"
+}

@@ -1,0 +1,79 @@
+name: Build authenticated Bridge 2.2.1.3 candidate
+'on':
+  push:
+    branches:
+    - release/2.2.1.3
+    paths:
+    - scripts/build_2213.py
+    - source/version.go
+    - build-support/bridge2213/native.json
+    - .github/workflows/release-2213.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-go@v6
+      with:
+        go-version: 1.23.2
+        cache: false
+    - name: Wait for exact approved cumulative 2.2.1 native build
+      env:
+        GH_TOKEN: ${{ github.token }}
+      shell: pwsh
+      run: "@'\nimport json,subprocess,time,os\nfrom pathlib import Path\np=json.loads(Path('build-support/bridge2213/native.json').read_text())\nfor attempt in range(150):\n r=json.loads(subprocess.check_output(['gh','api','repos/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+str(p['run_id'])],text=True))\n assert r['head_sha']==p['commit'] and r['path']=='.github/workflows/passengers-2212-native.yml'\n if r['status']=='completed':\n  assert r['conclusion']=='success',r['conclusion']\n  break\n time.sleep(20)\nelse:raise RuntimeError('Native 2.2.1 build did not complete')\n'@ | python -\nif ($LASTEXITCODE -ne 0) { throw 'Native source identity or compilation failed' }"
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.1.2-candidate
+        run-id: 40249678167
+        github-token: ${{ github.token }}
+        path: prior
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.1.2-native-game
+        run-id: 40253950601
+        github-token: ${{ github.token }}
+        path: native
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.1.1-native-launcher
+        run-id: 40240856338
+        github-token: ${{ github.token }}
+        path: lobby
+    - name: Existing Bridge and updater regressions
+      shell: pwsh
+      run: 'python scripts/build_2203.py --tests-only
+
+        if ($LASTEXITCODE -ne 0) { throw ''Bridge regression failed'' }'
+    - name: Build 2.2.1 while checking complete hosts and identical servers
+      shell: pwsh
+      run: 'python scripts/build_2213.py --prior prior --native native --launcher lobby
+
+        if ($LASTEXITCODE -ne 0) { throw ''2.2.1 candidate or preservation audit failed'' }'
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.1.3-candidate
+        path: 'build/release-2213/Atualizar-Bridge.exe
+
+          build/release-2213/build-report.json
+
+          build/release-2213/coop-spec.json
+
+          build/release-2213/coop_bundle_manifest.go
+
+          build/release-2213/coop-assets/**'
+        retention-days: 30
+        if-no-files-found: error
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.1.3-report
+        path: 'build/release-2213/build-report.json
+
+          build/release-2213/coop-spec.json'
+        retention-days: 30
+        if-no-files-found: error
