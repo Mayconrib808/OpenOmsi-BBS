@@ -55,6 +55,7 @@ type companyGateway struct {
 	closeOnce                   sync.Once
 	ready                       atomic.Bool
 	filesEnabled                atomic.Bool
+	adminClockAllowed           atomic.Bool
 	protocol                    atomic.Int32
 	nextPeer                    atomic.Uint64
 	peers                       map[string]*companyGatewayPeer
@@ -414,6 +415,9 @@ func (g *companyGateway) serveHTTP(w http.ResponseWriter, r *http.Request) {
 		raw["vehicles"] = json.RawMessage(`[]`)
 		raw["free_player_vehicles"] = json.RawMessage(`true`)
 		raw["bbs_bus_transfers"], _ = json.Marshal(g.filesEnabled.Load())
+		// Explicit HostAgent opt-in, and only after the original company-clock
+		// synchronization succeeded. The client keeps the server time afterward.
+		raw["bbs_admin_time_authoritative"], _ = json.Marshal(g.adminClockAllowed.Load() && g.ready.Load())
 		raw["bbs_vehicle_adapter"], _ = json.Marshal(fmt.Sprintf("protocol-%d", status.Protocol))
 		data, err = json.Marshal(raw)
 	} else if strings.HasPrefix(path, "/players") {
