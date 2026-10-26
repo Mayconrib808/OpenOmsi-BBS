@@ -24,6 +24,12 @@ type hostMapOptions struct {
 	Timetable    bool   `json:"timetable"`
 	IdleMinutes  int    `json:"idle_minutes"`
 	MetarStation string `json:"metar_station,omitempty"`
+	Voice             bool   `json:"voice"`
+	VoiceRadio        bool   `json:"voice_radio"`
+	VoiceRange        int    `json:"voice_range"`
+	PublicServer      bool   `json:"public_server"`
+	RequireHardwareID bool   `json:"require_hardware_id"`
+	AdminPassword     string `json:"admin_password"`
 }
 type hostAgentConfig struct {
 	Schema           int                       `json:"schema"`
@@ -93,7 +99,7 @@ func defaultHostMapOptions(c hostAgentConfig) hostMapOptions {
 		port++
 		web++
 	}
-	return hostMapOptions{Enabled: true, Port: port, WebPort: web, MaxPlayers: 16, Traffic: 30, Passengers: true, MaxPeople: companyHostDefaultMaxPeople, Timetable: true, IdleMinutes: 15}
+	return hostMapOptions{Enabled: true, Port: port, WebPort: web, MaxPlayers: 16, Traffic: 30, Passengers: true, MaxPeople: companyHostDefaultMaxPeople, Timetable: true, IdleMinutes: 15, Voice: true, VoiceRadio: true, VoiceRange: 135}
 }
 
 func hostMapMaxPeople(m hostMapOptions) int {
@@ -115,7 +121,12 @@ func loadHostAgentConfig(path string) (hostAgentConfig, error) {
 	if c.Maps == nil {
 		c.Maps = map[string]hostMapOptions{}
 	}
+	var rawRoot struct { Maps map[string]map[string]json.RawMessage `json:"maps"` }
+	_ = json.Unmarshal(b, &rawRoot)
 	for id, m := range c.Maps {
+		if _, exists := rawRoot.Maps[id]["voice"]; !exists { m.Voice = true }
+		if _, exists := rawRoot.Maps[id]["voice_radio"]; !exists { m.VoiceRadio = true }
+		if m.VoiceRange == 0 { m.VoiceRange = 135 }
 		m.MetarStation = strings.ToUpper(strings.TrimSpace(m.MetarStation))
 		m.MaxPeople = hostMapMaxPeople(m)
 		c.Maps[id] = m
@@ -177,6 +188,10 @@ func validateHostAgentConfig(c hostAgentConfig, running bool) error {
 				"Clima real: informe quatro letras do aeroporto, por exemplo SBBH, ou deixe vazio para usar o clima do BBS.",
 				"Live weather: enter the airport's four-letter ICAO code, e.g. SBBH, or leave empty for BBS weather.",
 				"Live-Wetter: vier Buchstaben des ICAO-Codes eingeben, z. B. SBBH, oder für BBS-Wetter leer lassen."))
+		}
+		if m.VoiceRange < 5 || m.VoiceRange > 1000 { return fmt.Errorf("%s: alcance de voz de 5 a 1000 metros", s.Name) }
+		if m.AdminPassword != "" && (len(m.AdminPassword) < 12 || len(m.AdminPassword) > 128 || strings.ContainsAny(m.AdminPassword, "\r\n")) {
+			return fmt.Errorf("%s: senha de administrador precisa ter 12 a 128 caracteres", s.Name)
 		}
 		if m.Port < 1024 || m.Port > 65535 || m.WebPort < 1024 || m.WebPort > 65535 || m.MaxPlayers < 1 || m.MaxPlayers > 128 || m.Traffic < 0 || m.Traffic > 1000 || m.IdleMinutes < 0 || m.IdleMinutes > 1440 || m.WebPort == c.ControlPort || ports[m.Port] || webs[m.WebPort] {
 			return fmt.Errorf("portas repetidas ou opções inválidas em %s", s.Name)
