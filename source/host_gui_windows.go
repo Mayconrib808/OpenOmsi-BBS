@@ -129,6 +129,7 @@ const (
 	hostStatus       = 323
 	hostMetar        = 324
 	hostPeople       = 325
+	hostAdminClock  = 326
 	hostBrowseRoot   = 331
 	hostBrowseServer = 332
 	hostScan         = 333
@@ -344,6 +345,8 @@ func (g *hostGUI) createControls() {
 	g.button("Copiar chave", "Copy key", "Schlüssel kopieren", 925, 247, 155, hostCopyKey)
 	g.check("Iniciar agente ao entrar no Windows", "Start agent at Windows login", "Agent bei Windows-Anmeldung starten", 20, 281, 690, hostStartup)
 	g.setCheck(hostStartup, g.c.StartWithWindows)
+	g.check("Permitir ajuste de hora por admins após sincronizar", "Allow admin clock changes after initial sync", "Admin-Uhränderungen nach dem Start erlauben", 730, 281, 350, hostAdminClock)
+	g.setCheck(hostAdminClock, g.c.AllowAdminTime)
 	g.label("Mapas instalados", "Installed maps", "Installierte Karten", 20, 318, 480)
 	g.combo(hostInstalled, 20, 342, 395)
 	g.button("Adicionar mapa", "Add map", "Karte hinzufügen", 425, 341, 150, hostAdd)
@@ -396,6 +399,7 @@ func (g *hostGUI) readGeneral() error {
 	g.c.Company.CompanyID = strings.TrimSpace(hostText(g.fields[hostID]))
 	g.c.HostKey = strings.TrimSpace(hostText(g.fields[hostKey]))
 	g.c.StartWithWindows = g.checked(hostStartup)
+	g.c.AllowAdminTime = g.checked(hostAdminClock)
 	shift, err := strconv.Atoi(hostText(g.fields[hostShift]))
 	if err != nil {
 		return fmt.Errorf("invalid clock shift")
@@ -879,7 +883,7 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 		}
 		hostUser.NewProc("SetWindowPos").Call(g.window, 0, 0, 0, 1040, 740, 2|4|16)
 		g.layoutViewport()
-		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostBrowseServer, hostKey, hostMetar, hostPeople, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
+		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostBrowseServer, hostKey, hostAdminClock, hostMetar, hostPeople, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
 			g.revealControl(g.fields[id])
 			rect := g.controlRect(g.fields[id])
 			var client hostRect
