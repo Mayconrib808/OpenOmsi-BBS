@@ -62,6 +62,7 @@ func isolatedCompanyHostExecutable(server string) (string, error) {
 type companyHostOptions struct {
 	Profile, Session, Server, Root, Config string
 	MaxPeople                              int
+	AllowAdminTime                         bool
 	Share                                  string
 	onReady                                func()
 	onPublicReady                          func(string)
@@ -402,6 +403,19 @@ func (m *companyHostMonitor) observe(sampledAt, target time.Time, clock string) 
 	return synced, nil
 }
 
+// A privileged native openOMSI administrator may advance the dedicated server
+// clock only after BCS/company time is initially synchronized. In this explicit
+// opt-in mode the server is the sole time authority for every connected player;
+// restarting the host restores normal BCS/company clock on startup. Without
+// this option, the existing drift recovery and company sync remain unchanged.
+func companyHostClockStatus(m *companyHostMonitor, adminClockUnlocked bool, sampledAt, target time.Time, raw string) (bool, error) {
+	if adminClockUnlocked {
+		_, err := companyHostClock(raw)
+		return err == nil, err
+	}
+	return m.observe(sampledAt, target, raw)
+}
+
 func ensureCompanyHostPortsFree(cfg companyHostConfig) error {
 	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(cfg.WebPort)))
 	if err != nil {
@@ -593,6 +607,9 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	defer ticker.Stop()
 	fmt.Fprintf(output, "Servidor da empresa %s / %s iniciando. Relógio %s %+d min.\n", profile.CompanyName, session.Name, profile.Clock.TimeZone, profile.Clock.ShiftMinutes)
 	fmt.Fprintln(output, "Mantenha esta janela aberta. Aguarde a confirmação de sincronização antes de iniciar a viagem no BCS.")
+	if options.AllowAdminTime {
+		fmt.Fprintln(output, "Modo opcional: após a sincronização inicial, o horário é administrado pelo servidor; ajustes dos admins nativos não serão desfeitos pelo sincronizador BCS.")
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -646,7 +663,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 			if err != nil {
 				return err
 			}
-			synced, err := monitor.observe(sampled, target, status.Time)
+			synced, err := companyHostClockStatus(&monitor, options.AllowAdminTime && ready, sampled, target, status.Time)
 			if err != nil {
 				return err
 			}
