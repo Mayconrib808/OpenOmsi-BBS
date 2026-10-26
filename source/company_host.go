@@ -63,6 +63,9 @@ type companyHostOptions struct {
 	Profile, Session, Server, Root, Config string
 	MaxPeople                              int
 	AllowAdminTime                         bool
+	Voice, VoiceRadio, PublicServer, RequireHardwareID bool
+	VoiceRange int
+	AdminPassword string
 	Share                                  string
 	onReady                                func()
 	onPublicReady                          func(string)
@@ -179,13 +182,23 @@ func loadCompanyHostConfig(path string, profile CompanyProfile, session CompanyS
 
 // Preserve the owner's comments and unrelated settings. Replace every occurrence
 // of controlled keys, so a later duplicate cannot silently restore real_time.
-func renderCompanyHostConfig(cfg companyHostConfig, session CompanySession, fleet []string, now time.Time, password string) []byte {
+func renderCompanyHostConfig(cfg companyHostConfig, session CompanySession, fleet []string, now time.Time, password string, extra ...companyHostOptions) []byte {
 	values := map[string]string{
 		"map": session.MapFile, "date": now.Format("2006-01-02"),
 		"time": now.Format("15:04:05"), "real_time": "0", "time_speed": "1",
 		"vehicles": "", "free_player_vehicles": "1", "fallback_vehicles": strings.Join(fleet, ";"), "admin_password": password,
 	}
 	keys := []string{"map", "date", "time", "real_time", "time_speed", "vehicles", "free_player_vehicles", "fallback_vehicles", "admin_password"}
+	if len(extra)>0 {
+		advanced:=extra[0]
+		flag:=func(ok bool) string { if ok { return "1" }; return "0" }
+		values["voice"]=flag(advanced.Voice)
+		values["voice_radio"]=flag(advanced.VoiceRadio)
+		values["voice_range"]=strconv.Itoa(advanced.VoiceRange)
+		values["public_server"]=flag(advanced.PublicServer)
+		values["require_hardware_id"]=flag(advanced.RequireHardwareID)
+		keys=append(keys,"voice","voice_radio","voice_range","public_server","require_hardware_id")
+	}
 	text := cfg.Text
 	if bytes.HasPrefix(text, []byte{0xef, 0xbb, 0xbf}) {
 		text = text[3:]
@@ -501,7 +514,9 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 		return err
 	}
 	password := hex.EncodeToString(secret)
-	models, catalog, mask, err := companyGatewayFleet(options.Root, fleet, password[:24])
+	if options.AdminPassword != "" { password = options.AdminPassword }
+	if len(password) < 12 || len(password) > 128 { return fmt.Errorf("invalid native admin password") }
+	models, catalog, mask, err := companyGatewayFleet(options.Root, fleet, password[:min(24,len(password))])
 	if err != nil {
 		return err
 	}
@@ -519,7 +534,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	}
 	privateConfig := f.Name()
 	defer os.Remove(privateConfig)
-	_, writeErr := f.Write(companyGatewayConfig(renderCompanyHostConfig(cfg, session, fleet, civil, password), gateway.backendPort, gateway.backendWebPort, models, transfers))
+	_, writeErr := f.Write(companyGatewayConfig(renderCompanyHostConfig(cfg, session, fleet, civil, password, options), gateway.backendPort, gateway.backendWebPort, models, transfers))
 	closeErr := f.Close()
 	if writeErr != nil {
 		return writeErr
