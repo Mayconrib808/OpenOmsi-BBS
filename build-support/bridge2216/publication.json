@@ -1,0 +1,10 @@
+{
+  "version": "2.2.1.6",
+  "sequence": 2026102603,
+  "candidate_run_id": 40409878722,
+  "candidate_commit": "b998cb477d3903481b2aa6a6106a3fe7f2687698",
+  "installer_sha256": "6e94946f939d443eec24f88acb46e606fc85b6fd18dc31f6b8c9f008407f90ee",
+  "installer_size": 24481280,
+  "admin_clock_checks_run_id": 40409396974,
+  "bridge_checks_run_id": 40409878663
+}
