@@ -76,6 +76,32 @@ index 8a7ae5b..5829f7d 100644
          id: r.id,
          file: Humans::type_file(&p),
      })
+diff --git a/crates/omsi-app/src/spawn.rs b/crates/omsi-app/src/spawn.rs
+index cdafd53..cf1b29b 100644
+--- a/crates/omsi-app/src/spawn.rs
++++ b/crates/omsi-app/src/spawn.rs
+@@ -393,7 +393,9 @@ pub(crate) fn spawn_player_prepared(
+     // filled by its own pump, as at one, so each bus takes what its script says it holds; a
+     // situation's bus and a part uncoupled keep what they had (and --setvar, after it,
+     // still sets what a test asks for)
+-    if !args.is_resuming() && !args.keep_fuel && crate::settings::Settings::load().full_tank {
++    let external_fuel=omsi_sim::VehicleInstance::has_initial_fuel(args.setvar.as_deref());
++    if external_fuel {log::info!("spawn: explicit external fuel supplied; automatic full-tank start skipped");}
++    if !args.is_resuming() && !args.keep_fuel && !external_fuel && crate::settings::Settings::load().full_tank {
+         match p.vehicle.refuel() {
+             Some(l) => log::info!("spawn: tank filled ({l:.0} l)"),
+             None => log::info!("spawn: this vehicle has no fuel pump handling (veh_tank): its tank stays as its script set it"),
+@@ -408,6 +410,10 @@ pub(crate) fn spawn_player_prepared(
+             }
+         }
+         p.vehicle.update(1.0 / 30.0);
++        if external_fuel {
++            log::info!("spawn: initial external fuel applied: engine_tank_content={:?}, fuel={:?}, tank_percent={:?}",
++                p.vehicle.var("engine_tank_content"),p.vehicle.var("fuel"),p.vehicle.var("tank_percent"));
++        }
+     }
+     // a situation remembers how dirty the bus was; --dirt sets it for a test run
+     if let Some(d) = args.dirt {
 diff --git a/crates/omsi-app/src/view_sync/people/extras.rs b/crates/omsi-app/src/view_sync/people/extras.rs
 index 5734726..d977952 100644
 --- a/crates/omsi-app/src/view_sync/people/extras.rs
@@ -506,7 +532,7 @@ index ae0150e..f138003 100644
      pub comfort: RideComfort,
      /// LAN play (host): the waiting people handed over to another player's bus, by stop and
 diff --git a/crates/omsi-sim/src/people/pax_stops.rs b/crates/omsi-sim/src/people/pax_stops.rs
-index 9889199..2e6b4f9 100644
+index 9889199..eb08743 100644
 --- a/crates/omsi-sim/src/people/pax_stops.rs
 +++ b/crates/omsi-sim/src/people/pax_stops.rs
 @@ -33,6 +33,24 @@ mod ticket_chance_2211_tests{
@@ -530,7 +556,7 @@ index 9889199..2e6b4f9 100644
 +        && d.truncate().dot(forward)<=12.0
 +        && (d.x*forward.y-d.y*forward.x).abs()<=14.0
 +        && d.z.abs()<8.0
-+}
++}}
  impl PeopleSim {
      /// Cosmetic recognition before door/path availability. Does not reserve a place,
      /// choose a task or change which bus anybody actually boards.
@@ -565,6 +591,39 @@ index 07e0881..2a19982 100644
              comfort: RideComfort::default(),
              handed: Vec::new(),
              scratch: Default::default(),
+diff --git a/crates/omsi-sim/src/vehicle/vars.rs b/crates/omsi-sim/src/vehicle/vars.rs
+index 9bb6ee7..eb63f28 100644
+--- a/crates/omsi-sim/src/vehicle/vars.rs
++++ b/crates/omsi-sim/src/vehicle/vars.rs
+@@ -3,7 +3,28 @@
+ 
+ use super::*;
+ 
++#[cfg(test)]
++mod initial_fuel_2212_tests {
++    use super::*;
++    #[test] fn external_level_suppresses_autofill_including_empty_tank(){
++        assert!(VehicleInstance::has_initial_fuel(Some("engine_tank_content=37.5")));
++        assert!(VehicleInstance::has_initial_fuel(Some("other=4,FUEL=0")));
++        assert!(!VehicleInstance::has_initial_fuel(None));
++        assert!(!VehicleInstance::has_initial_fuel(Some("other=99")));
++        assert!(!VehicleInstance::has_initial_fuel(Some("engine_tank_content=NaN")));
++        assert!(!VehicleInstance::has_initial_fuel(Some("fuel=-1")));
++    }
++}
+ impl VehicleInstance {
++    /// Explicit external fuel (BCS or CLI) owns the initial level, including zero.
++    pub fn has_initial_fuel(setvar:Option<&str>)->bool{
++        setvar.is_some_and(|text|text.split(',').any(|entry|{
++            let Some((key,value))=entry.split_once('=') else{return false};
++            (key.trim().eq_ignore_ascii_case("engine_tank_content")||key.trim().eq_ignore_ascii_case("fuel"))
++                && value.trim().parse::<f32>().is_ok_and(|v|v.is_finite()&&v>=0.)
++        }))
++    }
++
+     pub(super) fn get(&self, id: Option<omsi_script::VarId>) -> f32 {
+         id.map(|i| self.state.vars[i as usize]).unwrap_or(0.0)
+     }
 diff --git a/crates/omsi-sim/src/view_events.rs b/crates/omsi-sim/src/view_events.rs
 index 97806e8..87e32a3 100644
 --- a/crates/omsi-sim/src/view_events.rs
