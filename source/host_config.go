@@ -36,6 +36,7 @@ type hostAgentConfig struct {
 	ControlKey       string                    `json:"control_key"`
 	ControlPort      int                       `json:"control_port"`
 	StartWithWindows bool                      `json:"start_with_windows"`
+	AllowAdminTime   bool                      `json:"allow_admin_time,omitempty"`
 	Company          CompanyProfile            `json:"company"`
 	Maps             map[string]hostMapOptions `json:"maps"`
 }
