@@ -116,7 +116,9 @@ func (a *hostAgent) demand(ctx context.Context, id string, requested int64, dir 
 			}
 			err = writeCompanyHostFileAtomic(cfgPath, text)
 		}
-		options := companyHostOptions{Root: a.config.Root, Server: a.config.Server, Profile: profilePath, Session: id, Config: cfgPath, Share: filepath.Join(mapDir, "players.json"), MaxPeople: hostMapMaxPeople(mapOptions), AllowAdminTime: a.config.AllowAdminTime}
+		options := companyHostOptions{Root: a.config.Root, Server: a.config.Server, Profile: profilePath, Session: id, Config: cfgPath, Share: filepath.Join(mapDir, "players.json"), MaxPeople: hostMapMaxPeople(mapOptions), AllowAdminTime: a.config.AllowAdminTime,
+			Voice: mapOptions.Voice, VoiceRadio: mapOptions.VoiceRadio, VoiceRange: mapOptions.VoiceRange,
+			PublicServer: mapOptions.PublicServer, RequireHardwareID: mapOptions.RequireHardwareID, AdminPassword: mapOptions.AdminPassword}
 		options.onStatus = func(status companyHostStatus, synced bool) {
 			a.mu.Lock()
 			defer a.mu.Unlock()
