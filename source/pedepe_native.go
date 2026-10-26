@@ -175,7 +175,10 @@ func peDePeFuelArgs(args []string, snapshot *pedepeFuelSnapshot, root string) ([
 		}
 		out = append(out, args[i])
 	}
-	return append(out, "--setvar", strings.Join(assignments, ",")), nil
+	if !pedepeHasArg(out, "--keep-fuel") {
+        out = append(out, "--keep-fuel")
+    }
+    return append(out, "--setvar", strings.Join(assignments, ",")), nil
 }
 
 // Native launches need the same retained 32-bit host as the legacy bridge.

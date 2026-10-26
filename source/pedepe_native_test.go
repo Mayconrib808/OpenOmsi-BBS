@@ -668,3 +668,16 @@ func TestPeDePeSavedPositionWorldGrid(t *testing.T) {
 		t.Fatalf("world grid: %f %f %v", x, y, err)
 	}
 }
+
+func TestBCSFuel2212KeepsAuthoritativeLitresWithoutAutoFill(t *testing.T) {
+    for _, litres := range []float64{0,37.5,180} {
+        snapshot := &pedepeFuelSnapshot{Bus:"Vehicles/demo.bus",Field:"engine_tank_content",Litres:litres}
+        args, err := peDePeFuelArgs([]string{"--setvar","unrelated=7"},snapshot,"")
+        if err != nil || !pedepeHasArg(args,"--keep-fuel") {t.Fatalf("external fuel must suppress fill: %v %v",args,err)}
+        value,_:=pedepeArgValue(args,"--setvar")
+        if !strings.Contains(value,"unrelated=7") || !strings.Contains(value,"engine_tank_content="){t.Fatalf("fuel merge lost settings: %v",args)}
+        again,err:=peDePeFuelArgs(args,snapshot,"")
+        count:=0;for _,arg:=range again{if arg=="--keep-fuel"{count++}}
+        if err!=nil || count!=1 {t.Fatalf("duplicate fuel policy: %v %v",again,err)}
+    }
+}

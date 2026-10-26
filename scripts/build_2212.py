@@ -143,7 +143,7 @@ def main():
   components_sha256={n:sha(b)for n,b in payload.items()},retained_runtime_sha256={n:h for n,h in runtime_before.items()if n not in changed_runtime},
   retained_servers_sha256={n:h for n,h in servers.items() if n not in (server_name,marker_name)},dynamic_p15_sha256=server_hash,dynamic_p15_version='0.3.41-coop.14-2.2.1.2',retained_unrelated_files=len(before)-len(permitted),previous_coop_sha256=BASE_COOP,previous_installer_sha256=BASE_UPDATER,ticket_chance_tested=True,rigid_umbrella=True,
   native_candidate_run=inputs['run_id'],native_candidate_commit=inputs['commit'],native_version='0.3.41-coop.14-2.2.1.2',native_client_sha256={n:sha(files[COOP+'/programa/'+n])for n in replacements},
-  native_rain_film=True,early_bus_hailing=True,umbrella_down_when_closed=True,default_maps=9,passenger_migration_tested=True,complete_hosts_unchanged=True,servers_unchanged=False,p14_server_unchanged=True,p15_passenger_intent=True,gaze_tested=True,full_hailing_tested=True,windows_gameplay_tested=False)
+  native_rain_film=True,early_bus_hailing=True,umbrella_down_when_closed=True,default_maps=9,passenger_migration_tested=True,complete_hosts_unchanged=True,servers_unchanged=False,p14_server_unchanged=True,p15_passenger_intent=True,gaze_tested=True,full_hailing_tested=True,fuel_priority_tested=True,windows_gameplay_tested=False)
  (out/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
  print('2.2.1.2 candidate verified:',report['updater_sha256'],new_spec['sha256'])
 
