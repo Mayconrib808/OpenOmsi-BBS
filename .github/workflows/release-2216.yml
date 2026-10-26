@@ -7,6 +7,10 @@ name: Build authenticated Bridge 2.2.1.6 update with real 0.3.44 Coop15
     - scripts/build_2216.py
     - source/version.go
     - source/coop_update.go
+    - source/company_gateway.go
+    - source/multiplayer.go
+    - source/multiplayer_clock_test.go
+    - scripts/test_complete_host_ui.py
     - source/company_host.go
     - source/host_agent.go
     - source/host_config.go
