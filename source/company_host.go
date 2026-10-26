@@ -511,6 +511,7 @@ func runCompanyHost(ctx context.Context, options companyHostOptions, output io.W
 	}
 	defer gateway.Close()
 	gateway.filesEnabled.Store(transfers)
+	gateway.adminClockAllowed.Store(options.AllowAdminTime)
 	gateway.adminPassword = password
 	f, err := os.CreateTemp(filepath.Dir(options.Config), "company-host-*.cfg")
 	if err != nil {
