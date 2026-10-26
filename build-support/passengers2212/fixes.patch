@@ -377,7 +377,7 @@ index 1071583..fac552e 100644
  pub mod face;
  mod motion;
 diff --git a/crates/omsi-sim/src/people/mirror.rs b/crates/omsi-sim/src/people/mirror.rs
-index a3bd135..ef96036 100644
+index a3bd135..b5dcadc 100644
 --- a/crates/omsi-sim/src/people/mirror.rs
 +++ b/crates/omsi-sim/src/people/mirror.rs
 @@ -3,6 +3,7 @@
@@ -405,7 +405,7 @@ index a3bd135..ef96036 100644
 +}
  impl PeopleSim {
 +    /// Exact individual service preference, supplied only by the authoritative host.
-+    pub fn mirror_bus_fit(&self,id:u32,bn:&BusNow)->Option<bool>{
++    pub fn mirror_bus_fit(&self,id:u32,bn:&BusNow,position:DVec3)->Option<bool>{
 +        let (stop,key,line,dest)=self.mirror_hail_intent.get(&id)?;
 +        if key.is_some() && line.is_none(){return Some(false)}
 +        if self.mirror_wait.get(&id)?.0!=*stop{return None}
@@ -413,7 +413,7 @@ index a3bd135..ef96036 100644
 +        if bn.served.is_some_and(|v|v!=*stop) || bn.route.as_ref().is_some_and(|r|r.is_last_stop(s)){return Some(false)}
 +        let Some(term)=bn.terminus.as_deref() else{return Some(false)};
 +        if !matches!(at_stop(*stop,s,Some(term),&bn.takes),AtStop::Serves){return Some(false)}
-+        let side=self.preferred_entry_side(*stop,bn,self.people.iter().find(|p|p.id==id)?.position);
++        let side=self.preferred_entry_side(*stop,bn,position);
 +        if !bn.cabin.entries.iter().any(|d|d.point.is_some() && entry_on_platform(side,d.side)){return Some(false)}
 +        Some(match line.and_then(|k|s.lines.get(k)){
 +            Some((_,termini))=>fit(*stop,s,dest.as_deref(),termini,term,&bn.takes)
@@ -481,13 +481,14 @@ index a3bd135..ef96036 100644
          pax.dest = dest;
          pax.line = line;
          pax.ride_km = self.rand_f() as f32 * 19.0 + 1.0;
-@@ -397,7 +453,9 @@ impl PeopleSim {
+@@ -397,7 +453,10 @@ impl PeopleSim {
              return;
          }
          for (id, (stop, _)) in &self.mirror_wait {
 -            if at.contains(stop) && !self.claimed.contains_key(id) {
-+            let fits=self.last_buses.iter().find(|b|b.id==BusId::Player)
-+                .and_then(|b|self.mirror_bus_fit(*id,b)).unwrap_or(true);
++            let fits=self.people.iter().find(|p|p.id==*id).and_then(|person|
++                self.last_buses.iter().find(|b|b.id==BusId::Player)
++                .and_then(|b|self.mirror_bus_fit(*id,b,person.position))).unwrap_or(true);
 +            if at.contains(stop) && fits && !self.claimed.contains_key(id) {
                  self.claimed.insert(*id, now);
                  self.claims_out.push(*id);
@@ -565,7 +566,7 @@ index 07e0881..2a19982 100644
              handed: Vec::new(),
              scratch: Default::default(),
 diff --git a/crates/omsi-sim/src/view_events.rs b/crates/omsi-sim/src/view_events.rs
-index 97806e8..afaf046 100644
+index 97806e8..87e32a3 100644
 --- a/crates/omsi-sim/src/view_events.rs
 +++ b/crates/omsi-sim/src/view_events.rs
 @@ -269,6 +269,8 @@ pub struct PersonFrame {
@@ -604,7 +605,7 @@ index 97806e8..afaf046 100644
 +                Self::visual_hail_range(d,fwd) && (b.pos-p.position).length_squared()<=60.0*60.0 && b.fwd().dot(fwd)>0.
                      && b.served.is_none_or(|id|id==*stop)
 -                    && matches!(crate::people::pax::at_stop(*stop,s,b.terminus.as_deref(),&b.takes),crate::people::pax::AtStop::Serves)
-+                    && self.mirror_bus_fit(p.id,b)==Some(true)
++                    && self.mirror_bus_fit(p.id,b,p.position)==Some(true)
              }).min_by(|a,b|(a.pos-p.position).length_squared().total_cmp(&(b.pos-p.position).length_squared()))
 -                .map(|b|(b.pos,b.speed.abs()>0.08))
 +                .map(|b|(b.id,b.pos,b.speed.abs()>0.08,full.get(&b.id).copied().unwrap_or(false)))
