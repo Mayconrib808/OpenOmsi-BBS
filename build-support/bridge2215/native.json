@@ -2,14 +2,14 @@
   "upstream_tag": "v0.3.43",
   "upstream_commit": "c7b54b907659c3c4e58e5c51311df1b298fad9a3",
   "native_version": "0.3.43-coop.15-2.2.1.5",
-  "patch_sha256": "03557acf820118144640f4141127ebcb569efe8b2523f419a2abc1449aef1a00",
+  "patch_sha256": "9620d6176a472d223d7d34dd553b9c89ea30b9292e5040f1cfcbe474f07dd41c",
   "protocol": 15,
   "retained_base": "release/2.2.1.4",
   "neck_fix_retained": true,
   "bcs_fuel_fix_retained": true,
   "version": "2.2.1.5",
-  "run_id": 40374356781,
-  "commit": "a3aa0c7f836b37a74f72aa08071568e491a7fe34",
+  "run_id": 40377707335,
+  "commit": "b1252b442409dc6617e9de586f6656da9c9d5482",
   "handover_discriminator": "0xBE",
   "official_freetex_discriminator": "0xBD"
 }
