@@ -111,6 +111,33 @@ drive=drive.replace(owner_method, """    pub(crate) fn owner_peer_active(&self) 
         self.owner.as_ref().filter(|o| o.active).map(|o| o.peer)
     }
 """ + owner_method, 1)
+# Revoke any previously issued conductor permission as soon as the new
+# driver is confirmed active. The old driver must not keep an old control epoch.
+old_active = """            Message::Active { token } => {
+                if let Some(o) = self
+                    .net
+                    .coop
+                    .drive
+                    .owner
+                    .as_mut()
+                    .filter(|o| o.peer == from && o.token == token && o.frozen)
+                {
+                    o.active = true;
+                    o.seen = now;
+                }
+            }"""
+new_active = """            Message::Active { token } => {
+                let confirmed = if let Some(o) = self.net.coop.drive.owner.as_mut()
+                    .filter(|o| o.peer == from && o.token == token && o.frozen) {
+                    let first = !o.active;
+                    o.active = true;
+                    o.seen = now;
+                    first
+                } else { false };
+                if confirmed { self.coop_grant(None); }
+            }"""
+assert drive.count(old_active) == 1, "Delegated owner activation changed upstream"
+drive=drive.replace(old_active,new_active,1)
 drive_path.write_text(drive, encoding="utf-8")
 
 coop_path = root / "crates/omsi-app/src/coop.rs"
