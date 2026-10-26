@@ -1,0 +1,19 @@
+{
+  "official_base_tag": "v0.3.43",
+  "official_base_commit": "c7b54b907659c3c4e58e5c51311df1b298fad9a3",
+  "official_target_tag": "v0.3.44",
+  "official_target_commit": "8248fe452ad4e2d420a99a482b84badb10d82ce6",
+  "native_version": "0.3.44-coop.15-2.2.1.6",
+  "protocol": 15,
+  "retained_patch_path": "build-support/coop15-0343/cumulative.patch",
+  "retained_base": "release/2.2.1.5",
+  "official_changed_paths": [
+    "CHANGELOG.md",
+    "crates/omsi-app/src/frame_stages.rs",
+    "crates/omsi-app/src/lib.rs",
+    "crates/omsi-app/src/settings.rs",
+    "crates/omsi-app/src/watchdog.rs",
+    "crates/omsi-navigator/src/build.rs",
+    "crates/omsi-render/src/pipelines/errors.rs"
+  ]
+}
