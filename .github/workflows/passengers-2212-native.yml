@@ -1,16 +1,16 @@
-name: Build Bridge 2.2.1.2 passenger gaze
+name: Build Bridge 2.2.1.2 neck hotfix candidate
 permissions:
   contents: read
   actions: read
 concurrency:
-  group: passengers2212-native
+  group: passengers2212-neck-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   game:
     runs-on: windows-latest
     timeout-minutes: 90
     env:
-      OPENOMSI_VERSION: 0.3.41-coop.14-2.2.1.2
+      OPENOMSI_VERSION: 0.3.41-coop.14-2.2.1.2-neck-fix
       OPENOMSI_COOP_GAME_ONLY: '1'
       CARGO_TERM_COLOR: never
       GIT_OPTIONAL_LOCKS: '0'
@@ -180,6 +180,12 @@ jobs:
         git -C game apply ../support/build-support/passengers2212/fixes.patch
 
         if ($LASTEXITCODE -ne 0) { throw ''Gaze application failed'' }'
+    - name: Verify neck attachment and coordinated body turn
+      shell: pwsh
+      working-directory: game
+      run: 'cargo test --locked --release -p omsi-sim --lib hail_neck_body_tests
+
+        if ($LASTEXITCODE -ne 0) { throw ''Neck attachment or whole-body turn regression'' }'
     - name: Compile private beta only - no release test suites
       shell: pwsh
       working-directory: game
@@ -230,7 +236,7 @@ jobs:
         if ($LASTEXITCODE -ne 0) { throw ''Initial BCS fuel priority regression'' }'
     - name: Preserve compiled game and CLI independently of lobby build
       shell: pwsh
-      run: "@'\nfrom pathlib import Path\nimport shutil,subprocess,json,os\nout=Path('native');out.mkdir()\nfor name in ('openomsi.exe','openomsi-launcher.exe'):\n shutil.copy2(Path('game/target/release')/name,out/name)\nv=subprocess.run([str(Path('game/target/release/openomsi.exe').resolve()),'--version'],capture_output=True,text=True,timeout=30)\nassert v.returncode==0 and '0.3.41-coop.14-2.2.1.2' in v.stdout+v.stderr\n(out/'VERSAO.txt').write_text(v.stdout+v.stderr,encoding='utf-8')\n(out/'SOURCE.json').write_text(json.dumps({'commit':os.environ['GITHUB_SHA']}),encoding='utf-8')\n'@ | python -\nif ($LASTEXITCODE -ne 0) { throw 'Beta build preparation failed' }"
+      run: "@'\nfrom pathlib import Path\nimport shutil,subprocess,json,os\nout=Path('native');out.mkdir()\nfor name in ('openomsi.exe','openomsi-launcher.exe'):\n shutil.copy2(Path('game/target/release')/name,out/name)\nv=subprocess.run([str(Path('game/target/release/openomsi.exe').resolve()),'--version'],capture_output=True,text=True,timeout=30)\nassert v.returncode==0 and '0.3.41-coop.14-2.2.1.2-neck-fix' in v.stdout+v.stderr\n(out/'VERSAO.txt').write_text(v.stdout+v.stderr,encoding='utf-8')\n(out/'SOURCE.json').write_text(json.dumps({'commit':os.environ['GITHUB_SHA']}),encoding='utf-8')\n'@ | python -\nif ($LASTEXITCODE -ne 0) { throw 'Beta build preparation failed' }"
     - uses: actions/upload-artifact@v7
       with:
         name: Bridge-2.2.1.2-native-game
@@ -240,7 +246,7 @@ jobs:
 'on':
   push:
     branches:
-    - release/2.2.1.2
+    - fix/2212-passenger-neck-body-turn
     paths:
     - build-support/passengers2212/**
     - .github/workflows/passengers-2212-native.yml
