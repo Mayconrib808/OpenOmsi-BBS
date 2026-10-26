@@ -98,6 +98,56 @@ func (w *openOMSIProbeOutput) Write(p []byte) (int, error) {
 	return w.Buffer.Write(p)
 }
 
+func cooperativeOpenOMSIBuild(executable string) bool {
+	f, err := os.Open(executable)
+	if err != nil {
+		return false
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 512<<20 {
+		return false
+	}
+	marker := []byte("-coop.")
+	buffer := make([]byte, 64<<10)
+	var tail []byte
+	for {
+		n, readErr := f.Read(buffer)
+		chunk := append(tail, buffer[:n]...)
+		if bytes.Contains(chunk, marker) {
+			return true
+		}
+		if readErr == io.EOF || readErr != nil {
+			return false
+		}
+		keep := len(marker) - 1
+		if len(chunk) < keep {
+			keep = len(chunk)
+		}
+		tail = append(tail[:0], chunk[len(chunk)-keep:]...)
+	}
+}
+
+func prepareOpenOMSICommand(cmd *exec.Cmd, executable string) {
+	if !cooperativeOpenOMSIBuild(executable) {
+		return
+	}
+	env := cmd.Env
+	if env == nil {
+		env = os.Environ()
+	}
+	child := make([]string, 0, len(env)+3)
+	for _, entry := range env {
+		name, _, _ := strings.Cut(entry, "=")
+		if strings.EqualFold(name, "OMSI_NO_UPDATE") || strings.EqualFold(name, "OMSI_NO_GUARD") || strings.EqualFold(name, "OPENOMSI_BIN") || strings.EqualFold(name, "OMSI_LAUNCHER") {
+			continue
+		}
+		child = append(child, entry)
+	}
+	cmd.Env = append(child, "OMSI_NO_UPDATE=1", "OMSI_NO_GUARD=1", "OPENOMSI_BIN="+executable)
+	cmd.Dir = filepath.Dir(executable)
+}
+
 func runOpenOMSICLIProbe(executable, option string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
