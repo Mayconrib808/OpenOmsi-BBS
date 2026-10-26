@@ -157,6 +157,22 @@ assert "BusId::Player => self.net.coop.drive.owner.as_ref()" in coop
 assert "Only the current driver can return the wheel." in drive
 assert "Request conductor role" in panel
 
+# Give native authenticated administrators fine-grained clock steps; regular
+# players still cannot issue native admin commands. Dedicated-server BCS
+# supervision has a separate, default-off AllowAdminTime setting.
+admin_path = root / "crates/omsi-app/src/admin.rs"
+admin = admin_path.read_text(encoding="utf-8")
+after_hour = '    out.push(("Clock +1 hour".into(), "time 3600".into()));'
+assert admin.count(after_hour) == 1
+admin = admin.replace(after_hour, after_hour + '''
+    for minutes in [1, 5, 10, 15, 17, 30] {
+        out.push((format!("Relógio +{minutes} min"), format!("time {}", minutes * 60)));
+    }
+    for minutes in [1, 5, 10, 15] {
+        out.push((format!("Relógio -{minutes} min"), format!("time -{}", minutes * 60)));
+    }''', 1)
+admin_path.write_text(admin, encoding="utf-8")
+
 # Verify that all official 0.3.44 additions were transferred, not just the
 # version string. Source identity and patch proof stay independently pinned.
 target_lib = (official / "crates/omsi-app/src/lib.rs").read_text(encoding="utf-8")
