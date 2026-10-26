@@ -103,6 +103,14 @@ drive = (drive[:owner_beg] + """        if self.net.coop.drive.owner_active() {
         }
 """ + drive[owner_end:])
 assert "    pub(crate) fn drive_reset(&mut self" in drive
+# The cooperative UI must use public DriveState accessors: the Owner/Visitor
+# internals are intentionally private to the transfer state machine.
+owner_method = "    pub(crate) fn visitor_owner(&self) -> Option<u32> {"
+assert drive.count(owner_method)==1
+drive=drive.replace(owner_method, """    pub(crate) fn owner_peer_active(&self) -> Option<u32> {
+        self.owner.as_ref().filter(|o| o.active).map(|o| o.peer)
+    }
+""" + owner_method, 1)
 drive_path.write_text(drive, encoding="utf-8")
 
 coop_path = root / "crates/omsi-app/src/coop.rs"
@@ -110,8 +118,8 @@ coop = coop_path.read_text(encoding="utf-8")
 old_route = "            BusId::Player => None,"
 new_route = """            // Once delegated, the old owner's own bus is a remote control target.
             // Never execute its clicks against the passive local vehicle.
-            BusId::Player => self.net.coop.drive.owner.as_ref()
-                .filter(|o| o.active).map(|o| (o.peer, Target::Player)),"""
+            BusId::Player => self.net.coop.drive.owner_peer_active()
+                .map(|peer| (peer, Target::Player)),"""
 assert coop.count(old_route) == 1
 coop = coop.replace(old_route, new_route, 1)
 old_passengers = """                p.pose
@@ -122,16 +130,16 @@ new_passengers = """                p.pose.walker.and_then(|w| w.aboard).is_some
                     // The bus keeps the original logical owner on the wire while
                     // another peer drives its real simulation. He is a passenger.
                     a.owner == lan.my_id
-                        || self.net.coop.drive.visitor.as_ref()
-                            .is_some_and(|v| v.active && a.owner == v.owner)
+                        || self.net.coop.drive.visitor_owner()
+                            .is_some_and(|owner| a.owner == owner)
                 })"""
 assert coop.count(old_passengers) == 1, "Coop passenger selection changed"
 coop = coop.replace(old_passengers, new_passengers, 1)
 old_inside = "let Some(a) = w.aboard.filter(|a| a.owner == lan.my_id) else {"
 new_inside = """let Some(a) = w.aboard.filter(|a| {
                     a.owner == lan.my_id ||
-                    self.net.coop.drive.visitor.as_ref()
-                        .is_some_and(|v| v.active && a.owner == v.owner)
+                    self.net.coop.drive.visitor_owner()
+                        .is_some_and(|owner| a.owner == owner)
                 }) else {"""
 assert coop.count(old_inside) == 1, "Delegated-cabin permission check changed"
 coop = coop.replace(old_inside, new_inside, 1)
@@ -139,7 +147,7 @@ grant_fn = "    pub(crate) fn coop_grant(&mut self, peer: Option<u32>) {"
 assert coop.count(grant_fn) == 1
 coop = coop.replace(grant_fn, grant_fn + """
         // The former owner no longer authorizes any controls during handover.
-        if self.net.coop.drive.owner_active() { return; }""", 1)
+        if peer.is_some() && self.net.coop.drive.owner_active() { return; }""", 1)
 coop_path.write_text(coop, encoding="utf-8")
 
 panel_path = root / "crates/omsi-app/src/game_panels/coop_panel.rs"
@@ -153,7 +161,7 @@ assert panel.count(old_button)==1
 panel = panel.replace(old_button,new_button,1)
 panel_path.write_text(panel, encoding="utf-8")
 
-assert "BusId::Player => self.net.coop.drive.owner.as_ref()" in coop
+assert "BusId::Player => self.net.coop.drive.owner_peer_active()" in coop
 assert "Only the current driver can return the wheel." in drive
 assert "Request conductor role" in panel
 
