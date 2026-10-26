@@ -195,7 +195,11 @@ mod brazilian_hail_tests {
                 }
                 let fore = bones[FORE[side]].to_scale_rotation_translation().1;
                 let hand = bones[HAND[side]].to_scale_rotation_translation().1;
-                assert!((fore.conjugate() * hand).to_axis_angle().1.abs() <= 35f32.to_radians() + 1e-3);
+                // Matrix decomposition can choose q or -q for the same pose.
+                // Compare the physical shortest rotation, not quaternion sign.
+                let wrist_angle = fore.angle_between(hand);
+                assert!(wrist_angle <= 35f32.to_radians() + 1e-3,
+                    "wrist {wrist_angle} at frame {frame}, side {side}");
                 assert!(bones.iter().all(|b| b.is_finite()));
                 previous = bones;
             }

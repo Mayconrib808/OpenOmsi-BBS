@@ -22,14 +22,11 @@ No reference photographs or footage are redistributed in the game.
   Photograph: arm extends outward/upward; the open fingers are spread. This
   differs from São Paulo's fingers-together example, so finger configurations
   must not be presented as a national rule.
-- Brasília: Agência Cidades reproduction credited to Fabio Rodrigues-Pozzebom/ABr,
+- Agência Cidades reproduction credited to Fabio Rodrigues-Pozzebom/ABr,
   https://www.agenciacidades.com.br/reportagens/brasileiro-pega-onibus-todo-dia-percorre-135km-e-gasta-36-minutos/414/
-  Photograph: higher outward arm extension with an open hand, not a fist with
+  Photograph location is not independently confirmed; do not assign a city.
+  It shows higher outward arm extension with an open hand, not a fist with
   one mechanically tracking pointer. Demonstrates variation in elevation.
-- Campo Grande: A Crítica,
-  https://www.acritica.net/geral/consorcio-guaicurus-diz-que-relatorio-de-intervencao-confirma-desequilibrio-no-contrato-em-campo-grande/
-  Photograph: arm forward/outward around shoulder height, elbow gently bent and
-  hand open. Useful side view of the arm length and shoulder relationship.
 - Serra, Espírito Santo: reader CCTV reproduced by Portal Tempo Novo,
   https://www.portaltemponovo.com.br/camera-flagra-momento-em-que-onibus-do-transcol-derruba-abrigo-na-serra/
   Video inspected directly, including frames 0–3.5 seconds. The passenger has
