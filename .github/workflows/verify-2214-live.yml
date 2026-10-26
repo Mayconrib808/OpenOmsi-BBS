@@ -1,0 +1,28 @@
+name: Verify live Bridge 2.2.1.4 distribution
+'on':
+  push:
+    branches: [release/2.2.1.4]
+    paths: [.github/workflows/verify-2214-live.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.1.4-report
+        run-id: 40363087739
+        github-token: ${{ github.token }}
+        path: approved-new
+    - name: Verify exact signed production manifest, installer and every game chunk
+      run: |
+        for attempt in 1 2 3 4 5 6 7 8 9 10 11 12; do
+          if node build-support/bridge2214/publication.mjs verify-live; then exit 0; fi
+          if [ "$attempt" -eq 12 ]; then exit 1; fi
+          sleep 5
+        done
