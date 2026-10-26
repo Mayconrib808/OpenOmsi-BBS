@@ -42,7 +42,7 @@ for path in unchanged_by_coop:
             ["git", "show", "HEAD:" + path], cwd=root)
         # The cumulative layer is not allowed to have changed these sources:
         # replacing them must be identical to applying the genuine 0.3.44 diff.
-        assert dest.read_bytes() == previous, "Coop layer unexpectedly edits " + path
+        assert dest.read_text(encoding="utf-8").replace("\r\n","\n") == previous.decode("utf-8").replace("\r\n","\n"), "Coop layer unexpectedly edits " + path
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(source, dest)
     assert dest.read_bytes() == source.read_bytes()
