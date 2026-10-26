@@ -118,6 +118,30 @@ func TestCoopDownloadRechecksCacheAndRejectsChangedPart(t *testing.T) {
 	}
 }
 
+func TestCoop2215DownloadSupportsMoreThanEightVerifiedChunks(t *testing.T) {
+    data,spec:=coopFixture(t)
+    spec.Parts=nil
+    parts:=map[string][]byte{}
+    size:=(len(data)+9)/10
+    for start:=0;start<len(data);start+=size {
+        end:=start+size;if end>len(data){end=len(data)}
+        part:=data[start:end]
+        hash:=fmt.Sprintf("%x",sha256.Sum256(part))
+        spec.Parts=append(spec.Parts,coopDistributionPart{hash,int64(len(part))})
+        parts["/packages/"+hash+".bin"]=part
+    }
+    if len(spec.Parts)<=8 {t.Fatal("fixture does not exercise larger 0.3.43 package")}
+    server:=httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+        if p,ok:=parts[r.URL.Path];ok {w.Write(p)}else{http.NotFound(w,r)}
+    }))
+    defer server.Close()
+    actual,err:=downloadCoopDistribution(context.Background(),server.Client(),server.URL,spec,t.TempDir(),nil)
+    if err!=nil || !bytes.Equal(actual,data){t.Fatalf("new package chunk layout rejected: %v",err)}
+    if _,err=readCoopDistribution(actual,spec);err!=nil {t.Fatal(err)}
+    spec.Size=256<<20+1
+    if _,err=downloadCoopDistribution(context.Background(),server.Client(),server.URL,spec,t.TempDir(),nil);err==nil {t.Fatal("unbounded archive accepted")}
+}
+
 func TestCoopArchiveRejectsMissingForeignAndCorruptFiles(t *testing.T) {
 	data, spec := coopFixture(t)
 	if files, err := readCoopDistribution(data, spec); err != nil || len(files) != 3 {

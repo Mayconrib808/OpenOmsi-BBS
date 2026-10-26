@@ -61,9 +61,14 @@ def main():
  server_name='app/server-dinamico-p15/openomsi.exe'
  files[server_name]=files[COOP+'/programa/openomsi.exe']
  marker_name='app/server-dinamico-p15/BBS-DYNAMIC-SERVER.json'
- marker=json.loads(files[marker_name]);marker.update(native_sha256=sha(files[server_name]),protocol=15,version='0.3.43-coop.15-2.2.1.5',openomsi_version='0.3.43',upstream_commit='c7b54b907659c3c4e58e5c51311df1b298fad9a3')
+ marker=json.loads(files[marker_name]);marker.update(bridge_line=VERSION,source_commit=inputs['commit'],native_version='0.3.43-coop.15-2.2.1.5',native_sha256=sha(files[server_name]),protocol=15,version='0.3.43-coop.15-2.2.1.5',openomsi_version='0.3.43',upstream_commit='c7b54b907659c3c4e58e5c51311df1b298fad9a3')
  files[marker_name]=(json.dumps(marker,indent=2)+'\n').encode()
  server_hash=sha(files[server_name])
+ host_manifest_name='docs/HOST-PESSOAL-2.2.0.3.json'
+ host_manifest=json.loads(files[host_manifest_name]);host_manifest['version']=VERSION
+ for entry in host_manifest['files']:
+  if entry['path'] in (server_name,marker_name):entry['sha256']=sha(files[entry['path']])
+ files[host_manifest_name]=(json.dumps(host_manifest,indent=2)+'\n').encode()
  assert sha((a.native/'steam_api64.dll').read_bytes())==sha(files[COOP+'/programa/steam_api64.dll'])
  notes=(ROOT/'docs/releases/2.2.1.5.md').read_bytes()
  files[COOP+'/PASSAGEIROS-2.2.1.5.txt']=notes
@@ -75,7 +80,7 @@ def main():
  # Complete hosts, P14 server, custom sounds and all unrelated files stay byte-identical.
  # This generated version marker necessarily changes with the replacement native game.
  # Keep the preservation audit strict for every other inherited file.
- permitted={COOP+'/programa/'+name for name in replacements}|{info_name,checksum_name,server_name,marker_name}
+ permitted={COOP+'/programa/'+name for name in replacements}|{info_name,checksum_name,server_name,marker_name,host_manifest_name}
  for name,h in before.items():
   if name not in permitted:assert sha(files[name])==h,('Unrelated bundled file changed',name)
  servers={n:sha(files[n]) for n in before if n.startswith(('app/server-dinamico-p14/','app/server-dinamico-p15/'))}
