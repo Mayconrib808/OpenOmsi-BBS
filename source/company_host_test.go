@@ -395,3 +395,32 @@ func TestCompanyHostMonitorStillRejectsPersistentlyFrozenClock(t *testing.T) {
  now:=start.Add(270*time.Second)
  if _,err:=m.observe(now,now,"06:02");err==nil {t.Fatal("persistently frozen clock must remain bounded")}
 }
+
+
+func TestAdminClockOverrideNeverRollsBackAuthenticatedServerTime(t *testing.T) {
+	start := time.Date(2026, 10, 26, 13, 0, 0, 0, time.UTC)
+	// Initial BCS/company sync is still mandatory.
+	initial := companyHostMonitor{serverCivil: start, sampledAt: start, pending: true}
+	ok, err := companyHostClockStatus(&initial, false, start.Add(5*time.Second), start.Add(5*time.Second), "13:00:05")
+	if err != nil || !ok {
+		t.Fatalf("initial synchronization: %v %v", ok, err)
+	}
+	// An administrator advances the native game by 17 minutes. Without the
+	// setting it must be corrected; with it CompanyHost must not issue a clock
+	// write and must keep the native authoritative time instead.
+	standard := companyHostMonitor{serverCivil: start, sampledAt: start, pending: true}
+	ok, err = companyHostClockStatus(&standard, false, start.Add(5*time.Second), start.Add(5*time.Second), "13:17:05")
+	if err != nil || ok {
+		t.Fatalf("default company sync should detect the change: %v %v", ok, err)
+	}
+	admin := companyHostMonitor{serverCivil: start, sampledAt: start, pending: true}
+	before := admin.serverCivil
+	ok, err = companyHostClockStatus(&admin, true, start.Add(5*time.Second), start.Add(5*time.Second), "13:17:05")
+	if err != nil || !ok || !admin.serverCivil.Equal(before) {
+		t.Fatalf("admin clock was overwritten or the monitor changed: %v %v", ok, err)
+	}
+	ok, err = companyHostClockStatus(&admin, true, start.Add(10*time.Second), start.Add(10*time.Second), "invalid")
+	if err == nil || ok {
+		t.Fatal("invalid native clock must still be rejected")
+	}
+}
