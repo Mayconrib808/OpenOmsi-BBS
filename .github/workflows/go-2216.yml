@@ -23,6 +23,8 @@ jobs:
           cache: false
       - name: All existing BCS, clock, host, tickets and update tests
         run: python scripts/build_2203.py --tests-only
+      - name: Rebuild original six P15 host controls and verify real Win32 GUI save/reopen
+        run: python scripts/test_host_admin_2216.py
       - name: Company admin-clock and existing BCS guards
         shell: pwsh
         run: |
