@@ -1,0 +1,122 @@
+name: Build real 0.3.43 Coop15 and corrected street-facing passenger hands
+'on':
+  push:
+    branches:
+    - release/2.2.1.5
+    paths:
+    - build-support/coop15-0343/**
+    - .github/workflows/native-2215.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: native2215-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  game:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env: &id001
+      OPENOMSI_VERSION: 0.3.43-coop.15-2.2.1.5
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+      TAURI_CONFIG: '{"version":"0.3.43"}'
+    steps:
+    - &id002
+      uses: actions/checkout@v7
+      with:
+        path: support
+        persist-credentials: false
+    - &id003
+      uses: actions/checkout@v7
+      with:
+        repository: openOMSI-org/openOMSI
+        ref: c7b54b907659c3c4e58e5c51311df1b298fad9a3
+        path: game
+        persist-credentials: false
+    - &id004
+      uses: dtolnay/rust-toolchain@stable
+    - &id005
+      uses: Swatinem/rust-cache@v2
+      with:
+        key: coop14-0341-windows
+        cache-on-failure: true
+        workspaces: 'game -> target
+
+          game/launcher/src-tauri -> target'
+    - &id006
+      name: Apply audited cumulative Coop15 port to exact official 0.3.43
+      shell: pwsh
+      run: 'python support/build-support/coop15-0343/prepare.py
+
+        if ($LASTEXITCODE -ne 0) {throw ''Source identity or cumulative port failed''}'
+    - name: Native arm, neck, fuel, hailing, ticket, network and handover regressions
+      shell: pwsh
+      working-directory: game
+      run: "cargo test --locked --release -p omsi-sim --lib \nif ($LASTEXITCODE -ne 0) {throw \"omsi-sim  regression failed\"}\ncargo\
+        \ test --locked --release -p omsi-net --lib \nif ($LASTEXITCODE -ne 0) {throw \"omsi-net  regression failed\"}\ncargo test --locked\
+        \ --release -p omsi-lan --lib \nif ($LASTEXITCODE -ne 0) {throw \"omsi-lan  regression failed\"}\ncargo test --locked --release\
+        \ -p omsi-launcher-core --lib \nif ($LASTEXITCODE -ne 0) {throw \"omsi-launcher-core  regression failed\"}\ncargo test --locked\
+        \ --release -p omsi-app --lib coop13\nif ($LASTEXITCODE -ne 0) {throw \"omsi-app coop13 regression failed\"}\n"
+    - name: Build actual Windows game and CLI
+      shell: pwsh
+      working-directory: game
+      run: 'cargo build --locked --release -p omsi-app -p omsi-launcher-core
+
+        if ($LASTEXITCODE -ne 0) {throw ''Native game build failed''}'
+    - name: Real executable identity and self-test
+      shell: pwsh
+      run: "@'\nfrom pathlib import Path\nimport subprocess,shutil,json,os,hashlib\nout=Path('native');out.mkdir()\nexe=Path('game/target/release/openomsi.exe').resolve()\n\
+        for option in ('--version','--self-test','--help'):\n result=subprocess.run([str(exe),option],capture_output=True,text=True,errors='replace',timeout=60)\n\
+        \ text=result.stdout+'\\n'+result.stderr\n assert result.returncode==0,(option,text)\n (out/(option[2:]+'.txt')).write_text(text,encoding='utf-8')\n\
+        \ if option=='--version': assert '0.3.43-coop.15-2.2.1.5' in text\n if option=='--self-test': assert 'self-test ok' in text.lower()\n\
+        \ if option=='--help': assert '--setvar' in text and '--server' in text\nfor name in ('openomsi.exe','openomsi-launcher.exe','steam_api64.dll'):\n\
+        \ shutil.copy2(Path('game/target/release')/name,out/name)\ninfo={'commit':os.environ['GITHUB_SHA'],'upstream_commit':'c7b54b907659c3c4e58e5c51311df1b298fad9a3','native_version':'0.3.43-coop.15-2.2.1.5'}\n\
+        (out/'SOURCE.json').write_text(json.dumps(info,indent=2))\n'@ | python -\nif ($LASTEXITCODE -ne 0) {throw 'Actual native executable\
+        \ validation failed'}"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.1.5-native-game
+        path: native/*
+        retention-days: 30
+        if-no-files-found: error
+  launcher:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env: *id001
+    steps:
+    - *id002
+    - *id003
+    - *id004
+    - *id005
+    - *id006
+    - name: Reconcile only required cumulative dependency edges in launcher lock
+      shell: pwsh
+      working-directory: game
+      run: "@'\nfrom pathlib import Path\nimport tomllib,subprocess\np=Path('launcher/src-tauri/Cargo.lock')\nbefore=tomllib.loads(p.read_text())['package']\n\
+        subprocess.run(['cargo','metadata','--format-version','1','--manifest-path','launcher/src-tauri/Cargo.toml'],stdout=subprocess.DEVNULL,check=True)\n\
+        after=tomllib.loads(p.read_text())['package']\ndef identities(packages):\n d={}\n for x in packages:\n  if 'source' in x:d.setdefault(x['name'],set()).add((x['version'],x['source']))\n\
+        \ return d\nold,new=identities(before),identities(after)\nchanges=[name for name in old.keys() & new.keys() if old[name]-new[name]\
+        \ and new[name]-old[name]]\nassert not changes,('Existing dependency pins unexpectedly changed',changes)\nprint('Launcher lock\
+        \ reconciled without replacing existing registry/git dependency pins.')\n'@ | python -\nif ($LASTEXITCODE -ne 0) { throw 'Beta\
+        \ build preparation failed' }"
+    - name: Build 0.3.43 desktop lobby with retained passenger and ticket settings
+      shell: pwsh
+      working-directory: game
+      run: 'cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+
+        if ($LASTEXITCODE -ne 0) {throw ''Desktop lobby build failed''}'
+    - name: Stage matching launcher and lockfile
+      shell: pwsh
+      run: 'New-Item -ItemType Directory -Force lobby | Out-Null
+
+        Copy-Item game/launcher/src-tauri/target/release/openomsi-launcher-app.exe lobby/
+
+        Copy-Item game/launcher/src-tauri/Cargo.lock lobby/launcher-Cargo.lock'
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.1.5-native-launcher
+        path: lobby/*
+        retention-days: 30
+        if-no-files-found: error
