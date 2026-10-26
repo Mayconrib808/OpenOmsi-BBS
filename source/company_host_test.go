@@ -441,7 +441,7 @@ func TestManagedHostRetainsNativeP15OptionsWithAdminClock(t *testing.T) {
 		"real_time": "0", "time_speed": "1", "time": "14:37:05",
 	} {
 		line := key + " = " + value
-		if strings.Count(actual, line+"\\n") != 1 {
+		if strings.Count(actual, line+"\n") != 1 {
 			t.Fatalf("native P15 configuration missing or duplicated %s", key)
 		}
 	}
