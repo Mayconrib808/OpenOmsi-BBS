@@ -317,3 +317,8 @@ for required in ["passenger_umbrellas", "passenger_hailing_maps", "ticket_chance
     assert required in settings, "Coop setting regressed: " + required
 assert not subprocess.check_output(["git", "diff", "--check"], cwd=root, text=True)
 print("Authentic upstream 0.3.44 changes merged with all cumulative Coop15, passenger and fuel fixes.")
+
+# Research-backed presentation overlay. All simulation/network fixes above stay intact.
+subprocess.run(["python", str((support / "build-support/passenger-hail-br/apply.py").resolve()), str(root)], check=True)
+
+
