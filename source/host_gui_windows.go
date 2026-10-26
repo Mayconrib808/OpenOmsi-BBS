@@ -130,6 +130,12 @@ const (
 	hostMetar        = 324
 	hostPeople       = 325
 	hostAdminClock  = 326
+	hostVoice       = 350
+	hostVoiceRadio  = 351
+	hostVoiceRange  = 352
+	hostPublic      = 353
+	hostHardware    = 354
+	hostAdminPass   = 355
 	hostBrowseRoot   = 331
 	hostBrowseServer = 332
 	hostScan         = 333
@@ -192,7 +198,7 @@ func (g *hostGUI) layoutViewport() {
 		for _, axis := range []struct {
 			bar, extent, page int
 			position          *int
-		}{{0, 1100, int(client.Right), &g.scrollX}, {1, 845, int(client.Bottom), &g.scrollY}} {
+		}{{0, 1100, int(client.Right), &g.scrollX}, {1, 995, int(client.Bottom), &g.scrollY}} {
 			if axis.page <= 0 {
 				continue
 			}
@@ -381,6 +387,15 @@ func (g *hostGUI) createControls() {
 	g.button("Exportar perfil dos jogadores", "Export player profile", "Spielerprofil exportieren", 565, 735, 280, hostExport)
 	g.button("Guia", "Guide", "Anleitung", 855, 735, 105, hostGuide)
 	g.button("Logs", "Logs", "Protokoll", 970, 735, 110, hostLogs)
+	g.check("Voz por proximidade", "Proximity voice", "Nähe-Sprachchat", 20, 835, 200, hostVoice)
+	g.check("Rádio", "Radio", "Funk", 235, 835, 180, hostVoiceRadio)
+	g.check("Lista pública", "Public list", "Öffentliche Liste", 430, 835, 190, hostPublic)
+	g.check("Exigir identificador de hardware", "Require hardware identifier", "Hardware-Kennung erforderlich", 635, 835, 430, hostHardware)
+	g.label("Alcance de voz (m)", "Voice range (m)", "Sprachreichweite (m)", 20, 875, 220)
+	g.edit(hostVoiceRange, "", 235, 872, 160)
+	g.label("Senha admin (12+ caracteres)", "Admin password (12+ characters)", "Admin-Passwort (12+ Zeichen)", 430, 875, 300)
+	g.edit(hostAdminPass, "", 750, 872, 315)
+	hostSend(g.fields[hostAdminPass], 0xcc, '*', 0)
 	g.control("STATIC", g.t("Configure uma vez. O agente fica aguardando os jogadores.", "Configure once. The agent waits for player requests.", "Einmal einrichten. Der Agent wartet auf Spieler."), 20, 779, 1060, 52, 0, hostStatus)
 }
 func setupHostLanguageIndex(lang string) int {
@@ -455,7 +470,15 @@ func (g *hostGUI) storeMap() error {
 	}
 	m.Enabled = g.checked(hostEnabled)
 	m.Passengers = g.checked(hostPassengers)
-	m.Timetable = g.checked(hostTimetable)
+		m.Timetable = g.checked(hostTimetable)
+	m.Voice = g.checked(hostVoice)
+	m.VoiceRadio = g.checked(hostVoiceRadio)
+	m.PublicServer = g.checked(hostPublic)
+	m.RequireHardwareID = g.checked(hostHardware)
+	m.AdminPassword = hostText(g.fields[hostAdminPass])
+	rangeMetres, rangeErr := strconv.Atoi(strings.TrimSpace(hostText(g.fields[hostVoiceRange])))
+	if rangeErr != nil || rangeMetres < 5 || rangeMetres > 1000 { return fmt.Errorf("alcance da voz: 5 a 1000 metros") }
+	m.VoiceRange = rangeMetres
 	m.MetarStation = strings.ToUpper(strings.TrimSpace(hostText(g.fields[hostMetar])))
 	g.c.Maps[s.ID] = m
 	s.Fleet = nil
@@ -486,6 +509,12 @@ func (g *hostGUI) showMap(index int) {
 	g.setCheck(hostEnabled, m.Enabled)
 	g.setCheck(hostPassengers, m.Passengers)
 	g.setCheck(hostTimetable, m.Timetable)
+	g.setCheck(hostVoice, m.Voice)
+	g.setCheck(hostVoiceRadio, m.VoiceRadio)
+	g.setCheck(hostPublic, m.PublicServer)
+	g.setCheck(hostHardware, m.RequireHardwareID)
+	hostSetText(g.fields[hostVoiceRange], strconv.Itoa(m.VoiceRange))
+	hostSetText(g.fields[hostAdminPass], m.AdminPassword)
 	g.visible = nil
 	g.filterFleet()
 	hostSend(g.fields[hostMap], 0x14e, uintptr(index), 0)
@@ -883,7 +912,7 @@ func runHostAgentGUI(dir, path string, smoke bool) error {
 		}
 		hostUser.NewProc("SetWindowPos").Call(g.window, 0, 0, 0, 1040, 740, 2|4|16)
 		g.layoutViewport()
-		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostBrowseServer, hostKey, hostAdminClock, hostMetar, hostPeople, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
+		for _, id := range []int{hostLanguage, hostRoot, hostServer, hostBrowseServer, hostKey, hostAdminClock, hostVoice, hostVoiceRadio, hostVoiceRange, hostPublic, hostHardware, hostAdminPass, hostMetar, hostPeople, hostMap, hostFleet, hostSave, hostStart, hostExport, hostLogs} {
 			g.revealControl(g.fields[id])
 			rect := g.controlRect(g.fields[id])
 			var client hostRect
