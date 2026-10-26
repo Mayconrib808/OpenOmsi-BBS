@@ -450,3 +450,16 @@ func TestManagedHostRetainsNativeP15OptionsWithAdminClock(t *testing.T) {
 		t.Fatal("administrator preference changed the default profile")
 	}
 }
+
+func TestStandaloneCompanyHostPreservesExistingNativeP15Settings(t *testing.T) {
+	cfg := companyHostConfig{Text: []byte("voice = 1\nvoice_radio = 1\nvoice_range = 210\npublic_server = 1\nrequire_hardware_id = 1\n")}
+	day := time.Date(2026, 10, 26, 14, 37, 5, 0, time.UTC)
+	// The standalone entry point has no advanced-control flags. An empty
+	// options struct must not silently mute an owner's existing server.
+	actual := string(renderCompanyHostConfig(cfg, hostTestSession(), hostTestFleet(), day, "local-control-password", companyHostOptions{}))
+	for _, line := range []string{"voice = 1\n", "voice_radio = 1\n", "voice_range = 210\n", "public_server = 1\n", "require_hardware_id = 1\n"} {
+		if !strings.Contains(actual, line) {
+			t.Fatalf("standalone host replaced existing native P15 configuration: missing %q", line)
+		}
+	}
+}

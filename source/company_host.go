@@ -189,7 +189,9 @@ func renderCompanyHostConfig(cfg companyHostConfig, session CompanySession, flee
 		"vehicles": "", "free_player_vehicles": "1", "fallback_vehicles": strings.Join(fleet, ";"), "admin_password": password,
 	}
 	keys := []string{"map", "date", "time", "real_time", "time_speed", "vehicles", "free_player_vehicles", "fallback_vehicles", "admin_password"}
-	if len(extra)>0 {
+	// HostAgent supplies a validated voice range with all per-map controls.
+	// Standalone CompanyHost has no P15 overrides; retain its server.cfg values.
+	if len(extra)>0 && extra[0].VoiceRange > 0 {
 		advanced:=extra[0]
 		flag:=func(ok bool) string { if ok { return "1" }; return "0" }
 		values["voice"]=flag(advanced.Voice)
