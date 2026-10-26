@@ -15,7 +15,7 @@ const report=JSON.parse(readFileSync(join(path,'build-report.json'),'utf8'));
 const installer=readFileSync(join(path,'Atualizar-Bridge.exe'));
 if(report.version!=='2.2.1.6'||report.sequence!==2026102603||report.native_version!=='0.3.44-coop.15-2.2.1.6'||
 !report.official_044_p15||!report.app_server_native_044||!report.official_launcher_044||
-!report.p14_server_unchanged||!report.complete_hosts_unchanged||!report.delegated_passenger_role||
+!report.p14_server_unchanged||report.complete_hosts_unchanged||!report.complete_hosts_rebuilt||!report.admin_time_opt_in||!report.delegated_passenger_role||
 report.native_client_sha256?.['openomsi.exe']!==report.dynamic_p15_sha256||
 sha(installer)!==report.updater_sha256||installer.length!==report.installer_size){
  throw Error('Approved version, candidate, game and retained P15 host evidence do not match');
