@@ -48,7 +48,7 @@ jobs:
       run: "@'\nimport json,subprocess,time\nfrom pathlib import Path\np=json.loads(Path('build-support/bridge2216/native.json').read_text())\n\
         for attempt in range(300):\n r=json.loads(subprocess.check_output(['gh','api','repos/Mayconrib808/OpenOmsi-BBS/actions/runs/'+str(p['run_id'])],text=True))\n\
         \ assert r['head_sha']==p['commit'] and r['path']=='.github/workflows/native-2216.yml'\n if r['status']=='completed':\n  assert r['conclusion']=='success',r['conclusion']\n\
-        \  break\n time.sleep(20)\nelse:raise RuntimeError('Native build did not complete')\n'@ | python -\nif ($LASTEXITCODE -ne 0) {throw 'Native\
+        \  artifacts=json.loads(subprocess.check_output(['gh','api','repos/Mayconrib808/OpenOmsi-BBS/actions/runs/'+str(p['run_id'])+'/artifacts?per_page=100'],text=True))\n  names={a['name'] for a in artifacts.get('artifacts',[]) if not a.get('expired')}\n  if {'Bridge-2.2.1.6-native-game','Bridge-2.2.1.6-native-launcher'}<=names:\n   break\n time.sleep(20)\nelse:raise RuntimeError('Native build did not complete')\n'@ | python -\nif ($LASTEXITCODE -ne 0) {throw 'Native\
         \ source identity or regressions failed'}"
     - uses: actions/download-artifact@v8
       with:
