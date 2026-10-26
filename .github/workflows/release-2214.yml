@@ -1,0 +1,51 @@
+name: Build verified Bridge 2.2.1.4 BCS launch fix
+'on':
+  push:
+    branches: [release/2.2.1.4]
+    paths: [scripts/build_2214.py, source/pedepe_native.go, source/pedepe_native_test.go, source/version.go, .github/workflows/release-2214.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-go@v6
+      with:
+        go-version: 1.23.2
+        cache: false
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.1.3-candidate
+        run-id: 40261480962
+        github-token: ${{ github.token }}
+        path: prior
+    - name: Reproduce CLI failure, test Go startup commands and preserve complete native distribution
+      shell: pwsh
+      run: |
+        python scripts/build_2214.py --prior prior
+        if ($LASTEXITCODE -ne 0) { throw 'Native CLI regression or preservation audit failed' }
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.1.4-candidate
+        path: |
+          build/release-2214/Atualizar-Bridge.exe
+          build/release-2214/build-report.json
+          build/release-2214/coop-spec.json
+          build/release-2214/coop_bundle_manifest.go
+          build/release-2214/coop-assets/**
+          build/release-2214/native-cli-evidence.json
+        retention-days: 30
+        if-no-files-found: error
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.1.4-report
+        path: |
+          build/release-2214/build-report.json
+          build/release-2214/coop-spec.json
+          build/release-2214/native-cli-evidence.json
+        retention-days: 30
+        if-no-files-found: error

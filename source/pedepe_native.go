@@ -175,10 +175,9 @@ func peDePeFuelArgs(args []string, snapshot *pedepeFuelSnapshot, root string) ([
 		}
 		out = append(out, args[i])
 	}
-	if !pedepeHasArg(out, "--keep-fuel") {
-        out = append(out, "--keep-fuel")
-    }
-    return append(out, "--setvar", strings.Join(assignments, ",")), nil
+	// Explicit --setvar fuel is authoritative in the bundled native spawn code.
+	// --keep-fuel is not a supported openOMSI 0.3.41 CLI option.
+	return append(out, "--setvar", strings.Join(assignments, ",")), nil
 }
 
 // Native launches need the same retained 32-bit host as the legacy bridge.

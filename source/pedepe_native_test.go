@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"math"
 	"os"
 	"path/filepath"
@@ -669,15 +670,38 @@ func TestPeDePeSavedPositionWorldGrid(t *testing.T) {
 	}
 }
 
-func TestBCSFuel2212KeepsAuthoritativeLitresWithoutAutoFill(t *testing.T) {
+func TestBCSFuel2214UsesSupportedNativeAssignments(t *testing.T) {
+    var cases [][]string
+    helpPath := os.Getenv("OPENOMSI_FUEL_CLI_HELP")
+    var help string
+    if helpPath != "" {
+        b, err := os.ReadFile(helpPath)
+        if err != nil { t.Fatal(err) }
+        help = string(b)
+        if !strings.Contains(help,"--setvar") { t.Fatal("actual native help does not offer --setvar") }
+    }
     for _, litres := range []float64{0,37.5,180} {
         snapshot := &pedepeFuelSnapshot{Bus:"Vehicles/demo.bus",Field:"engine_tank_content",Litres:litres}
-        args, err := peDePeFuelArgs([]string{"--setvar","unrelated=7"},snapshot,"")
-        if err != nil || !pedepeHasArg(args,"--keep-fuel") {t.Fatalf("external fuel must suppress fill: %v %v",args,err)}
-        value,_:=pedepeArgValue(args,"--setvar")
-        if !strings.Contains(value,"unrelated=7") || !strings.Contains(value,"engine_tank_content="){t.Fatalf("fuel merge lost settings: %v",args)}
-        again,err:=peDePeFuelArgs(args,snapshot,"")
-        count:=0;for _,arg:=range again{if arg=="--keep-fuel"{count++}}
-        if err!=nil || count!=1 {t.Fatalf("duplicate fuel policy: %v %v",again,err)}
+        base := []string{"--root",".","--bus","Vehicles/demo.bus","--setvar","unrelated=7"}
+        args, err := peDePeFuelArgs(base,snapshot,"")
+        if err != nil {t.Fatal(err)}
+        if pedepeHasArg(args,"--keep-fuel") {t.Fatalf("unsupported flag stops native launch: %v",args)}
+        value,_ := pedepeArgValue(args,"--setvar")
+        want := "unrelated=7,engine_tank_content="+strconv.FormatFloat(litres,'g',-1,64)
+        if value != want {t.Fatalf("fuel or unrelated settings lost: got %q, want %q",value,want)}
+        again,err := peDePeFuelArgs(args,snapshot,"")
+        if err != nil || !reflect.DeepEqual(args,again) {t.Fatalf("fuel merge is not idempotent: %v %v",again,err)}
+        if help != "" {
+            supported:=map[string]bool{}
+            for _,word:=range strings.Fields(help) {supported[strings.TrimRight(word,",=")]=true}
+            for _,arg:=range args {
+                if strings.HasPrefix(arg,"--") && !supported[arg] {t.Fatalf("actual shipped native CLI rejects option %q",arg)}
+            }
+        }
+        cases=append(cases,args)
+    }
+    if output:=os.Getenv("OPENOMSI_FUEL_CLI_CASES");output!="" {
+        b,err:=json.Marshal(cases);if err!=nil {t.Fatal(err)}
+        if err=os.WriteFile(output,b,0600);err!=nil {t.Fatal(err)}
     }
 }
