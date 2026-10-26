@@ -4,7 +4,7 @@ from pathlib import Path
 root=Path(__file__).resolve().parents[1]
 spec=importlib.util.spec_from_file_location('p15ui',root/'build-support/bridge2203/test_p15_host_controls.py');m=importlib.util.module_from_spec(spec);spec.loader.exec_module(m)
 def main_window(self):
- return next((w for w in self.windows() if 'Host Agent 2.2.0.8' in self.text(w)),None)
+ return next((w for w in self.windows() if 'Host Agent ' in self.text(w)),None)
 m.NativeUI.main_window=main_window
 p=argparse.ArgumentParser();p.add_argument('package',type=Path);a=p.parse_args();package=a.package.resolve()
 with tempfile.TemporaryDirectory() as tmp:
