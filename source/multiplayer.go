@@ -22,6 +22,7 @@ type MultiplayerPlan struct {
 	Trip                               MultiplayerTrip
 	Clock                              *CompanyClock
 	BusTransfers                       bool
+	AdminClock                         bool
 }
 
 type companyServerStatus struct {
@@ -36,6 +37,7 @@ type companyServerStatus struct {
 	Vehicles     json.RawMessage `json:"vehicles"`
 	World        json.RawMessage `json:"world"`
 	BusTransfers bool            `json:"bbs_bus_transfers"`
+	AdminClock   bool            `json:"bbs_admin_time_authoritative"`
 }
 
 func multiplayerClock(s string) (float64, error) {
@@ -126,7 +128,10 @@ func validateCompanyServerAt(status companyServerStatus, session CompanySession,
 	if clock != nil && gap > 43200 {
 		gap = 86400 - gap
 	}
-	if gap > float64(session.ClockToleranceSec) {
+	// The managed HostAgent must explicitly advertise this mode *after* its
+	// initial BCS synchronization. The validated game server is thereafter
+	// authoritative: do not reject its legitimate admin clock change.
+	if gap > float64(session.ClockToleranceSec) && !(clock != nil && status.AdminClock && companyActiveWorld(status.World)) {
 		return fmt.Errorf("horário incompatível / incompatible clock: sessão %s, referência %s (limite %d s)", status.Time, expected, session.ClockToleranceSec)
 	}
 	return nil
@@ -245,7 +250,7 @@ func prepareMultiplayerAt(ctx context.Context, c Config, runtimeDir string, trip
 		if session.Date == "company" {
 			clock = p.Clock
 		}
-		return &MultiplayerPlan{CompanyID: p.CompanyID, CompanyName: p.CompanyName, PlayerName: c.PlayerName, Session: session, Trip: trip, Clock: clock, BusTransfers: answers[i].status.BusTransfers}, nil, nil
+		return &MultiplayerPlan{CompanyID: p.CompanyID, CompanyName: p.CompanyName, PlayerName: c.PlayerName, Session: session, Trip: trip, Clock: clock, BusTransfers: answers[i].status.BusTransfers, AdminClock: answers[i].status.AdminClock && clock != nil}, nil, nil
 	}
 	return nil, unavailable, nil
 }
@@ -327,7 +332,7 @@ func checkMultiplayerLogAt(text string, plan *MultiplayerPlan, now time.Time) (b
 		if expected.Format("2006-01-02") != plan.Trip.Date {
 			return false, fmt.Errorf("company day changed during launch; start the BBS trip again")
 		}
-		if math.Abs(joined.Sub(expected).Seconds()) > float64(plan.Session.ClockToleranceSec) {
+		if math.Abs(joined.Sub(expected).Seconds()) > float64(plan.Session.ClockToleranceSec) && !plan.AdminClock {
 			return false, fmt.Errorf("host world %s differs from company clock %s", joined.Format("2006-01-02 15:04:05"), expected.Format("2006-01-02 15:04:05"))
 		}
 		return true, nil
