@@ -7,6 +7,9 @@ name: Fast 2.2.1.6 Bridge regression checks
       - source/**
       - scripts/build_2203.py
       - scripts/build.py
+      - scripts/build_2216.py
+      - scripts/test_complete_host_ui.py
+      - scripts/test_host_admin_2216.py
       - .github/workflows/go-2216.yml
   workflow_dispatch: {}
 permissions:
