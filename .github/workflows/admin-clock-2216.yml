@@ -1,0 +1,66 @@
+name: Verify exact native admin clock and x32 boundaries
+'on':
+  push:
+    branches: [release/2.2.1.6]
+    paths: [.github/workflows/admin-clock-2216.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      OPENOMSI_VERSION: 0.3.44-coop.15-2.2.1.6
+      OPENOMSI_COOP_GAME_ONLY: '1'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: 10822372e6d8525d6a51ede1368d9fc6291d948c
+          path: support
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: c7b54b907659c3c4e58e5c51311df1b298fad9a3
+          path: game
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: 8248fe452ad4e2d420a99a482b84badb10d82ce6
+          path: official44
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Reconstruct the exact source used by native candidate 40405948448
+        run: python support/build-support/coop15-0344/prepare.py
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: admin2216-linux
+          workspaces: game -> target
+      - name: Exercise the real admin JSON parser and existing authorization suite
+        working-directory: game
+        run: |
+          mkdir -p crates/omsi-admin/tests
+          cat > crates/omsi-admin/tests/bridge_clock.rs <<'RUST'
+          use omsi_admin::{Op, Perm};
+          use serde_json::json;
+          #[test]
+          fn bridge_x32_and_exact_seconds_remain_world_admin_operations() {
+              let speed = Op::from_json(&json!({"op":"speed","factor":32}), 100).unwrap();
+              assert_eq!(speed, Op::Speed(32.0));
+              assert_eq!(speed.perm(), Perm::World);
+              for factor in [0.0, 33.0] {
+                  assert!(Op::from_json(&json!({"op":"speed","factor":factor}), 100).is_err());
+              }
+              for seconds in [0.0, 52625.0, 86399.0] {
+                  let clock = Op::from_json(&json!({"op":"clock","seconds":seconds}), 100).unwrap();
+                  assert_eq!(clock, Op::Clock(seconds));
+                  assert_eq!(clock.perm(), Perm::World);
+              }
+              for seconds in [-1.0, 86400.0] {
+                  assert!(Op::from_json(&json!({"op":"clock","seconds":seconds}), 100).is_err());
+              }
+          }
+          RUST
+          cargo test --locked --release -p omsi-admin --lib --test bridge_clock
