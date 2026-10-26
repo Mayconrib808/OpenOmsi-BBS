@@ -184,6 +184,18 @@ index 5734726..d977952 100644
   let blend=if point{self.hail}else{self.arm};p=v.original.lerp(p,blend.clamp(0.,1.));
   pos[v.index]=b.transform_point3(p);nrm[v.index]=b.transform_vector3(n).normalize_or(Vec3::Z);
   }
+diff --git a/crates/omsi-net/src/tests.rs b/crates/omsi-net/src/tests.rs
+index 26130a2..9ad9448 100644
+--- a/crates/omsi-net/src/tests.rs
++++ b/crates/omsi-net/src/tests.rs
+@@ -1578,6 +1578,7 @@ fn coop14_hotfix_boarding_burst_preserves_people_commands_and_vehicle_budget() {
+         client.send_desc_up(&world::Desc::Person {
+             id: person,
+             file: "Humans/aXYZ/man01.hum".into(),
++            intent: None,
+         });
+         host.receive(&mut Vec::new());
+     }
 diff --git a/crates/omsi-net/src/world.rs b/crates/omsi-net/src/world.rs
 index 5545225..38e10ca 100644
 --- a/crates/omsi-net/src/world.rs
