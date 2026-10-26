@@ -208,6 +208,62 @@ admin = admin.replace(after_hour, after_hour + '''
     }''', 1)
 admin_path.write_text(admin, encoding="utf-8")
 
+# Exact clock setting for authenticated native administrators. The upstream
+# web panel already has a server-authorized "Set" button, but only accepts a
+# time rounded to the minute. Keep its existing role/auth checks and permit
+# precise HH:MM:SS without introducing a privileged client-side shortcut.
+web_html_path = root / "crates/omsi-admin/panel/index.html"
+web_html = web_html_path.read_text(encoding="utf-8")
+input_old = '<input id="clock" type="time" required>'
+input_new = '<input id="clock" type="time" step="1" required aria-label="Horário exato (HH:MM:SS)">'
+assert web_html.count(input_old) == 1
+web_html = web_html.replace(input_old, input_new, 1)
+web_html_path.write_text(web_html, encoding="utf-8")
+panel_js_path = root / "crates/omsi-admin/panel/panel.js"
+panel_js = panel_js_path.read_text(encoding="utf-8")
+js_old = '''$("clock-go").addEventListener("click", () => { const v = $("clock").value; if (/^\\d\\d:\\d\\d$/.test(v)) { const [h, m] = v.split(":").map(Number); op({ op: "clock", seconds: h * 3600 + m * 60 }); } });'''
+js_new = '''$("clock-go").addEventListener("click", () => {
+    const v = $("clock").value.trim();
+    // HTML time controls can emit HH:MM or HH:MM:SS; require valid 24-hour
+    // civil time. Send an absolute time, never an incremental clock shift.
+    if (!/^\\d{2}:\\d{2}(?::\\d{2})?$/.test(v)) return;
+    const [h, m, s = 0] = v.split(":").map(Number);
+    if (h > 23 || m > 59 || s > 59) return;
+    op({ op: "clock", seconds: h * 3600 + m * 60 + s });
+  });'''
+assert panel_js.count(js_old) == 1, "Upstream admin clock HTML handler changed"
+panel_js = panel_js.replace(js_old, js_new, 1)
+panel_js_path.write_text(panel_js, encoding="utf-8")
+assert 'step="1"' in web_html and 'h * 3600 + m * 60 + s' in panel_js
+
+# An x32 time speed is an opt-in native ADMIN-only command; regular players
+# cannot select it because the server's world permission is still enforced.
+# Preserve the upstream speed values and extend the existing approved range.
+op_path = root / "crates/omsi-admin/src/op.rs"
+op = op_path.read_text(encoding="utf-8")
+assert op.count('"speed" => Op::Speed(in_range("factor", 1.0, 30.0)?),') == 1
+op = op.replace('"speed" => Op::Speed(in_range("factor", 1.0, 30.0)?),', '"speed" => Op::Speed(in_range("factor", 1.0, 32.0)?),',1)
+assert op.count('json!({"op": "speed", "factor": 31}),') == 1
+op = op.replace('json!({"op": "speed", "factor": 31}),', 'json!({"op": "speed", "factor": 33}),', 1)
+op_path.write_text(op, encoding="utf-8")
+cfg_path = root / "crates/omsi-lan/src/server_cfg.rs"
+cfg_text = cfg_path.read_text(encoding="utf-8")
+assert cfg_text.count('.clamp(1.0, 30.0)') == 1
+cfg_text=cfg_text.replace('.clamp(1.0, 30.0)', '.clamp(1.0, 32.0)', 1)
+cfg_path.write_text(cfg_text, encoding="utf-8")
+web_html = web_html.replace('<option>30</option></select>', '<option>30</option><option>32</option></select>',1)
+web_html_path.write_text(web_html, encoding="utf-8")
+app_admin_path=root / "crates/omsi-app/src/admin.rs"
+app_admin=app_admin_path.read_text(encoding="utf-8")
+assert app_admin.count('pub(crate) const SPEEDS: [f64; 6] = [1.0, 2.0, 4.0, 8.0, 15.0, 30.0];')==1
+app_admin=app_admin.replace('pub(crate) const SPEEDS: [f64; 6] = [1.0, 2.0, 4.0, 8.0, 15.0, 30.0];','pub(crate) const SPEEDS: [f64; 7] = [1.0, 2.0, 4.0, 8.0, 15.0, 30.0, 32.0];',1)
+app_admin_path.write_text(app_admin,encoding="utf-8")
+lan_panel_path=root / "crates/omsi-lan/src/admin/panel.rs"
+lan_panel=lan_panel_path.read_text(encoding="utf-8")
+assert lan_panel.count('for s in [1.0, 2.0, 4.0, 8.0, 15.0, 30.0]') ==1
+lan_panel=lan_panel.replace('for s in [1.0, 2.0, 4.0, 8.0, 15.0, 30.0]', 'for s in [1.0, 2.0, 4.0, 8.0, 15.0, 30.0, 32.0]',1)
+lan_panel_path.write_text(lan_panel,encoding="utf-8")
+
 # Verify that all official 0.3.44 additions were transferred, not just the
 # version string. Source identity and patch proof stay independently pinned.
 target_lib = (official / "crates/omsi-app/src/lib.rs").read_text(encoding="utf-8")
