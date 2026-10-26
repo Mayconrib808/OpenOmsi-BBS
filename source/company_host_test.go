@@ -424,3 +424,29 @@ func TestAdminClockOverrideNeverRollsBackAuthenticatedServerTime(t *testing.T) {
 		t.Fatal("invalid native clock must still be rejected")
 	}
 }
+
+
+func TestManagedHostRetainsNativeP15OptionsWithAdminClock(t *testing.T) {
+	config := companyHostConfig{Text: []byte("voice = 0\nvoice_radio = 0\nvoice_range = 50\npublic_server = 0\nrequire_hardware_id = 0\nadmin_password = stale-but-ignored\n")}
+	options := companyHostOptions{
+		AllowAdminTime: true, Voice: true, VoiceRadio: true, VoiceRange: 135,
+		PublicServer: true, RequireHardwareID: true, AdminPassword: "administrator-secret-example",
+	}
+	day := time.Date(2026, 10, 26, 14, 37, 5, 0, time.UTC)
+	actual := string(renderCompanyHostConfig(config, hostTestSession(), hostTestFleet(), day, options.AdminPassword, options))
+	for key, value := range map[string]string{
+		"voice": "1", "voice_radio": "1", "voice_range": "135",
+		"public_server": "1", "require_hardware_id": "1",
+		"admin_password": "administrator-secret-example",
+		"real_time": "0", "time_speed": "1", "time": "14:37:05",
+	} {
+		line := key + " = " + value
+		if strings.Count(actual, line+"\\n") != 1 {
+			t.Fatalf("native P15 configuration missing or duplicated %s", key)
+		}
+	}
+	original := string(renderCompanyHostConfig(config, hostTestSession(), hostTestFleet(), day, "original-password"))
+	if strings.Contains(original, "administrator-secret-example") {
+		t.Fatal("administrator preference changed the default profile")
+	}
+}
