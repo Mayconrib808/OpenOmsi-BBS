@@ -10146,10 +10146,10 @@ index 89a5a9eb..3b2a1018 100644
 +pub mod vehicle_transfer;
 diff --git a/crates/omsi-lan/src/vehicle_transfer.rs b/crates/omsi-lan/src/vehicle_transfer.rs
 new file mode 100644
-index 00000000..ebf628d7
+index 00000000..b61aa86b
 --- /dev/null
 +++ b/crates/omsi-lan/src/vehicle_transfer.rs
-@@ -0,0 +1,431 @@
+@@ -0,0 +1,450 @@
 +//! Live vehicle state; applying never runs init, physics, fuel pumps or scripts.
 +use omsi_sim::VehicleInstance;
 +use serde::{Deserialize, Serialize};
@@ -10547,6 +10547,25 @@ index 00000000..ebf628d7
 +        assert_eq!(token, 71);
 +        assert!(state.apply(&mut b));
 +        assert_eq!(b.var("fuel"), Some(34.5));
++    }
++    #[test]
++    fn coop15_0343_suspension_state_survives_the_driver_transfer_wire() {
++        let mut donor=bus();
++        let mut def=omsi_vehicle::Vehicle {mass:10.,moment_of_inertia:[600.,90.,400.],cog_height:1.2,..Default::default()};
++        def.axles.push(omsi_vehicle::Axle {long:2.,max_width:2.4,min_width:1.76,wheel_diameter:0.94,spring:240.,max_force:90.,damper:20.,driven:true,inertia_inv:0.002});
++        let mut rigid=omsi_sim::rigid::RigidBody::from_definition(&def,&[]);
++        assert!(!rigid.wheels.is_empty());
++        rigid.wheels[0].strut.kind=omsi_vehicle::vehicle::SuspensionKind::Air;
++        rigid.wheels[0].strut.preload=1234.5;
++        donor.rigid=Some(rigid);
++        let state=Snapshot::capture(17,"Vehicles/test.bus".into(),&donor);
++        let wire=encode(&Message::Commit{token:72,state}).unwrap();
++        let Some(Message::Commit{state,..})=decode(&wire)else{panic!("missing suspension snapshot")};
++        let mut recipient=bus();
++        assert!(state.apply(&mut recipient));
++        let strut=recipient.rigid.as_ref().unwrap().wheels[0].strut;
++        assert_eq!(strut.kind,omsi_vehicle::vehicle::SuspensionKind::Air);
++        assert_eq!(strut.preload,1234.5);
 +    }
 +    #[test]
 +    fn coop13_handover_resolves_paint_by_name_instead_of_foreign_cti_index() {
@@ -12693,7 +12712,7 @@ index b7d7da3a..765269bc 100644
      pub mass_kg: f32,
      pub rolling_resistance: f32,
 diff --git a/crates/omsi-sim/src/rigid/mod.rs b/crates/omsi-sim/src/rigid/mod.rs
-index 768053ec..bf6e21e1 100644
+index 768053ec..0a66c4fc 100644
 --- a/crates/omsi-sim/src/rigid/mod.rs
 +++ b/crates/omsi-sim/src/rigid/mod.rs
 @@ -140,6 +140,7 @@ impl<F: Fn(f64, f64, f64) -> GroundProbe + Send + Sync> Ground for F {
@@ -12712,7 +12731,56 @@ index 768053ec..bf6e21e1 100644
  pub struct RigidWheel {
      /// The wheel's own turning (rad/s) and its state as OMSI keeps it:
      /// gripping (turning with the ground), slipping (spinning or skidding: the tyre passes on
-@@ -421,6 +423,7 @@ const STANDING: f32 = 0.15;
+@@ -195,8 +197,6 @@ pub struct RigidWheel {
+     pub max_force: f32,
+     /// `Axle_Springfactor_*`: air suspensions scale the spring with the bellows pressure.
+     pub spring_factor: f32,
+-    /// The kind of strut (`[suspension]`); a coil spring unless the vehicle says otherwise.
+-    pub strut: Strut,
+     /// Static load at rest (N), from the mass split over the axles.
+     pub rest_load: f32,
+     /// Current compression (m, positive = the wheel pushed up into the body) and its rate.
+@@ -234,6 +234,9 @@ pub struct RigidWheel {
+     /// How far the contact patch lags behind the wheel across (m, positive to the right): the
+     /// tyre's lateral deflection, which the slip-angle model turns into a side force.
+     pub lat_defl: f32,
++    /// Appended to the Coop snapshot so prior wheel fields keep their order.
++    #[serde(default)]
++    pub strut: Strut,
+ }
+ 
+ fn sign(x: f32) -> f32 {
+@@ -248,7 +251,9 @@ fn sign(x: f32) -> f32 {
+ 
+ /// The kind of strut of a wheel and what it remembers (see `omsi_strut`).
+ #[derive(Debug, Clone, Copy, PartialEq)]
++#[derive(serde::Serialize, serde::Deserialize)]
+ pub struct Strut {
++    #[serde(with = "strut_kind_serde")]
+     pub kind: omsi_vehicle::vehicle::SuspensionKind,
+     /// Dry friction of leaf springs (N).
+     pub friction: f32,
+@@ -260,6 +265,19 @@ pub struct Strut {
+     pub preload: f32,
+ }
+ 
++// Keep serialization local to the Coop snapshot; the vehicle content parser
++// does not need a new dependency just to describe its suspension kind.
++mod strut_kind_serde {
++    use omsi_vehicle::vehicle::SuspensionKind;
++    pub fn serialize<S: serde::Serializer>(kind:&SuspensionKind,s:S)->Result<S::Ok,S::Error>{
++        s.serialize_u8(match kind {SuspensionKind::Coil=>0,SuspensionKind::Leaf=>1,SuspensionKind::Air=>2,SuspensionKind::Progressive=>3})
++    }
++    pub fn deserialize<'de,D:serde::Deserializer<'de>>(d:D)->Result<SuspensionKind,D::Error>{
++        use serde::Deserialize;
++        match u8::deserialize(d)? {0=>Ok(SuspensionKind::Coil),1=>Ok(SuspensionKind::Leaf),2=>Ok(SuspensionKind::Air),3=>Ok(SuspensionKind::Progressive),_=>Err(serde::de::Error::custom("invalid suspension kind"))}
++    }
++}
++
+ impl Default for Strut {
+     fn default() -> Strut {
+         Strut { kind: omsi_vehicle::vehicle::SuspensionKind::Coil, friction: 0.0, progression: 0.0, level_time: 4.0, preload: 0.0 }
+@@ -421,6 +439,7 @@ const STANDING: f32 = 0.15;
  
  /// One hit of the body against an obstacle.
  #[derive(Debug, Clone, Copy)]
@@ -12720,7 +12788,7 @@ index 768053ec..bf6e21e1 100644
  pub struct Impact {
      /// Where it hit, in the body frame relative to the model origin (x right, y forward, z up).
      pub point: Vec3,
-@@ -447,6 +450,7 @@ pub struct Impact {
+@@ -447,6 +466,7 @@ pub struct Impact {
  /// and drove every bend into a jack-knife: the kinematic rear section has no tyres of its
  /// own to resist it.
  #[derive(Debug, Clone, Copy, PartialEq)]
@@ -12728,7 +12796,7 @@ index 768053ec..bf6e21e1 100644
  pub struct CoupledPart {
      /// The coupling on this body (body frame, relative to the model origin).
      pub point: Vec3,
-@@ -468,6 +472,7 @@ pub struct CoupledPart {
+@@ -468,6 +488,7 @@ pub struct CoupledPart {
  }
  
  #[derive(Debug, Clone)]
