@@ -229,3 +229,35 @@ func TestFixedDatePlayerHostDoesNotRequireDedicatedWorldCounts(t *testing.T) {
 		t.Fatal("fixed-date player host became unsupported", plan, problems, err)
 	}
 }
+
+
+func TestNativeAdminClockOverrideAcceptedOnlyForManagedSyncedWorld(t *testing.T) {
+	c, p, trip, dir := companyFixture(t)
+	p.Clock = &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: -480}
+	p.Sessions[0].Date = "company"
+	status := testCompanyStatus()
+	status["time"] = "21:31:00" // The authenticated admin advanced 17 minutes.
+	status["bbs_admin_time_authoritative"] = true
+	p.Sessions[0].ServerURL = companyStatusServer(t, status).URL
+	saveTestCompany(t, dir, p)
+	now := companyClockTestInstant(t, "2026-10-07T03:14:00Z")
+	plan, problems, err := prepareMultiplayerAt(context.Background(), c, dir, trip, companyHTTPClient(), now)
+	if err != nil || len(problems) > 0 || plan == nil || !plan.AdminClock {
+		t.Fatalf("authenticated admin clock not accepted: %+v %v %v", plan, problems, err)
+	}
+	if ready, err := checkMultiplayerLogAt("LAN: taking the host's world: 2026-10-06 21:31:00 weather clear season summer\n", plan, now); !ready || err != nil {
+		t.Fatalf("authorized 17-minute shift was rejected: %v %v", ready, err)
+	}
+	plan.AdminClock = false
+	if ready, err := checkMultiplayerLogAt("LAN: taking the host's world: 2026-10-06 21:31:00 weather clear season summer\n", plan, now); ready || err == nil {
+		t.Fatal("default BCS clock safeguard disabled by admin mode")
+	}
+	plan.AdminClock = true
+	if ready, err := checkMultiplayerLogAt("LAN: taking the host's world: 2026-10-05 21:31:00 weather clear season summer\n", plan, now); ready || err == nil {
+		t.Fatal("admin mode must not conceal wrong company day")
+	}
+	delete(status, "world")
+	if err := validateCompanyServerAt(companyServerStatus{Version: "0.3.44", Protocol: 15, AdminClock: true}, plan.Session, plan.Trip, plan.Clock, now); err == nil {
+		t.Fatal("admin flag bypassed required active world validation")
+	}
+}
