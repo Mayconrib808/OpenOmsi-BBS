@@ -36,7 +36,7 @@ jobs:
     - uses: actions/download-artifact@v8
       with:
         name: Bridge-2.2.1.2-native-game
-        run-id: 40248023379
+        run-id: 40249632852
         github-token: ${{ github.token }}
         path: native
     - uses: actions/download-artifact@v8

@@ -20,7 +20,7 @@ assert r['installer_size']<=25<<20 and len(a.candidate_commit)==40
 assert r['fuel_priority_tested']
 assert r['ticket_chance_tested'] and r['rigid_umbrella']
 assert r['complete_hosts_unchanged'] and r['p14_server_unchanged'] and r['p15_passenger_intent'] and r['gaze_tested'] and r['full_hailing_tested'] and r['passenger_migration_tested']
-assert r['native_candidate_commit']=='76afed2d996c14b90cb806c8ef16e784e08b3b72'
+assert r['native_candidate_commit']=='71f3d9718d43fecc2195be8d23b13dd59890e996'
 assert r['native_version']=='0.3.41-coop.14-2.2.1.2'
 material=json.loads(a.publisher_key.read_text(encoding='utf-8-sig'))
 key=Ed25519PrivateKey.from_private_bytes(base64.b64decode(material['private_seed'],validate=True))
