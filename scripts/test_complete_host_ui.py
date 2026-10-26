@@ -19,18 +19,26 @@ with tempfile.TemporaryDirectory() as tmp:
   ui=m.NativeUI(proc.pid);window=None
   try:
    window=m.wait_for(ui.main_window);controls=m.wait_for(lambda:ui.controls(window))
+   clock_controls = [c for c in ui.children(window) if c['id'] == 326 and c['cls'].lower() == 'button']
+   assert len(clock_controls) == 1, 'Admin clock opt-in checkbox missing'
+   clock = clock_controls[0]['hwnd']
+   assert bool(ui.send(clock, 0xF0)) == reopen, 'Admin clock default or saved state changed'
+   clock_enabled = not reopen
+   ui.send(clock, 0xF1, int(clock_enabled))
    if reopen:
     ui.assert_values(controls,values)
     values=dict(values,voice=False,voice_radio=False,public_server=False,require_hardware_id=False)
    else:
     ui.set_values(controls,values);ui.select_map(controls,1);ui.select_map(controls,0);ui.assert_values(controls,values)
+   assert bool(ui.send(clock, 0xF0)) == clock_enabled, 'Map switching reset admin clock setting'
    ui.set_values(controls,values);ui.save(controls)
    m.wait_for(lambda:all(json.loads(config.read_text())['maps']['ci-a'].get(k,False)==v for k,v in values.items()))
+   m.wait_for(lambda: json.loads(config.read_text()).get('allow_admin_time', False) == clock_enabled)
    saved=json.loads(config.read_text())
    for key in ('host_key','room_id','control_key','server','company'):assert saved[key]==before[key],key
   finally:
    if window:ui.u.PostMessageW(window,0x10,0,0)
    try:proc.wait(timeout=5)
    except subprocess.TimeoutExpired:proc.terminate();proc.wait(timeout=5)
- (package/'native-p15-controls.json').write_text(json.dumps(dict(status='passed',fields=m.FIELDS,save_reopen=True,map_switch=True,explicit_false_values=True,unrelated_config_preserved=True),indent=2)+'\n')
- print('ACTUAL P15 CONTROLS PASSED: six controls, map switching, Save, reopen, explicit false values, existing keys/server/company preserved')
+ (package/'native-p15-controls.json').write_text(json.dumps(dict(status='passed',fields=m.FIELDS,save_reopen=True,map_switch=True,explicit_false_values=True,unrelated_config_preserved=True,admin_clock_opt_in_tested=True),indent=2)+'\n')
+ print('ACTUAL P15 CONTROLS PASSED: six controls, map switching, Save, reopen, explicit false values, existing keys/server/company preserved; admin clock default-off, map switch, save/reopen and disable passed')

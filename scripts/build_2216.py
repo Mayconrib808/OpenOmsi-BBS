@@ -151,7 +151,7 @@ def main():
    payload[name]=target.read_bytes()
   subprocess.run(['python',str(ROOT/'scripts/test_complete_host_ui.py'),str(package)],check=True)
   ui=json.loads((package/'native-p15-controls.json').read_text())
-  assert ui['status']=='passed' and ui['save_reopen'] and ui['map_switch'] and ui['unrelated_config_preserved']
+  assert ui['status']=='passed' and ui['save_reopen'] and ui['map_switch'] and ui['unrelated_config_preserved'] and ui['admin_clock_opt_in_tested']
   embedded=build.SOURCE/'bridge_update_payload.zip';assert not embedded.exists()
   try:
    with zipfile.ZipFile(embedded,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
@@ -168,7 +168,7 @@ def main():
   components_sha256={n:sha(b)for n,b in payload.items()},retained_runtime_sha256={n:h for n,h in runtime_before.items()if n not in changed_runtime},
   retained_servers_sha256=servers,dynamic_p15_sha256=server_hash,dynamic_p15_version='0.3.44-coop.15-2.2.1.6',retained_unrelated_files=len(before)-len(permitted),previous_coop_sha256=BASE_COOP,previous_installer_sha256=BASE_UPDATER,ticket_chance_tested=True,rigid_umbrella=True,
   native_candidate_run=inputs['run_id'],native_candidate_commit=inputs['commit'],native_version='0.3.44-coop.15-2.2.1.6',native_client_sha256={n:sha(files[COOP+'/programa/'+n])for n in replacements},
-  native_rain_film=True,early_bus_hailing=True,umbrella_down_when_closed=True,default_maps=9,passenger_migration_tested=True,complete_hosts_unchanged=False,complete_hosts_rebuilt=True,admin_time_opt_in=True,delegated_passenger_role=True,servers_unchanged=False,p14_server_unchanged=True,p15_server_unchanged=False,neck_body_turn_tested=True,p15_passenger_intent=True,gaze_tested=True,full_hailing_tested=True,fuel_priority_tested=True,windows_gameplay_tested=False,official_041_p15=False,app_server_native_041=False,official_launcher_041=False,official_044_p15=True,app_server_native_044=True,official_launcher_044=True,hail_arm_direction_tested=True,all_native_regressions_tested=True,upstream_commit='8248fe452ad4e2d420a99a482b84badb10d82ce6',coop_archive_unchanged=False,gameplay_files_unchanged=False,fuel_cli_tested=True,fuel_cli_cases=3)
+  native_rain_film=True,early_bus_hailing=True,umbrella_down_when_closed=True,default_maps=9,passenger_migration_tested=True,complete_hosts_unchanged=False,complete_hosts_rebuilt=True,admin_time_opt_in=True,admin_clock_opt_in_tested=True,delegated_passenger_role=True,servers_unchanged=False,p14_server_unchanged=True,p15_server_unchanged=False,neck_body_turn_tested=True,p15_passenger_intent=True,gaze_tested=True,full_hailing_tested=True,fuel_priority_tested=True,windows_gameplay_tested=False,official_041_p15=False,app_server_native_041=False,official_launcher_041=False,official_044_p15=True,app_server_native_044=True,official_launcher_044=True,hail_arm_direction_tested=True,all_native_regressions_tested=True,upstream_commit='8248fe452ad4e2d420a99a482b84badb10d82ce6',coop_archive_unchanged=False,gameplay_files_unchanged=False,fuel_cli_tested=True,fuel_cli_cases=3)
  report['launcher_sha256']={COOP+'/programa/'+n:sha(files[COOP+'/programa/'+n]) for n in ('openomsi-launcher.exe','openomsi-launcher-app.exe')}
  report['launcher_archive_sha256']=None
  (out/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')

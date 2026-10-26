@@ -15,7 +15,7 @@ const report=JSON.parse(readFileSync(join(path,'build-report.json'),'utf8'));
 const installer=readFileSync(join(path,'Atualizar-Bridge.exe'));
 if(report.version!=='2.2.1.6'||report.sequence!==2026102603||report.native_version!=='0.3.44-coop.15-2.2.1.6'||
 !report.official_044_p15||!report.app_server_native_044||!report.official_launcher_044||
-!report.p14_server_unchanged||report.complete_hosts_unchanged||!report.complete_hosts_rebuilt||!report.admin_time_opt_in||!report.delegated_passenger_role||
+!report.p14_server_unchanged||report.complete_hosts_unchanged||!report.complete_hosts_rebuilt||!report.admin_time_opt_in||!report.admin_clock_opt_in_tested||!report.delegated_passenger_role||
 report.native_client_sha256?.['openomsi.exe']!==report.dynamic_p15_sha256||
 sha(installer)!==report.updater_sha256||installer.length!==report.installer_size){
  throw Error('Approved version, candidate, game and retained P15 host evidence do not match');
@@ -28,9 +28,9 @@ const origin='https://openomsi-bbs-updates.maycongamesmaximo.workers.dev';
 const release={
  schema:1,version:'2.2.1.6',sequence:2026102603,
  notes:{
- pt:'0.3.44 Coop15 e correções acumuladas de passageiros e troca de motorista. Mantém hosts P15 completos, servidor P14 e comandos de combustível BCS. O modo de horário livre do HostAgent não está incluído.',
- en:'Authentic 0.3.44 Coop15, retained passenger and driver-handover changes, P14/P15 hosts and BCS fuel commands. HostAgent administrator clock override is not included.',
- de:'Echtes 0.3.44 Coop15, Fahrgast- und Fahrerwechsel-Anpassungen, P14/P15-Hosts und BCS-Kraftstoff. Admin-Uhr-Freigabe im HostAgent ist noch nicht enthalten.'
+ pt:'0.3.44 Coop15 e correções acumuladas de passageiros e troca de motorista. Mantém hosts P15 completos, servidor P14 e comandos de combustível BCS. Inclui opção no HostAgent para manter ajustes dos admins após sincronizar, horário exato HH:MM:SS e velocidade até 32×.',
+ en:'Authentic 0.3.44 Coop15, retained passenger and driver-handover changes, P14/P15 hosts and BCS fuel commands. Includes HostAgent opt-in for server-authoritative admin time after initial sync, exact HH:MM:SS and speeds up to 32×.',
+ de:'Echtes 0.3.44 Coop15, Fahrgast- und Fahrerwechsel-Anpassungen, P14/P15-Hosts und BCS-Kraftstoff. Mit optionaler Admin-Zeitsteuerung nach dem Startabgleich, exakter HH:MM:SS-Eingabe und bis zu 32× Geschwindigkeit.'
  },
  installer:{url:origin+'/packages/'+report.updater_sha256+'.exe',sha256:report.updater_sha256,size:installer.length}
 };
