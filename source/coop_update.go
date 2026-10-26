@@ -98,7 +98,7 @@ func readCoopDistribution(data []byte, spec coopDistribution) (map[string][]byte
 		if spec.FullPaths { name = rel }
 		expected, ok := spec.Files[name]
 		total += entry.UncompressedSize64
-		if !ok || files[name] != nil || entry.UncompressedSize64 > 128<<20 || total > 384<<20 {
+		if !ok || files[name] != nil || entry.UncompressedSize64 > 128<<20 || total > 512<<20 {
 			return nil, fmt.Errorf("arquivo inesperado no pacote do Cooperativo")
 		}
 		r, err := entry.Open()
@@ -122,7 +122,7 @@ func downloadCoopDistribution(ctx context.Context, client *http.Client, origin s
 	if err != nil {
 		return nil, err
 	}
-	if !coopDigestValid(spec.SHA256) || spec.Size < 1 || spec.Size > 128<<20 || len(spec.Parts) == 0 || len(spec.Parts) > 8 {
+	if !coopDigestValid(spec.SHA256) || spec.Size < 1 || spec.Size > 256<<20 || len(spec.Parts) == 0 || len(spec.Parts) > 16 {
 		return nil, fmt.Errorf("distribuição do Cooperativo inválida")
 	}
 	var expectedSize int64
