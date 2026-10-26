@@ -58,7 +58,8 @@ jobs:
                   assert_eq!(clock, Op::Clock(seconds));
                   assert_eq!(clock.perm(), Perm::World);
               }
-              for seconds in [-1.0, 86400.0] {
+              assert_eq!(Op::from_json(&json!({"op":"clock","seconds":86400}), 100).unwrap(), Op::Clock(0.0));
+              for seconds in [-1.0, 86401.0] {
                   assert!(Op::from_json(&json!({"op":"clock","seconds":seconds}), 100).is_err());
               }
           }
