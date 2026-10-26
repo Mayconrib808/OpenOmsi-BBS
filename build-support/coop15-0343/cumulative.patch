@@ -11352,7 +11352,7 @@ index 6cd0d0ab..604911bb 100644
          let mut a = Sync::default();
          let mut b = Sync::default();
 diff --git a/crates/omsi-net/src/tests.rs b/crates/omsi-net/src/tests.rs
-index 19d9562d..3062dc5e 100644
+index 19d9562d..103667ec 100644
 --- a/crates/omsi-net/src/tests.rs
 +++ b/crates/omsi-net/src/tests.rs
 @@ -1515,5 +1515,114 @@ fn a_player_without_a_bus_sends_a_heartbeat() {
@@ -11380,7 +11380,7 @@ index 19d9562d..3062dc5e 100644
 +
 +#[test]
 +fn handover_snapshot_is_session_authenticated_and_relayed_between_clients() {
-+    assert_ne!(handover::MAGIC, freetex::MAGIC);
++    assert_ne!(handover::MAGIC, crate::freetex::MAGIC);
 +    assert_ne!(handover::MAGIC, traffic_table::wire::MAGIC);
 +    assert_ne!(handover::MAGIC, traffic_table::wire::ACK_MAGIC);
 +    assert_ne!(handover::MAGIC, voice_net::MAGIC);

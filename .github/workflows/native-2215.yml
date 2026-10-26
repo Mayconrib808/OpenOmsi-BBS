@@ -51,6 +51,12 @@ jobs:
       run: 'python support/build-support/coop15-0343/prepare.py
 
         if ($LASTEXITCODE -ne 0) {throw ''Source identity or cumulative port failed''}'
+    - name: Compile all retained native test harnesses before running long simulations
+      shell: pwsh
+      working-directory: game
+      run: 'cargo test --locked --release -p omsi-app -p omsi-net -p omsi-lan -p omsi-launcher-core -p omsi-sim --lib --no-run
+
+        if ($LASTEXITCODE -ne 0) {throw ''Native test harness integration failed''}'
     - name: Native arm, neck, fuel, hailing, ticket, network and handover regressions
       shell: pwsh
       working-directory: game

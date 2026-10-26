@@ -2,7 +2,7 @@
   "upstream_tag": "v0.3.43",
   "upstream_commit": "c7b54b907659c3c4e58e5c51311df1b298fad9a3",
   "native_version": "0.3.43-coop.15-2.2.1.5",
-  "patch_sha256": "450de404f99d2905d78e71e980e80d48ab58b3696db6f6fa9b58a616f38e8de4",
+  "patch_sha256": "03557acf820118144640f4141127ebcb569efe8b2523f419a2abc1449aef1a00",
   "protocol": 15,
   "retained_base": "release/2.2.1.4",
   "neck_fix_retained": true,
