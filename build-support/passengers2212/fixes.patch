@@ -159,7 +159,7 @@ index 5734726..d977952 100644
   pos[v.index]=b.transform_point3(p);nrm[v.index]=b.transform_vector3(n).normalize_or(Vec3::Z);
   }
 diff --git a/crates/omsi-net/src/world.rs b/crates/omsi-net/src/world.rs
-index 5545225..bb55b16 100644
+index 5545225..38e10ca 100644
 --- a/crates/omsi-net/src/world.rs
 +++ b/crates/omsi-net/src/world.rs
 @@ -446,14 +446,30 @@ impl EntityRef {
@@ -172,12 +172,12 @@ index 5545225..bb55b16 100644
  
 +/// Optional descriptor suffix; legacy clients still read the unchanged first four fields.
 +#[derive(Debug,Clone,PartialEq,Eq)]
-+pub struct PersonIntent { pub stop:i64,pub line:Option<usize>,pub dest:Option<String> }
++pub struct PersonIntent { pub stop:i64,pub line:Option<u64>,pub dest:Option<String> }
 +impl PersonIntent {
 +    fn decode(parts:&[&str])->Option<Self>{
 +        if parts.get(4).copied()!=Some("i1") || parts.len()<8{return None}
 +        let stop=parts[5].parse().ok()?;
-+        let line=if parts[6]=="-" {None}else{Some(parts[6].parse::<usize>().ok().filter(|v|*v<65536)?)};
++        let line=if parts[6]=="-" {None}else{Some(parts[6].parse::<u64>().ok()?)};
 +        let dest=crate::clean_text(parts[7],180);
 +        Some(Self{stop,line,dest:(!dest.trim().is_empty()).then(||dest.trim().to_string())})
 +    }
@@ -377,7 +377,7 @@ index 1071583..fac552e 100644
  pub mod face;
  mod motion;
 diff --git a/crates/omsi-sim/src/people/mirror.rs b/crates/omsi-sim/src/people/mirror.rs
-index a3bd135..3ec9a36 100644
+index a3bd135..ef96036 100644
 --- a/crates/omsi-sim/src/people/mirror.rs
 +++ b/crates/omsi-sim/src/people/mirror.rs
 @@ -3,6 +3,7 @@
@@ -388,13 +388,26 @@ index a3bd135..3ec9a36 100644
  
  /// Where one of the host's people is this frame, as a client draws them.
  #[derive(Debug, Clone, Copy)]
-@@ -47,6 +48,31 @@ pub struct LanPerson {
+@@ -46,7 +47,57 @@ pub struct LanPerson {
+     pub waiting: Option<(i64, usize)>,
  }
  
++#[cfg(test)]
++mod service_intent_2212_tests{
++    use super::*;
++    #[test] fn line_identity_ignores_loading_order_but_not_destinations(){
++        let a:HashSet<String>=["Terminal A","Terminal B"].into_iter().map(str::to_string).collect();
++        let b:HashSet<String>=["Terminal B","Terminal A"].into_iter().map(str::to_string).collect();
++        let c:HashSet<String>=["Terminal C"].into_iter().map(str::to_string).collect();
++        assert_eq!(PeopleSim::hail_line_key(&a),PeopleSim::hail_line_key(&b));
++        assert_ne!(PeopleSim::hail_line_key(&a),PeopleSim::hail_line_key(&c));
++    }
++}
  impl PeopleSim {
 +    /// Exact individual service preference, supplied only by the authoritative host.
 +    pub fn mirror_bus_fit(&self,id:u32,bn:&BusNow)->Option<bool>{
-+        let (stop,line,dest)=self.mirror_hail_intent.get(&id)?;
++        let (stop,key,line,dest)=self.mirror_hail_intent.get(&id)?;
++        if key.is_some() && line.is_none(){return Some(false)}
 +        if self.mirror_wait.get(&id)?.0!=*stop{return None}
 +        let s=self.stops.get(stop)?;
 +        if bn.served.is_some_and(|v|v!=*stop) || bn.route.as_ref().is_some_and(|r|r.is_last_stop(s)){return Some(false)}
@@ -408,19 +421,32 @@ index a3bd135..3ec9a36 100644
 +            None=>line.is_none(),
 +        })
 +    }
-+    pub fn hail_intent(&self,id:u32)->Option<(i64,Option<usize>,Option<String>)>{
++    /// Stable identity of the termini, independent of HashMap loading/line order.
++    pub fn hail_line_key(termini:&HashSet<String>)->u64{
++        let mut names:Vec<_>=termini.iter().map(|s|s.trim()).collect();names.sort_unstable();
++        let mut h=0xcbf29ce484222325u64;
++        for name in names{for byte in name.bytes().chain(std::iter::once(0)){h^=byte as u64;h=h.wrapping_mul(0x100000001b3);}}
++        h
++    }
++    pub fn hail_intent(&self,id:u32)->Option<(i64,Option<u64>,Option<String>)>{
 +        let p=self.people.iter().find(|p|p.id==id && !p.remote)?;
 +        let State::Pax(p)=&p.state else{return None};
-+        Some((p.stop?,p.line,p.dest.clone()))
++        let stop=p.stop?;
++        let key=match p.line{Some(k)=>Some(Self::hail_line_key(&self.stops.get(&stop)?.lines.get(k)?.1)),None=>None};
++        Some((stop,key,p.dest.clone()))
 +    }
-+    pub fn mirror_hail_intent(&mut self,id:u32,intent:Option<(i64,Option<usize>,Option<String>)>){
-+        if let Some(v)=intent{self.mirror_hail_intent.insert(id,v);}else{self.mirror_hail_intent.remove(&id);}
++    pub fn mirror_hail_intent(&mut self,id:u32,intent:Option<(i64,Option<u64>,Option<String>)>){
++        if let Some((stop,key,dest))=intent{
++            if self.mirror_hail_intent.get(&id).is_some_and(|old|old.0==stop && old.1==key && old.3==dest && (key.is_none()||old.2.is_some())){return}
++            let line=key.and_then(|key|self.stops.get(&stop)?.lines.iter().position(|(_,terms)|Self::hail_line_key(terms)==key));
++            self.mirror_hail_intent.insert(id,(stop,key,line,dest));
++        }else{self.mirror_hail_intent.remove(&id);}
 +    }
 +
      /// Is person `id` (one drawn for another game) here?
      pub fn has_mirror(&self, id: u32) -> bool {
          self.people.iter().any(|p| p.id == id && p.remote)
-@@ -221,6 +247,7 @@ impl PeopleSim {
+@@ -221,6 +272,7 @@ impl PeopleSim {
          self.claims_out.clear();
          self.claimed.clear();
          self.mirror_wait.clear();
@@ -428,7 +454,7 @@ index a3bd135..3ec9a36 100644
      }
  
      /// The human type of a file relative to a content root (`Humans/…/x.hum`).
-@@ -287,6 +314,7 @@ impl PeopleSim {
+@@ -287,6 +339,7 @@ impl PeopleSim {
              }
              None => {
                  self.mirror_wait.remove(&id);
@@ -436,7 +462,7 @@ index a3bd135..3ec9a36 100644
              }
          }
          match pose.aboard {
-@@ -307,6 +335,7 @@ impl PeopleSim {
+@@ -307,6 +360,7 @@ impl PeopleSim {
          }
          self.claimed.remove(&id);
          self.mirror_wait.remove(&id);
@@ -444,18 +470,18 @@ index a3bd135..3ec9a36 100644
      }
  
      /// A remote person this frame: they stand where the host put them.
-@@ -356,7 +385,9 @@ impl PeopleSim {
+@@ -356,7 +410,9 @@ impl PeopleSim {
          // what a waiting person of ours has (sub_626044 and task 6): a destination drawn
          // from the stop (both sides load the same map) and a distance to ride without one;
          // with neither they would get off again at once (#813)
 -        let (dest, line) = self.draw_dest(stop);
 +        let (dest,line)=self.mirror_hail_intent.remove(&id)
-+            .filter(|(wanted,_,_)|*wanted==stop).map(|(_,line,dest)|(dest,line))
++            .filter(|(wanted,_,_,_)|*wanted==stop).and_then(|(_,key,line,dest)|if key.is_none()||line.is_some(){Some((dest,line))}else{None})
 +            .unwrap_or_else(||self.draw_dest(stop));
          pax.dest = dest;
          pax.line = line;
          pax.ride_km = self.rand_f() as f32 * 19.0 + 1.0;
-@@ -397,7 +428,9 @@ impl PeopleSim {
+@@ -397,7 +453,9 @@ impl PeopleSim {
              return;
          }
          for (id, (stop, _)) in &self.mirror_wait {
@@ -467,14 +493,14 @@ index a3bd135..3ec9a36 100644
                  self.claims_out.push(*id);
              }
 diff --git a/crates/omsi-sim/src/people/model.rs b/crates/omsi-sim/src/people/model.rs
-index ae0150e..4250b35 100644
+index ae0150e..f138003 100644
 --- a/crates/omsi-sim/src/people/model.rs
 +++ b/crates/omsi-sim/src/people/model.rs
 @@ -455,6 +455,7 @@ pub struct PeopleSim {
      pub claimed: HashMap<u32, f64>,
      /// The host's people waiting at a stop (client): (stop, waiting place).
      pub mirror_wait: HashMap<u32, (i64, usize)>,
-+    pub mirror_hail_intent: HashMap<u32,(i64,Option<usize>,Option<String>)>,
++    pub mirror_hail_intent: HashMap<u32,(i64,Option<u64>,Option<usize>,Option<String>)>,
      /// How the player's bus is driven, for its riders' complaints.
      pub comfort: RideComfort,
      /// LAN play (host): the waiting people handed over to another player's bus, by stop and
