@@ -264,6 +264,41 @@ assert lan_panel.count('for s in [1.0, 2.0, 4.0, 8.0, 15.0, 30.0]') ==1
 lan_panel=lan_panel.replace('for s in [1.0, 2.0, 4.0, 8.0, 15.0, 30.0]', 'for s in [1.0, 2.0, 4.0, 8.0, 15.0, 30.0, 32.0]',1)
 lan_panel_path.write_text(lan_panel,encoding="utf-8")
 
+# The same authenticated native admin action is understood by both a remotely
+# delegated admin and the host's own game. Accept an absolute human HH:MM:SS
+# clock command (rather than requiring the player to convert to seconds).
+lan_action_path = root / "crates/omsi-lan/src/admin/action.rs"
+lan_action = lan_action_path.read_text(encoding="utf-8")
+old = '"clock" => Action::Clock(finite(arg)?.rem_euclid(86400.0)),'
+new = '''"clock" => Action::Clock(if arg.contains(':') {
+                let fields: Vec<_> = arg.split(':').collect();
+                if !(2..=3).contains(&fields.len()) || fields.iter().any(|v| v.len() != 2 || !v.chars().all(|c| c.is_ascii_digit())) {
+                    return None;
+                }
+                let h: u32 = fields[0].parse().ok()?;
+                let m: u32 = fields[1].parse().ok()?;
+                let s: u32 = if fields.len() == 3 { fields[2].parse().ok()? } else { 0 };
+                if h >= 24 || m >= 60 || s >= 60 { return None; }
+                (h * 3600 + m * 60 + s) as f64
+            } else {
+                finite(arg)?.rem_euclid(86400.0)
+            }),'''
+assert lan_action.count(old) == 1
+lan_action = lan_action.replace(old,new,1)
+speed_old = '"speed" => Action::Speed(finite(arg)?.clamp(1.0, 30.0)),'
+assert lan_action.count(speed_old)==1
+lan_action = lan_action.replace(speed_old,'"speed" => Action::Speed(finite(arg)?.clamp(1.0, 32.0)),',1)
+test_old = 'assert_eq!(Action::parse("clock 90000"), Some(Action::Clock(3600.0)));'
+assert lan_action.count(test_old)==1
+lan_action = lan_action.replace(test_old,test_old+'''
+        assert_eq!(Action::parse("clock 14:37:05"), Some(Action::Clock(52625.0)));
+        assert_eq!(Action::parse("clock 00:00:00"), Some(Action::Clock(0.0)));
+        assert_eq!(Action::parse("clock 23:59:59"), Some(Action::Clock(86399.0)));
+        assert_eq!(Action::parse("clock 24:01:00"), None);
+        assert_eq!(Action::parse("clock 16:70:00"), None);
+        assert_eq!(Action::parse("speed 32"), Some(Action::Speed(32.0)));''',1)
+lan_action_path.write_text(lan_action,encoding="utf-8")
+
 # Verify that all official 0.3.44 additions were transferred, not just the
 # version string. Source identity and patch proof stay independently pinned.
 target_lib = (official / "crates/omsi-app/src/lib.rs").read_text(encoding="utf-8")
