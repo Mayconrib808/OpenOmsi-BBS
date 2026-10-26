@@ -1,0 +1,40 @@
+name: Expose public verified 2.2.1.6 signing evidence
+'on':
+  push:
+    branches: [release/2.2.1.6]
+    paths: [.github/workflows/report-2216.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Confirm exact approved candidate identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/Mayconrib808/OpenOmsi-BBS/actions/runs/40409878722 > run.json
+          python - <<'PY'
+          import json
+          r=json.load(open('run.json'))
+          assert r['status']=='completed' and r['conclusion']=='success'
+          assert r['head_sha']=='b998cb477d3903481b2aa6a6106a3fe7f2687698'
+          assert r['path']=='.github/workflows/release-2216.yml'
+          PY
+      - uses: actions/download-artifact@v8
+        with:
+          name: Bridge-2.2.1.6-report
+          run-id: 40409878722
+          github-token: ${{ github.token }}
+          path: approved
+      - name: Public installer identity and preservation evidence
+        run: |
+          python - <<'PY'
+          import json
+          r=json.load(open('approved/build-report.json'))
+          print('BEGIN_PUBLIC_SIGNING_REPORT')
+          print(json.dumps(r,separators=(',',':')))
+          print('END_PUBLIC_SIGNING_REPORT')
+          PY
