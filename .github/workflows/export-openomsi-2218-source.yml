@@ -121,6 +121,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd export
+          # Keep upstream automation as inert review material; this branch publishes sources only.
+          if [ -d .github/workflows ]; then mv .github/workflows UPSTREAM-REVIEW/upstream-workflows; fi
+          printf '\nGitHub automation files are preserved under UPSTREAM-REVIEW/upstream-workflows as inert review material. For the canonical source inventory, map these back to .github/workflows. Game sources are unchanged.\n' >> UPSTREAM-REVIEW/README.md
           git init
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -131,6 +134,7 @@ jobs:
           git remote add origin https://github.com/${{ github.repository }}.git
           git push origin HEAD
       - uses: actions/upload-artifact@v7
+        if: always()
         with:
           name: OpenOMSI-Modificado-2.2.1.8-Fontes
           path: OpenOMSI-Modificado-0.3.45-Coop15-2.2.1.8-Fontes.zip
