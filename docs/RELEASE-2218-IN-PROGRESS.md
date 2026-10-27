@@ -1,0 +1,13 @@
+# 2.2.1.8 verification
+
+Native source: `7434ff5c937a55a5dec8d5ffd73bd9e71bca455b`; exact upstream 0.3.45 retained. Windows native run: 40520811799. Overlay checks every baseline/result file hash. The fixed harness driver uses Cargo package identities rather than library target names and rejects empty test filters.
+
+Local Linux: 880 omsi-sim tests passed, 31 ignored, zero failures (109.30 seconds); includes four connection regressions and three new wrist regressions. Four greeting/audio tests passed including both real mixer output presses after cabin filtering and model pitch. Actual alighting/walking/waiting/boarding to an AI bus passed with the same person id/count.
+
+Windows candidate will be based on approved 2.2.1.7 candidate 40452388183, installer a8088e4c14ebc7d2b66bdb29038697061c9a7dc8ee66b650fe0cab74f5f0338c, Coop ed9f709adb88d57972ede3937c9228c3157ac1cea467d1a97266019e9b106c0f. Unchanged desktop lobby comes from approved native run 40449138327 and must remain byte-identical to 2.2.1.7. P15 server gets the exact new game executable; P14 and unrelated assets remain unchanged. Complete rebuilt hosts require actual Windows UI controls/save/reopen tests. Setup backup buttons and three real BCS fuel CLI cases are gated again.
+
+Log findings (private raw logs not stored in the repository): 40% setting loaded; local execution, no LAN join arguments. No native panic shown. Missing collision horn scripts, one vehicle constant and tram/train AI groups belong to the installed content. AUXI/OmniNavigation/OmsiHook report their own original-OMSI compatibility failures. Long initial texture preparation and low worst-frame FPS are visible; this hotfix does not claim to eliminate them. Old logs have no actual greeting source/timing or connection outcome diagnostics, so they cannot prove a single horn press or count connection eligibility. New diagnostics cover those decisions.
+
+Limitations: no paired-player gameplay, no user-bus perceptual sound comparison, no measured national wrist frequency. Cross-player repatriation of client-owned connection passengers is not implemented; local/AI connection tests are not evidence for it. Connection percentage remains local, not a global HostAgent client policy.
+
+Publication: NOT YET PUBLISHED. Target sequence 2026102702. Only sign after Windows native and candidate gates pass; then deploy through publish-2218 and verify live manifest, installer and chunks.

@@ -3,7 +3,6 @@ name: Build 2.2.1.8 passenger connections, wrist and double horn hotfix
   push:
     branches:
     - fix/passenger-wrist-rhythm
-    - release/2.2.1.8
     paths:
     - build-support/passenger-hotfix2218/**
     - scripts/test_native_2218.py
