@@ -445,6 +445,8 @@ pub struct PeopleSim {
     pub tiles_seen: u64,
     /// LAN play: this game draws the host's people instead of its own (`lan_world`).
     pub mirror: bool,
+    /// Set only when the LAN host advertised support for taking back connections.
+    pub return_capable: bool,
     /// LAN play: where the other players are (host): people are kept around them too.
     pub lan_centers: Vec<DVec3>,
     /// A dedicated server: nobody plays at its own place (`center`, the map's camera), so
