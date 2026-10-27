@@ -932,6 +932,46 @@ mod connection_tests {
     }
 
     #[test]
+    fn cooperative_host_reclaims_only_a_valid_waiting_connection() {
+        let (root,mut h,world,_) = fixture("host-reclaim");
+        let mut s=stop(DVec3::new(10.,0.,0.));
+        s.spots.push(WaitSpot { pos: DVec3::new(10.,0.,0.), face: 0., height: 0. });
+        s.taken.push(false);
+        let key=PeopleSim::hail_line_key(&s.lines[0].1);
+        h.stops.insert(2,s);
+        assert!(h.adopt_returned_connection(&world,0,2,Some(key+1),
+            Some("Cidade".into()),7,DVec3::new(10.,0.,0.),0.).is_none());
+        assert!(h.adopt_returned_connection(&world,0,2,Some(key),
+            Some("Cidade".into()),7,DVec3::new(100.,0.,0.),0.).is_none());
+        let id=h.adopt_returned_connection(&world,0,2,Some(key),
+            Some("Cidade".into()),7,DVec3::new(10.,0.,0.),0.).unwrap();
+        let pax=h.people.iter().find(|p|p.id==id).and_then(|p|
+            if let State::Pax(x)=&p.state {Some(x.as_ref())}else{None}).unwrap();
+        assert_eq!(pax.task,Task::WaitingForBus);
+        assert_eq!(pax.stop,Some(2));
+        assert_eq!(pax.dest.as_deref(),Some("Cidade"));
+        assert_eq!(pax.transfer_from,Some(BusId::Ai(remote_bus_id(7))));
+        assert!(h.stops[&2].taken[0]);
+        assert!(h.adopt_returned_connection(&world,0,2,Some(key),
+            Some("Cidade".into()),7,DVec3::new(10.,0.,0.),0.).is_none());
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn cooperative_client_drops_only_a_confirmed_waiting_connection() {
+        let (root,mut h,_,i)=fixture("client-return");
+        let id=h.people[i].id;
+        h.pax_mut(i).unwrap().task=Task::WaitingForBus;
+        assert!(!h.finish_returned_connection(id));
+        h.pax_mut(i).unwrap().transfer_from=Some(BusId::Player);
+        h.pax_mut(i).unwrap().transfer_count=1;
+        assert!(h.finish_returned_connection(id));
+        assert!(!h.finish_returned_connection(id));
+        assert!(h.people.iter().all(|p|p.id!=id));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn alighter_walks_waits_and_boards_another_bus_without_spawning_a_duplicate() {
         let (root,mut h,world,i)=fixture("journey");
         let mut origin_stop=stop(DVec3::new(2.,0.,0.));
