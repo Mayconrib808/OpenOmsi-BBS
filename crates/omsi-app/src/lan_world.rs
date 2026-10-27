@@ -444,7 +444,7 @@ impl LanWorld {
                 let PersonPlace::Foot { x, y, z, heading, waiting: Some((stop, _)), .. } = last.v.place else { continue; };
                 if stop != intent.stop { continue; }
                 let Some(kind) = h.type_by_file(file) else { continue; };
-                if let Some(host_id) = h.adopt_returned_connection(world, kind, stop,
+                if let Some(host_id) = h.adopt_returned_connection(&*world.data(), kind, stop,
                     intent.line, intent.dest.clone(), *peer, DVec3::new(x, y, z), heading as f64) {
                     up.returned.insert(pid);
                     adopted.push(pid);
