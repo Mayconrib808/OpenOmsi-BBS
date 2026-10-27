@@ -257,14 +257,15 @@ func createCoopBackup(dir, target string, spec coopDistribution) (err error) {
 	if err = os.MkdirAll(filepath.Dir(target), 0700); err != nil {
 		return err
 	}
-	f, err := os.OpenFile(target+".part", os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
+	f, err := os.CreateTemp(filepath.Dir(target), ".coop-backup-*.zip")
 	if err != nil {
 		return err
 	}
+	temporary := f.Name()
 	defer func() {
 		f.Close()
 		if err != nil {
-			os.Remove(target + ".part")
+			os.Remove(temporary)
 		}
 	}()
 	z := zip.NewWriter(f)
@@ -300,10 +301,10 @@ func createCoopBackup(dir, target string, spec coopDistribution) (err error) {
 	}
 	// A version's verified backup is immutable; no window without a good snapshot.
 	if _, e := os.Stat(target); e == nil {
-		os.Remove(target + ".part")
+		os.Remove(temporary)
 		return nil
 	}
-	return os.Rename(target+".part", target)
+	return os.Rename(temporary, target)
 }
 
 func restoreCoopBackup(dir, backup string, spec coopDistribution) (err error) {

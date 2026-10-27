@@ -1,0 +1,102 @@
+name: Build authenticated Bridge 2.2.1.7 update with real 0.3.45 Coop15
+'on':
+  push:
+    branches:
+    - release/2.2.1.7
+    - fix/brazilian-passenger-hailing
+    paths:
+    - scripts/build_2217.py
+    - source/version.go
+    - source/coop_update.go
+    - source/setup_gui_windows.go
+    - source/setup_updates_windows.go
+    - source/company_gateway.go
+    - source/multiplayer.go
+    - source/multiplayer_clock_test.go
+    - scripts/test_complete_host_ui.py
+    - source/company_host.go
+    - source/host_agent.go
+    - source/host_config.go
+    - source/host_gui_windows.go
+    - source/dynamic_host_update.go
+    - build-support/bridge2217/native.json
+    - .github/workflows/release-2217.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: release2217
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 110
+    steps:
+    - uses: actions/checkout@v7
+    - uses: actions/setup-go@v6
+      with:
+        go-version: 1.23.2
+        cache: false
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.1.4-candidate
+        run-id: 40363087739
+        github-token: ${{ github.token }}
+        path: prior
+    - name: Wait for exact authentic native game and lobby build
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: "@'\nimport json,subprocess,time\nfrom pathlib import Path\np=json.loads(Path('build-support/bridge2217/native.json').read_text())\n\
+        for attempt in range(300):\n r=json.loads(subprocess.check_output(['gh','api','repos/Mayconrib808/OpenOmsi-BBS/actions/runs/'+str(p['run_id'])],text=True))\n\
+        \ assert r['head_sha']==p['commit'] and r['path']=='.github/workflows/native-2217.yml'\n if r['status']=='completed':\n  assert r['conclusion']=='success',r['conclusion']\n\
+        \  artifacts=json.loads(subprocess.check_output(['gh','api','repos/Mayconrib808/OpenOmsi-BBS/actions/runs/'+str(p['run_id'])+'/artifacts?per_page=100'],text=True))\n  names={a['name'] for a in artifacts.get('artifacts',[]) if not a.get('expired')}\n  if {'Bridge-2.2.1.7-native-game','Bridge-2.2.1.7-native-launcher'}<=names:\n   break\n time.sleep(20)\nelse:raise RuntimeError('Native build did not complete')\n'@ | python -\nif ($LASTEXITCODE -ne 0) {throw 'Native\
+        \ source identity or regressions failed'}"
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.1.7-native-game
+        run-id: 40444786730
+        github-token: ${{ github.token }}
+        path: native
+    - uses: actions/download-artifact@v8
+      with:
+        name: Bridge-2.2.1.7-native-launcher
+        run-id: 40444786730
+        github-token: ${{ github.token }}
+        path: lobby
+    - name: Assemble and verify native 0.3.45, complete hosts, old P14, custom sound and BCS commands
+      shell: pwsh
+      run: 'python scripts/build_2217.py --prior prior --native native --launcher lobby
+
+        if ($LASTEXITCODE -ne 0) {throw ''Release or preservation audit failed''}'
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.1.7-candidate
+        path: 'build/release-2217/Atualizar-Bridge.exe
+
+          build/release-2217/build-report.json
+
+          build/release-2217/coop-spec.json
+
+          build/release-2217/coop_bundle_manifest.go
+
+          build/release-2217/coop-assets/**
+
+          build/release-2217/native-cli-evidence.json
+
+          build/release-2217/setup-previews/**'
+        retention-days: 30
+        if-no-files-found: error
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.1.7-report
+        path: 'build/release-2217/build-report.json
+
+          build/release-2217/coop-spec.json
+
+          build/release-2217/native-cli-evidence.json
+
+          build/release-2217/setup-previews/**'
+        retention-days: 30
+        if-no-files-found: error

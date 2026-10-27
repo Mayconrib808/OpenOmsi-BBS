@@ -7,8 +7,6 @@ name: Build real 0.3.45 Coop15 with all 2.2.1.7 preserved fixes
     paths:
     - build-support/coop15-0345/**
     - build-support/passenger-hail-br/**
-    - source/**
-    - .github/workflows/native-2217.yml
   workflow_dispatch: {}
 permissions:
   contents: read
