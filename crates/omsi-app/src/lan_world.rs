@@ -180,6 +180,7 @@ pub struct LanWorld {
     mirror: Mirror,
     ups: HashMap<u32, Upstream>,
     up_view: UpView,
+    return_announce: f32,
     /// The next id a client's person gets here (far above our own people's).
     next_up_id: u32,
     epoch: Option<Instant>,
@@ -239,6 +240,7 @@ impl LanWorld {
             }
             Role::Client => {
                 let mut humans = humans;
+                if let Some(h) = humans.as_deref_mut() { h.return_capable = lan.return_capable(); }
                 for id in lan.take_return_acks() {
                     if humans.as_deref_mut().is_some_and(|h| h.finish_returned_connection(id)) {
                         log::info!("LAN: server now owns connecting passenger {id}; client copy retired");
@@ -521,6 +523,12 @@ impl LanWorld {
         mut humans: Option<&mut Humans>,
         me: Option<DVec3>,
     ) {
+        // Older protocol-15 clients simply ignore this optional announcement.
+        self.return_announce += dt;
+        if self.return_announce >= 1.0 {
+            self.return_announce = 0.0;
+            lan.announce_return_capability();
+        }
         // where the players are: the world is kept around them too
         let players: Vec<(u32, DVec3)> = lan
             .peers()
