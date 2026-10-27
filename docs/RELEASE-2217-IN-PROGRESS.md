@@ -33,4 +33,10 @@ Approved complete candidate: https://github.com/Mayconrib808/OpenOmsi-BBS/action
 Installer SHA256: a8088e4c14ebc7d2b66bdb29038697061c9a7dc8ee66b650fe0cab74f5f0338c (24493056 bytes).
 Coop archive SHA256: ed9f709adb88d57972ede3937c9228c3157ac1cea467d1a97266019e9b106c0f.
 
-The original publisher key signed sequence 2026102701. Deployment is confirmed only after publish-2217 completes its independent signature, payload and live production checks. No actual paired-player gameplay or perceptual horn listening is claimed from these automated checks.
+The original publisher key signed sequence 2026102701.
+
+## Production verified
+
+Publish run: https://github.com/Mayconrib808/OpenOmsi-BBS/actions/runs/40506879168 (publication commit cf76c6633812805fd205cd3be5c16a7029b62a3b), conclusion success. The production Worker deployed revision 1fe18b6a-8f1b-472a-a3e1-f8fa600647e3 and verified the exact signed stable manifest, installer and every current Coop package chunk by SHA256 at 2026-10-27T12:52:05Z. 167 immutable assets were retained, including the preceding 2.2.1.6 distribution. Setup Buscar atualizações now serves 2.2.1.7 / openOMSI 0.3.45 Coop15.
+
+No actual paired-player gameplay or perceptual horn listening is claimed from these automated checks.
