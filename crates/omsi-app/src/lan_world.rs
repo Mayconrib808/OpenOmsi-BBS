@@ -234,8 +234,10 @@ impl LanWorld {
                 let mut humans = humans;
                 self.departed = world.map(|w| w.departed_keys()).unwrap_or_default();
                 self.host(lan, dt, traffic, humans.as_deref_mut(), me);
-                if let (Some(w), Some(r), Some(sc), Some(h)) = (world, renderer, scene, humans) {
-                    self.people_from_clients(lan, w, r, sc, h, &mut view.people);
+                if let (Some(w), Some(h)) = (world, humans) {
+                    // The dedicated server has no Renderer/Scene. It must still
+                    // consume upstream frames and take back connecting passengers.
+                    self.people_from_clients(lan, w, renderer, scene, h, Some(&mut view.people));
                 }
             }
             Role::Client => {
@@ -386,10 +388,10 @@ impl LanWorld {
         &mut self,
         lan: &mut LanSession,
         world: &World,
-        renderer: &Renderer,
-        scene: &mut Scene,
+        renderer: Option<&Renderer>,
+        mut scene: Option<&mut Scene>,
         h: &mut Humans,
-        view: &mut PeopleView,
+        mut view: Option<&mut PeopleView>,
     ) {
         // (claims of our bus for somebody a client sent: not ours to give)
         let _ = h.take_claims();
@@ -502,10 +504,15 @@ impl LanWorld {
                 }
                 let local = self.next_up_id;
                 self.next_up_id += 1;
-                let added = h.mirror_add(world, local, ty, &pose);
-                crate::view_sync::apply_people(h, view, world, renderer, scene);
-                if added {
-                    up.ids.insert(*pid, local);
+                // Headless authoritative server has no visual mirrors.
+                // Upstream frames still drive ownership transfer and are relayed.
+                if let (Some(r), Some(sc), Some(v)) =
+                    (renderer, scene.as_deref_mut(), view.as_deref_mut()) {
+                    let added = h.mirror_add(world, local, ty, &pose);
+                    crate::view_sync::apply_people(h, v, world, r, sc);
+                    if added {
+                        up.ids.insert(*pid, local);
+                    }
                 }
             }
         }
