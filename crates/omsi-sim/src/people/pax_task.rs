@@ -300,7 +300,7 @@ impl PeopleSim {
                 // In cooperative play the host must reclaim alighting connections
                 // before any further boarding. Otherwise both simulations can
                 // put the same person aboard two different buses after packet loss.
-                if self.mirror && p.transfer_from == Some(BusId::Player)
+                if self.mirror && self.return_capable && p.transfer_from == Some(BusId::Player)
                     && p.transfer_count > 0 {
                     return;
                 }
