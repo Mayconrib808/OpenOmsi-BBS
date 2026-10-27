@@ -57,7 +57,7 @@ func migrateManagedCoop15Host(data []byte, dir string) ([]byte, string, bool, er
 	pk, _ := hostJSONField(company, "protocol")
 	company[pk] = json.RawMessage("15")
 	vk, _ := hostJSONField(company, "openomsi_version")
-	company[vk], _ = json.Marshal("0.3.44")
+	company[vk], _ = json.Marshal("0.3.45")
 	doc[key], _ = json.Marshal(company)
 	sk, _ := hostJSONField(doc, "server")
 	doc[sk], _ = json.Marshal(filepath.Join(dir, filepath.FromSlash(managedDynamicP15Server)))
@@ -299,7 +299,7 @@ func activateUpdatedDynamicHost(dir string, payload map[string][]byte) (err erro
 					pk, _ := hostJSONField(profile, "protocol")
 					profile[pk] = json.RawMessage("15")
 					vk, _ := hostJSONField(profile, "openomsi_version")
-					profile[vk], _ = json.Marshal("0.3.43")
+					profile[vk], _ = json.Marshal("0.3.45")
 					after, e := json.MarshalIndent(profile, "", "  ")
 					if e != nil {
 						return e
