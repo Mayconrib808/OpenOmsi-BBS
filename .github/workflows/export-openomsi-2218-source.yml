@@ -1,0 +1,138 @@
+name: Export standalone OpenOMSI 2.2.1.8 source for upstream review
+on:
+  push:
+    branches: [tools/export-openomsi-2218-source]
+    paths: [.github/workflows/export-openomsi-2218-source.yml]
+permissions:
+  contents: write
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: support
+          ref: 1f5d786d0fc4eaa82c89bb792ff709f028228e7f
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: c7b54b907659c3c4e58e5c51311df1b298fad9a3
+          path: game
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: 8248fe452ad4e2d420a99a482b84badb10d82ce6
+          path: official44
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          repository: openOMSI-org/openOMSI
+          ref: dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0
+          path: official45
+          persist-credentials: false
+      - name: Reconstruct exact source used by published native build
+        run: python support/build-support/passenger-hotfix2218/prepare.py
+      - name: Export cumulative diff and verify it reproduces the complete source
+        shell: python
+        run: |
+          from pathlib import Path
+          import subprocess,hashlib,json,shutil,os,zipfile
+          game=Path('game')
+          def git(*args,cwd=game):
+              return subprocess.check_output(['git',*args],cwd=cwd)
+          upstream='dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0'
+          git('fetch','../official45',upstream)
+          git('add','--intent-to-add','.')
+          patch=git('diff','--binary',upstream,'--')
+          Path('openomsi-2218-vs-official-0345.patch').write_bytes(patch)
+          shutil.copytree('official45','verify',ignore=shutil.ignore_patterns('.git'))
+          subprocess.run(['git','init','verify'],check=True)
+          subprocess.run(['git','apply','--check',str(Path('openomsi-2218-vs-official-0345.patch').resolve())],cwd='verify',check=True)
+          subprocess.run(['git','apply',str(Path('openomsi-2218-vs-official-0345.patch').resolve())],cwd='verify',check=True)
+          def inventory(root):
+              return {p.relative_to(root).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+                      for p in root.rglob('*') if p.is_file() and '.git' not in p.relative_to(root).parts}
+          expected=inventory(game)
+          assert expected==inventory(Path('verify')), 'Patch failed complete source roundtrip'
+          shutil.copytree(game,'export',ignore=shutil.ignore_patterns('.git'))
+          review=Path('export/UPSTREAM-REVIEW');review.mkdir()
+          shutil.copy2('openomsi-2218-vs-official-0345.patch',review/'changes-vs-official-0.3.45.patch')
+          (review/'source-sha256.json').write_text(json.dumps(expected,indent=2)+'\n')
+          (review/'provenance.json').write_text(json.dumps({
+              'native_version':'0.3.45-coop.15-2.2.1.8',
+              'upstream_repository':'openOMSI-org/openOMSI',
+              'upstream_commit':upstream,
+              'support_commit':'1f5d786d0fc4eaa82c89bb792ff709f028228e7f',
+              'native_build_source_commit':'6a90ea5682d748fc9d3113b7bee314e61379bfc4',
+              'native_build_run':40526375163,
+              'patch_roundtrip':'verified against every file',
+              'source_file_count':len(expected),
+              'patch_sha256':hashlib.sha256(patch).hexdigest()
+          },indent=2)+'\n')
+          (review/'README.md').write_text("""# OpenOMSI modified source for upstream review
+          
+          This tree contains the reconstructed OpenOMSI game source used by native build
+          0.3.45-coop.15-2.2.1.8. It does not include the external BCS Bridge application,
+          Setup, HostAgent, update service, signing keys, or proprietary BCS JAR.
+          Native game hooks that were present in the published game remain unchanged
+          so this is an accurate source export, not a newly edited variant.
+          
+          Base: official openOMSI-org/openOMSI 0.3.45,
+          commit dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0.
+          
+          changes-vs-official-0.3.45.patch is the cumulative game-only diff, including
+          added files. Applying it to the exact official commit was verified to
+          reproduce every file in source-sha256.json. This review folder is additional
+          packaging documentation and is excluded from that source inventory.
+          
+          Features span cooperative driving/conductor controls and handover,
+          dynamic dedicated-server loading, passenger umbrellas and hailing,
+          passenger connections, double-horn greetings, and native admin clock controls.
+          Refer to the patch and tests for exact implementation and scope.
+          
+          Build on Windows with the upstream prerequisites (stable Rust/MSVC and
+          dependencies documented in the original README):
+          
+              $env:OPENOMSI_VERSION="0.3.45-coop.15-2.2.1.8"
+              $env:OPENOMSI_COOP_GAME_ONLY="1"
+              $env:TAURI_CONFIG='{"version":"0.3.45"}'
+              cargo build --locked --release -p omsi-app -p omsi-launcher-core
+          
+          The published build also compiled the generic 32-bit plugin host:
+          
+              rustup target add i686-pc-windows-msvc
+              cargo build --locked --release --target i686-pc-windows-msvc -p omsi-plugin --bin omsi-plugin-host
+          
+          Original upstream licensing, authorship and notices are retained.
+          This export validates source reconstruction and the patch roundtrip;
+          it does not claim a fresh compilation or paired multiplayer qualification.
+          In particular, client-owned connecting passengers returning to the
+          authoritative multiplayer host remain a documented limitation.
+          """,encoding='utf-8')
+          with zipfile.ZipFile('OpenOMSI-Modificado-0.3.45-Coop15-2.2.1.8-Fontes.zip','w',zipfile.ZIP_DEFLATED) as z:
+              for p in sorted(Path('export').rglob('*')):
+                  if p.is_file():z.write(p,'OpenOMSI-Modificado/'+p.relative_to('export').as_posix())
+          print('VERIFIED_SOURCE_EXPORT',len(expected),'files',len(patch),'patch bytes')
+      - name: Publish isolated source branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd export
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .
+          git commit -m "Export exact OpenOMSI 0.3.45 Coop15 2.2.1.8 sources for upstream review"
+          git branch -M source/openomsi-0.3.45-coop15-2.2.1.8
+          gh auth setup-git
+          git remote add origin https://github.com/${{ github.repository }}.git
+          git push origin HEAD
+      - uses: actions/upload-artifact@v7
+        with:
+          name: OpenOMSI-Modificado-2.2.1.8-Fontes
+          path: OpenOMSI-Modificado-0.3.45-Coop15-2.2.1.8-Fontes.zip
+          retention-days: 30
+          if-no-files-found: error
