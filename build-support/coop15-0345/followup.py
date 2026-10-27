@@ -149,7 +149,15 @@ edit("crates/omsi-app/src/app_impl/lan_tick.rs",
             if lan::note_driver_authority(&mut self.net.remotes,lan,from,text){return;}
         }
         if self.drive_receive""")
-edit("crates/omsi-app/src/offscreen/step.rs","            ref remotes_off,\n","            ref mut remotes_off,\n")
+edit("crates/omsi-app/src/offscreen/step.rs",
+"""            ref mut srv_weather_name,
+            ref mut lan_off,
+            ref remotes_off,
+""",
+"""            ref mut srv_weather_name,
+            ref mut lan_off,
+            ref mut remotes_off,
+""")
 edit("crates/omsi-app/src/offscreen/step.rs",
 "            let positions = |id: u32| remotes_off.remotes.get(&id).map(|r| (r.vehicle().position, r.vehicle().heading));",
 """            let mut commands=l.take_commands();

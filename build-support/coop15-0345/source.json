@@ -177,7 +177,7 @@
     "launcher/ui/styles.css": "f2ece2a89e0f8585b6fe76cadb372ad1af0cf1359d99a0efe0b36e7c1e578774"
   },
   "native_version": "0.3.45-coop.15-2.2.1.7",
-  "followup_sha256": "48ea914dc1998ddc2249a6f942a1fb2b7c5171954514b8aaaaed18150d8e6685",
+  "followup_sha256": "a57a937aba80c2db96bcf6352d2a87c9874fc1fb4d9b0d3c2bce57ed2075111e",
   "followup_changed_paths": [
     "crates/omsi-sim/src/human/gesture.rs",
     "crates/omsi-app/src/view_sync/people/extras.rs",
