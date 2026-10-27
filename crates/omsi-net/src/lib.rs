@@ -1396,6 +1396,8 @@ pub struct LanSession {
     grants: Vec<(Vec<u32>, bool)>,
     /// Acknowledgements that a connecting passenger is authoritative on the host.
     return_acks: Vec<u32>,
+    /// Explicit host capability: older servers keep their existing passenger behavior.
+    return_capable: bool,
     world_seq: u16,
     /// People on foot of the clients' own (boarding and leaving their buses), as they send
     /// them up (host): (player, when it came, frame); and their descriptions.
@@ -1533,6 +1535,7 @@ impl LanSession {
             claims: Vec::new(),
             grants: Vec::new(),
             return_acks: Vec::new(),
+            return_capable: false,
             world_seq: 0,
             world_up: Vec::new(),
             descs_up: Vec::new(),
@@ -2127,6 +2130,14 @@ impl LanSession {
                 self.send(format!("{word}|{}", ids.join(",")).as_bytes(), to);
             }
         }
+    }
+
+    /// Whether this host supports transferring alighting passengers back to it.
+    pub fn return_capable(&self) -> bool { self.return_capable }
+
+    /// Advertise backwards-compatible feature support only from a real host.
+    pub fn announce_return_capability(&self) {
+        if self.role == Role::Host { self.broadcast(b"PAXRETURN1", None); }
     }
 
     /// Acknowledge a passenger returned to host ownership. Repeated until the client
@@ -2811,6 +2822,9 @@ impl LanSession {
                     if !list.is_empty() {
                         self.grants.push((list, parts[0] == "GRANT"));
                     }
+                }
+                ("PAXRETURN1", Role::Client) => {
+                    if self.host == Some(from) { self.return_capable = true; }
                 }
                 ("RETURNED", Role::Client) => {
                     if self.host == Some(from) {
