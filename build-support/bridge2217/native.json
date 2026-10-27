@@ -9,12 +9,13 @@
   "neck_fix_retained": true,
   "bcs_fuel_fix_retained": true,
   "version": "2.2.1.7",
-  "run_id": 40444786730,
-  "commit": "e2b59ffffa7dbabe9b18b3ce47f295ead14791f6",
+  "run_id": 40449138327,
+  "commit": "9eb3f7ef92163dce9029886897bb215ccb83daef",
   "handover_discriminator": "0xBE",
   "official_freetex_discriminator": "0xBD",
   "admin_clock_opt_in": true,
   "delegated_passenger_role": true,
   "changes_sha256": "604d8986802e4f9623757edc5d3552fa102a11adb7b99c64fc948a4f9bd720dc",
-  "default_transfer_percent": 20
+  "default_transfer_percent": 20,
+  "followup_sha256": "a57a937aba80c2db96bcf6352d2a87c9874fc1fb4d9b0d3c2bce57ed2075111e"
 }

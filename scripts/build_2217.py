@@ -63,7 +63,7 @@ def main():
    z.writestr('build-support/'+relative,(ROOT/'build-support'/relative).read_bytes())
   z.writestr('port-0344-prepare.py',(ROOT/'build-support/coop15-0344/prepare.py').read_bytes())
   z.writestr('port-0344-source.json',(ROOT/'build-support/coop15-0344/source.json').read_bytes())
-  z.writestr('README.txt','Apply cumulative.patch to pinned official openOMSI v0.3.43, then use port-0344-prepare.py plus the pinned v0.3.45 source to merge the seven official 0.3.45 changes. All previously shipped Coop/passenger changes plus the street-facing hailing arm. Then apply the researched passenger-hail-br overlay and checked coop15-0345/changes.patch containing genuine v0.3.45 plus the new fixes. Complete reproduction is defined by native-2217.yml at the native-input.json commit. Full corresponding source is available from the pinned upstream tags and these exact patches.\n')
+  z.writestr('README.txt','Apply cumulative.patch to pinned official openOMSI v0.3.43, then use port-0344-prepare.py to merge the seven official 0.3.44 changes. All previously shipped Coop/passenger changes plus the street-facing hailing arm. Then apply the researched passenger-hail-br overlay and checked coop15-0345/changes.patch containing genuine v0.3.45 plus the new fixes. Complete reproduction is defined by native-2217.yml at the native-input.json commit. Full corresponding source is available from the pinned upstream tags and these exact patches.\n')
  files[COOP+'/source/passengers-2.2.1.7-source.zip']=sources.getvalue()
  server_name='app/server-dinamico-p15/openomsi.exe'
  files[server_name]=files[COOP+'/programa/openomsi.exe']
