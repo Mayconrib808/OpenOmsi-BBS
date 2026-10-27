@@ -1,0 +1,58 @@
+name: Check OpenOMSI 2.2.1.8 hotfix passenger returns
+on:
+  push:
+    branches: [hotfix/2.2.1.8-passenger-return]
+    paths: [.github/workflows/native-2218-return-hotfix.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.8-hotfix.1
+      OPENOMSI_COOP_GAME_ONLY: "1"
+      TAURI_CONFIG: '{"version":"0.3.45"}'
+      CARGO_TERM_COLOR: never
+    steps:
+      - name: Checkout reviewed hotfix source exactly
+        uses: actions/checkout@v4
+        with:
+          repository: Mayconrib808/OpenOmsi-BBS
+          ref: df0c461f406d6a26ecff448b256859cf4a994387
+          path: game
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: game -> target
+          cache-on-failure: true
+      - name: Check and test passenger return cases
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo test --locked -p omsi-sim connection_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw "Passenger return regressions" }
+          cargo check --locked -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw "Client/host compile" }
+      - name: Build matching native Windows game and server
+        working-directory: game
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app -p omsi-launcher-core
+          if ($LASTEXITCODE -ne 0) { throw "Native release build" }
+          & .\target\release\openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "Version check" }
+          & .\target\release\openomsi.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Native self-test" }
+      - name: Export native candidate (NOT live update)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.1.8-hotfix1-native
+          path: |
+            game/target/release/openomsi.exe
+            game/target/release/openomsi-launcher.exe
+            game/target/release/steam_api64.dll
+          if-no-files-found: error
+          retention-days: 30
