@@ -24,6 +24,13 @@ Upstream target: dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0 (v0.3.45). Start from 
 
 All 12 arm/hailing/neck tests and the connection test pass locally. The arm IK transports its elbow plane with the reach direction and owns its smooth phase. This avoids an elbow-plane singularity during the transition. Driver-role menu actions are gated, current visiting drivers can authorize a conductor while standing, and dedicated status consumes authenticated sender-owned assignment metadata without granting simulation authority. Native type checks also pass. The checked follow-up source layer is reproduced and tested by Windows CI.
 
-## Still required before publication
+## Windows candidate verified
 
-Full native Windows suites, genuine 0.3.45 controllers/trams, real executable identity/self-test/fuel CLI, full rebuilt HostAgent six-controls plus admin-clock UI verification, Setup backup button UI verification, signed candidate publication and live updater verification. Actual paired-player gameplay cannot be claimed from unit tests alone.
+Native run: https://github.com/Mayconrib808/OpenOmsi-BBS/actions/runs/40449138327 (source 9eb3f7ef92163dce9029886897bb215ccb83daef). All selected native suites passed: simulation including hailing/connections, network, LAN, launcher, driver/conductor, roof, audio and original 0.3.45 input tests. The actual game passed version/help/self-test and the generic 32-bit host was compiled.
+
+Approved complete candidate: https://github.com/Mayconrib808/OpenOmsi-BBS/actions/runs/40452388183 (source 2b03a649aaf19b51dfe919eb25dd53c02e84e0e8). Full portable Bridge tests passed on Windows, actual fuel CLI cases passed, actual rebuilt P15 HostAgent UI verified all six controls plus admin clock, and Setup GUI smoke verified backup controls. P14 and unrelated runtime assets were checked by SHA256. Default, managed host and cached company profile identify 0.3.45.
+
+Installer SHA256: a8088e4c14ebc7d2b66bdb29038697061c9a7dc8ee66b650fe0cab74f5f0338c (24493056 bytes).
+Coop archive SHA256: ed9f709adb88d57972ede3937c9228c3157ac1cea467d1a97266019e9b106c0f.
+
+The original publisher key signed sequence 2026102701. Deployment is confirmed only after publish-2217 completes its independent signature, payload and live production checks. No actual paired-player gameplay or perceptual horn listening is claimed from these automated checks.
