@@ -151,6 +151,14 @@ impl State{
  }
  }
 }
+/// One pose for the fabric and its water: both fold and turn with the same canopy.
+fn canopy_pose(st: &State, at: DVec3, xf: Mat4) -> (DVec3, Mat4) {
+ let open=st.open.clamp(0.,1.);
+ let diameter=0.04+0.96*open;
+ let scale=Vec3::new(diameter*st.size,diameter*st.size,(1.9-0.9*open)*st.size);
+ (at+xf.transform_vector3(st.cap).as_dvec3(),xf*Mat4::from_quat(st.cap_rotation)*Mat4::from_scale(scale))
+}
+
 #[derive(Default)]
 pub(super) struct Renders{meshes:Option<(MeshId,MeshId,Vec<MaterialId>,Vec<Vec<MaterialId>>)>,live:HashMap<u32,(usize,usize)>,spare:Vec<(usize,usize)>,water:water::WaterRenders,pub new_this_frame:usize}
 impl Renders{
@@ -177,9 +185,7 @@ impl Renders{
  let base=at+xf.transform_vector3(st.grip).as_dvec3();
  let axis=st.cap-st.grip;let rotation=Quat::from_rotation_arc(Vec3::Z,axis.normalize_or(Vec3::Z));
  renderer.set_transform(scene,pair.0,base,xf*Mat4::from_quat(rotation)*Mat4::from_scale(Vec3::new(st.size,st.size,axis.length().max(0.05)/0.78)));renderer.set_params(scene,pair.0,&[],true,&[]);
- let open=st.open.clamp(0.,1.);let diameter=0.04+0.96*open;
- let cap_xf=xf*Mat4::from_quat(st.cap_rotation)*Mat4::from_scale(Vec3::new(diameter*st.size,diameter*st.size,(1.9-0.9*open)*st.size));
- let cap_at=at+xf.transform_vector3(st.cap).as_dvec3();
+ let (cap_at,cap_xf)=canopy_pose(st,at,xf);
  renderer.set_transform(scene,pair.1,cap_at,cap_xf);renderer.set_params(scene,pair.1,&[],true,&[]);
  self.water.draw(p,st,at,xf,renderer,scene);
  }
