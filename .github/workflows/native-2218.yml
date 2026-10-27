@@ -1,0 +1,108 @@
+name: Build 2.2.1.8 passenger connections, wrist and double horn hotfix
+'on':
+  push:
+    branches:
+    - fix/passenger-wrist-rhythm
+    - release/2.2.1.8
+    paths:
+    - build-support/passenger-hotfix2218/**
+    - scripts/test_native_2218.py
+    - .github/workflows/native-2218.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: native2218-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  game:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.8
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+      TAURI_CONFIG: '{"version":"0.3.45"}'
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        path: support
+        persist-credentials: false
+    - uses: actions/checkout@v7
+      with:
+        repository: openOMSI-org/openOMSI
+        ref: c7b54b907659c3c4e58e5c51311df1b298fad9a3
+        path: game
+        persist-credentials: false
+    - uses: actions/checkout@v7
+      with:
+        repository: openOMSI-org/openOMSI
+        ref: 8248fe452ad4e2d420a99a482b84badb10d82ce6
+        path: official44
+        persist-credentials: false
+    - uses: actions/checkout@v7
+      with:
+        repository: openOMSI-org/openOMSI
+        ref: dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0
+        path: official45
+        persist-credentials: false
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Apply audited cumulative Coop15 port to exact official 0.3.45
+      shell: pwsh
+      run: 'python support/build-support/passenger-hotfix2218/prepare.py
+
+        if ($LASTEXITCODE -ne 0) {throw ''Source identity or cumulative port failed''}'
+    - name: Retained installed-map aliases and independent passenger choices
+      shell: pwsh
+      run: 'node support/build-support/passengers221/lobby.test.mjs game
+
+        if ($LASTEXITCODE -ne 0) {throw ''Passenger UI regression''}'
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: coop14-0341-windows
+        cache-on-failure: true
+        workspaces: game -> target
+        cache-workspace-crates: false
+    - name: Retained and new native regression gates
+      shell: pwsh
+      working-directory: game
+      run: 'python ../support/scripts/test_native_2218.py
+
+        if ($LASTEXITCODE -ne 0) {throw ''Native regressions failed''}'
+    - name: Build actual Windows game and CLI
+      shell: pwsh
+      working-directory: game
+      run: 'cargo build --locked --release -p omsi-app -p omsi-launcher-core
+
+        if ($LASTEXITCODE -ne 0) {throw ''Native game build failed''}'
+    - name: Build isolated generic 32-bit OMSI plugin host
+      working-directory: game
+      run: 'rustup target add i686-pc-windows-msvc
+
+        if ($LASTEXITCODE -ne 0) {throw ''32-bit target''}
+
+        cargo build --locked --release --target i686-pc-windows-msvc -p omsi-plugin --bin omsi-plugin-host
+
+        if ($LASTEXITCODE -ne 0) {throw ''Generic plugin host''}
+
+        '
+    - name: Real executable identity and self-test
+      shell: pwsh
+      run: "@'\nfrom pathlib import Path\nimport subprocess,shutil,json,os,hashlib\nout=Path('native');out.mkdir()\n\
+        exe=Path('game/target/release/openomsi.exe').resolve()\nfor option in ('--version','--self-test','--help'):\n\
+        \ result=subprocess.run([str(exe),option],capture_output=True,text=True,errors='replace',timeout=60)\n text=result.stdout+'\\\
+        n'+result.stderr\n assert result.returncode==0,(option,text)\n (out/(option[2:]+'.txt')).write_text(text,encoding='utf-8')\n\
+        \ if option=='--version': assert '0.3.45-coop.15-2.2.1.8' in text\n if option=='--self-test': assert 'self-test\
+        \ ok' in text.lower()\n if option=='--help': assert '--setvar' in text and '--server' in text\nfor name\
+        \ in ('openomsi.exe','openomsi-launcher.exe','steam_api64.dll'):\n shutil.copy2(Path('game/target/release')/name,out/name)\n\
+        shutil.copy2(Path('game/target/i686-pc-windows-msvc/release/omsi-plugin-host.exe'),out/'omsi-plugin-host32.exe')\n\
+        info={'commit':os.environ['GITHUB_SHA'],'upstream_commit':'dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0','native_version':'0.3.45-coop.15-2.2.1.8'}\n\
+        (out/'SOURCE.json').write_text(json.dumps(info,indent=2))\n'@ | python -\nif ($LASTEXITCODE -ne 0) {throw\
+        \ 'Actual native executable validation failed'}"
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Bridge-2.2.1.8-native-game
+        path: native/*
+        retention-days: 30
+        if-no-files-found: error

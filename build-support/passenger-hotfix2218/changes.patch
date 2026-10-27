@@ -1,0 +1,582 @@
+diff --git a/crates/omsi-app/src/view_sync/people/extras.rs b/crates/omsi-app/src/view_sync/people/extras.rs
+index 737a9f0..a6a9985 100644
+--- a/crates/omsi-app/src/view_sync/people/extras.rs
++++ b/crates/omsi-app/src/view_sync/people/extras.rs
+@@ -45,6 +45,7 @@ impl Config{pub fn of(s:&crate::settings::Settings)->Self{Self{umbrellas:s.passe
+ pub(super) struct State{
+  cover: Cover,
+  look:omsi_sim::human::HailLook,
++ wrist:omsi_sim::human::HailWrist,
+  full_gate:omsi_sim::human::FullBusHail<omsi_sim::people::BusId>,
+  pub open:f32,pub arm:f32,pub hail:f32,pub carried:bool,pub grip:Vec3,pub hail_side:usize,
+  wet:f32,pub wetness:f32,pub time:f32,pub cap:Vec3,pub size:f32,pub raise:f32,pub cap_rotation:Quat,initialized:bool,pub rest:Option<Arc<HandRest>>,
+@@ -100,6 +101,7 @@ impl State{
+  let starting_hail=self.hail<=0.001&&hail;
+  self.hail+=(if hail{1.}else{0.}-self.hail).clamp(-dt*2.8,dt*2.8);
+  if !enabled||!c.hail||!hail_map {self.hail=0.;}
++ let wrist_wave=self.wrist.advance(self.hail>0.001,dt,p.id);
+  let torso_slot=omsi_sim::human::slot_of(omsi_sim::human::BONE_MAIN).unwrap();
+  let waiting_forward=bones[torso_slot].transform_vector3(Vec3::Y);
+  let gaze=if outside && eligible && c.hail && hail_map {
+@@ -133,7 +135,7 @@ impl State{
+  let ease=self.hail; // The arm IK owns its phase; do not ease it twice.
+  // Boarding request observed in Brazilian reference photographs: arm extended
+  // in the waiting pose's streetward direction, around shoulder height.
+- accessory_hail_arm(&ty.rig,bones,side,waiting_forward,ease,0.);
++ accessory_hail_arm(&ty.rig,bones,side,waiting_forward,ease,wrist_wave);
+  }
+  }
+  pub fn skin(&self,bones:&[Affine3A;omsi_sim::human::SLOTS],skins:&mut[(Vec<Vec3>,Vec<Vec3>)]){
+diff --git a/crates/omsi-app/src/view_sync/traffic_audio.rs b/crates/omsi-app/src/view_sync/traffic_audio.rs
+index 40f4483..019fe67 100644
+--- a/crates/omsi-app/src/view_sync/traffic_audio.rs
++++ b/crates/omsi-app/src/view_sync/traffic_audio.rs
+@@ -191,21 +191,31 @@ impl Traffic {
+             // A selected model horn may reference an absent clip, especially
+             // with community OMSI buses. Try the stock AI horn before silence.
+             let fallback = omsi_cfg::resolve_path(&self.sim.root, file);
+-            let clip = model_horn.as_ref().and_then(|path| audio.load_clip(path))
+-                .or_else(|| audio.load_clip(&fallback));
+-            let Some(clip) = clip else {
++            let usable=|c:&Arc<omsi_audio::Clip>| !greeting || c.samples.iter().any(|v|i32::from(*v).abs()>96);
++            let chosen = model_horn.as_ref().and_then(|path|audio.load_clip(path).filter(&usable).map(|clip|(clip,path,true)))
++                .or_else(||audio.load_clip(&fallback).filter(&usable).map(|clip|(clip,&fallback,false)));
++            let Some((clip,source,using_model)) = chosen else {
+                 log::warn!("AI greeting horn unavailable (model and stock) for {}", ty.def.path.display());
+                 continue;
+             };
++            // A stock fallback must not inherit the missing model clip's pitch,
++            // loop state, unrelated release sample or low volume.
++            if !using_model {model_loop=false;sample_rate=0.0;model_volume=1.0;model_range=24.0;}
+             let pitch = if model_loop && sample_rate > 0.0 { (sample_rate / clip.sample_rate.max(1) as f32).clamp(0.5, 2.0) } else { 1.0 };
+-            let release = model_release.as_ref().and_then(|p| audio.load_clip(p));
+-            let clip = if greeting { Arc::new(omsi_audio::greeting::double_horn_parts(&clip, release.as_deref(), model_loop)) } else { clip };
++            let release = using_model.then(||model_release.as_ref().and_then(|p|audio.load_clip(p))).flatten();
++            let clip = if greeting {
++                let pattern=omsi_audio::greeting::double_horn_timed(&clip,release.as_deref(),model_loop,pitch);
++                log::info!("AI greeting horn: bus={} pattern=2 source={} press_ms={:.0} gap_ms={:.0} model_pitch={pitch:.3} distance_m={:.1} muffled={muffled}",
++                    ty.def.path.display(),source.display(),pattern.press_frames as f64*1000.0/pattern.clip.sample_rate.max(1) as f64,
++                    pattern.gap_frames as f64*1000.0/pattern.clip.sample_rate.max(1) as f64,(*position-listener).length());
++                Arc::new(pattern.clip)
++            } else {clip};
+             let at = *position + DVec3::Z * 0.8;
+             audio.play(
+                 clip,
+                 omsi_audio::mixer::VoiceParams {
+                     gain: volume * model_volume * if greeting { 1.6 } else { 1.0 },
+-                    pitch,
++                    pitch:if greeting {1.0}else{pitch},
+                     looping: false,
+                     position: Some(at.as_vec3()),
+                     doppler: true,
+diff --git a/crates/omsi-audio/src/greeting.rs b/crates/omsi-audio/src/greeting.rs
+index 8ac6693..b5e851a 100644
+--- a/crates/omsi-audio/src/greeting.rs
++++ b/crates/omsi-audio/src/greeting.rs
+@@ -4,29 +4,65 @@ use crate::Clip;
+ pub fn double_horn(source: &Clip) -> Clip { double_horn_parts(source, None, false) }
+ 
+ pub fn double_horn_parts(source: &Clip, release: Option<&Clip>, looping: bool) -> Clip {
++    double_horn_timed(source, release, looping, 1.0).clip
++}
++
++pub struct DoubleHorn {
++    pub clip: Clip,
++    pub press_frames: usize,
++    pub gap_frames: usize,
++}
++
++/// Apply the model's sample-rate pitch to the recording BEFORE constructing
++/// the two presses. Pitching the whole sequence also shortened its silence,
++/// merging the two honks perceptually on models requesting double speed.
++pub fn double_horn_timed(source: &Clip, release: Option<&Clip>, looping: bool, pitch: f32) -> DoubleHorn {
+     let channels = usize::from(source.channels.max(1));
+     let rate = source.sample_rate.max(1) as usize;
+-    let frames = source.frames();
++    let frames = source.samples.len() / channels;
++    let pitch = if pitch.is_finite() { pitch.clamp(0.5, 2.0) } else { 1.0 };
+     let audible = |i: usize| source.samples[i*channels..(i+1)*channels].iter().any(|v| i32::from(*v).abs() > 96);
+     let first = (0..frames).find(|i| audible(*i)).unwrap_or(0).saturating_sub(rate/100);
+     let end = (first..frames).rfind(|i| audible(*i)).map_or(first, |i| (i+1+rate/50).min(frames));
+     let available = end.saturating_sub(first);
+-    // Keep a short one-shot whole; a loop recording needs an actual button-release
+-    // envelope instead of a hard truncation. Never repeat its attack within a press.
+-    let count = if !looping && available <= rate*7/10 { available }
+-        else { available.min(rate*38/100) };
+-    let mut tap = source.samples[first*channels..(first+count)*channels].to_vec();
+-    let release = release.filter(|c| c.sample_rate == source.sample_rate && usize::from(c.channels) == channels);
++    // Keep a short one-shot whole. A recording explicitly marked as a sustained
++    // loop keeps sounding for the press, instead of becoming a tiny click when
++    // its loop file is short. Both use an actual release envelope.
++    let natural = (available as f32 / pitch).ceil() as usize;
++    let count = if looping && available > 0 { rate*38/100 }
++        else if natural <= rate*7/10 { natural }
++        else { rate*38/100 };
++    let mut tap = Vec::with_capacity(count*channels);
++    for i in 0..count {
++        let at = i as f32 * pitch;
++        let a = if looping { (at as usize) % available } else { (at as usize).min(available-1) };
++        let b = if looping { (a+1) % available } else { (a+1).min(available-1) };
++        let f = at.fract();
++        for c in 0..channels {
++            let x=source.samples[(first+a)*channels+c] as f32;
++            let y=source.samples[(first+b)*channels+c] as f32;
++            tap.push((x+(y-x)*f) as i16);
++        }
++    }
++    let release = release.filter(|c| available>0 && c.sample_rate == source.sample_rate && usize::from(c.channels) == channels);
+     if let Some(tail) = release {
+-        let overlap = (rate/50).min(count).min(tail.frames());
++        let tail_frames = ((tail.frames() as f32 / pitch).ceil() as usize).min(rate*3/10);
++        let overlap = (rate/50).min(count).min(tail_frames);
+         let start = tap.len().saturating_sub(overlap*channels);
+-        for i in 0..overlap {
+-            let f = i as f32 / overlap.max(1) as f32;
++        for i in 0..tail_frames {
++            let at=i as f32*pitch;
++            let a=(at as usize).min(tail.frames()-1);
++            let b=(a+1).min(tail.frames()-1);
+             for c in 0..channels {
+-                tap[start+i*channels+c] = (tap[start+i*channels+c] as f32*(1.-f)+tail.samples[i*channels+c] as f32*f) as i16;
++                let x=tail.samples[a*channels+c] as f32;
++                let y=tail.samples[b*channels+c] as f32;
++                let sample=x+(y-x)*at.fract();
++                if i<overlap {
++                    let f=i as f32/overlap.max(1) as f32;
++                    tap[start+i*channels+c]=(tap[start+i*channels+c] as f32*(1.-f)+sample*f) as i16;
++                } else { tap.push(sample as i16); }
+             }
+         }
+-        tap.extend_from_slice(&tail.samples[overlap*channels..tail.samples.len().min(rate*channels*3/10)]);
+     }
+     let n = tap.len()/channels;
+     for i in 0..n {
+@@ -41,10 +77,11 @@ pub fn double_horn_parts(source: &Clip, release: Option<&Clip>, looping: bool) -
+     let rms = (tap.iter().map(|v| (*v as f32).powi(2)).sum::<f32>() / tap.len().max(1) as f32).sqrt();
+     let gain = if peak > 0. { (6500./rms.max(1.)).clamp(1.,2.5).min(29000./peak) } else { 1. };
+     for x in &mut tap { *x = (*x as f32*gain) as i16; }
+-    let gap = rate*16/100*channels;
++    let gap_frames = rate*24/100;
++    let gap = gap_frames*channels;
+     let mut samples = Vec::with_capacity(tap.len()*2+gap);
+     samples.extend_from_slice(&tap); samples.resize(tap.len()+gap,0); samples.extend_from_slice(&tap);
+-    Clip { sample_rate: source.sample_rate, channels: channels as u16, samples }
++    DoubleHorn { clip:Clip { sample_rate: source.sample_rate, channels: channels as u16, samples }, press_frames:n, gap_frames }
+ }
+ 
+ #[cfg(test)]
+@@ -55,7 +92,7 @@ mod tests {
+         for rate in [22050,44100,48000] { for channels in [1,2] {
+             let source = Clip { sample_rate: rate, channels, samples: vec![12000; rate as usize*channels as usize] };
+             let clip = double_horn(&source);
+-            let tap = rate as usize*38/100*channels as usize; let gap = rate as usize*16/100*channels as usize;
++            let tap = rate as usize*38/100*channels as usize; let gap = rate as usize*24/100*channels as usize;
+             assert_eq!(clip.samples.len(),tap*2+gap);
+             assert!(clip.samples[tap..tap+gap].iter().all(|v| *v==0));
+             assert_eq!(&clip.samples[..tap],&clip.samples[tap+gap..]);
+@@ -66,12 +103,27 @@ mod tests {
+     #[test]
+     fn short_recording_keeps_its_full_tail_and_loop_uses_separate_release() {
+         let source = Clip { sample_rate:1000,channels:1,samples:vec![1000;300] };
+-        assert_eq!(double_horn(&source).frames(),760);
++        assert_eq!(double_horn(&source).frames(),840);
+         let tail = Clip { sample_rate:1000,channels:1,samples:vec![-1000;100] };
+         let out=double_horn_parts(&source,Some(&tail),true);
+         assert!(out.samples.iter().any(|v| *v<0));
+-        assert_eq!(out.frames(),920);
++        assert_eq!(out.frames(),1160);
+         let empty=Clip { sample_rate:1000,channels:1,samples:vec![] };
+         assert!(double_horn(&empty).samples.iter().all(|v|*v==0));
+     }
++
++    #[test]
++    fn model_pitch_cannot_shorten_the_gap_or_turn_a_short_loop_into_two_clicks() {
++        for pitch in [0.5, 1.0, 2.0] {
++            let source=Clip {sample_rate:48000,channels:1,samples:(0..2400)
++                .map(|i|((i as f32*std::f32::consts::TAU*400.0/48000.0).sin()*12000.0) as i16).collect()};
++            let out=double_horn_timed(&source,None,true,pitch);
++            assert_eq!(out.press_frames,18240);
++            assert_eq!(out.gap_frames,11520);
++            let n=out.press_frames;let g=out.gap_frames;
++            assert_eq!(&out.clip.samples[..n],&out.clip.samples[n+g..]);
++            assert!(out.clip.samples[n..n+g].iter().all(|v|*v==0));
++            assert!(out.clip.samples[..n].iter().filter(|v|i32::from(**v).abs()>1000).count()>n/2);
++        }
++    }
+ }
+diff --git a/crates/omsi-audio/src/mixer.rs b/crates/omsi-audio/src/mixer.rs
+index e614844..64ff5f2 100644
+--- a/crates/omsi-audio/src/mixer.rs
++++ b/crates/omsi-audio/src/mixer.rs
+@@ -712,6 +712,29 @@ mod tests {
+         assert!(out.iter().all(|x| (*x - 0.5).abs() < 1e-3), "{out:?}");
+     }
+ 
++    #[test]
++    fn greeting_keeps_two_audible_presses_after_cabin_filter_and_model_pitch() {
++        for pitch in [0.5,1.0,2.0] {
++            let source=Clip {sample_rate:48000,channels:1,samples:(0..2400).map(|i|
++                ((i as f32*std::f32::consts::TAU*500.0/48000.0).sin()*10000.0) as i16).collect()};
++            let pattern=crate::greeting::double_horn_timed(&source,None,true,pitch);
++            let n=pattern.press_frames;let gap=pattern.gap_frames;
++            let frames=pattern.clip.frames();
++            let (mut mixer,_,_)=shared();
++            let mut horn=voice(Arc::new(pattern.clip),1.0);
++            horn.params.looping=false;horn.params.lowpass_hz=3800.0;
++            horn.params.important=true;
++            mixer.voices.push(horn);
++            let mut heard=vec![0.0;frames];
++            mixer.render(&mut heard);
++            let energy=|a:usize,b:usize| heard[a..b].iter().map(|v|v*v).sum::<f32>()/(b-a) as f32;
++            let first=energy(2400,n-2400);let second=energy(n+gap+2400,frames-2400);
++            assert!(first>0.005 && second>0.005,"one of the two presses disappeared at pitch {pitch}");
++            assert!(energy(n+2400,n+gap-2400)<first*0.001,"cabin filter merged both presses");
++            assert!((second/first-1.0).abs()<0.01);
++        }
++    }
++
+     #[test]
+     fn parameters_arrive_with_the_next_block() {
+         let clip = Arc::new(Clip { sample_rate: 48_000, channels: 1, samples: vec![16_384; 5] });
+diff --git a/crates/omsi-sim/src/human/gesture.rs b/crates/omsi-sim/src/human/gesture.rs
+index 21ab449..d4312e7 100644
+--- a/crates/omsi-sim/src/human/gesture.rs
++++ b/crates/omsi-sim/src/human/gesture.rs
+@@ -58,7 +58,7 @@ pub fn accessory_hail_arm(rig: &Rig, bones: &mut [Affine3A; SLOTS], side: usize,
+     let out = forward * angle.cos() + right * angle.sin();
+     let reach = rig.upper_arm + rig.forearm;
+     if !reach.is_finite() || rig.upper_arm <= 0. || rig.forearm <= 0. { return; }
+-    let wave = if wave.is_finite() { wave.clamp(-0.04, 0.04) } else { 0. };
++    let wave = if wave.is_finite() { wave.clamp(-0.05, 0.38) } else { 0. };
+     let sh = bones[MAIN].transform_point3(rig.shoulder[side]);
+     let old_el = bones[FORE[side]].transform_point3(rig.elbow[side]);
+     let old_wr = bones[HAND[side]].transform_point3(rig.wrist[side]);
+@@ -96,7 +96,10 @@ pub fn accessory_hail_arm(rig: &Rig, bones: &mut [Affine3A; SLOTS], side: usize,
+     let fore_want = Quat::from_mat3a(&bone_rot(fore_rest, -Vec3::Z, fore_axis, -Vec3::Z));
+     let upper = Mat3A::from_quat(upper_native.slerp(upper_want, amount));
+     let fore = Mat3A::from_quat(fore_native.slerp(fore_want, amount));
+-    let fingers = (out - Vec3::Z * (0.12 + wave)).normalize();
++    // Flex the hand at its wrist; the shoulder and elbow target do not follow
++    // this movement. A bounded angle stays visible without bending the neck.
++    let tilt = -0.06 + wave;
++    let fingers = out * tilt.cos() - Vec3::Z * tilt.sin();
+     let desired = Quat::from_mat3a(&bone_rot(rig.wrist[side] - rig.elbow[side], -Vec3::Z, fingers, -Vec3::Z));
+     let fore_q = Quat::from_mat3a(&fore);
+     let natural = fore_q * old_fore.conjugate() * old_hand;
+@@ -163,6 +166,29 @@ mod brazilian_hail_tests {
+         }
+     }
+ 
++    #[test]
++    fn hailing_wrist_flexes_visibly_without_swinging_the_arm_or_twisting_the_neck() {
++        for height in [1.10,1.77,2.05] {
++            let r=rig(height);
++            for side in 0..2 {
++                let mut straight=[Affine3A::IDENTITY;SLOTS];
++                accessory_hail_arm(&r,&mut straight,side,Vec3::Y,1.,0.);
++                let mut flexed=[Affine3A::IDENTITY;SLOTS];
++                accessory_hail_arm(&r,&mut flexed,side,Vec3::Y,1.,0.30);
++                for slot in [UPPER[side],FORE[side],HEAD,MAIN] {
++                    assert!(straight[slot].abs_diff_eq(flexed[slot],1e-6));
++                }
++                let fingers=|b:&[Affine3A;SLOTS]| b[HAND[side]].transform_vector3(r.wrist[side]-r.elbow[side]).normalize();
++                assert!(fingers(&straight).angle_between(fingers(&flexed))>0.20);
++                assert!(straight[HAND[side]].transform_point3(r.wrist[side]).distance(
++                    flexed[HAND[side]].transform_point3(r.wrist[side]))<1e-5);
++                let fore=flexed[FORE[side]].to_scale_rotation_translation().1;
++                let hand=flexed[HAND[side]].to_scale_rotation_translation().1;
++                assert!(fore.angle_between(hand)<=35f32.to_radians()+1e-3);
++            }
++        }
++    }
++
+     #[test]
+     fn hail_hand_stays_streetward_while_gaze_tracks_the_bus() {
+         let r = rig(1.77);
+diff --git a/crates/omsi-sim/src/human/hail_motion.rs b/crates/omsi-sim/src/human/hail_motion.rs
+new file mode 100644
+index 0000000..aaf2e11
+--- /dev/null
++++ b/crates/omsi-sim/src/human/hail_motion.rs
+@@ -0,0 +1,71 @@
++//! Local hailing wrist motion. Timing is animation tuning, not a national average.
++
++#[derive(Default)]
++pub struct HailWrist {
++    elapsed: f32,
++}
++
++impl HailWrist {
++    /// Advance with pose time, never the HH:MM:SS clock that admins can change.
++    /// A short group of wrist flexions is followed by a held request. The arm
++    /// stays extended; it must not flap along with the hand.
++    pub fn advance(&mut self, active: bool, dt: f32, person: u32) -> f32 {
++        if !active {
++            self.elapsed = 0.0;
++            return 0.0;
++        }
++        if dt.is_finite() && dt > 0.0 {
++            self.elapsed += dt.min(0.25);
++        }
++        let tempo = 0.92 + (person % 9) as f32 * 0.02;
++        let stroke = 0.46 / tempo;
++        let pause = 0.45 + (person % 5) as f32 * 0.035;
++        let time = (self.elapsed - 0.24).max(0.0);
++        let phase = time.rem_euclid(stroke * 3.0 + pause);
++        if phase >= stroke * 3.0 {
++            return 0.0;
++        }
++        let turn = (phase / stroke).fract() * std::f32::consts::TAU;
++        // About 17 degrees down and back, with zero velocity at each end.
++        0.30 * (0.5 - 0.5 * turn.cos())
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn hailing_wrist_is_visible_brisk_and_has_holds_instead_of_a_continuous_wave() {
++        let mut wrist = HailWrist::default();
++        let mut peaks = 0;
++        let mut above = false;
++        let mut held_frames = 0;
++        for frame in 0..360 {
++            let angle = wrist.advance(true, 1.0 / 120.0, 4);
++            let high = angle > 0.26;
++            if high && !above { peaks += 1; }
++            above = high;
++            if frame > 30 && angle.abs() < 1e-6 { held_frames += 1; }
++            assert!((0.0..=0.30001).contains(&angle));
++        }
++        assert!(peaks >= 5, "wrist only made {peaks} flexions in three seconds");
++        assert!(held_frames > 25, "the wrist never held still between groups");
++    }
++
++    #[test]
++    fn wrist_timing_survives_frame_rates_pauses_and_new_requests() {
++        let mut values = Vec::new();
++        for hz in [30, 60, 120] {
++            let mut w = HailWrist::default();
++            let mut angle = 0.0;
++            for _ in 0..hz { angle = w.advance(true, 1.0 / hz as f32, 3); }
++            assert_eq!(w.advance(true, 0.0, 3), angle);
++            assert_eq!(w.advance(true, f32::NAN, 3), angle);
++            values.push(angle);
++            assert_eq!(w.advance(false, 1.0, 3), 0.0);
++            assert_eq!(w.advance(true, 1.0 / 60.0, 3), 0.0);
++        }
++        assert!(values.iter().all(|v| (*v - values[0]).abs() < 1e-4));
++    }
++}
+diff --git a/crates/omsi-sim/src/human/mod.rs b/crates/omsi-sim/src/human/mod.rs
+index e87de37..42acc89 100644
+--- a/crates/omsi-sim/src/human/mod.rs
++++ b/crates/omsi-sim/src/human/mod.rs
+@@ -35,7 +35,9 @@ mod contact_tests;
+ pub mod avatar;
+ mod bones;
+ mod gesture;
++mod hail_motion;
+ mod hail_look;
++pub use hail_motion::HailWrist;
+ pub use hail_look::{HailLook,hail_look_target,FullBusHail};
+ pub use gesture::{accessory_arm, accessory_head, accessory_hail_arm};
+ pub mod face;
+diff --git a/crates/omsi-sim/src/people/pax_task.rs b/crates/omsi-sim/src/people/pax_task.rs
+index 22e5105..583182b 100644
+--- a/crates/omsi-sim/src/people/pax_task.rs
++++ b/crates/omsi-sim/src/people/pax_task.rs
+@@ -679,29 +679,70 @@ impl PeopleSim {
+         let percent = self.transfer_percent;
+         let count = self.pax(i).map_or(0, |p|p.transfer_count);
+         if percent <= 0.0 || !percent.is_finite() || count >= 2 || from_stop.is_none() { return false; }
+-        if self.rand_f() * 100.0 >= percent.clamp(0.0,100.0) as f64 { return false; }
++        if self.rand_f() * 100.0 >= percent.clamp(0.0,100.0) as f64 {
++            if from_bus == BusId::Player { log::info!("Passenger connection: chance_percent={percent:.0} outcome=not_drawn"); }
++            return false;
++        }
+         let mut candidates: Vec<_> = self.stops.iter().filter_map(|(id,s)| {
+-            if Some(*id) == from_stop || s.dests.iter().all(|(_,w)| *w <= 0.0)
+-                || (s.pos.z-at.z).abs() > 2.0 || (s.pos-at).length_squared() > 80.0*80.0 { return None; }
++            if (s.pos.z-at.z).abs() > 2.0 || (s.pos-at).length_squared() > 80.0*80.0 { return None; }
+             if world.collision().ray_blocked(at+DVec3::Z*0.9,s.gather+DVec3::Z*0.9,0.1,0.6) { return None; }
+-            let ready = s.buses.iter().any(|(b,_)| *b != from_bus && bus_ix.get(b).is_some_and(|k|
+-                buses[*k].speed.abs() < 1.0 && buses[*k].terminus.is_some() && buses[*k].entry_open.iter().any(|o|*o)));
+-            Some((*id,ready,(s.pos-at).length_squared()))
++            let serves = |bn: &BusNow, dest: &str, terms: &HashSet<String>| {
++                !matches!(bn.takes,Takes::Nobody)
++                    && !bn.route.as_ref().is_some_and(|r|r.is_last_stop(s))
++                    && bn.terminus.as_deref().is_some_and(|term|
++                        fit(*id,s,Some(dest),terms,term,&bn.takes)
++                            .or_else(||bn.route.as_ref().and_then(|r|r.takes_waiting_for(terms))).is_some())
++            };
++            let mut choices = Vec::new();
++            for (dest,weight) in &s.dests {
++                if !weight.is_finite() || *weight <= 0. || s.is_named(dest) { continue; }
++                let Some(line) = s.lines.iter().position(|(name,terms)|name.trim()==dest.trim() && !terms.is_empty()) else { continue; };
++                let terms=&s.lines[line].1;
++                let ready=s.buses.iter().any(|(b,in_box)| *b != from_bus && *in_box && bus_ix.get(b).is_some_and(|k| {
++                    let bn=&buses[*k]; bn.speed.abs()<1. && bn.entry_open.iter().any(|o|*o) && serves(bn,dest,terms)
++                }));
++                // A connection can wait at the very same pole for ANOTHER service.
++                // At a route's terminus it must not queue for the bus just left.
++                if Some(*id)==from_stop && !ready {
++                    let other_service=bus_ix.get(&from_bus).is_some_and(|k| {
++                        let origin=&buses[*k];
++                        !origin.terminus.as_deref().is_some_and(|t|terms.contains(t.trim()))
++                            && !origin.route.as_ref().is_some_and(|r|r.takes_waiting_for(terms).is_some())
++                    });
++                    if !other_service { continue; }
++                }
++                if !ready && self.due_dests.as_ref().is_some_and(|d|
++                    d.get(id).is_none_or(|set|!set.contains(dest.trim()))) { continue; }
++                choices.push((dest.clone(),line,f64::from(*weight),ready));
++            }
++            if choices.is_empty() { return None; }
++            let ready=choices.iter().any(|c|c.3);
++            if ready { choices.retain(|c|c.3); }
++            Some((*id,ready,(s.pos-at).length_squared(),choices))
+         }).collect();
+         candidates.sort_by(|a,b| b.1.cmp(&a.1).then_with(||a.2.total_cmp(&b.2)).then_with(||a.0.cmp(&b.0)));
+-        for (stop,_,_) in candidates {
+-            let (dest,line)=self.draw_dest(stop);
+-            if dest.is_none() || line.is_none() { continue; }
++        if let Some((stop,ready,_,choices)) = candidates.into_iter().next() {
++            // The percentage was already drawn. Unlike ordinary street spawning,
++            // selecting an onward destination must not draw "no bus journey" again
++            // when this map's destination weights add up to less than one.
++            let total:f64=choices.iter().map(|c|c.2).sum();
++            let mut roll=self.rand_f()*total;
++            let mut selected=&choices[choices.len()-1];
++            for choice in &choices { roll-=choice.2; if roll<0. { selected=choice; break; } }
++            let (dest,line,_,_)=selected;
+             let walk=self.pax(i).map_or(1.1,|p|p.walk_speed);
+             let mut next=Pax::new(walk,self.rand_f());
+-            next.stop=Some(stop); next.dest=dest; next.line=line; next.pos=at; next.yaw=heading.to_radians();
++            next.stop=Some(stop); next.dest=Some(dest.clone()); next.line=Some(*line); next.pos=at; next.yaw=heading.to_radians();
+             next.transfer_from=Some(from_bus); next.transfer_count=count+1;
+             let p=&mut self.people[i];p.position=at;p.heading=heading;p.place=Place::Ground;
+             p.interior=0.0;p.vel=DVec2::ZERO;p.t_state=0.0;p.state=State::Pax(Box::new(next));
+             self.set_task(i,Task::WalkingToBusstop,buses,bus_ix,world);
+-            log::debug!("passenger {} connection {:?} -> {}",self.people[i].id,from_stop,stop);
++            if from_bus==BusId::Player {
++                log::info!("Passenger connection: chance_percent={percent:.0} outcome=walking from_stop={from_stop:?} to_stop={stop} destination={dest:?} bus_ready={ready}");
++            }
+             return true;
+         }
++        if from_bus==BusId::Player { log::info!("Passenger connection: chance_percent={percent:.0} outcome=no_reachable_onward_service from_stop={from_stop:?}"); }
+         false
+     }
+ 
+@@ -784,6 +825,26 @@ pub fn away_point(door: DVec3, out: DVec3, along: DVec3, id: u32) -> DVec3 {
+ #[cfg(test)]
+ mod connection_tests {
+     use super::*;
++    fn fixture(name:&str)->(std::path::PathBuf,PeopleSim,crate::world_data::WorldData,usize) {
++        let root=std::env::temp_dir().join(format!("connection-{name}-{}",std::process::id()));
++        let dir=root.join("Humans/Test");std::fs::create_dir_all(&dir).unwrap();
++        std::fs::write(dir.join("person.hum"),"[model]\nmodel.cfg\n").unwrap();
++        std::fs::write(dir.join("model.cfg"),"").unwrap();
++        let mut h=PeopleSim::new(&root,20);h.map_humans_done=true;h.transfer_percent=100.;
++        let world=crate::world_data::WorldData::default();
++        let i=h.spawn(&world,DVec3::ZERO,0.,State::Pax(Box::new(Pax::new(1.1,0.5)))).unwrap();
++        (root,h,world,i)
++    }
++    fn bus(root:&Path,id:BusId,terminus:&str,pos:DVec3)->BusNow {
++        std::fs::write(root.join("test.bus"),"[boundingbox]\n2.5\n12\n3\n0\n0\n1.5\n[passengercabin]\ncabin.cfg\n[paths]\npaths.cfg\n").unwrap();
++        std::fs::write(root.join("paths.cfg"),"[pathpnt]\n1.1\n0\n0.4\n[pathpnt]\n0\n0\n0.5\n[pathlink]\n0\n1\n").unwrap();
++        std::fs::write(root.join("cabin.cfg"),"[entry]\n0\n[exit]\n0\n[passpos]\n-0.5\n0\n0.9\n0.45\n0\n").unwrap();
++        let def=omsi_vehicle::Vehicle::load(&root.join("test.bus")).unwrap();
++        let cabin=Arc::new(Cabin::load_train(&[(&def,Vec3::ZERO,f32::INFINITY)]).unwrap());
++        BusNow { id,cabin,pos,rot:Mat4::IDENTITY,heading:0.,speed:0.,entry_open:vec![true],exit_open:vec![true],walk_open:None,
++            interior:0.,air:CabinAir::default(),half:DVec2::new(1.25,6.),centre:DVec2::ZERO,accel:DVec2::ZERO,
++            trailers:vec![],terminus:Some(terminus.into()),takes:Takes::Terminus,next_stop:None,places_off:vec![],served:None,route:None }
++    }
+     fn stop(at: DVec3) -> PaxStop {
+         PaxStop { name:"Platform".into(),alias:String::new(),pos:at,heading:0.,side:0,gather:at,
+             spots:vec![],taken:vec![],enter_max:1.,enter_min:0.,length:30.,lane:None,
+@@ -791,7 +852,7 @@ mod connection_tests {
+             dests:vec![("Cidade".into(),1.)],lines:vec![("Cidade".into(),HashSet::from(["Destino".into()]))] }
+     }
+     #[test]
+-    fn connections_reuse_person_never_return_to_the_alighting_stop_and_obey_zero() {
++    fn connections_reuse_person_avoid_a_lone_terminus_and_obey_zero() {
+         let root=std::env::temp_dir().join(format!("connection-{}",std::process::id()));
+         let dir=root.join("Humans/Test");std::fs::create_dir_all(&dir).unwrap();
+         std::fs::write(dir.join("person.hum"),"[model]\nmodel.cfg\n").unwrap();
+@@ -814,4 +875,73 @@ mod connection_tests {
+         assert!(!h.try_connection(i,DVec3::ZERO,0.,Some(1),BusId::Player,&[],&ix,&world));
+         std::fs::remove_dir_all(root).unwrap();
+     }
++
++    #[test]
++    fn connection_percentage_is_not_multiplied_by_the_maps_unassigned_destination_weight() {
++        let (root,mut h,world,i)=fixture("weights");
++        let mut next=stop(DVec3::X*10.);next.dests[0].1=0.001;
++        h.stops.insert(2,next);
++        for _ in 0..100 {
++            *h.pax_mut(i).unwrap()=Pax::new(1.1,0.5);
++            assert!(h.try_connection(i,DVec3::ZERO,0.,Some(1),BusId::Player,&[],&HashMap::new(),&world));
++            assert_eq!(h.pax(i).unwrap().dest.as_deref(),Some("Cidade"));
++        }
++        h.pax_mut(i).unwrap().transfer_count=2;
++        assert!(!h.try_connection(i,DVec3::ZERO,0.,Some(1),BusId::Player,&[],&HashMap::new(),&world));
++        std::fs::remove_dir_all(root).unwrap();
++    }
++
++    #[test]
++    fn same_pole_accepts_another_service_but_not_the_original_bus() {
++        let (root,mut h,world,i)=fixture("same-pole");
++        let origin=bus(&root,BusId::Player,"Origem",DVec3::ZERO);
++        let mut s=stop(DVec3::ZERO);
++        s.dests.insert(0,("Bairro original".into(),1.));
++        s.lines.insert(0,("Bairro original".into(),HashSet::from(["Origem".into()])));
++        s.buses.push((BusId::Player,true));h.stops.insert(1,s);
++        let mut buses=vec![origin];let mut ix=HashMap::from([(BusId::Player,0)]);
++        assert!(h.try_connection(i,DVec3::ZERO,0.,Some(1),BusId::Player,&buses,&ix,&world));
++        assert_eq!(h.pax(i).unwrap().stop,Some(1));
++        assert_eq!(h.pax(i).unwrap().dest.as_deref(),Some("Cidade"));
++        assert_eq!(h.bus_for(i,1,&buses,&ix),None);
++        buses.push(bus(&root,BusId::Ai(2),"Destino",DVec3::ZERO));ix.insert(BusId::Ai(2),1);
++        h.stops.get_mut(&1).unwrap().buses.push((BusId::Ai(2),true));
++        assert_eq!(h.bus_for(i,1,&buses,&ix).map(|b|b.0),Some(BusId::Ai(2)));
++        std::fs::remove_dir_all(root).unwrap();
++    }
++
++    #[test]
++    fn alighter_walks_waits_and_boards_another_bus_without_spawning_a_duplicate() {
++        let (root,mut h,world,i)=fixture("journey");
++        let mut origin_stop=stop(DVec3::new(2.,0.,0.));
++        origin_stop.lines[0].1=HashSet::from(["Origem".into()]);
++        h.stops.insert(1,origin_stop);
++        h.stops.insert(2,stop(DVec3::new(12.,0.,0.)));
++        let mut buses=vec![bus(&root,BusId::Player,"Origem",DVec3::ZERO)];
++        let mut ix=HashMap::from([(BusId::Player,0)]);
++        let mut regs=HashMap::from([(BusId::Player,BusAtStops{next:Some(1),..Default::default()})]);
++        let p=h.pax_mut(i).unwrap();p.inside=Some(BusId::Player);p.bus=Some(BusId::Player);
++        p.task=Task::InBusToExit;p.st=7;p.door=Some(0);p.pos=DVec3::new(2.,0.,0.);
++        let id=h.people[i].id;let n=h.people.len();let mut remove=Vec::new();
++        h.task_to_exit(i,&buses,&ix,&regs,&world,&mut remove);
++        assert_eq!(h.pax(i).unwrap().task,Task::WalkingToBusstop);
++        assert_eq!(h.pax(i).unwrap().stop,Some(2));
++        let mut ticket=false;
++        for _ in 0..2400 {
++            h.time+=1./60.;h.pax_tick(i,1./60.,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
++            if h.pax(i).unwrap().task==Task::WaitingForBus { break; }
++        }
++        assert_eq!(h.pax(i).unwrap().task,Task::WaitingForBus);
++        assert!((h.pax(i).unwrap().pos.x-12.).abs()<0.3);
++        buses.push(bus(&root,BusId::Ai(2),"Destino",DVec3::new(10.,0.,0.)));
++        buses[1].served=Some(2);ix.insert(BusId::Ai(2),1);
++        regs=h.register_buses(&buses,0.);
++        for _ in 0..2400 {
++            h.time+=1./60.;h.pax_tick(i,1./60.,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
++            if h.pax(i).unwrap().inside==Some(BusId::Ai(2)) { break; }
++        }
++        assert_eq!(h.pax(i).unwrap().inside,Some(BusId::Ai(2)));
++        assert_eq!(h.people[i].id,id);assert_eq!(h.people.len(),n);assert!(remove.is_empty());
++        std::fs::remove_dir_all(root).unwrap();
++    }
+ }
