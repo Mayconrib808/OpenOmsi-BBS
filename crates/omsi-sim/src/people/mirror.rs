@@ -242,7 +242,10 @@ impl PeopleSim {
         self.people
             .iter()
             .filter(|p| p.puppet.is_none() && !p.remote)
-            .filter(|p| (p.position - near).length_squared() < r2)
+            .filter(|p| (p.position - near).length_squared() < r2 ||
+                (self.mirror && matches!(&p.state, State::Pax(x)
+                    if x.task == Task::WaitingForBus && x.transfer_from == Some(BusId::Player)
+                        && x.transfer_count > 0)))
             .filter_map(|p| {
                 let aboard = match p.place {
                     Place::Bus(BusId::Player, _) => return None,
