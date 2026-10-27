@@ -297,6 +297,13 @@ impl PeopleSim {
         match p.task {
             Task::WaitingForBus => {
                 let Some(stop) = p.stop else { return };
+                // In cooperative play the host must reclaim alighting connections
+                // before any further boarding. Otherwise both simulations can
+                // put the same person aboard two different buses after packet loss.
+                if self.mirror && p.transfer_from == Some(BusId::Player)
+                    && p.transfer_count > 0 {
+                    return;
+                }
                 let Some(b) = self.bus_for(i, stop, buses, bus_ix) else {
                     if super::debug_pax() && (self.time * 2.0).fract() < (dt as f64 * 2.0) {
                         let s = &self.stops[&stop];
