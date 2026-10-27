@@ -13,7 +13,7 @@ BASE_COOP='6486b2649c1526760f349e358e422242355414a9241d4c964111a22b803c16c1'
 sha=lambda b:hashlib.sha256(b).hexdigest()
 
 def main():
- p=argparse.ArgumentParser();p.add_argument('--prior',type=Path,required=True);p.add_argument('--native',type=Path,required=True);p.add_argument('--launcher',type=Path,required=True);a=p.parse_args()
+ p=argparse.ArgumentParser();p.add_argument('--prior',type=Path,required=True);p.add_argument('--native',type=Path,required=True);p.add_argument('--launcher',type=Path);a=p.parse_args()
  assert build.VERSION==VERSION
  out=ROOT/'build/release-2218-hotfix1';out.mkdir(parents=True,exist_ok=False)
  spec=json.loads((a.prior/'coop-spec.json').read_text(encoding='utf-8-sig'))
@@ -75,7 +75,7 @@ def main():
  # Complete hosts, P14 server, custom sounds and all unrelated files stay byte-identical.
  # This generated version marker necessarily changes with the replacement native game.
  # Keep the preservation audit strict for every other inherited file.
- permitted={COOP+'/programa/'+name for name in replacements}|{info_name,checksum_name,server_name,marker_name,host_manifest_name}
+ permitted={COOP+'/programa/'+name for name in replacements}|{info_name,checksum_name,server_name,marker_name,host_manifest_name,COOP+'/validation/passengers-2218-version.txt'}
  for name,h in before.items():
   if name not in permitted:assert sha(files[name])==h,('Unrelated bundled file changed',name)
  servers={n:sha(files[n]) for n in before if n.startswith(('app/server-dinamico-p14/','app/server-dinamico-p15/'))}
