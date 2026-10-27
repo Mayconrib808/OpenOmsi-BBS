@@ -20,6 +20,10 @@ Upstream target: dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0 (v0.3.45). Start from 
 
 20% is a configurable initial gameplay parameter, not a measured national transfer rate. Counts of boarding events, discounted temporal integrations, metro-bus integrations and distinct people are different denominators. References: SPTrans, Relatório Integrado da Administração 2024, https://www.sptrans.com.br/relatorio-integrado-da-administracao-2024/ ; URBS, Com as novas integrações temporais, passageiro pode trocar de linha sem pagar nova passagem, https://www.urbs.curitiba.pr.gov.br/portal/com-as-novas-integracoes-temporais-passageiro-pode-trocar-de-linha-sem-pagar-nova-passagem/ . Both support transfers as ordinary travel, not one universal probability.
 
+## Follow-up validation
+
+All 12 arm/hailing/neck tests and the connection test pass locally. The arm IK transports its elbow plane with the reach direction and owns its smooth phase. This avoids an elbow-plane singularity during the transition. Driver-role menu actions are gated, current visiting drivers can authorize a conductor while standing, and dedicated status consumes authenticated sender-owned assignment metadata without granting simulation authority. Native type checks also pass. The checked follow-up source layer is reproduced and tested by Windows CI.
+
 ## Still required before publication
 
 Full native Windows suites, genuine 0.3.45 controllers/trams, real executable identity/self-test/fuel CLI, full rebuilt HostAgent six-controls plus admin-clock UI verification, Setup backup button UI verification, signed candidate publication and live updater verification. Actual paired-player gameplay cannot be claimed from unit tests alone.

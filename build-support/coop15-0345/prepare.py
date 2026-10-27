@@ -17,5 +17,8 @@ subprocess.run(['git','apply','--check',str(patch)],cwd=root,check=True)
 subprocess.run(['git','apply',str(patch)],cwd=root,check=True)
 for name in spec['official_files_exact']:
  assert (root/name).read_text(encoding='utf-8').replace('\r\n','\n')==(official/name).read_text(encoding='utf-8').replace('\r\n','\n'),name
+followup=(here/'followup.py').resolve()
+assert hashlib.sha256(followup.read_bytes()).hexdigest()==spec['followup_sha256']
+subprocess.run(['python',str(followup),str(root)],check=True)
 assert not subprocess.check_output(['git','diff','--check'],cwd=root,text=True)
 print('Genuine 0.3.45 merged, complete Coop15 retained, researched hailing and new corrections applied.')

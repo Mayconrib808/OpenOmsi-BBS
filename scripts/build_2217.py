@@ -40,6 +40,7 @@ def main():
  patch=ROOT/'build-support/coop15-0343/cumulative.patch'
  assert sha(patch.read_bytes())==inputs['patch_sha256']
  assert sha((ROOT/'build-support/coop15-0345/changes.patch').read_bytes())==inputs['changes_sha256']
+ assert sha((ROOT/'build-support/coop15-0345/followup.py').read_bytes())==inputs['followup_sha256']
  version=(a.native/'version.txt').read_text(encoding='utf-8')
  assert '0.3.45-coop.15-2.2.1.7' in version
  replacements={
@@ -58,7 +59,7 @@ def main():
   z.writestr('cumulative.patch',patch.read_bytes())
   z.writestr('launcher-Cargo.lock',(a.launcher/'launcher-Cargo.lock').read_bytes())
   z.writestr('native-input.json',json.dumps(inputs,indent=2))
-  for relative in ['coop15-0345/changes.patch','coop15-0345/prepare.py','coop15-0345/source.json','passenger-hail-br/apply.py','passenger-hail-br/gesture.rs','passenger-hail-br/sources.md']:
+  for relative in ['coop15-0345/followup.py','coop15-0345/changes.patch','coop15-0345/prepare.py','coop15-0345/source.json','passenger-hail-br/apply.py','passenger-hail-br/gesture.rs','passenger-hail-br/sources.md']:
    z.writestr('build-support/'+relative,(ROOT/'build-support'/relative).read_bytes())
   z.writestr('port-0344-prepare.py',(ROOT/'build-support/coop15-0344/prepare.py').read_bytes())
   z.writestr('port-0344-source.json',(ROOT/'build-support/coop15-0344/source.json').read_bytes())

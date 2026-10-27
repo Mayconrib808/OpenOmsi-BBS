@@ -176,5 +176,20 @@
     "launcher/ui/js/ui.js": "b3d8b43c37478a87038fe028678a50b7c9fb3c8d5616c2529d9b6fbce9e9fe80",
     "launcher/ui/styles.css": "f2ece2a89e0f8585b6fe76cadb372ad1af0cf1359d99a0efe0b36e7c1e578774"
   },
-  "native_version": "0.3.45-coop.15-2.2.1.7"
+  "native_version": "0.3.45-coop.15-2.2.1.7",
+  "followup_sha256": "48ea914dc1998ddc2249a6f942a1fb2b7c5171954514b8aaaaed18150d8e6685",
+  "followup_changed_paths": [
+    "crates/omsi-sim/src/human/gesture.rs",
+    "crates/omsi-app/src/view_sync/people/extras.rs",
+    "crates/omsi-lan/src/vehicle_transfer.rs",
+    "crates/omsi-lan/src/game.rs",
+    "crates/omsi-app/src/coop_drive.rs",
+    "crates/omsi-app/src/app_impl/menus.rs",
+    "crates/omsi-app/src/game_panels/quick_menu.rs",
+    "crates/omsi-app/src/game_panels/coop_panel.rs",
+    "crates/omsi-app/src/app_impl/lan_tick.rs",
+    "crates/omsi-app/src/offscreen/step.rs",
+    "crates/omsi-plugin/src/lib.rs",
+    "launcher/ui/js/pages/settings-schema.js"
+  ]
 }
