@@ -213,6 +213,10 @@ impl QuickMenu {
 /// Alt tapped: the menu opens (on its first page), or closes when it is open.
 pub(crate) fn toggle(app: &mut crate::App) {
     if std::mem::take(&mut app.net.coop.panel) { return; }
+    if app.menus.game_panels.view.is_some() {
+        super::view_editor::close(app, false);
+        return;
+    }
     let gp = &mut app.menus.game_panels;
     gp.quick = match gp.quick.take() {
         Some(_) => None,
@@ -254,6 +258,7 @@ pub(crate) fn click(app: &mut crate::App, id: &str) {
     app.menus.game_panels.quick = None;
     match id {
         "coop" => app.net.coop.panel = true,
+        "camera" => super::view_editor::open(app),
         "dest" => super::dest_form::open(app),
         "arrows" => {
             crate::game_lists::option_do(app, "nav_arrows", "", crate::game_lists::Move::Next);
@@ -385,13 +390,35 @@ mod tests {
     #[test]
     fn a_tile_that_opens_a_list_opens_the_game_menu_under_it() {
         let mut app = app();
-        for tile in ["time", "weather", "stats", "controls", "options", "camera"] {
+        for tile in ["time", "weather", "stats", "controls", "options"] {
             toggle(&mut app);
             click(&mut app, tile);
             assert!(app.menus.chooser.is_some(), "{tile}: no list");
             assert!(app.menus.game_menu.is_some(), "{tile}: the list gets no input");
             app.close_list();
             app.close_game_menu();
+        }
+    }
+
+    #[test]
+    fn camera_tile_never_opens_the_settings_menu_and_alt_closes_the_editor() {
+        let mut app = app();
+        for paused in [false, true] {
+            app.paused = paused;
+            toggle(&mut app);
+            click(&mut app, "camera");
+            assert!(app.menus.game_panels.quick.is_none());
+            assert!(app.menus.game_menu.is_none());
+            assert!(app.menus.chooser.is_none());
+            assert_eq!(app.paused, paused);
+            // Without a bus the editor explains why it cannot open; with an
+            // editor already open, Alt dismisses it without opening another menu.
+            assert!(app.service_msg.is_some());
+            app.menus.game_panels.view = Some(Default::default());
+            toggle(&mut app);
+            assert!(app.menus.game_panels.view.is_none());
+            assert!(app.menus.game_panels.quick.is_none());
+            assert_eq!(app.paused, paused);
         }
     }
 

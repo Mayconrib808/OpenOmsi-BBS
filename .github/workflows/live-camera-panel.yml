@@ -1,0 +1,34 @@
+name: Check floating camera panel
+on:
+  push:
+    branches: [feat/live-camera-panel]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  camera:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      OPENOMSI_VERSION: 0.3.45-coop.15-camera-preview
+      OPENOMSI_COOP_GAME_ONLY: "1"
+      TAURI_CONFIG: '{"version":"0.3.45"}'
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Check native camera integration
+        shell: pwsh
+        run: |
+          cargo check --locked -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw "Camera compile failed" }
+      - name: Test camera routing, Alt, pause state and saved views
+        shell: pwsh
+        run: |
+          cargo test --locked -p omsi-app --lib game_panels:: -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw "Camera regression failed" }

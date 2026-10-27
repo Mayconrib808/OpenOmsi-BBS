@@ -1,4 +1,4 @@
-//! The view editor (Esc → Camera → "Edit the view and mirrors"): a see-through panel at the
+//! The view editor (Alt → Camera, or Esc → Camera → "Edit the view and mirrors"): a see-through panel at the
 //! side of the driver's view with sliders for the eye's place (the seat), the direction it
 //! looks in, the field of view and each mirror's turn, all shown live in the cab behind it.
 //! "Save for this vehicle" keeps them for the bus: the seat and the mirrors where the game
@@ -9,6 +9,7 @@
 //! the bus's file; the turn and the field of view are read back from it.
 
 use super::{button, card, divider, grow_row, note, slider_row, title};
+use crate::coop::text as localized;
 use omsi_plugin::api::Value;
 use omsi_plugin::ui::{Anchor, Panel};
 
@@ -45,25 +46,25 @@ impl ViewEditor {
         let cm = |v: f32| format!("{:+.0} cm", v * 100.0);
         let deg = |v: f32| format!("{v:+.1}°");
         let mut c = vec![
-            title("View editor"),
-            note("The driver's view of this vehicle; the cab behind shows each change."),
-            slider_row("seat0", "Eye left / right", &cm(v.seat[0]), v.seat[0], SEAT, 0.01),
-            slider_row("seat1", "Eye forward / back", &cm(v.seat[1]), v.seat[1], SEAT, 0.01),
-            slider_row("seat2", "Eye up / down", &cm(v.seat[2]), v.seat[2], SEAT, 0.01),
-            slider_row("yaw", "Look left / right", &deg(v.yaw), v.yaw, TURN, 0.5),
-            slider_row("pitch", "Look up / down", &deg(v.pitch), v.pitch, TILT, 0.5),
+            title(localized("Ajustar câmera", "View editor", "Kamera einstellen")),
+            note(localized("Ajuste vendo o resultado na cabine. Alt ou Esc fecha esta janela.", "Adjust the view live in the cab. Alt or Esc closes this panel.", "Änderungen direkt im Fahrerraum sehen. Alt oder Esc schließt das Fenster.")),
+            slider_row("seat0", localized("Esquerda / direita", "Eye left / right", "Links / rechts"), &cm(v.seat[0]), v.seat[0], SEAT, 0.01),
+            slider_row("seat1", localized("Frente / trás", "Eye forward / back", "Vor / zurück"), &cm(v.seat[1]), v.seat[1], SEAT, 0.01),
+            slider_row("seat2", localized("Altura", "Eye up / down", "Höhe"), &cm(v.seat[2]), v.seat[2], SEAT, 0.01),
+            slider_row("yaw", localized("Olhar: esquerda / direita", "Look left / right", "Blick: links / rechts"), &deg(v.yaw), v.yaw, TURN, 0.5),
+            slider_row("pitch", localized("Olhar: cima / baixo", "Look up / down", "Blick: oben / unten"), &deg(v.pitch), v.pitch, TILT, 0.5),
         ];
         let fov = v.fov.unwrap_or(0.0);
-        let fov_text = if fov < 20.0 { omsi_ui::tr("The vehicle's").into_owned() } else { format!("{fov:.0}°") };
-        c.push(slider_row("fov", "Field of view", &fov_text, fov, FOV, 1.0));
+        let fov_text = if fov < 20.0 { localized("Do veículo", "The vehicle's", "Vom Fahrzeug").to_string() } else { format!("{fov:.0}°") };
+        c.push(slider_row("fov", localized("Campo de visão (FOV)", "Field of view", "Sichtfeld (FOV)"), &fov_text, fov, FOV, 1.0));
         if !v.mirrors.is_empty() {
             c.push(divider());
         }
         for (i, o) in v.mirrors.iter().enumerate() {
-            c.push(slider_row(&format!("m{i}x"), &format!("{} {} ↔", omsi_ui::tr("Mirror"), i + 1), &deg(o[0]), o[0], MIRROR_ACROSS, 0.5));
-            c.push(slider_row(&format!("m{i}y"), &format!("{} {} ↕", omsi_ui::tr("Mirror"), i + 1), &deg(o[1]), o[1], MIRROR_UP, 0.5));
+            c.push(slider_row(&format!("m{i}x"), &format!("{} {} ↔", localized("Espelho", "Mirror", "Spiegel"), i + 1), &deg(o[0]), o[0], MIRROR_ACROSS, 0.5));
+            c.push(slider_row(&format!("m{i}y"), &format!("{} {} ↕", localized("Espelho", "Mirror", "Spiegel"), i + 1), &deg(o[1]), o[1], MIRROR_UP, 0.5));
         }
-        c.push(grow_row(vec![button("save", "Save for this vehicle", Some("save")), button("reset", "Reset", Some("restart_alt")), button("close", "Close", Some("close"))]));
+        c.push(grow_row(vec![button("save", localized("Salvar neste ônibus", "Save for this vehicle", "Für diesen Bus speichern"), Some("save")), button("reset", localized("Restaurar", "Reset", "Zurücksetzen"), Some("restart_alt")), button("close", localized("Fechar", "Close", "Schließen"), Some("close"))]));
         if let Some(said) = &self.said {
             c.push(note(said));
         }
@@ -75,7 +76,7 @@ impl ViewEditor {
 /// The editor opened: the menu closes and the driver's own camera is taken.
 pub(crate) fn open(app: &mut crate::App) {
     if app.player.is_none() {
-        app.service_msg = Some(("No vehicle to set the view of".into(), 3.0));
+        app.service_msg = Some((localized("Entre no seu ônibus para ajustar a câmera.", "Enter your bus to adjust the camera.", "Steige in deinen Bus ein, um die Kamera einzustellen.").into(), 3.0));
         return;
     }
     app.close_game_menu();
@@ -152,7 +153,7 @@ fn save_view(app: &mut crate::App) -> String {
     let def = &p.vehicle.ty.def;
     let n = def.cameras_driver.len().max(1);
     let Some(std) = def.cameras_driver.get(def.camera_std % n) else {
-        return omsi_ui::tr("Saved:").into_owned();
+        return localized("Salvo.", "Saved.", "Gespeichert.").to_string();
     };
     let mut cam = std.clone();
     for k in 0..3 {
@@ -173,8 +174,8 @@ fn save_view(app: &mut crate::App) -> String {
         })
         .collect();
     match store(&bus, &cam, &mirrors) {
-        Ok(path) => format!("{} {}", omsi_ui::tr("Saved for this vehicle:"), path.display()),
-        Err(e) => format!("{} {}", omsi_ui::tr("Not saved:"), omsi_ui::tr(&e.to_string())),
+        Ok(path) => format!("{} {}", localized("Salvo para este ônibus:", "Saved for this vehicle:", "Für diesen Bus gespeichert:"), path.display()),
+        Err(e) => format!("{} {}", localized("Não foi possível salvar:", "Not saved:", "Nicht gespeichert:"), omsi_ui::tr(&e.to_string())),
     }
 }
 
