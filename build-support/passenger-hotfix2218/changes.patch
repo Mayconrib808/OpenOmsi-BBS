@@ -384,8 +384,20 @@ index e87de37..42acc89 100644
  pub use hail_look::{HailLook,hail_look_target,FullBusHail};
  pub use gesture::{accessory_arm, accessory_head, accessory_hail_arm};
  pub mod face;
+diff --git a/crates/omsi-sim/src/people/pax_stops.rs b/crates/omsi-sim/src/people/pax_stops.rs
+index 437155f..076bcfe 100644
+--- a/crates/omsi-sim/src/people/pax_stops.rs
++++ b/crates/omsi-sim/src/people/pax_stops.rs
+@@ -62,6 +62,7 @@ impl PeopleSim {
+         let heading = s.heading.to_radians();
+         let forward = DVec2::new(heading.sin(), heading.cos());
+         buses.iter().filter(|b| {
++            if p.transfer_from == Some(b.id) { return false; }
+             let d = b.pos - s.pos;
+             if !Self::visual_hail_range(d,forward) || (b.pos-self.people[i].position).length_squared()>60.0*60.0
+                 || b.fwd().dot(forward) <= 0.0 || b.served.is_some_and(|id| id != stop) { return false; }
 diff --git a/crates/omsi-sim/src/people/pax_task.rs b/crates/omsi-sim/src/people/pax_task.rs
-index 22e5105..583182b 100644
+index 22e5105..0b12c54 100644
 --- a/crates/omsi-sim/src/people/pax_task.rs
 +++ b/crates/omsi-sim/src/people/pax_task.rs
 @@ -679,29 +679,70 @@ impl PeopleSim {
@@ -506,7 +518,7 @@ index 22e5105..583182b 100644
          let root=std::env::temp_dir().join(format!("connection-{}",std::process::id()));
          let dir=root.join("Humans/Test");std::fs::create_dir_all(&dir).unwrap();
          std::fs::write(dir.join("person.hum"),"[model]\nmodel.cfg\n").unwrap();
-@@ -814,4 +875,73 @@ mod connection_tests {
+@@ -814,4 +875,87 @@ mod connection_tests {
          assert!(!h.try_connection(i,DVec3::ZERO,0.,Some(1),BusId::Player,&[],&ix,&world));
          std::fs::remove_dir_all(root).unwrap();
      }
@@ -542,6 +554,20 @@ index 22e5105..583182b 100644
 +        buses.push(bus(&root,BusId::Ai(2),"Destino",DVec3::ZERO));ix.insert(BusId::Ai(2),1);
 +        h.stops.get_mut(&1).unwrap().buses.push((BusId::Ai(2),true));
 +        assert_eq!(h.bus_for(i,1,&buses,&ix).map(|b|b.0),Some(BusId::Ai(2)));
++        std::fs::remove_dir_all(root).unwrap();
++    }
++
++    #[test]
++    fn connection_waiter_does_not_hail_the_bus_it_just_left() {
++        let (root,mut h,_,i)=fixture("hail-origin");
++        h.stops.insert(2,stop(DVec3::new(10.,0.,0.)));
++        let p=h.pax_mut(i).unwrap();p.stop=Some(2);p.line=Some(0);p.dest=Some("Cidade".into());
++        p.task=Task::WaitingForBus;p.transfer_from=Some(BusId::Player);
++        h.people[i].position=DVec3::new(10.,0.,0.);
++        let original=bus(&root,BusId::Player,"Destino",DVec3::new(8.,0.,0.));
++        assert_eq!(h.visual_hail_bus(i,&[original.clone()]),None);
++        let mut other=original.clone();other.id=BusId::Ai(2);
++        assert_eq!(h.visual_hail_bus(i,&[original,other]),Some((BusId::Ai(2),false)));
 +        std::fs::remove_dir_all(root).unwrap();
 +    }
 +

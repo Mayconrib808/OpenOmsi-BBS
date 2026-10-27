@@ -1,7 +1,7 @@
 {
   "base_release": "2.2.1.7",
   "upstream_commit": "dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0",
-  "patch_sha256": "4c1ae90c07c830b39d0efb130e519675922d099bb3d21080ef81d090e13c68a3",
+  "patch_sha256": "cf2b45b7103627b7e22b2091c494895e06b11c105061e14a85d52915d030f217",
   "baseline_files_sha256": {
     "crates/omsi-app/src/view_sync/people/extras.rs": "a553e22f7d2265289e2fba87e0b42f20cb5d39ff1d7f92214b5d9a13802afb5a",
     "crates/omsi-app/src/view_sync/traffic_audio.rs": "8f1693aff3a9b6e11a8584e75091d7a17fe5874fec4f6249d1321d5b276b354c",
@@ -10,6 +10,7 @@
     "crates/omsi-sim/src/human/gesture.rs": "18dd9e65b052f1108f327937f392aca9875faacd662e103820195b34d859a28a",
     "crates/omsi-sim/src/human/hail_motion.rs": null,
     "crates/omsi-sim/src/human/mod.rs": "6c4df658ab5f5c6e0e32957a19070e02ea44cce6f39b73fe77e20301615cdc7d",
+    "crates/omsi-sim/src/people/pax_stops.rs": "60cd4c6ba4f862b4c42f2c8e45b1d5ea5eb822a9a93b318b542a791032df96c5",
     "crates/omsi-sim/src/people/pax_task.rs": "8c42b937bb38ca5fcf25b6629c23f00fa5bd779e77031e3599ab300aa0b7fb67"
   },
   "result_files_sha256": {
@@ -20,6 +21,7 @@
     "crates/omsi-sim/src/human/gesture.rs": "cb1fc27339c5a1d20109b04509c49c688752e4f523f750782d005277945661fa",
     "crates/omsi-sim/src/human/hail_motion.rs": "887847e1dddc7ec0c4b65158fc4b5c31138bb8d162db8caf5326f7e3017d236b",
     "crates/omsi-sim/src/human/mod.rs": "ebc2cd81c5d58dfa569108c3a2543382284ca2b1471385282d1fe17c811e45d9",
-    "crates/omsi-sim/src/people/pax_task.rs": "aa7b1b46745cc8a112e49856e182a2d50fd82c0cc9e4d32cf6fdad9c3f508190"
+    "crates/omsi-sim/src/people/pax_stops.rs": "751c435287820d5c91ce68e3523a9f330fb0af207d85f07a57b2b5666aee06c2",
+    "crates/omsi-sim/src/people/pax_task.rs": "72ef639f588253b07f2da2981d298b3a3a2762d348df1064eb6f67331fa7c604"
   }
 }
