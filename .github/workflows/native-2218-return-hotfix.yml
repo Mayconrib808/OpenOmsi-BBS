@@ -6,6 +6,7 @@ on:
   workflow_dispatch: {}
 permissions:
   contents: read
+  actions: read
 jobs:
   native:
     runs-on: windows-latest
@@ -23,6 +24,7 @@ jobs:
           ref: 23d1fc2b9830fb6e1e2e3c9a372e630bf06872f5
           path: game
           persist-credentials: false
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -46,13 +48,68 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Version check" }
           & .\target\release\openomsi.exe --self-test
           if ($LASTEXITCODE -ne 0) { throw "Native self-test" }
-      - name: Export native candidate (NOT live update)
-        uses: actions/upload-artifact@v4
+      - name: Make authenticated native candidate
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import subprocess, hashlib, json, shutil
+          source = Path('game')
+          out = Path('native')
+          out.mkdir()
+          pinned = '23d1fc2b9830fb6e1e2e3c9a372e630bf06872f5'
+          actual = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=source, text=True).strip()
+          assert actual == pinned, (actual, pinned)
+          patch = subprocess.check_output(['git','diff','--binary','a38ff8c553cb999c75566df7de071572a7207336','HEAD','--','crates'], cwd=source)
+          assert patch and b'adopt_returned_connection' in patch
+          (out/'hotfix.patch').write_bytes(patch)
+          for name in ['openomsi.exe', 'steam_api64.dll']:
+              shutil.copy2(source/'target/release'/name, out/name)
+          exe = out/'openomsi.exe'
+          result = subprocess.run([str(exe.resolve()), '--version'],capture_output=True,text=True,timeout=60,check=True)
+          assert '0.3.45-coop.15-2.2.1.8-hotfix.1' in result.stdout+result.stderr
+          (out/'version.txt').write_text(result.stdout+result.stderr,encoding='utf-8')
+          digest = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
+          (out/'SOURCE.json').write_text(json.dumps(dict(commit=pinned,native_sha256=digest(exe),patch_sha256=digest(out/'hotfix.patch')),indent=2),encoding='utf-8')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw "Native candidate provenance" }
+      - uses: actions/upload-artifact@v4
         with:
           name: Bridge-2.2.1.8-hotfix1-native
+          path: native/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Checkout existing Bridge release packaging
+        uses: actions/checkout@v4
+        with:
+          path: support
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Download verified previous 2.2.1.8 package
+        uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.8-candidate
+          run-id: 40526580430
+          github-token: ${{ github.token }}
+          path: prior
+      - name: Build complete signed-ready Windows hotfix installer and audit
+        shell: pwsh
+        working-directory: support
+        run: |
+          python scripts/build_2218_return_hotfix.py --prior ../prior --native ../native
+          if ($LASTEXITCODE -ne 0) { throw "Hotfix package build or runtime preservation check failed" }
+      - name: Upload hotfix release candidate (not published)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.1.8-hotfix1-candidate
           path: |
-            game/target/release/openomsi.exe
-            game/target/release/openomsi-launcher.exe
-            game/target/release/steam_api64.dll
+            support/build/release-2218-hotfix1/Atualizar-Bridge.exe
+            support/build/release-2218-hotfix1/build-report.json
+            support/build/release-2218-hotfix1/coop-spec.json
+            support/build/release-2218-hotfix1/coop-assets/**
+            support/build/release-2218-hotfix1/coop_bundle_manifest.go
           if-no-files-found: error
           retention-days: 30
