@@ -169,6 +169,7 @@ impl PeopleSim {
             map_humans_done: false,
             tiles_seen: 0,
             mirror: false,
+            return_capable: false,
             lan_centers: Vec::new(),
             players_only: false,
             remote_now: Vec::new(),

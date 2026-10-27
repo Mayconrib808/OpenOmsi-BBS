@@ -155,6 +155,9 @@ impl Mirror {
 struct Upstream {
     tracks: HashMap<u32, Track<PersonState>>,
     files: HashMap<u32, String>,
+    intents: HashMap<u32, nw::PersonIntent>,
+    aboard_once: HashSet<u32>,
+    returned: HashSet<u32>,
     /// Their ids here, by the client's.
     ids: HashMap<u32, u32>,
     offset: Option<f64>,
@@ -167,6 +170,7 @@ struct UpView {
     acc: f32,
     sent: HashMap<u32, ([i64; 4], f32)>,
     described: HashMap<u32, f32>,
+    return_described: HashSet<u32>,
     gone: Vec<(u32, f32)>,
 }
 
@@ -176,6 +180,7 @@ pub struct LanWorld {
     mirror: Mirror,
     ups: HashMap<u32, Upstream>,
     up_view: UpView,
+    return_announce: f32,
     /// The next id a client's person gets here (far above our own people's).
     next_up_id: u32,
     epoch: Option<Instant>,
@@ -229,12 +234,20 @@ impl LanWorld {
                 let mut humans = humans;
                 self.departed = world.map(|w| w.departed_keys()).unwrap_or_default();
                 self.host(lan, dt, traffic, humans.as_deref_mut(), me);
-                if let (Some(w), Some(r), Some(sc), Some(h)) = (world, renderer, scene, humans) {
-                    self.people_from_clients(lan, w, r, sc, h, &mut view.people);
+                if let (Some(w), Some(h)) = (world, humans) {
+                    // The dedicated server has no Renderer/Scene. It must still
+                    // consume upstream frames and take back connecting passengers.
+                    self.people_from_clients(lan, w, renderer, scene, h, Some(&mut view.people));
                 }
             }
             Role::Client => {
                 let mut humans = humans;
+                if let Some(h) = humans.as_deref_mut() { h.return_capable = lan.return_capable(); }
+                for id in lan.take_return_acks() {
+                    if humans.as_deref_mut().is_some_and(|h| h.finish_returned_connection(id)) {
+                        log::info!("LAN: server now owns connecting passenger {id}; client copy retired");
+                    }
+                }
                 self.client(lan, dt, args, world, renderer, scene, traffic, humans.as_deref_mut(), view);
                 if let (Some(h), Some(me)) = (humans, me) {
                     self.people_to_host(lan, dt, h, me);
@@ -281,17 +294,23 @@ impl LanWorld {
             }
             let id = wire(p.id);
             seen.insert(id);
-            if describe_left > 0 && v.described.get(&id).is_none_or(|age| *age >= 5.0) {
+            let returning = p.waiting.is_some();
+            let describe_due = v.described.get(&id).is_none_or(|age| *age >= 5.0)
+                || (returning && !v.return_described.contains(&id));
+            if describe_left > 0 && describe_due {
                 v.described.insert(id, 0.0);
                 describe_left -= 1;
+                if returning { v.return_described.insert(id); }
                 lan.send_desc_up(&Desc::Person {
-                    intent: None,
+                    intent: p.waiting.and_then(|_| h.hail_intent(p.id)).map(|(stop, line, dest)|
+                        nw::PersonIntent { stop, line, dest }),
                     id,
                     file: Humans::type_file(&p.ty),
                 });
             }
             let q = quant(p.pos.x, p.pos.y, p.pos.z, p.heading);
-            let q = [q[0], q[1], q[2], q[3] ^ ((p.activity as i64) << 40)];
+            let q = [q[0], q[1], q[2], q[3] ^ ((p.activity as i64) << 40)
+                ^ ((returning as i64) << 44)];
             let due = match v.sent.get(&id) {
                 None => true,
                 Some((last, age)) => *last != q || *age >= nw::STANDING_EVERY,
@@ -309,7 +328,7 @@ impl LanWorld {
                     z: p.pos.z,
                     heading: p.heading as f32,
                     speed: p.speed as f32,
-                    waiting: None,
+                    waiting: p.waiting.map(|(stop, k)| (stop, k.min(255) as u8)),
                 },
             });
         }
@@ -348,6 +367,7 @@ impl LanWorld {
             frame.people.push(st);
         }
         v.described.retain(|id, _| seen.contains(id));
+        v.return_described.retain(|id| seen.contains(id));
         let gone: Vec<u32> = v.sent.keys().filter(|k| !seen.contains(*k)).copied().collect();
         for k in gone {
             v.sent.remove(&k);
@@ -368,17 +388,19 @@ impl LanWorld {
         &mut self,
         lan: &mut LanSession,
         world: &World,
-        renderer: &Renderer,
-        scene: &mut Scene,
+        renderer: Option<&Renderer>,
+        mut scene: Option<&mut Scene>,
         h: &mut Humans,
-        view: &mut PeopleView,
+        mut view: Option<&mut PeopleView>,
     ) {
         // (claims of our bus for somebody a client sent: not ours to give)
         let _ = h.take_claims();
         let epoch = *self.epoch.get_or_insert_with(Instant::now);
         for (id, d) in lan.take_descs_up() {
-            let Desc::Person { id: pid, file, .. } = d;
-            self.ups.entry(id).or_default().files.insert(pid, file);
+            let Desc::Person { id: pid, file, intent } = d;
+            let up = self.ups.entry(id).or_default();
+            up.files.insert(pid, file);
+            if let Some(intent) = intent { up.intents.insert(pid, intent); }
         }
         for (id, at, f) in lan.take_world_up() {
             let up = self.ups.entry(id).or_default();
@@ -394,6 +416,13 @@ impl LanWorld {
                 _ => off,
             });
             for p in f.people {
+                if up.returned.contains(&p.id) {
+                    lan.acknowledge_return(id, p.id);
+                    continue;
+                }
+                if matches!(p.place, PersonPlace::Aboard { bus, .. } if bus == (nw::PLAYER_BUS | id)) {
+                    up.aboard_once.insert(p.id);
+                }
                 up.tracks
                     .entry(p.id)
                     .or_insert_with(|| Track {
@@ -404,6 +433,30 @@ impl LanWorld {
             }
             for (_, pid) in f.gone {
                 up.tracks.remove(&pid);
+            }
+        }
+        // Accept only someone observed aboard this client's bus and now waiting
+        // at a mapped stop with an exact onward service. Retry ACKs on lost UDP.
+        for (peer, up) in self.ups.iter_mut() {
+            let mut adopted = Vec::new();
+            for (&pid, track) in &up.tracks {
+                if up.returned.contains(&pid) || !up.aboard_once.contains(&pid) { continue; }
+                let (Some(last), Some(intent), Some(file)) =
+                    (track.samples.last(), up.intents.get(&pid), up.files.get(&pid)) else { continue; };
+                let PersonPlace::Foot { x, y, z, heading, waiting: Some((stop, _)), .. } = last.v.place else { continue; };
+                if stop != intent.stop { continue; }
+                let Some(kind) = h.type_by_file(file) else { continue; };
+                if let Some(host_id) = h.adopt_returned_connection(&*world.data(), kind, stop,
+                    intent.line, intent.dest.clone(), *peer, DVec3::new(x, y, z), heading as f64) {
+                    up.returned.insert(pid);
+                    adopted.push(pid);
+                    lan.acknowledge_return(*peer, pid);
+                    log::info!("LAN: player {peer} returned connecting passenger {pid} as authoritative host passenger {host_id} at stop {stop}");
+                }
+            }
+            for pid in adopted {
+                up.tracks.remove(&pid);
+                if let Some(local) = up.ids.remove(&pid) { h.mirror_remove(local); }
             }
         }
         // players that left: their people go with them
@@ -428,6 +481,7 @@ impl LanWorld {
             }
             let render_ms = up.play.step(now, now + up.offset.unwrap_or(0.0) - INTERP_DELAY, 500.0);
             for (pid, track) in &up.tracks {
+                if up.returned.contains(pid) { continue; }
                 let Some((a, b, k)) = track.around(render_ms) else {
                     continue;
                 };
@@ -450,10 +504,15 @@ impl LanWorld {
                 }
                 let local = self.next_up_id;
                 self.next_up_id += 1;
-                let added = h.mirror_add(world, local, ty, &pose);
-                crate::view_sync::apply_people(h, view, world, renderer, scene);
-                if added {
-                    up.ids.insert(*pid, local);
+                // Headless authoritative server has no visual mirrors.
+                // Upstream frames still drive ownership transfer and are relayed.
+                if let (Some(r), Some(sc), Some(v)) =
+                    (renderer, scene.as_deref_mut(), view.as_deref_mut()) {
+                    let added = h.mirror_add(world, local, ty, &pose);
+                    crate::view_sync::apply_people(h, v, world, r, sc);
+                    if added {
+                        up.ids.insert(*pid, local);
+                    }
                 }
             }
         }
@@ -471,6 +530,12 @@ impl LanWorld {
         mut humans: Option<&mut Humans>,
         me: Option<DVec3>,
     ) {
+        // Older protocol-15 clients simply ignore this optional announcement.
+        self.return_announce += dt;
+        if self.return_announce >= 1.0 {
+            self.return_announce = 0.0;
+            lan.announce_return_capability();
+        }
         // where the players are: the world is kept around them too
         let players: Vec<(u32, DVec3)> = lan
             .peers()
