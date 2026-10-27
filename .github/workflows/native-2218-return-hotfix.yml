@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: Mayconrib808/OpenOmsi-BBS
-          ref: 3122d9ec8c63c1e3b2d6193c2ce0619cda582914
+          ref: 23d1fc2b9830fb6e1e2e3c9a372e630bf06872f5
           path: game
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@stable
