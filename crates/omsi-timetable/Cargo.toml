@@ -1,0 +1,11 @@
+[package]
+name = "omsi-timetable"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Timetables: TTData (bus stops, station links, trips, tracks, lines) and car_use files (units mc_timetable, mc_station)"
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+omsi-transit = { path = "../omsi-transit" }
+log.workspace = true

@@ -1,0 +1,10 @@
+[package]
+name = "omsi-content"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Smaller OMSI content formats: weather, environment, fonts, languages, money, tickets, humans, drivers, situations, options, input maps"
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+log.workspace = true

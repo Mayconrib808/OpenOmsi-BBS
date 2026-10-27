@@ -1,0 +1,12 @@
+[package]
+name = "omsi-script"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Compiler and virtual machine for OMSI's stack-based object scripts (.osc)"
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+hashbrown.workspace = true
+thiserror.workspace = true
+log.workspace = true

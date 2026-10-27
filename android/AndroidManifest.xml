@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="org.openomsi.game"
+    android:versionCode="@VERSION_CODE@"
+    android:versionName="@VERSION_NAME@"
+    android:installLocation="auto">
+
+    <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
+
+    <!-- LAN sessions, servers, internet radio, METAR weather -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- updates: the APK of a newer GitHub release handed to the system's installer -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- voice chat in multiplayer: asked for when it is first switched on; used while a talk key is held -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- the on-screen buttons' feedback -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- the copy of OMSI 2 and the mods on the shared storage, read by path -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
+
+    <uses-feature android:name="android.hardware.vulkan.version" android:version="0x401000" android:required="true" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <application
+        android:label="openOMSI"
+        android:icon="@mipmap/ic_launcher"
+        android:hasCode="true"
+        android:largeHeap="true"
+        android:isGame="true"
+        android:appCategory="game"
+        android:extractNativeLibs="true"
+        android:requestLegacyExternalStorage="true"
+        android:allowBackup="false">
+
+        <activity
+            android:name=".OmsiActivity"
+            android:label="openOMSI"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:resizeableActivity="false"
+            android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density"
+            android:windowSoftInputMode="adjustNothing|stateHidden"
+            android:theme="@style/OmsiTheme">
+            <meta-data android:name="android.app.lib_name" android:value="openomsi_game" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -1,0 +1,15 @@
+[package]
+name = "omsi-map"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Map loading: global.cfg, tiles, terrain, calendar, AI lists, chrono (units mc_mapclass, mc_terrain_2, mc_chrono)"
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+bytemuck.workspace = true
+memmap2.workspace = true
+glam = { workspace = true, features = ["bytemuck"] }
+hashbrown.workspace = true
+log.workspace = true
+thiserror.workspace = true

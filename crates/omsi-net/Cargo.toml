@@ -1,0 +1,16 @@
+[package]
+name = "omsi-net"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+log.workspace = true
+ureq.workspace = true
+flate2.workspace = true
+sha2.workspace = true
+ring.workspace = true
+tungstenite = { version = "0.30", default-features = false, features = ["handshake", "rustls-tls-webpki-roots"] }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true

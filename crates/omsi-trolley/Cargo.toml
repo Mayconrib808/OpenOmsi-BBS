@@ -1,0 +1,12 @@
+[package]
+name = "omsi-trolley"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Trolleybus overhead wire: the wire network and its switches, pole mechanics, traction electrics, arcs"
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+glam = "0.30"
+log.workspace = true
+hashbrown = "0.17"

@@ -1,0 +1,11 @@
+[package]
+name = "omsi-vehicle"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Vehicle definitions: .bus/.ovh/.zug, HOF files, passenger cabins, paths, sound configs (units mc_roadvehicle, mc_vehicle, mc_train, mc_passcabin, mc_sound)"
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+omsi-trolley = { path = "../omsi-trolley" }
+log.workspace = true

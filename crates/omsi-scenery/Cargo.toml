@@ -1,0 +1,11 @@
+[package]
+name = "omsi-scenery"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Scenery object (.sco) and spline (.sli) definitions (units mc_complMapObj, mc_splines, mc_path)"
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+omsi-model = { path = "../omsi-model" }
+log.workspace = true

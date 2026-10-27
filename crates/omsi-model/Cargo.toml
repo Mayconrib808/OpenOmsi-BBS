@@ -1,0 +1,10 @@
+[package]
+name = "omsi-model"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "model.cfg parser: meshes, materials, animations, lights, text textures (unit mc_complobj)"
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+log.workspace = true

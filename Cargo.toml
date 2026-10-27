@@ -1,0 +1,139 @@
+[workspace]
+resolver = "3"
+members = [
+    "crates/omsi-cfg",
+    "crates/omsi-script",
+    "crates/omsi-o3d",
+    "crates/omsi-model",
+    "crates/omsi-scenery",
+    "crates/omsi-map",
+    "crates/omsi-mapdraw",
+    "crates/omsi-navigator",
+    "crates/omsi-trolley",
+    "crates/omsi-transit",
+    "crates/omsi-vehicle",
+    "crates/omsi-timetable",
+    "crates/omsi-content",
+    "crates/omsi-texture",
+    "crates/omsi-geometry",
+    "crates/omsi-render",
+    "crates/omsi-sim",
+    "crates/omsi-htmlengine",
+    "crates/omsi-htmlpage",
+    "crates/omsi-audio",
+    "crates/omsi-voice",
+    "crates/omsi-net",
+    "crates/omsi-plugin",
+    "crates/omsi-plugin/demo",
+    "crates/omsi-ui",
+    "crates/omsi-launcher-core",
+    "crates/omsi-launcher-api",
+    "crates/omsi-launcher-model",
+    "crates/omsi-admin",
+    "crates/omsi-lan",
+    "crates/omsi-serverlist",
+    "crates/omsi-platform",
+    "crates/omsi-guard",
+    "crates/omsi-input",
+    "crates/omsi-xr",
+    "crates/omsi-plugin-ui",
+    "crates/omsi-weather",
+    "crates/omsi-career",
+    "crates/omsi-soundscape",
+    "crates/omsi-world",
+    "crates/omsi-scene",
+    "crates/omsi-photo",
+    "crates/omsi-mt",
+    "crates/omsi-app",
+    "crates/omsi-srcscan",
+    "tools/omsi-check",
+]
+exclude = ["launcher/src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-only"
+
+# Every dependency that more than one crate uses is declared here once, so an update (by
+# hand or by Dependabot) moves all the crates together and none is left on an older version.
+[workspace.dependencies]
+anyhow = "1"
+thiserror = "2"
+log = "0.4"
+env_logger = "0.11"
+encoding_rs = "0.8"
+glam = { version = "0.30", features = ["serde"] }
+spade = "2"
+rayon = "1.10"
+walkdir = "2"
+clap = { version = "4", features = ["derive"] }
+hashbrown = "0.17"
+smallvec = "1"
+parking_lot = "0.12"
+# (the world snapshot the simulation reads without a lock: `omsi-sim::world_data`)
+arc-swap = "1.7"
+rand = "0.10"
+wgpu = { version = "29", default-features = false, features = ["std", "parking_lot", "metal", "vulkan", "dx12", "gles", "wgsl", "noop"] }
+# wgpu's parts that are used directly: always wgpu's own version, or their types do not
+# match wgpu's (Dependabot's `wgpu` group updates the three together)
+wgpu-hal = "29"
+naga = "29"
+winit = "0.30"
+bytemuck = { version = "1", features = ["derive"] }
+memmap2 = "0.9"
+pollster = "1.0"
+# (every picture format a mod or a photo may come in; DDS and TGA have readers of our own)
+image = { version = "0.25", default-features = false, features = ["png", "bmp", "tga", "dds", "jpeg", "webp", "gif", "tiff", "hdr", "exr", "pnm", "qoi", "ico", "ff"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+zip = { version = "9.0", default-features = false, features = ["deflate"] }
+ureq = { version = "2", default-features = false, features = ["tls"] }
+# (an address read as a browser reads it, WHATWG's URL standard: ureq's own)
+url = "2"
+sha2 = "0.11"
+# the LAN mods' encryption (X25519, HKDF, ChaCha20-Poly1305) and omsi-net's signatures
+ring = "0.17"
+flate2 = "1"
+# players' buses go over the wire packed with it (`lan_mods::pieces`)
+zstd = { version = "0.13", default-features = false }
+ab_glyph = "0.2"
+rfd = "0.15"
+libc = "0.2"
+windows = "0.62"
+winresource = "0.1"
+
+[profile.release]
+opt-level = 3
+debug = 1
+codegen-units = 4
+lto = "thin"
+
+[profile.dev]
+opt-level = 1
+
+# the Android build (scripts/build-android.sh): the release profile without debug info (a
+# phone's app carries no 300 MB of symbols)
+[profile.android]
+inherits = "release"
+debug = 0
+strip = "debuginfo"
+
+# (a patch that no longer matches the version wgpu asks for is dropped with only a warning;
+# the Security audit workflow fails when Cargo.lock lists one as unused)
+[patch.crates-io]
+gpu-allocator = { git = "https://github.com/openOMSI-Project/gpu-allocator", rev = "6ad8a7eeb9c3e1dcd65656f718c593a0a1a3915d" }
+# wgpu from the org's fork (upstream v29.0.4 plus fixes): GL texture units sized from the driver,
+# the GL context released while a thread waits for the GPU, errors instead of panics on driver
+# failures, Adapter::memory_info, GLES over ANGLE (Direct3D 11) on Windows, and fixes backported from
+# v30 (Vulkan acquire fence, out-of-memory checks, DX12 textureNumLevels, 3D texture init); every crate of the
+# fork that Cargo.lock lists is patched, or the fork's and crates.io's halves would not match
+wgpu = { git = "https://github.com/openOMSI-Project/wgpu-openomsi", rev = "4eb06e5bf8062be2978d93e95556a4dd83f1d3b8" }
+wgpu-core = { git = "https://github.com/openOMSI-Project/wgpu-openomsi", rev = "4eb06e5bf8062be2978d93e95556a4dd83f1d3b8" }
+wgpu-core-deps-apple = { git = "https://github.com/openOMSI-Project/wgpu-openomsi", rev = "4eb06e5bf8062be2978d93e95556a4dd83f1d3b8" }
+wgpu-core-deps-emscripten = { git = "https://github.com/openOMSI-Project/wgpu-openomsi", rev = "4eb06e5bf8062be2978d93e95556a4dd83f1d3b8" }
+wgpu-core-deps-windows-linux-android = { git = "https://github.com/openOMSI-Project/wgpu-openomsi", rev = "4eb06e5bf8062be2978d93e95556a4dd83f1d3b8" }
+wgpu-hal = { git = "https://github.com/openOMSI-Project/wgpu-openomsi", rev = "4eb06e5bf8062be2978d93e95556a4dd83f1d3b8" }
+wgpu-types = { git = "https://github.com/openOMSI-Project/wgpu-openomsi", rev = "4eb06e5bf8062be2978d93e95556a4dd83f1d3b8" }
+wgpu-naga-bridge = { git = "https://github.com/openOMSI-Project/wgpu-openomsi", rev = "4eb06e5bf8062be2978d93e95556a4dd83f1d3b8" }
+naga = { git = "https://github.com/openOMSI-Project/wgpu-openomsi", rev = "4eb06e5bf8062be2978d93e95556a4dd83f1d3b8" }

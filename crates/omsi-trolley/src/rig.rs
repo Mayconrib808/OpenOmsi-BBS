@@ -1,0 +1,586 @@
+//! The trolley gear of one vehicle: its poles, its traction, and what they do to each other
+//! and to the wire: the circuit through the poles, the current drawn, the switches its shoes
+//! set, and the arcs where the current is broken.
+
+use crate::def::TrolleyDef;
+use crate::pole::{rotate_tip_pub, Pole, PoleEvent, PoleEventKind, PoleMode, PoseSpan, Rope, G};
+use crate::traction::{Traction, TractionIn, TractionOut};
+use crate::wire::{Contact, WireNet};
+use glam::{DMat3, DVec3, Vec3};
+
+/// Inductance of the motor circuit and its choke (H): the energy `L I^2 / 2` of the current
+/// is what an arc has to burn when it is broken.
+const LOOP_HENRY: f32 = 0.012;
+/// Voltage of an arc between metal and metal (V).
+const ARC_VOLTS: f32 = 25.0;
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RopeCmd {
+    Idle,
+    Pull,
+    /// Raise and guide: along the player's line of sight (origin, direction) to the wire it
+    /// meets, or by itself (a motor) to the wire the boom reaches.
+    Raise { ray: Option<(DVec3, DVec3)>, auto: bool },
+    /// Let go of a pole held by hand: it is lifted by its spring, and swung on to the nearest wire
+    /// above its tip as it rises.
+    Release,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SparkKind {
+    /// The shoe lifted off a wire carrying current.
+    Break,
+    /// It came back.
+    Make,
+    /// A pole pulled off, or thrown off, under current.
+    Dewire,
+    /// An insulator crossed under current.
+    Insulator,
+    /// A frog crossed under current.
+    Frog,
+}
+
+/// An arc to show: where, how much energy it burns (J) and the current through it.
+#[derive(Debug, Clone, Copy)]
+pub struct Spark {
+    pub pos: DVec3,
+    pub energy: f32,
+    pub amps: f32,
+    pub kind: SparkKind,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RigSound {
+    /// A contactor of the controller.
+    Click,
+    /// A shoe falling on a wire, a pole falling on its hook (loudness 0..1).
+    Thud(f32),
+    /// An arc's crack (loudness 0..1).
+    Snap(f32),
+    /// A frog's clatter.
+    Frog,
+    /// The hook lets go.
+    Release,
+    Latch,
+}
+
+pub struct RigInput<'a> {
+    pub net: Option<&'a WireNet>,
+    pub dt: f32,
+    pub pos: DVec3,
+    pub rot: DMat3,
+    /// The roof's acceleration in the bus frame.
+    pub accel: Vec3,
+    /// Speed along the heading (m/s).
+    pub speed: f32,
+    pub wheel_radius: f32,
+    pub pedal: f32,
+    pub brake: f32,
+    pub dir: f32,
+    /// -1 left indicator, +1 right, 0 none.
+    pub blinker: i8,
+    /// One per pole.
+    pub ropes: &'a [RopeCmd],
+    /// A modelled drive supplies the force; without one the script's torque is only gated.
+    pub drive: bool,
+    /// Without a modelled drive: the driving force the script asks of the wheels (N).
+    pub script_force: f32,
+}
+
+pub struct TrolleyRig {
+    pub def: TrolleyDef,
+    pub poles: Vec<Pole>,
+    pub traction: Option<Traction>,
+    pub out: TractionOut,
+    last: Option<(DVec3, DMat3)>,
+    /// Voltage at the vehicle and the current it draws (A, negative: given back).
+    pub volts: f32,
+    pub amps: f32,
+    /// Both poles are on live wires of opposite polarity.
+    pub circuit: bool,
+    /// What a scripted drive's torque is scaled by: 1 with a good circuit, 0 without.
+    pub script_gate: f32,
+    pub sparks: Vec<Spark>,
+    pub sounds: Vec<RigSound>,
+    /// How loud the wire hisses at the shoes (0..1) and where, and how hard an arc is
+    /// burning now (0..1).
+    pub hiss: f32,
+    pub hiss_pos: DVec3,
+    pub arc: f32,
+    /// The picture of the last step's events, for a HUD line.
+    pub last_event: Option<(PoleEventKind, usize)>,
+    /// Short messages for the driver about what happened to the poles (taken by the game).
+    pub notes: Vec<String>,
+    /// Every event of the poles goes into the notes (for logs).
+    pub verbose: bool,
+    events: Vec<PoleEvent>,
+}
+
+/// The point a ray reaches at `len` metres from `base` (the farthest, where it crosses that
+/// sphere twice; the nearest approach pushed out to `len` when it misses): where a hand
+/// pointing along the ray holds a pole's tip.
+fn free_aim(o: DVec3, d: DVec3, base: DVec3, len: f64) -> DVec3 {
+    let d = d.normalize_or_zero();
+    let oc = o - base;
+    let b = d.dot(oc);
+    let c = oc.length_squared() - len * len;
+    let disc = b * b - c;
+    let p = if disc >= 0.0 { o + d * (-b + disc.sqrt()) } else { o + d * (-b).max(0.0) };
+    base + (p - base).normalize_or_zero() * len
+}
+
+impl TrolleyRig {
+    pub fn new(def: &TrolleyDef, seed: u64) -> TrolleyRig {
+        let poles = def.poles.iter().enumerate().map(|(i, p)| Pole::new(p.clone(), seed.wrapping_add(i as u64 * 977))).collect();
+        let traction = def.drive.as_ref().map(|d| Traction::new(d, def.battery.clone()));
+        TrolleyRig {
+            def: def.clone(),
+            poles,
+            traction,
+            out: TractionOut::default(),
+            last: None,
+            volts: 0.0,
+            amps: 0.0,
+            circuit: false,
+            script_gate: 0.0,
+            sparks: Vec::new(),
+            sounds: Vec::new(),
+            hiss: 0.0,
+            hiss_pos: DVec3::ZERO,
+            arc: 0.0,
+            last_event: None,
+            notes: Vec::new(),
+            verbose: false,
+            events: Vec::new(),
+        }
+    }
+
+    /// The wire side a pole of `side` takes where the span's tangent is `t`, for a vehicle
+    /// heading `fwd`: the right pole takes the wire on the right of the way it runs.
+    fn wanted_side(side: i8, t: DVec3, fwd: DVec3) -> u8 {
+        let same = t.dot(fwd) >= 0.0;
+        if (side > 0) == same {
+            0
+        } else {
+            1
+        }
+    }
+
+    fn goal_for(&self, k: usize, cmd: RopeCmd, net: &WireNet, pos: DVec3, rot: &DMat3) -> Option<Contact> {
+        let RopeCmd::Raise { ray, auto } = cmd else { return None };
+        let pole = &self.poles[k];
+        let base = pole.base_at(pos, rot);
+        let fwd = *rot * DVec3::Y;
+        let side = pole.def.side;
+        let reach = pole.def.length as f64;
+        if let Some((o, d)) = ray {
+            let hit = net.aim_wire(o, d, base, reach, &|t| Some(Self::wanted_side(side, t, fwd)), 2.2);
+            if hit.is_some() || !auto {
+                return hit.map(|h| h.0);
+            }
+        }
+        if auto {
+            // (a pole in the hand or just let go is carried to the wire nearest its own tip; one
+            // that has not been raised yet, to the wire above its working angle)
+            let held = matches!(pole.mode, PoleMode::Hand | PoleMode::Free) && pole.tip.length_squared() > 1.0;
+            let (tip, radius) = if held { (pole.tip, 4.5) } else { (base + *rot * rotate_tip_pub((pole.def.work_angle as f64).to_radians(), 0.0, reach), 3.5) };
+            return net
+                .candidates(tip, radius)
+                .into_iter()
+                .filter(|(c, _)| {
+                    let (_, t) = net.wire_point(c);
+                    c.side == Self::wanted_side(side, t, fwd)
+                })
+                .min_by(|a, b| a.1.total_cmp(&b.1))
+                .map(|x| x.0);
+        }
+        None
+    }
+
+    /// Advance one step.
+    pub fn step(&mut self, inp: &RigInput) -> &TractionOut {
+        let dt = inp.dt.max(1e-4) as f64;
+        let (p0, r0) = self.last.unwrap_or((inp.pos, inp.rot));
+        let span = PoseSpan { pos0: p0, rot0: r0, pos1: inp.pos, rot1: inp.rot, accel: inp.accel };
+        self.last = Some((inp.pos, inp.rot));
+        self.events.clear();
+        static EMPTY: std::sync::OnceLock<WireNet> = std::sync::OnceLock::new();
+        let net = inp.net.unwrap_or_else(|| EMPTY.get_or_init(|| WireNet::parse("")));
+        let amps_before = self.amps;
+        for k in 0..self.poles.len() {
+            let cmd = inp.ropes.get(k).copied().unwrap_or(RopeCmd::Idle);
+            let rope = match cmd {
+                RopeCmd::Idle | RopeCmd::Release => Rope::Idle,
+                RopeCmd::Pull => Rope::Pull,
+                RopeCmd::Raise { auto, .. } => Rope::Aim { goal: self.goal_for(k, cmd, net, inp.pos, &inp.rot), auto },
+            };
+            let mut ev = std::mem::take(&mut self.events);
+            self.poles[k].steer_to = match cmd {
+                RopeCmd::Release => {
+                    let (tip, side, fwd) = (self.poles[k].tip, self.poles[k].def.side, inp.rot * DVec3::Y);
+                    net.candidates(tip, 2.5)
+                        .into_iter()
+                        .filter(|(c, _)| c.side == Self::wanted_side(side, net.wire_point(c).1, fwd))
+                        .min_by(|a, b| a.1.total_cmp(&b.1))
+                        .map(|x| net.wire_point(&x.0).0)
+                }
+                _ => None,
+            };
+            self.poles[k].free_aim = match cmd {
+                RopeCmd::Raise { ray: Some((o, d)), auto: false } => {
+                    let base = self.poles[k].base_at(inp.pos, &inp.rot);
+                    Some(free_aim(o, d, base, self.poles[k].def.length as f64))
+                }
+                _ => None,
+            };
+            self.poles[k].roughness = net.roughness as f64;
+            self.poles[k].step(net, &span, dt, rope, amps_before, k, &mut ev);
+            self.events = ev;
+        }
+        self.handle_events(net, inp, amps_before);
+        // the circuit: one pole on each wire, both fed
+        let mut plus: Option<&Pole> = None;
+        let mut minus: Option<&Pole> = None;
+        for p in &self.poles {
+            if p.mode == PoleMode::OnWire && p.closed && p.on_live {
+                if let Some(c) = p.contact {
+                    if c.side == 0 {
+                        plus = plus.or(Some(p));
+                    } else {
+                        minus = minus.or(Some(p));
+                    }
+                }
+            }
+        }
+        self.circuit = plus.is_some() && minus.is_some();
+        let nominal = net.nominal_volts.max(1.0);
+        let section = plus.map(|p| p.section);
+        self.volts = match section {
+            Some(s) if self.circuit => net.section_volts(s, 0.0),
+            _ => 0.0,
+        };
+        let accept = section.filter(|_| self.circuit).map_or(0.0, |s| net.regen_capacity_kw(s));
+        if let Some(tr) = self.traction.as_mut() {
+            let o = tr.step(&TractionIn {
+                dt: inp.dt,
+                volts: self.volts,
+                nominal,
+                pedal: inp.pedal,
+                brake: inp.brake,
+                dir: inp.dir,
+                speed: inp.speed,
+                wheel_radius: inp.wheel_radius,
+                regen_accept_kw: accept,
+                aux_kw: self.def.aux_kw,
+            });
+            self.out = o;
+            self.amps = if self.circuit { o.line_amps } else { 0.0 };
+            for _ in 0..o.clicks.min(3) {
+                self.sounds.push(RigSound::Click);
+            }
+        } else {
+            self.out = TractionOut::default();
+            // a script's drive: the line current its force and speed ask for, with the start-up
+            // current a rheostat controller draws while it holds the motors back
+            let chopper = self.def.legacy.as_ref().is_some_and(|l| l.chopper);
+            let power_w = inp.script_force.max(0.0) * inp.speed.abs().max(0.0) / 0.82 + self.def.aux_kw * 1000.0;
+            let start = if chopper { 0.0 } else { (inp.script_force * 0.011).min(260.0) * (1.0 - (inp.speed.abs() / 4.0).min(1.0)) };
+            let a = if self.circuit && self.volts > 50.0 { power_w / self.volts + start } else { 0.0 };
+            self.amps = a;
+        }
+        self.script_gate = if self.circuit && self.volts >= 0.55 * nominal { (self.volts / nominal).min(1.0) } else { 0.0 };
+        if let Some(s) = section.filter(|_| self.circuit) {
+            net.add_current(s, self.amps);
+        }
+        // hiss and arcs
+        let mut hiss = 0.0f32;
+        let mut pos = DVec3::ZERO;
+        let mut n = 0.0;
+        let mut arc = 0.0f32;
+        for p in &self.poles {
+            if p.mode == PoleMode::OnWire {
+                let load = 0.12 + 0.88 * (self.amps.abs() / 220.0).min(1.0);
+                let moving = (p.slide as f32 / 6.0).min(1.0);
+                let h = if p.closed { load * moving } else { 0.0 };
+                hiss += h;
+                pos += p.tip;
+                n += 1.0;
+                if !p.closed && self.amps.abs() > 3.0 {
+                    arc = arc.max((self.amps.abs() / 250.0).min(1.0));
+                }
+            }
+        }
+        self.hiss = (hiss / self.poles.len().max(1) as f32).min(1.0);
+        if n > 0.0 {
+            self.hiss_pos = pos / n;
+        }
+        self.arc = arc;
+        net.end_step(inp.dt);
+        &self.out
+    }
+
+    fn handle_events(&mut self, net: &WireNet, inp: &RigInput, amps: f32) {
+        let events = std::mem::take(&mut self.events);
+        let ind = |a: f32| 0.5 * LOOP_HENRY * a * a;
+        for e in &events {
+            let a = e.amps.abs();
+            let live = a > 3.0;
+            self.last_event = Some((e.kind, e.pole));
+            if self.verbose {
+                self.notes.push(format!("{:?} pole {} at ({:.1}, {:.1}, {:.2}) with {:.0} A", e.kind, e.pole + 1, e.pos.x, e.pos.y, e.pos.z, e.amps));
+            }
+            match e.kind {
+                PoleEventKind::Engaged => {
+                    self.sounds.push(RigSound::Thud(0.7));
+                    self.notes.push(format!("Pole {} is on the wire", e.pole + 1));
+                }
+                PoleEventKind::Latched => {
+                    self.sounds.push(RigSound::Latch);
+                    self.notes.push(format!("Pole {} is down on its hook", e.pole + 1));
+                }
+                PoleEventKind::Released => self.sounds.push(RigSound::Release),
+                PoleEventKind::ContactOpened => {
+                    if live {
+                        self.spark(e.pos, 0.5 * ind(a), a, SparkKind::Break);
+                    }
+                }
+                PoleEventKind::ContactClosed { open_s, impact } => {
+                    if live {
+                        self.spark(e.pos, a * ARC_VOLTS * open_s.max(0.001), a, SparkKind::Make);
+                    }
+                    if impact > 0.5 {
+                        self.sounds.push(RigSound::Thud((impact / 3.0).min(1.0)));
+                    }
+                }
+                PoleEventKind::Dewired(cause) => {
+                    self.notes.push(format!("Pole {} came off the wire: {}", e.pole + 1, cause.describe()));
+                    if live {
+                        self.spark(e.pos, ind(a) + a * 100.0 * 0.02, a, SparkKind::Dewire);
+                    }
+                    self.sounds.push(RigSound::Thud(0.5));
+                }
+                PoleEventKind::GapEntered => {
+                    if live {
+                        self.spark(e.pos, ind(a), a, SparkKind::Insulator);
+                    }
+                }
+                PoleEventKind::GapLeft => {
+                    if live {
+                        self.spark(e.pos, a * 60.0 * 0.002, a, SparkKind::Insulator);
+                    }
+                }
+                PoleEventKind::FrogPassed { .. } => {
+                    self.sounds.push(RigSound::Frog);
+                    if live {
+                        self.spark(e.pos, 0.15 * ind(a) + 0.5 * a, a, SparkKind::Frog);
+                    }
+                }
+                PoleEventKind::Plate { switch } => {
+                    net.trigger_switch(switch as usize, amps, inp.blinker);
+                }
+            }
+        }
+        self.events = events;
+    }
+
+    fn spark(&mut self, pos: DVec3, energy: f32, amps: f32, kind: SparkKind) {
+        if energy < 0.05 {
+            return;
+        }
+        self.sparks.push(Spark { pos, energy, amps, kind });
+        let loud = (energy.sqrt() / 18.0).min(1.0);
+        if loud > 0.05 {
+            self.sounds.push(RigSound::Snap(loud));
+        }
+    }
+
+    pub fn take_sparks(&mut self) -> Vec<Spark> {
+        std::mem::take(&mut self.sparks)
+    }
+
+    pub fn take_notes(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.notes)
+    }
+
+    pub fn take_sounds(&mut self) -> Vec<RigSound> {
+        std::mem::take(&mut self.sounds)
+    }
+
+    /// Both poles are on the wire.
+    pub fn all_on_wire(&self) -> bool {
+        !self.poles.is_empty() && self.poles.iter().all(|p| p.mode == PoleMode::OnWire)
+    }
+
+    /// The gravity-compensated weight of the gear, for tests.
+    pub fn pole_weight_n(&self) -> f32 {
+        self.poles.iter().map(|p| (p.def.mass + p.def.head_mass) * G as f32).sum()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::def::{DriveKind, PoleDef, RheostatDef};
+
+    fn def() -> TrolleyDef {
+        let pole = |side: i8| PoleDef { side, base: Vec3::new(0.3 * side as f32, -1.0, 3.0), length: 6.5, ..Default::default() };
+        TrolleyDef { poles: vec![pole(-1), pole(1)], drive: Some(DriveKind::Rheostat(RheostatDef::default())), aux_kw: 3.0, ..Default::default() }
+    }
+
+    fn rot() -> DMat3 {
+        DMat3::from_rotation_z(-std::f64::consts::FRAC_PI_2)
+    }
+
+    struct Sim {
+        rig: TrolleyRig,
+        x: f64,
+        v: f32,
+        forces: Vec<f32>,
+    }
+
+    impl Sim {
+        fn new() -> Sim {
+            Sim { rig: TrolleyRig::new(&def(), 3), x: 30.0, v: 0.0, forces: Vec::new() }
+        }
+
+        fn step(&mut self, net: &WireNet, pedal: f32, brake: f32, ropes: &[RopeCmd]) {
+            let dt = 1.0 / 60.0;
+            let o = self.rig.step(&RigInput {
+                net: Some(net),
+                dt,
+                pos: DVec3::new(self.x, 0.0, 0.0),
+                rot: rot(),
+                accel: Vec3::ZERO,
+                speed: self.v,
+                wheel_radius: 0.5,
+                pedal,
+                brake,
+                dir: 1.0,
+                blinker: 0,
+                ropes,
+                drive: true,
+                script_force: 0.0,
+            });
+            let (f, mb) = (o.wheel_force, o.mech_brake);
+            // a 16 t bus with rolling resistance 1 %
+            let roll = if self.v > 0.01 { 0.01 * 16_000.0 * 9.81 } else { 0.0 };
+            let a = (f - roll - mb.min(60_000.0) - o.electric_brake) / 16_000.0;
+            self.v = (self.v + a * dt as f32).max(0.0);
+            self.x += self.v as f64 * dt as f64;
+            self.forces.push(f);
+        }
+
+        fn raise_both(&mut self, net: &WireNet) {
+            for _ in 0..(60 * 6) {
+                self.step(net, 0.0, 0.0, &[RopeCmd::Raise { ray: None, auto: true }; 2]);
+            }
+            for _ in 0..120 {
+                self.step(net, 0.0, 0.0, &[RopeCmd::Idle; 2]);
+            }
+        }
+    }
+
+    fn line() -> WireNet {
+        WireNet::parse("[trolley_section]\nid 1\nlive 1\n[trolley_span]\nsection 1\np -50 0 5.5\np 100 0 5.5\np 250 0 5.5\n")
+    }
+
+    #[test]
+    fn a_bus_without_poles_up_has_no_power() {
+        let net = line();
+        let mut s = Sim::new();
+        for _ in 0..120 {
+            s.step(&net, 1.0, 0.0, &[RopeCmd::Idle; 2]);
+        }
+        assert!(!s.rig.circuit);
+        assert_eq!(s.v, 0.0);
+    }
+
+    #[test]
+    fn raised_poles_close_the_circuit_and_the_bus_accelerates() {
+        let net = line();
+        let mut s = Sim::new();
+        s.raise_both(&net);
+        assert!(s.rig.all_on_wire(), "{:?}", s.rig.poles.iter().map(|p| p.mode).collect::<Vec<_>>());
+        assert!(s.rig.circuit);
+        for _ in 0..(60 * 10) {
+            s.step(&net, 1.0, 0.0, &[RopeCmd::Idle; 2]);
+        }
+        assert!(s.v > 5.0, "{}", s.v);
+        assert!(s.rig.volts > 500.0 && s.rig.volts <= 600.0);
+        assert!(s.rig.amps > 30.0);
+    }
+
+    #[test]
+    fn a_dead_section_stops_the_current_and_the_bus_rolls_down() {
+        // live up to x = 100, dead after it
+        let net = WireNet::parse(
+            "[trolley_section]\nid 1\nlive 1\n[trolley_section]\nid 2\nlive 0\n[trolley_span]\nsection 1\np -50 0 5.5\np 100 0 5.5\n[trolley_span]\nsection 2\np 100 0 5.5\np 400 0 5.5\n",
+        );
+        let mut s = Sim::new();
+        s.raise_both(&net);
+        assert!(s.rig.circuit);
+        let mut sparks = 0;
+        let mut was_live = false;
+        let mut lost_at = None;
+        for k in 0..(60 * 40) {
+            s.step(&net, 1.0, 0.0, &[RopeCmd::Idle; 2]);
+            sparks += s.rig.take_sparks().len();
+            if s.rig.circuit {
+                was_live = true;
+            } else if was_live && lost_at.is_none() {
+                lost_at = Some((k, s.x, s.v));
+            }
+        }
+        let (_, x_lost, v_lost) = lost_at.expect("the circuit broke");
+        assert!(x_lost > 100.0 && x_lost < 112.0, "x {x_lost}");
+        assert!(s.rig.out.wheel_force == 0.0);
+        // it rolled on after losing the current, slowing under rolling resistance
+        assert!(s.v < v_lost);
+        assert!(s.x > x_lost + 10.0);
+        // the break under load struck an arc
+        assert!(sparks > 0);
+    }
+
+    #[test]
+    fn coasting_through_the_insulator_strikes_no_arc() {
+        let net = WireNet::parse(
+            "[trolley_section]\nid 1\nlive 1\n[trolley_section]\nid 2\nlive 1\n[trolley_span]\nsection 1\np -50 0 5.5\np 100 0 5.5\n[trolley_span]\nsection 2\np 100 0 5.5\np 400 0 5.5\n",
+        );
+        let mut s = Sim::new();
+        s.raise_both(&net);
+        let mut loud = 0.0f32;
+        for _ in 0..(60 * 14) {
+            // power until 60 m, then coast through the gap
+            let pedal = if s.x < 80.0 { 1.0 } else { 0.0 };
+            s.step(&net, pedal, 0.0, &[RopeCmd::Idle; 2]);
+            for sp in s.rig.take_sparks() {
+                loud = loud.max(sp.energy);
+            }
+        }
+        assert!(s.x > 105.0);
+        assert!(loud < 1.0, "{loud}");
+        // power on through the gap is an arc
+        let mut s = Sim::new();
+        s.raise_both(&net);
+        let mut loud = 0.0f32;
+        for _ in 0..(60 * 14) {
+            s.step(&net, 1.0, 0.0, &[RopeCmd::Idle; 2]);
+            for sp in s.rig.take_sparks() {
+                loud = loud.max(sp.energy);
+            }
+        }
+        assert!(loud > 30.0, "{loud}");
+    }
+
+    #[test]
+    fn a_pulled_rope_takes_a_pole_off_and_the_circuit_goes() {
+        let net = line();
+        let mut s = Sim::new();
+        s.raise_both(&net);
+        for _ in 0..120 {
+            s.step(&net, 0.0, 0.0, &[RopeCmd::Pull, RopeCmd::Idle]);
+        }
+        assert_eq!(s.rig.poles[0].mode, PoleMode::Down);
+        assert!(!s.rig.circuit);
+    }
+}

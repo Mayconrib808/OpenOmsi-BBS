@@ -1,0 +1,330 @@
+//! The automatic stop announcements: at each stop of a depot file that keeps two recordings
+//! per stop, the game presses the IBIS's "next stop" key once, as the driver does. That is
+//! what plays the "… arrived" recording: a stock IBIS steps its stop counter on by itself
+//! only when a stop is left, so without the press only the "next stop is …" half of each
+//! stop is ever heard. The game plays nothing itself - the key runs the vehicle's own script,
+//! with its volume, its 3D sound and its terminus suffix.
+//!
+//! What the scripts do is left alone: a press is skipped where the counter already stands
+//! where it should, an arrival is pressed for again until it is heard (electrics off, another
+//! IBIS mode, a script that was busy), and a departure the scripts did not step on by
+//! themselves is made up for once after a grace period. That last is the watchdog for the
+//! maps whose depot files the scripts cannot follow, and it is armed only where there is a
+//! second recording to miss.
+//!
+//! Standing at the trip's first stop, the game presses the key once, as a driver does before
+//! pulling out (see [`AutoAnnounce::park`]): that plays the line's own start recording -
+//! `welcome…` on the southern maps, `1041` on Beijing's - and leaves the counter on the entry
+//! before the first "next stop is …" one, so that the scripts' own step on leaving plays the
+//! first stop's recording. A start recording the scripts start late is not waited for: the
+//! departure recording takes over, as it would in service.
+
+use omsi_sim::timetable_run::announce::{self, TwoRecordings};
+use omsi_sim::timetable_run::PlayerDuty;
+use omsi_sim::VehicleInstance;
+
+/// The least time between two presses of a key (s): one press a frame at most, and the
+/// scripts a moment to run their own step in between.
+const MIN_GAP: f64 = 0.2;
+/// The least time before the same entry is pressed for again (s): a press the script did not
+/// take (electrics off, another IBIS mode) is tried again, but once a second rather than five
+/// times - the key may be one the script uses for something else, and twenty tries are enough
+/// to cover the stop.
+const RETRY_GAP: f64 = 1.0;
+/// How long the scripts have to step the IBIS on by themselves when a stop is left before the
+/// game does it (s): a stock IBIS does it in the frame the stop index changes.
+const SCRIPT_GRACE: f64 = 4.0;
+/// How long an arrival recording is worth pressing for (s): the bus may stand at the stop with
+/// its electrics off, or another IBIS mode up, for a few seconds, and the press is tried again
+/// every [`RETRY_GAP`] until then.
+const ARRIVAL_WAIT: f64 = 20.0;
+/// The most entries one press passes silently.
+const MAX_SKIP: usize = 3;
+
+/// The entry the IBIS is still to be pressed on, and until when.
+#[derive(Clone, Copy)]
+struct Want {
+    entry: usize,
+    until: f64,
+    /// The bus has to still stand at its stop: an arrival recording is dropped when it drives
+    /// on, since a stop the bus passes is not announced.
+    at_stop: bool,
+}
+
+/// The announcements of one bus, a frame at a time.
+#[derive(Default)]
+pub(crate) struct AutoAnnounce {
+    /// The trip of the last frame (0-based) and whether the bus stood at its stop. The first
+    /// frame sets them; a bus spawned standing at a stop announces it as it would any other,
+    /// since that is where it stands (and nothing is pressed where the counter is too far
+    /// behind, see [`MAX_SKIP`]).
+    trip: Option<usize>,
+    at_stop: Option<bool>,
+    /// The stop of the trip whose arrival recording was pressed for last.
+    announced: Option<usize>,
+    /// The press still to come (one at a time: the IBIS is a counter, and only one step can
+    /// be taken at a time).
+    want: Option<Want>,
+    /// A stop was left: when, and the entry the IBIS stood at then - after [`SCRIPT_GRACE`]
+    /// the scripts must have stepped it on.
+    watch: Option<(f64, f32)>,
+    /// When a key was pressed last, and the entry the IBIS stood at then: a press that leaves
+    /// the counter there is one the script did not take, and is given a second.
+    pressed: Option<(f64, f32)>,
+    /// The route whose depot file was last looked at, and its layout (None: one recording per
+    /// stop): the same for every stop of a trip, and reading it compares stop names.
+    layout: Option<(usize, Option<TwoRecordings>)>,
+    /// The vehicle has no `IBIS_vor` at all (an ibox or an Atron unit announces on its own).
+    off: bool,
+    /// The vehicle has no `IBIS_vor_stumm`: the counter can only be pressed on, not stepped
+    /// over silently, so a press is only made where it lands on the recording wanted.
+    no_skip: bool,
+}
+
+impl AutoAnnounce {
+    pub(crate) fn new() -> Self {
+        Self::default()
+    }
+
+    /// One frame of the player's duty, after it was updated: `now` is the seconds of play
+    /// (`SimClock::run_time`, which never wraps - a night line runs past midnight).
+    pub(crate) fn step(&mut self, d: &PlayerDuty, bus: &mut VehicleInstance, now: f64) {
+        if self.off {
+            return;
+        }
+        if self.trip != Some(d.trip_index) {
+            // (a trip of its own: its first stop is due, and the counter stands where the
+            // previous trip left it)
+            self.trip = Some(d.trip_index);
+            self.at_stop = Some(d.at_stop());
+            self.announced = None;
+            self.want = None;
+            self.watch = None;
+        }
+        let at = d.at_stop();
+        let left = self.at_stop.replace(at) == Some(true) && !at;
+        let layout = self.layout_of(bus);
+        if at {
+            // (both are dropped again by `press_step` while the other one is under way: the
+            // counter takes one step a frame)
+            self.park(bus, d, layout, now);
+            self.arrive(bus, d, layout, now);
+        } else if left {
+            self.left(bus, layout, now);
+        }
+        self.press_step(bus, now);
+        self.watch_step(bus, now);
+    }
+
+    /// The depot file's layout of the route the IBIS shows, read once per route.
+    fn layout_of(&mut self, bus: &VehicleInstance) -> Option<TwoRecordings> {
+        let route = route(bus)?;
+        if let Some((known, layout)) = self.layout {
+            if known == route {
+                return layout;
+            }
+        }
+        let layout = bus.host.hof.as_ref().and_then(|hof| announce::layout(hof, route));
+        self.layout = Some((route, layout));
+        if let Some(l) = layout {
+            log::info!(
+                "auto-announce: route {route} keeps {} pairs of recordings, its first next stop is entry {}",
+                l.pairs,
+                l.first
+            );
+        }
+        layout
+    }
+
+    /// While the bus stands at the trip's first stop, the key is pressed once, as a driver
+    /// presses it before pulling out: that is the entry the line's start recording stands on
+    /// (`welcome…`, `1041`), and the counter is left on the entry before the first
+    /// "next stop is …" one. Where the scripts played it themselves the counter already
+    /// stands there, and nothing is pressed - a start recording is never played twice. The
+    /// scripts' own step on leaving - or the watchdog's press, where they do not step - then
+    /// plays the first stop's recording, so a start recording the scripts never played is
+    /// heard here rather than at the departure, where it would be cut off.
+    fn park(&mut self, bus: &mut VehicleInstance, d: &PlayerDuty, layout: Option<TwoRecordings>, now: f64) {
+        let Some(layout) = layout.filter(|l| l.pairs > 0) else { return };
+        if d.next_stop != 0 {
+            return;
+        }
+        let Some(entry) = park_target(layout, bus.var("IBIS_busstop")) else { return };
+        // (one silent step a frame, so that a script's own press in between is seen)
+        if self.want.is_none() {
+            self.want = Some(Want { entry, until: now + ARRIVAL_WAIT, at_stop: true });
+        }
+    }
+
+    /// The bus reached the stop it stands at: the stop's arrival recording.
+    fn arrive(&mut self, bus: &VehicleInstance, d: &PlayerDuty, layout: Option<TwoRecordings>, now: f64) {
+        // (the first stop is the one the bus pulls out of, and its listener has just boarded:
+        // what is due there is the line's start recording, which `park` sees to)
+        if d.next_stop == 0 || self.announced == Some(d.next_stop) {
+            return;
+        }
+        // (a depot file of one recording per stop has no arrival half to add)
+        if !layout.is_some_and(|l| l.pairs > 0) {
+            return;
+        }
+        let Some(stop) = d.trips.get(d.trip_index).and_then(|t| t.stops.get(d.next_stop)) else { return };
+        let (Some(hof), Some(route)) = (bus.host.hof.clone(), route(bus)) else { return };
+        let Some(entry) = announce::arrival_entry(&hof, route, &stop.name, d.next_stop) else {
+            // (the depot file keeps no pair of recordings that this stop could be: said
+            // once, so that a stop that stays silent can be looked up)
+            self.announced = Some(d.next_stop);
+            log::info!(
+                "auto-announce: no arrival recording for '{}', stop {} of route {route}",
+                stop.name.trim(),
+                d.next_stop
+            );
+            return;
+        };
+        self.announced = Some(d.next_stop);
+        self.want = Some(Want { entry, until: now + ARRIVAL_WAIT, at_stop: true });
+        log::info!("auto-announce: arrival at '{}', entry {entry} of route {route}", stop.name.trim());
+    }
+
+    /// The bus left the stop: a stock script steps the counter on by itself here, and plays
+    /// the next stop's "next stop is …" recording. Where it does not, the watchdog presses
+    /// the key instead. A depot file of one recording per stop is left alone: the scripts
+    /// have always announced there.
+    fn left(&mut self, bus: &VehicleInstance, layout: Option<TwoRecordings>, now: f64) {
+        if !layout.is_some_and(|l| l.pairs > 0) {
+            return;
+        }
+        self.watch = bus.var("IBIS_busstop").map(|entry| (now, entry));
+    }
+
+    /// One step a frame towards the entry to play: silently while entries stand in between,
+    /// and by the key that plays on the last one. Nothing is pressed twice at the same entry
+    /// within [`MIN_GAP`], and a press the script did not take (electrics off, another IBIS
+    /// mode) is tried again every [`RETRY_GAP`] until [`ARRIVAL_WAIT`] or until the bus drives
+    /// on.
+    fn press_step(&mut self, bus: &mut VehicleInstance, now: f64) {
+        let Some(want) = self.want else { return };
+        if now > want.until || (want.at_stop && self.at_stop != Some(true)) {
+            self.want = None;
+            return;
+        }
+        // (a press the script did not take leaves the counter where it stood: the next one is
+        // a retry, and waits a second rather than a fifth; a press that stepped it on was
+        // heard by the script, and the entries in between follow a fifth of a second apart)
+        let retry = self.pressed.is_some_and(|(_, before)| bus.var("IBIS_busstop") == Some(before));
+        let gap = if retry { RETRY_GAP } else { MIN_GAP };
+        if self.pressed.is_some_and(|(last, _)| now - last < gap) {
+            return;
+        }
+        let Some(at) = bus.var("IBIS_busstop") else {
+            self.want = None;
+            return;
+        };
+        let target = want.entry as f32;
+        if target - at < 0.5 {
+            // (the scripts played it themselves, or the counter is past it)
+            self.want = None;
+            return;
+        }
+        if target - at > MAX_SKIP as f32 + 1.0 {
+            // (far behind - a duty taken over in the middle of its trip: stepping it on to
+            // this stop would play the recordings of the stops that were skipped)
+            log::info!("auto-announce: the IBIS stands at entry {at}, {target} expected here, left alone");
+            self.want = None;
+            return;
+        }
+        if target - at < 1.5 {
+            // (the press itself steps on by one, and plays)
+            self.press(bus, "IBIS_vor", now);
+        } else if self.no_skip {
+            // (no `IBIS_vor_stumm`: pressing on would play the entries in between)
+            log::info!("auto-announce: the IBIS cannot be stepped on silently, entry {target} left alone");
+            self.want = None;
+        } else {
+            self.press(bus, "IBIS_vor_stumm", now);
+        }
+        // (an entry the press did reach needs no second one; one it did not is tried again)
+        if bus.var("IBIS_busstop").is_some_and(|v| (v - want.entry as f32).abs() < 0.5) {
+            self.want = None;
+        }
+    }
+
+    /// A stock IBIS steps its counter on when a stop is left. One that does not - the stop
+    /// index the scripts read did not change, the electrics are off, another IBIS mode - would
+    /// stay silent for the rest of the duty, so the game presses the key once.
+    fn watch_step(&mut self, bus: &mut VehicleInstance, now: f64) {
+        let Some((since, entry)) = self.watch else { return };
+        if bus.var("IBIS_busstop") != Some(entry) {
+            self.watch = None;
+            return;
+        }
+        if now - since < SCRIPT_GRACE {
+            return;
+        }
+        self.watch = None;
+        if self.want.is_some() {
+            return;
+        }
+        self.want = Some(Want { entry: entry as usize + 1, until: now + SCRIPT_GRACE, at_stop: false });
+        log::warn!("auto-announce: the scripts left the IBIS at entry {entry}, pressed it on");
+    }
+
+    /// Press `name` and let it go again, as the game does for every key of the cab (a script
+    /// that guards a repeat on the release stays usable), and tell whether the IBIS went on.
+    fn press(&mut self, bus: &mut VehicleInstance, name: &str, now: f64) -> bool {
+        let before = bus.var("IBIS_busstop");
+        if !bus.trigger(name) {
+            log::info!("auto-announce: this bus has no `{name}`");
+            if name.eq_ignore_ascii_case("IBIS_vor") {
+                // (an ibox or an Atron unit: it announces on its own, and has no counter the
+                // game could press on)
+                log::info!("auto-announce: its announcements stay its own");
+                self.off = true;
+            } else {
+                self.no_skip = true;
+            }
+            return false;
+        }
+        bus.trigger(&format!("{name}_off"));
+        if let Some(before) = before {
+            self.pressed = Some((now, before));
+        }
+        bus.var("IBIS_busstop") != before
+    }
+}
+
+/// The entry the counter is to be parked at, or None where it stands there or past it: the
+/// one before the depot file's first "next stop is …" entry.
+fn park_target(layout: TwoRecordings, at: Option<f32>) -> Option<usize> {
+    let at = at?;
+    let entry = layout.first.checked_sub(1)?;
+    (entry as f32 - at > 0.5).then_some(entry)
+}
+
+/// The route whose stop list the IBIS shows: its `IBIS_RouteIndex`, or the ibox's own.
+fn route(bus: &VehicleInstance) -> Option<usize> {
+    bus.var("IBIS_RouteIndex")
+        .or_else(|| bus.var("ibox_routenindex"))
+        .filter(|r| *r >= 0.0)
+        .map(|r| r.round() as usize)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_counter_is_parked_before_the_first_next_stop_recording() {
+        // (the terminus' own recording at 0, the line's start recording at 1, the first
+        // "next stop is ..." one at 2: the counter is parked at 1)
+        let beijing = TwoRecordings { first: 2, pairs: 6 };
+        assert_eq!(park_target(beijing, Some(0.0)), Some(1));
+        // (a map that repeats the terminus' arrival before its pairs: parked at 2)
+        let zhengzhou = TwoRecordings { first: 3, pairs: 5 };
+        assert_eq!(park_target(zhengzhou, Some(0.0)), Some(2));
+        // (already there, or past it: nothing to do)
+        assert_eq!(park_target(beijing, Some(1.0)), None);
+        assert_eq!(park_target(beijing, Some(2.0)), None);
+        // (no counter to read: nothing to do)
+        assert_eq!(park_target(beijing, None), None);
+    }
+}

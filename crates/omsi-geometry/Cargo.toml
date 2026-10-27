@@ -1,0 +1,15 @@
+[package]
+name = "omsi-geometry"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Geometry generation: spline curves and profile extrusion, terrain meshes, object placement"
+
+[dependencies]
+omsi-map = { path = "../omsi-map" }
+omsi-scenery = { path = "../omsi-scenery" }
+omsi-o3d = { path = "../omsi-o3d" }
+omsi-cfg = { path = "../omsi-cfg" }
+glam.workspace = true
+log.workspace = true
+spade.workspace = true

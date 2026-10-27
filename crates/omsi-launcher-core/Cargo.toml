@@ -1,0 +1,42 @@
+[package]
+name = "omsi-launcher-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "The launcher's data side: maps, buses, lines, profiles, settings, mod installs, running games"
+
+[lib]
+name = "omsi_launcher_lib"
+path = "src/lib.rs"
+
+[[bin]]
+name = "openomsi-launcher"
+path = "src/main.rs"
+
+[build-dependencies]
+winresource.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+rayon.workspace = true
+zip.workspace = true
+sevenz-rust2 = { version = "0.23", default-features = false, features = ["util", "deflate"] }
+unrar-rs = { version = "0.10", default-features = false, features = ["crypto-rust"] }
+omsi-cfg = { path = "../omsi-cfg" }
+omsi-map = { path = "../omsi-map" }
+omsi-vehicle = { path = "../omsi-vehicle" }
+omsi-timetable = { path = "../omsi-timetable" }
+omsi-content = { path = "../omsi-content" }
+omsi-model = { path = "../omsi-model" }
+omsi-net = { path = "../omsi-net" }
+
+[target.'cfg(unix)'.dependencies]
+libc.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+windows = { workspace = true, features = ["Win32_Foundation", "Win32_System_SystemInformation"] }
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+rfd.workspace = true

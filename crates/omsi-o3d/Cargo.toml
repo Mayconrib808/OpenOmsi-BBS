@@ -1,0 +1,19 @@
+[package]
+name = "omsi-o3d"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Loader for OMSI .o3d binary meshes and DirectX .x meshes"
+
+[dependencies]
+thiserror.workspace = true
+glam.workspace = true
+log.workspace = true
+encoding_rs.workspace = true
+half = "2"
+omsi-cfg = { path = "../omsi-cfg" }
+# models of today's tools: glTF / GLB (parsed only - pictures go to the texture loader)
+gltf = { version = "1.4", default-features = false, features = ["utils", "names", "extras"] }
+serde_json.workspace = true
+# FBX (ufbx: one C file, built with the crate)
+ufbx = "0.11"

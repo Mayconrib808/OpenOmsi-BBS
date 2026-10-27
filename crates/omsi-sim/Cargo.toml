@@ -1,0 +1,34 @@
+[package]
+name = "omsi-sim"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Simulation runtime: vehicle instances with scripts and animations, system variables, clock"
+
+[dependencies]
+omsi-cfg = { path = "../omsi-cfg" }
+omsi-script = { path = "../omsi-script" }
+omsi-model = { path = "../omsi-model" }
+omsi-vehicle = { path = "../omsi-vehicle" }
+omsi-o3d = { path = "../omsi-o3d" }
+omsi-geometry = { path = "../omsi-geometry" }
+omsi-content = { path = "../omsi-content" }
+omsi-scenery = { path = "../omsi-scenery" }
+omsi-map = { path = "../omsi-map" }
+omsi-timetable = { path = "../omsi-timetable" }
+omsi-world = { path = "../omsi-world" }
+omsi-trolley = { path = "../omsi-trolley" }
+omsi-transit = { path = "../omsi-transit" }
+glam.workspace = true
+log.workspace = true
+anyhow.workspace = true
+serde.workspace = true
+hashbrown.workspace = true
+rayon.workspace = true
+parking_lot = { workspace = true }
+arc-swap.workspace = true
+
+[dev-dependencies]
+# (the tests and examples read pictures with the game's decoder, see `image_decode`)
+omsi-texture = { path = "../omsi-texture" }
+omsi-audio = { path = "../omsi-audio" }
