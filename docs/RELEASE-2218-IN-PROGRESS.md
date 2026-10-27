@@ -1,6 +1,6 @@
 # 2.2.1.8 verification
 
-Native source: `200ce5bc13740164d58e0ad99c9aa07a0845bc51`; exact upstream 0.3.45 retained. Windows native run: 40524255156. Overlay checks every baseline/result file hash. The fixed harness driver uses Cargo package identities rather than library target names, rejects empty test filters and preserves Cargo dynamic-library search directories for direct Windows execution. A prior Windows run approved 880 sim, 177 net, 175 LAN, 110 launcher, 180 input, 4 greeting/audio and 1 roof probe tests; final App gates and executable build are rerun with the complete loader environment.
+Native source: `6a90ea5682d748fc9d3113b7bee314e61379bfc4`; exact upstream 0.3.45 retained. Windows native run: 40526375163. Overlay checks every baseline/result file hash. The fixed harness driver uses Cargo package identities rather than library target names, rejects empty test filters and preserves Cargo dynamic-library search directories for direct Windows execution. A prior Windows run approved 880 sim, 177 net, 175 LAN, 110 launcher, 180 input, 4 greeting/audio and 1 roof probe tests; final App gates and executable build are rerun with the complete loader environment.
 
 Local Linux: 880 omsi-sim tests passed, 31 ignored, zero failures (109.30 seconds); includes four connection regressions and three new wrist regressions. Four greeting/audio tests passed including both real mixer output presses after cabin filtering and model pitch. Actual alighting/walking/waiting/boarding to an AI bus passed with the same person id/count.
 
@@ -11,3 +11,5 @@ Log findings (private raw logs not stored in the repository): 40% setting loaded
 Limitations: no paired-player gameplay, no user-bus perceptual sound comparison, no measured national wrist frequency. Cross-player repatriation of client-owned connection passengers is not implemented; local/AI connection tests are not evidence for it. Connection percentage remains local, not a global HostAgent client policy.
 
 Publication: NOT YET PUBLISHED. Target sequence 2026102702. Only sign after Windows native and candidate gates pass; then deploy through publish-2218 and verify live manifest, installer and chunks.
+
+Final source also rejects the just-left bus in visual_hail_bus, matching bus_for. Its regression proves that a connection waiter ignores the old bus even if it serves the new destination and hails the eligible other bus instead. Five connection-specific regressions passed locally.

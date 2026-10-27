@@ -9,8 +9,8 @@
   "neck_fix_retained": true,
   "bcs_fuel_fix_retained": true,
   "version": "2.2.1.8",
-  "run_id": 40524255156,
-  "commit": "200ce5bc13740164d58e0ad99c9aa07a0845bc51",
+  "run_id": 40526375163,
+  "commit": "6a90ea5682d748fc9d3113b7bee314e61379bfc4",
   "handover_discriminator": "0xBE",
   "official_freetex_discriminator": "0xBD",
   "admin_clock_opt_in": true,
@@ -20,5 +20,5 @@
   "followup_sha256": "a57a937aba80c2db96bcf6352d2a87c9874fc1fb4d9b0d3c2bce57ed2075111e",
   "desktop_launcher_run_id": 40449138327,
   "desktop_launcher_commit": "9eb3f7ef92163dce9029886897bb215ccb83daef",
-  "hotfix_patch_sha256": "4c1ae90c07c830b39d0efb130e519675922d099bb3d21080ef81d090e13c68a3"
+  "hotfix_patch_sha256": "cf2b45b7103627b7e22b2091c494895e06b11c105061e14a85d52915d030f217"
 }
