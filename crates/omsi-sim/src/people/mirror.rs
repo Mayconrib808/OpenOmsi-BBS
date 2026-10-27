@@ -90,6 +90,71 @@ impl PeopleSim {
         let key=match p.line{Some(k)=>Some(Self::hail_line_key(&self.stops.get(&stop)?.lines.get(k)?.1)),None=>None};
         Some((stop,key,p.dest.clone()))
     }
+    /// The native client has finished walking to a connecting stop. Only after the
+    /// host confirms taking ownership may we retire this client-owned passenger.
+    pub fn finish_returned_connection(&mut self, wire_id: u32) -> bool {
+        let Some(i) = self.people.iter().position(|person| {
+            if person.remote || person.puppet.is_some() { return false; }
+            let id = if person.id >= (1 << 30) {
+                ((person.id - (1 << 30)) & 0x7F_FFFF) | 0x80_0000
+            } else { person.id & 0x7F_FFFF };
+            id == wire_id && matches!(&person.state, State::Pax(p)
+                if p.task == Task::WaitingForBus && p.transfer_from == Some(BusId::Player)
+                    && p.transfer_count > 0)
+        }) else { return false; };
+        self.release(i);
+        let person = self.people.swap_remove(i);
+        self.retire(&person);
+        true
+    }
+
+    /// Promote a client-owned connection to a real host passenger. The host chooses
+    /// a free waiting place and new world id (never trusts either from the client).
+    pub fn adopt_returned_connection(&mut self, world: &dyn World, kind: usize,
+        stop: i64, line_key: Option<u64>, destination: Option<String>, peer: u32,
+        position: DVec3, heading: f64) -> Option<u32> {
+        if !position.is_finite() || !heading.is_finite() { return None; }
+        let s = self.stops.get(&stop)?;
+        if (s.gather - position).length() > 40.0 { return None; }
+        let dest = destination?.trim().to_string();
+        if dest.is_empty() || dest.len() > 180 { return None; }
+        let key = line_key?;
+        let line = s.lines.iter().position(|(name, terms)|
+            name.trim() == dest && Self::hail_line_key(terms) == key)?;
+        if !s.dests.iter().any(|(name, weight)| name.trim() == dest && *weight > 0.0) {
+            return None;
+        }
+        if kind >= self.types.len() || !self.pool_room() { return None; }
+        let spot = self.take_spot(stop)?;
+        let sp = self.stops.get(&stop)?.spots.get(spot)?.clone();
+        let walk = 1.1 + (self.rand_f() as f32 * 2.0 - 1.0) * 0.2;
+        let r = self.rand_f();
+        let mut pax = Pax::new(walk, r);
+        pax.task = Task::WaitingForBus;
+        pax.stop = Some(stop);
+        pax.spot = Some(spot);
+        pax.dest = Some(dest);
+        pax.line = Some(line);
+        pax.transfer_from = Some(BusId::Ai(remote_bus_id(peer)));
+        pax.transfer_count = 1;
+        pax.ride_km = self.rand_f() as f32 * 19.0 + 1.0;
+        pax.pos = sp.pos;
+        pax.yaw = sp.face.to_radians();
+        if sp.height != 0.0 {
+            pax.seat_h = sp.height;
+            pax.pos -= DVec3::Z * self.types[kind].def.seat_height as f64;
+            pax.pax_state = 2.0;
+        }
+        let at = pax.pos;
+        let yaw = sp.face;
+        let i = match self.spawn_as(world, at, yaw, State::Pax(Box::new(pax)), Some(kind)) {
+            Some(i) => i,
+            None => { self.free_spot(stop, spot); return None; }
+        };
+        let id = self.people[i].id;
+        Some(id)
+    }
+
     pub fn mirror_hail_intent(&mut self,id:u32,intent:Option<(i64,Option<u64>,Option<String>)>){
         if let Some((stop,key,dest))=intent{
             if self.mirror_hail_intent.get(&id).is_some_and(|old|old.0==stop && old.1==key && old.3==dest && (key.is_none()||old.2.is_some())){return}
@@ -193,7 +258,13 @@ impl PeopleSim {
                     Place::Ground => None,
                 };
                 let waiting = match &p.state {
-                    State::Pax(x) if aboard.is_none() && x.task == Task::WaitingForBus => x.stop.zip(x.spot),
+                    State::Pax(x) if aboard.is_none() && x.task == Task::WaitingForBus => {
+                        if self.mirror {
+                            if x.transfer_from == Some(BusId::Player) && x.transfer_count > 0 {
+                                x.stop.map(|stop| (stop, x.spot.unwrap_or(255)))
+                            } else { None }
+                        } else { x.stop.zip(x.spot) }
+                    },
                     _ => None,
                 };
                 Some(LanPerson {
