@@ -184,8 +184,17 @@ func (g *companyGateway) incoming(p *companyGatewayPeer, packet []byte) ([]byte,
 		if parts[1] != fmt.Sprint(g.networkProtocol()) {
 			return packet, nil
 		}
-	} else if id := companyGatewayID(parts[1]); id == 0 || id != p.id {
-		return nil, fmt.Errorf("anúncio com ID de outro jogador")
+	} else {
+		// A replacement WebSocket has a new transport peer until the native
+		// WELCOME binds its identity. The game can still emit its previous INFO
+		// while its reconnect notification/HELLO is in flight. Ignore that stale
+		// announcement; only the native admission handshake may assign p.id.
+		if p.id == 0 {
+			return nil, nil
+		}
+		if id := companyGatewayID(parts[1]); id == 0 || id != p.id {
+			return nil, fmt.Errorf("anúncio com ID de outro jogador")
+		}
 	}
 	original := parts[index]
 	if original != "" {

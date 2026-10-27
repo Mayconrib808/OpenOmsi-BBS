@@ -31,16 +31,28 @@ pub fn accessory_arm(rig: &Rig, bones: &mut [Affine3A; SLOTS], side: usize, targ
 /// A Brazilian-style boarding request: extend the free arm in front of the
 /// posed torso, around shoulder height. The gaze is intentionally independent.
 /// References and the limits of the photographic evidence are in sources.md.
-pub fn accessory_hail_arm(rig: &Rig, bones: &mut [Affine3A; SLOTS], side: usize, amount: f32, wave: f32) {
+pub fn accessory_hail_arm(rig: &Rig, bones: &mut [Affine3A; SLOTS], side: usize, waiting_forward: Vec3, amount: f32, wave: f32) {
     let amount = if amount.is_finite() { amount.clamp(0., 1.) } else { 0. };
     if amount <= 0.0001 { return; }
     let side = side.min(1);
-    // Read the actual body frame, never the bus target or the head's direction.
+    // The waiting pose supplies a stable streetward direction BEFORE the gaze
+    // turns the torso. The reference photos show the arm staying out towards
+    // the street while the person looks along the approaching traffic.
     let body_forward = bones[MAIN].transform_vector3(Vec3::Y);
     let forward = Vec3::new(body_forward.x, body_forward.y, 0.);
     if !forward.is_finite() || forward.length_squared() < 1e-6 { return; }
     let forward = forward.normalize();
     let right = forward.cross(Vec3::Z);
+    let wanted = Vec3::new(waiting_forward.x, waiting_forward.y, 0.);
+    if !wanted.is_finite() || wanted.length_squared() < 1e-6 { return; }
+    let wanted = wanted.normalize();
+    let angle = wanted.dot(right).atan2(wanted.dot(forward));
+    // Stay in the free shoulder's forward/outward cone. If the bus passes
+    // behind, stop following with this arm instead of reaching backwards or
+    // sweeping it through the chest. These bounds are rig-fitting choices.
+    let angle = if side == 1 { angle.clamp(-15f32.to_radians(), 75f32.to_radians()) }
+        else { angle.clamp(-75f32.to_radians(), 15f32.to_radians()) };
+    let out = forward * angle.cos() + right * angle.sin();
     let reach = rig.upper_arm + rig.forearm;
     if !reach.is_finite() || rig.upper_arm <= 0. || rig.forearm <= 0. { return; }
     let wave = if wave.is_finite() { wave.clamp(-0.04, 0.04) } else { 0. };
@@ -53,7 +65,6 @@ pub fn accessory_hail_arm(rig: &Rig, bones: &mut [Affine3A; SLOTS], side: usize,
 
     // Almost extended, with an unlocked elbow and a small outward allowance so
     // the arm does not cross the chest. The old pose held the wrist above the head.
-    let out = (forward + right * (SIDE[side] * 0.10)).normalize();
     let raised = (out + Vec3::Z * 0.06).normalize();
     let target = old_wr.lerp(sh + raised * (reach * 0.96), amount);
     let old_pole = old_el - (sh + old_wr) * 0.5;
@@ -112,7 +123,7 @@ mod brazilian_hail_tests {
                     for wave in [-0.04,0.,0.04] {
                         let mut bones = [Affine3A::from_quat(q); SLOTS];
                         let before = bones;
-                        accessory_hail_arm(&r, &mut bones, side, 1., wave);
+                        accessory_hail_arm(&r, &mut bones, side, forward, 1., wave);
                         let sh = bones[UPPER[side]].transform_point3(r.shoulder[side]);
                         let el = bones[FORE[side]].transform_point3(r.elbow[side]);
                         let wr = bones[HAND[side]].transform_point3(r.wrist[side]);
@@ -141,7 +152,7 @@ mod brazilian_hail_tests {
     }
 
     #[test]
-    fn hail_hand_stays_forward_of_torso_while_gaze_tracks_the_bus() {
+    fn hail_hand_stays_streetward_while_gaze_tracks_the_bus() {
         let r = rig(1.77);
         for degrees in [-150f32,-90.,-35.,0.,35.,90.,150.] {
             let bus = Quat::from_rotation_z(degrees.to_radians()) * Vec3::Y;
@@ -153,10 +164,13 @@ mod brazilian_hail_tests {
             }
             let head = bones[HEAD];
             let torso = bones[MAIN];
-            accessory_hail_arm(&r, &mut bones, 1, 1., 0.);
+            let right = torso.transform_vector3(Vec3::X).normalize();
+            let side = if Vec3::Y.dot(right) >= 0. { 1 } else { 0 };
+            accessory_hail_arm(&r, &mut bones, side, Vec3::Y, 1., 0.);
             let forward = torso.transform_vector3(Vec3::Y).normalize();
-            let hand = bones[HAND[1]].transform_vector3(r.wrist[1] - r.elbow[1]).normalize();
-            assert!(hand.dot(forward) > 0.97);
+            let hand = bones[HAND[side]].transform_vector3(r.wrist[side] - r.elbow[side]).normalize();
+            assert!(hand.dot(forward) > 0.24, "arm behind its shoulder at {degrees}");
+            if degrees.abs() <= 90. { assert!(hand.dot(Vec3::Y) > 0.97, "hand chased bus at {degrees}"); }
             assert!(bones[HEAD].abs_diff_eq(head, 1e-6));
             let neck = torso.to_scale_rotation_translation().1.conjugate()
                 * head.to_scale_rotation_translation().1;
@@ -166,8 +180,8 @@ mod brazilian_hail_tests {
         let mut a = [Affine3A::IDENTITY; SLOTS];
         let mut b = a;
         b[HEAD] = Affine3A::from_quat(Quat::from_rotation_z(1.2));
-        accessory_hail_arm(&r, &mut a, 1, 1., 0.);
-        accessory_hail_arm(&r, &mut b, 1, 1., 0.);
+        accessory_hail_arm(&r, &mut a, 1, Vec3::Y, 1., 0.);
+        accessory_hail_arm(&r, &mut b, 1, Vec3::Y, 1., 0.);
         for slot in [UPPER[1], FORE[1], HAND[1]] {
             assert!(a[slot].abs_diff_eq(b[slot], 1e-6));
         }
@@ -184,7 +198,7 @@ mod brazilian_hail_tests {
             let mut previous = native.bones;
             for frame in 0..=100 {
                 let mut bones = native.bones;
-                accessory_hail_arm(&r, &mut bones, side, frame as f32 / 100., 0.);
+                accessory_hail_arm(&r, &mut bones, side, Vec3::Y, frame as f32 / 100., 0.);
                 let wrist = bones[HAND[side]].transform_point3(r.wrist[side]);
                 let old = previous[HAND[side]].transform_point3(r.wrist[side]);
                 assert!(wrist.distance(old) < 0.025);
@@ -211,16 +225,16 @@ mod brazilian_hail_tests {
         let r = rig(1.77);
         for amount in [0., -1., f32::NAN] {
             let mut bones = [Affine3A::IDENTITY; SLOTS];
-            accessory_hail_arm(&r, &mut bones, 0, amount, f32::NAN);
+            accessory_hail_arm(&r, &mut bones, 0, Vec3::Y, amount, f32::NAN);
             assert!(bones.iter().all(|b| b.abs_diff_eq(Affine3A::IDENTITY, 1e-6)));
         }
         let mut bones = [Affine3A::IDENTITY; SLOTS];
         bones[MAIN] = Affine3A::from_quat(Quat::from_rotation_x(PI / 2.));
         let before = bones;
-        accessory_hail_arm(&r, &mut bones, 0, 1., 0.);
+        accessory_hail_arm(&r, &mut bones, 0, Vec3::Y, 1., 0.);
         assert!(bones.iter().zip(before).all(|(a,b)| a.abs_diff_eq(b, 1e-6)));
         let mut bones = [Affine3A::IDENTITY; SLOTS];
-        accessory_hail_arm(&r, &mut bones, 99, 1., f32::NAN);
+        accessory_hail_arm(&r, &mut bones, 99, Vec3::Y, 1., f32::NAN);
         assert!(bones.iter().all(|b| b.is_finite()));
     }
 }

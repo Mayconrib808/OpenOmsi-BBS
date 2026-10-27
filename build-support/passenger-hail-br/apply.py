@@ -64,6 +64,11 @@ replace_once(""" // The arm follows the same smoothed bus direction as the head/
 replace_once("""let (mut p,n)=if point&&v.index_finger{let r=glam::Quat::from_axis_angle(rest.finger_axis[side],self.finger);(rest.knuckle[side]+r*(v.point-rest.knuckle[side]),r*v.original_nrm)}else{(v.pos,v.nrm)};""",
 """// Hailing uses the model's relaxed open hand; only the umbrella hand curls.
  let (mut p,n)=if point{(v.original,v.original_nrm)}else{(v.pos,v.nrm)};""")
+# Keep the initial waiting/street direction independent of cosmetic body following.
+replace_once(" let hail=ask&&full_ok;", " let hail=ask&&full_ok;\n let starting_hail=self.hail<=0.001&&hail;")
+replace_once(" self.hail_side=if self.arm>0.05{0}else{1};", " let torso_slot=omsi_sim::human::slot_of(omsi_sim::human::BONE_MAIN).unwrap();\n let waiting_forward=bones[torso_slot].transform_vector3(Vec3::Y);")
+replace_once(" self.look.advance(&ty.rig,bones,gaze,gaze_amount,dt);", " self.look.advance(&ty.rig,bones,gaze,gaze_amount,dt);\n // Choose the free hand once per request; do not swap arms as the bus passes.\n if starting_hail{self.hail_side=if self.arm>0.05||gaze.is_some_and(|v|v.x>0.){0}else{1};}else if self.arm>0.05{self.hail_side=0;}")
+replace_once(" // from the actual torso, around shoulder height. Head and eyes track separately.\n accessory_hail_arm(&ty.rig,bones,side,ease,0.);", " // in the waiting pose's streetward direction, around shoulder height.\n accessory_hail_arm(&ty.rig,bones,side,waiting_forward,ease,0.);")
 gesture.write_text(new_gesture, encoding="utf-8")
 extras.write_text(text, encoding="utf-8")
 print("Brazilian boarding request applied: extended arm, relaxed open hand, independent bounded gaze.")

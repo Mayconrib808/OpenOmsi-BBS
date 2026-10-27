@@ -1,12 +1,5 @@
 name: Research-backed Brazilian passenger hailing preview
 'on':
-  push:
-    branches:
-    - fix/brazilian-passenger-hailing
-    paths:
-    - build-support/passenger-hail-br/**
-    - build-support/coop15-0344/prepare.py
-    - .github/workflows/passenger-hail-br.yml
   workflow_dispatch: {}
 permissions:
   contents: read

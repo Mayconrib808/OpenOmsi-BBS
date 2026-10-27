@@ -59,6 +59,8 @@ const (
 	guiIDServerTimer     = 120
 	guiIDServerPrevious  = 121
 	guiIDServerNext      = 122
+	guiIDBackup          = 123
+	guiIDRestore         = 124
 	guiIDServerCopyFirst = 130
 )
 
@@ -316,7 +318,7 @@ func (g *setupGUI) createControls() {
 	g.translatedButton("status", 520, 514, 194, 46, guiIDStatus)
 	g.cancelButton = g.translatedButton("cancel", 730, 514, 194, 46, guiIDCancel)
 	guiUser.NewProc("EnableWindow").Call(g.cancelButton, 0)
-	g.status = g.label(g.text("ready"), 34, 578, 666, 60)
+	g.status = g.label(g.text("ready"), 34, 578, 666, 34)
 	guiUser.NewProc("SendMessageW").Call(g.status, guiWMSetFont, g.smallFont, 1)
 	g.automaticUpdates = g.control("BUTTON", g.text("updates_automatic"), 480, 430, 444, 32, guiWSTabStop|guiBMAutoCheck, guiIDAutoUpdates)
 	g.translations = append(g.translations, guiTranslation{g.automaticUpdates, "updates_automatic"})
@@ -326,6 +328,8 @@ func (g *setupGUI) createControls() {
 		guiUser.NewProc("SendMessageW").Call(g.automaticUpdates, guiBMSetCheck, 1, 0)
 	}
 	g.updateButton = g.translatedButton("updates_check", 716, 578, 208, 36, guiIDUpdates)
+	g.translatedButton("coop_backup", 34, 617, 250, 30, guiIDBackup)
+	g.translatedButton("coop_restore", 300, 617, 250, 30, guiIDRestore)
 	g.updateStatus = g.label(g.text("updates_checking"), 716, 617, 208, 30)
 	guiUser.NewProc("SendMessageW").Call(g.updateStatus, guiWMSetFont, g.smallFont, 1)
 	g.serverLamp = g.control("STATIC", "", 34, 651, 24, 28, 0x000D, guiIDServerLamp)
@@ -580,6 +584,10 @@ func (g *setupGUI) command(id int) {
 			return
 		}
 		g.autoCheckUpdates = enabled
+	case guiIDBackup:
+		g.coopBackupCommand(false)
+	case guiIDRestore:
+		g.coopBackupCommand(true)
 	case guiIDUpdates:
 		g.updateCommand()
 	case guiIDDeactivate:

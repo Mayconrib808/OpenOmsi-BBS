@@ -41,28 +41,51 @@ func coopFixture(t *testing.T) ([]byte, coopDistribution) {
 }
 
 func TestCumulativeBundleInstallsManagedServerAndCoopAtExactPaths(t *testing.T) {
-    var data bytes.Buffer
-    z := zip.NewWriter(&data)
-    spec := coopDistribution{Prefix: "Bridge-2203/", FullPaths: true, Files: map[string]string{}}
-    want := map[string][]byte{bundledCoopFolder+"/programa/openomsi.exe": []byte("MZ game"), "app/server-dinamico-p14/openomsi.exe": []byte("MZ server")}
-    for name, content := range want {
-        f, err := z.Create(spec.Prefix+name); if err != nil { t.Fatal(err) }
-        if _,err=f.Write(content); err != nil {t.Fatal(err)}
-        spec.Files[name]=fmt.Sprintf("%x",sha256.Sum256(content))
-    }
-    if err:=z.Close();err!=nil {t.Fatal(err)}
-    spec.Size=int64(data.Len());spec.SHA256=fmt.Sprintf("%x",sha256.Sum256(data.Bytes()))
-    files,err:=readCoopDistribution(data.Bytes(),spec)
-    if err!=nil || len(files)!=2 {t.Fatalf("cumulative read: %v",err)}
-    dir:=t.TempDir()
-    for name,content:=range files {
-        if !bytes.Equal(content,want[name]) {t.Fatal("wrong destination",name)}
-        path:=filepath.Join(dir,filepath.FromSlash(name)); if err:=os.MkdirAll(filepath.Dir(path),0755);err!=nil {t.Fatal(err)}
-        if err:=os.WriteFile(path,content,0644);err!=nil {t.Fatal(err)}
-    }
-    if !existingCoopBundle(dir,spec) {t.Fatal("installed cumulative bundle not recognized")}
-    if err:=os.WriteFile(filepath.Join(dir,"app/server-dinamico-p14/openomsi.exe"),[]byte("corrupt"),0644);err!=nil {t.Fatal(err)}
-    if existingCoopBundle(dir,spec) {t.Fatal("damaged managed server accepted")}
+	var data bytes.Buffer
+	z := zip.NewWriter(&data)
+	spec := coopDistribution{Prefix: "Bridge-2203/", FullPaths: true, Files: map[string]string{}}
+	want := map[string][]byte{bundledCoopFolder + "/programa/openomsi.exe": []byte("MZ game"), "app/server-dinamico-p14/openomsi.exe": []byte("MZ server")}
+	for name, content := range want {
+		f, err := z.Create(spec.Prefix + name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err = f.Write(content); err != nil {
+			t.Fatal(err)
+		}
+		spec.Files[name] = fmt.Sprintf("%x", sha256.Sum256(content))
+	}
+	if err := z.Close(); err != nil {
+		t.Fatal(err)
+	}
+	spec.Size = int64(data.Len())
+	spec.SHA256 = fmt.Sprintf("%x", sha256.Sum256(data.Bytes()))
+	files, err := readCoopDistribution(data.Bytes(), spec)
+	if err != nil || len(files) != 2 {
+		t.Fatalf("cumulative read: %v", err)
+	}
+	dir := t.TempDir()
+	for name, content := range files {
+		if !bytes.Equal(content, want[name]) {
+			t.Fatal("wrong destination", name)
+		}
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, content, 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !existingCoopBundle(dir, spec) {
+		t.Fatal("installed cumulative bundle not recognized")
+	}
+	if err := os.WriteFile(filepath.Join(dir, "app/server-dinamico-p14/openomsi.exe"), []byte("corrupt"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if existingCoopBundle(dir, spec) {
+		t.Fatal("damaged managed server accepted")
+	}
 }
 
 func TestCoopDownloadRechecksCacheAndRejectsChangedPart(t *testing.T) {
@@ -119,27 +142,42 @@ func TestCoopDownloadRechecksCacheAndRejectsChangedPart(t *testing.T) {
 }
 
 func TestCoop2215DownloadSupportsMoreThanEightVerifiedChunks(t *testing.T) {
-    data,spec:=coopFixture(t)
-    spec.Parts=nil
-    parts:=map[string][]byte{}
-    size:=(len(data)+9)/10
-    for start:=0;start<len(data);start+=size {
-        end:=start+size;if end>len(data){end=len(data)}
-        part:=data[start:end]
-        hash:=fmt.Sprintf("%x",sha256.Sum256(part))
-        spec.Parts=append(spec.Parts,coopDistributionPart{hash,int64(len(part))})
-        parts["/packages/"+hash+".bin"]=part
-    }
-    if len(spec.Parts)<=8 {t.Fatal("fixture does not exercise larger 0.3.43 package")}
-    server:=httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
-        if p,ok:=parts[r.URL.Path];ok {w.Write(p)}else{http.NotFound(w,r)}
-    }))
-    defer server.Close()
-    actual,err:=downloadCoopDistribution(context.Background(),server.Client(),server.URL,spec,t.TempDir(),nil)
-    if err!=nil || !bytes.Equal(actual,data){t.Fatalf("new package chunk layout rejected: %v",err)}
-    if _,err=readCoopDistribution(actual,spec);err!=nil {t.Fatal(err)}
-    spec.Size=256<<20+1
-    if _,err=downloadCoopDistribution(context.Background(),server.Client(),server.URL,spec,t.TempDir(),nil);err==nil {t.Fatal("unbounded archive accepted")}
+	data, spec := coopFixture(t)
+	spec.Parts = nil
+	parts := map[string][]byte{}
+	size := (len(data) + 9) / 10
+	for start := 0; start < len(data); start += size {
+		end := start + size
+		if end > len(data) {
+			end = len(data)
+		}
+		part := data[start:end]
+		hash := fmt.Sprintf("%x", sha256.Sum256(part))
+		spec.Parts = append(spec.Parts, coopDistributionPart{hash, int64(len(part))})
+		parts["/packages/"+hash+".bin"] = part
+	}
+	if len(spec.Parts) <= 8 {
+		t.Fatal("fixture does not exercise larger 0.3.43 package")
+	}
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if p, ok := parts[r.URL.Path]; ok {
+			w.Write(p)
+		} else {
+			http.NotFound(w, r)
+		}
+	}))
+	defer server.Close()
+	actual, err := downloadCoopDistribution(context.Background(), server.Client(), server.URL, spec, t.TempDir(), nil)
+	if err != nil || !bytes.Equal(actual, data) {
+		t.Fatalf("new package chunk layout rejected: %v", err)
+	}
+	if _, err = readCoopDistribution(actual, spec); err != nil {
+		t.Fatal(err)
+	}
+	spec.Size = 256<<20 + 1
+	if _, err = downloadCoopDistribution(context.Background(), server.Client(), server.URL, spec, t.TempDir(), nil); err == nil {
+		t.Fatal("unbounded archive accepted")
+	}
 }
 
 func TestCoopArchiveRejectsMissingForeignAndCorruptFiles(t *testing.T) {
@@ -225,5 +263,45 @@ func TestBundledCoopSelectionNeedsGameOnlyAndDoesNotDependOnReadme(t *testing.T)
 	os.WriteFile(path, []byte("MZ fixture"), 0600)
 	if bundledCoopExecutable(dir) != path {
 		t.Fatal("bundled selection failed")
+	}
+}
+
+func TestCoopBackupRestoresModifiedBuildAndRefusesStockOrTampering(t *testing.T) {
+	dir := t.TempDir()
+	name := bundledCoopFolder + "/programa/openomsi.exe"
+	original := []byte("MZ custom cooperative build")
+	spec := coopDistribution{FullPaths: true, Files: map[string]string{name: fmt.Sprintf("%x", sha256.Sum256(original))}}
+	p := filepath.Join(dir, filepath.FromSlash(name))
+	if err := writeSetupAtomic(p, original); err != nil {
+		t.Fatal(err)
+	}
+	backup := filepath.Join(t.TempDir(), "coop.zip")
+	if err := createCoopBackup(dir, backup, spec); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(p, []byte("MZ upstream stock updater"), 0600)
+	if err := createCoopBackup(dir, backup, spec); err == nil {
+		t.Fatal("stock build replaced good backup")
+	}
+	if err := restoreCoopBackup(dir, backup, spec); err != nil {
+		t.Fatal(err)
+	}
+	b, _ := os.ReadFile(p)
+	if !bytes.Equal(b, original) {
+		t.Fatal("custom build not restored")
+	}
+	var z bytes.Buffer
+	w := zip.NewWriter(&z)
+	entry, _ := w.Create(name)
+	entry.Write([]byte("tampered"))
+	w.Close()
+	os.WriteFile(backup, z.Bytes(), 0600)
+	os.WriteFile(p, []byte("current"), 0600)
+	if err := restoreCoopBackup(dir, backup, spec); err == nil {
+		t.Fatal("tampered backup accepted")
+	}
+	b, _ = os.ReadFile(p)
+	if string(b) != "current" {
+		t.Fatal("changed installation before validating backup")
 	}
 }

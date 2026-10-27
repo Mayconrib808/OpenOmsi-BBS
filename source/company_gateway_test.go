@@ -212,6 +212,31 @@ func TestCompanyGatewayOfficialPrivateBusAndOpaqueBinary(t *testing.T) {
 	}
 }
 
+func TestCompanyGatewayReconnectIgnoresInfoUntilNativeWelcome(t *testing.T) {
+	f := newGatewayFixture(t)
+	c := gatewayUDPClient(t, f.g)
+	// The simulator has not observed the transport reconnect yet and publishes
+	// its old identity before it repeats the authenticated native handshake.
+	_, _ = c.Write([]byte("INFO|42|Alice|" + gatewayTestPrivate + "|Paint|810|"))
+	_, _ = c.Write(gatewayHello(gatewayTestPrivate))
+	if got := gatewayReadUDP(t, c); !bytes.HasPrefix(got, []byte("WELCOME|6|1|")) {
+		t.Fatal("stale pre-admission INFO broke reconnect", string(got))
+	}
+	if packet := <-f.packets; !bytes.HasPrefix(packet, []byte("HELLO|")) {
+		t.Fatal("unbound announcement reached the native server", string(packet))
+	}
+	info := []byte("INFO|1|Alice|" + gatewayTestPrivate + "|Paint|810|")
+	_, _ = c.Write(info)
+	if got := gatewayReadUDP(t, c); !bytes.Equal(got, info) {
+		t.Fatal("native identity was not usable after WELCOME", string(got))
+	}
+	<-f.packets
+	_, _ = c.Write([]byte("INFO|42|Alice|Vehicles/Other/bus.bus|"))
+	if got := gatewayReadUDP(t, c); !bytes.HasPrefix(got, []byte("REJECT|6|")) {
+		t.Fatal("post-admission identity spoof was accepted", string(got))
+	}
+}
+
 func TestCompanyGatewayStatusAndVersionUpdates(t *testing.T) {
 	f := newGatewayFixture(t)
 	for _, version := range []string{"0.2.11", "0.2.20-bbs-free2", "0.2.23", "0.2.99"} {

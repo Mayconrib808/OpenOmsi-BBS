@@ -237,6 +237,9 @@ func (p *companyGatewayPeer) send(packet []byte) error {
 	if err != nil {
 		return err
 	}
+	if len(data) == 0 {
+		return nil
+	}
 	_ = p.upstream.SetWriteDeadline(time.Now().Add(4 * time.Second))
 	_, err = p.upstream.Write(data)
 	return err

@@ -123,3 +123,41 @@ func (g *setupGUI) renderUpdateState() {
 	guiSetText(g.updateStatus, text)
 	guiSetText(g.updateButton, button)
 }
+
+func (g *setupGUI) coopBackupCommand(restore bool) {
+	if restore && guiMessageBox(g.window, g.text("coop_restore_confirm"), 0x24) != 6 {
+		return
+	}
+	work, done := "coop_backup_work", "coop_backup_done"
+	if restore {
+		work, done = "coop_restore_work", "coop_restore_done"
+	}
+	g.work(g.text(work), func(ctx context.Context) guiResult {
+		if err := setupChangesAllowed(g.config.Language); err != nil {
+			return guiResult{err: err}
+		}
+		if err := checkUpdateHostClosed(g.dir); err != nil {
+			return guiResult{err: err}
+		}
+		jar, err := installedBCSJar(g.config.Root)
+		if err != nil {
+			return guiResult{err: err}
+		}
+		if jar != "" {
+			if err = checkBCSClosedForUpdate(jar); err != nil {
+				return guiResult{err: err}
+			}
+		}
+		cache, err := os.UserCacheDir()
+		if err != nil {
+			return guiResult{err: err}
+		}
+		path := filepath.Join(cache, "OpenOmsi-BBS", "Backups", "Coop-"+bridgeVersion+"-"+bundledCoopDistribution.SHA256+".zip")
+		if restore {
+			err = restoreCoopBackup(g.dir, path, bundledCoopDistribution)
+		} else {
+			err = createCoopBackup(g.dir, path, bundledCoopDistribution)
+		}
+		return guiResult{err: err, status: g.text(done)}
+	})
+}
