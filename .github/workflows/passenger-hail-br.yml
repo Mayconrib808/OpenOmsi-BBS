@@ -1,0 +1,68 @@
+name: Research-backed Brazilian passenger hailing preview
+'on':
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: passenger-hail-br-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-preview:
+    runs-on: windows-latest
+    timeout-minutes: 100
+    env:
+      OPENOMSI_VERSION: 0.3.44-coop.15-hail-br.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_TERM_COLOR: never
+    steps:
+    - uses: actions/checkout@v7
+      with:
+        path: support
+        persist-credentials: false
+    - uses: actions/checkout@v7
+      with:
+        repository: openOMSI-org/openOMSI
+        ref: c7b54b907659c3c4e58e5c51311df1b298fad9a3
+        path: game
+        persist-credentials: false
+    - uses: actions/checkout@v7
+      with:
+        repository: openOMSI-org/openOMSI
+        ref: 8248fe452ad4e2d420a99a482b84badb10d82ce6
+        path: official44
+        persist-credentials: false
+    - uses: dtolnay/rust-toolchain@stable
+    - name: Apply all published fixes and researched cosmetic adaptation
+      run: 'python support/build-support/coop15-0344/prepare.py
+
+        if ($LASTEXITCODE -ne 0) { throw "Source preparation failed" }'
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: coop14-0341-windows
+        workspaces: game -> target
+        cache-workspace-crates: false
+        cache-on-failure: true
+    - name: Native hailing, neck, passenger, fuel and simulation regressions
+      working-directory: game
+      run: 'cargo test --locked --release -p omsi-sim --lib
+
+        if ($LASTEXITCODE -ne 0) { throw "Native simulation regression" }'
+    - name: Compile the actual Windows game
+      working-directory: game
+      run: 'cargo build --locked --release -p omsi-app
+
+        if ($LASTEXITCODE -ne 0) { throw "Native game integration failed" }'
+    - name: Executable version and self-test
+      run: 'game/target/release/openomsi.exe --version
+
+        if ($LASTEXITCODE -ne 0) { throw "Version check failed" }
+
+        game/target/release/openomsi.exe --self-test
+
+        if ($LASTEXITCODE -ne 0) { throw "Self-test failed" }'
+    - uses: actions/upload-artifact@v7
+      with:
+        name: Brazilian-hailing-Windows-preview
+        path: game/target/release/openomsi.exe
+        if-no-files-found: error
+        retention-days: 14

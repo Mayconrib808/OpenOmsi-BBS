@@ -1,0 +1,20 @@
+{
+  "upstream_tag": "v0.3.45",
+  "upstream_commit": "dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0",
+  "base_upstream_commit": "c7b54b907659c3c4e58e5c51311df1b298fad9a3",
+  "native_version": "0.3.45-coop.15-2.2.1.7",
+  "patch_sha256": "9620d6176a472d223d7d34dd553b9c89ea30b9292e5040f1cfcbe474f07dd41c",
+  "protocol": 15,
+  "retained_base": "release/2.2.1.4",
+  "neck_fix_retained": true,
+  "bcs_fuel_fix_retained": true,
+  "version": "2.2.1.7",
+  "run_id": 40444786730,
+  "commit": "e2b59ffffa7dbabe9b18b3ce47f295ead14791f6",
+  "handover_discriminator": "0xBE",
+  "official_freetex_discriminator": "0xBD",
+  "admin_clock_opt_in": true,
+  "delegated_passenger_role": true,
+  "changes_sha256": "604d8986802e4f9623757edc5d3552fa102a11adb7b99c64fc948a4f9bd720dc",
+  "default_transfer_percent": 20
+}

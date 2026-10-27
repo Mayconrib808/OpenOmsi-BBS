@@ -59,6 +59,8 @@ const (
 	guiIDServerTimer     = 120
 	guiIDServerPrevious  = 121
 	guiIDServerNext      = 122
+	guiIDBackup          = 123
+	guiIDRestore         = 124
 	guiIDServerCopyFirst = 130
 )
 
@@ -134,6 +136,7 @@ type setupGUI struct {
 	cancel                                                                       context.CancelFunc
 	busy, smoke, smokeCompleted                                                  bool
 	updateButton, updateStatus, automaticUpdates                                 uintptr
+	backupButton, restoreButton                                                  uintptr
 	autoStart                                                                    uintptr
 	autoCheckUpdates                                                             bool
 	updateResults                                                                chan setupUpdateResult
@@ -316,7 +319,7 @@ func (g *setupGUI) createControls() {
 	g.translatedButton("status", 520, 514, 194, 46, guiIDStatus)
 	g.cancelButton = g.translatedButton("cancel", 730, 514, 194, 46, guiIDCancel)
 	guiUser.NewProc("EnableWindow").Call(g.cancelButton, 0)
-	g.status = g.label(g.text("ready"), 34, 578, 666, 60)
+	g.status = g.label(g.text("ready"), 34, 578, 666, 34)
 	guiUser.NewProc("SendMessageW").Call(g.status, guiWMSetFont, g.smallFont, 1)
 	g.automaticUpdates = g.control("BUTTON", g.text("updates_automatic"), 480, 430, 444, 32, guiWSTabStop|guiBMAutoCheck, guiIDAutoUpdates)
 	g.translations = append(g.translations, guiTranslation{g.automaticUpdates, "updates_automatic"})
@@ -326,6 +329,8 @@ func (g *setupGUI) createControls() {
 		guiUser.NewProc("SendMessageW").Call(g.automaticUpdates, guiBMSetCheck, 1, 0)
 	}
 	g.updateButton = g.translatedButton("updates_check", 716, 578, 208, 36, guiIDUpdates)
+	g.backupButton = g.translatedButton("coop_backup", 34, 617, 250, 30, guiIDBackup)
+	g.restoreButton = g.translatedButton("coop_restore", 300, 617, 250, 30, guiIDRestore)
 	g.updateStatus = g.label(g.text("updates_checking"), 716, 617, 208, 30)
 	guiUser.NewProc("SendMessageW").Call(g.updateStatus, guiWMSetFont, g.smallFont, 1)
 	g.serverLamp = g.control("STATIC", "", 34, 651, 24, 28, 0x000D, guiIDServerLamp)
@@ -580,6 +585,10 @@ func (g *setupGUI) command(id int) {
 			return
 		}
 		g.autoCheckUpdates = enabled
+	case guiIDBackup:
+		g.coopBackupCommand(false)
+	case guiIDRestore:
+		g.coopBackupCommand(true)
 	case guiIDUpdates:
 		g.updateCommand()
 	case guiIDDeactivate:
@@ -846,7 +855,38 @@ func runSetupGUI(dir string, smoke bool) error {
 		guiUser.NewProc("DestroyWindow").Call(g.window)
 		return fmt.Errorf("Falha ao criar os campos da interface.")
 	}
+	if !smoke {
+		// Capture the verified custom build after an update reopens Setup. A later
+		// stock updater cannot overwrite this version's known-good snapshot.
+		go func() {
+			cache, e := os.UserCacheDir()
+			if e != nil {
+				return
+			}
+			backup := filepath.Join(cache, "OpenOmsi-BBS", "Backups", "Coop-"+bridgeVersion+"-"+bundledCoopDistribution.SHA256+".zip")
+			if _, e = os.Stat(backup); e == nil {
+				return
+			}
+			if existingCoopBundle(dir, coopBackupSpec(bundledCoopDistribution)) {
+				if e = createCoopBackup(dir, backup, bundledCoopDistribution); e != nil {
+					logSetup(dir, "coop-backup", e)
+				}
+			}
+		}()
+	}
 	if smoke {
+		if g.backupButton == 0 || g.restoreButton == 0 {
+			return fmt.Errorf("backup controls were not created")
+		}
+		for _, busy := range []bool{true, false} {
+			g.busyState(busy)
+			for _, button := range []uintptr{g.backupButton, g.restoreButton} {
+				enabled, _, _ := guiUser.NewProc("IsWindowEnabled").Call(button)
+				if (enabled != 0) == busy {
+					return fmt.Errorf("backup control busy state is incorrect")
+				}
+			}
+		}
 		if bundled := bundledCoopExecutable(g.dir); bundled != "" {
 			previous := g.config.OpenOMSI
 			g.command(guiIDBundledCoop)
