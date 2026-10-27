@@ -1,0 +1,74 @@
+name: Build umbrella closing-water hotfix candidate
+on:
+  push:
+    branches: [feat/live-camera-panel]
+    paths: [.github/workflows/umbrella-water-hotfix.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  native:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.9-hotfix.1
+      OPENOMSI_COOP_GAME_ONLY: "1"
+      TAURI_CONFIG: '{"version":"0.3.45"}'
+      CARGO_TERM_COLOR: never
+    steps:
+      - name: Checkout the tested camera sources
+        uses: actions/checkout@v4
+        with:
+          ref: 32b9a97016f10bba7cfed39fa9921b59a2a2f7c9
+          persist-credentials: false
+      - name: Verify passing camera tests
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $run = gh api repos/Mayconrib808/OpenOmsi-BBS/actions/runs/40587532083 | ConvertFrom-Json
+          if ($run.head_sha -ne '7b0c2713849ea335e3c2598bd42cfe954106423a' -or $run.conclusion -ne 'success') { throw "Camera source was not tested" }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Test wet fabric through all closing and lowering poses
+        shell: pwsh
+        run: |
+          cargo test --locked -p omsi-app --lib umbrella_water_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw "Umbrella folding water regression" }
+      - name: Build native Windows game
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw "Native camera build failed" }
+          & .\target\release\openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "Version check" }
+          & .\target\release\openomsi.exe --self-test
+          if ($LASTEXITCODE -ne 0) { throw "Native self-test" }
+      - name: Package native game with corresponding source and provenance
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import subprocess,hashlib,json,shutil
+          out=Path('native');out.mkdir()
+          pinned='32b9a97016f10bba7cfed39fa9921b59a2a2f7c9'
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==pinned
+          shutil.copy2('target/release/openomsi.exe',out/'openomsi.exe')
+          for dll in Path('target/release').glob('*.dll'):shutil.copy2(dll,out/dll.name)
+          version=subprocess.check_output([str((out/'openomsi.exe').resolve()),'--version'],text=True)
+          assert '0.3.45-coop.15-2.2.1.9-hotfix.1' in version
+          (out/'version.txt').write_text(version,encoding='utf-8')
+          subprocess.run(['git','archive','--format=tar.gz','--prefix=openomsi-camera-source/','-o',str(out/'openomsi-source.tar.gz'),pinned],check=True)
+          digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          (out/'SOURCE.json').write_text(json.dumps(dict(commit=pinned,native_sha256=digest(out/'openomsi.exe'),source_sha256=digest(out/'openomsi-source.tar.gz'),camera_test_run=40587532083,umbrella_water_tested=True),indent=2),encoding='utf-8')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw "Native camera provenance" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix1-native
+          path: native/*
+          if-no-files-found: error
+          retention-days: 30
