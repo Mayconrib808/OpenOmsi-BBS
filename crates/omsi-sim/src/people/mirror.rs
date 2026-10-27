@@ -263,7 +263,7 @@ impl PeopleSim {
                 let waiting = match &p.state {
                     State::Pax(x) if aboard.is_none() && x.task == Task::WaitingForBus => {
                         if self.mirror {
-                            if x.transfer_from == Some(BusId::Player) && x.transfer_count > 0 {
+                            if self.return_capable && x.transfer_from == Some(BusId::Player) && x.transfer_count > 0 {
                                 x.stop.map(|stop| (stop, x.spot.unwrap_or(255)))
                             } else { None }
                         } else { x.stop.zip(x.spot) }
