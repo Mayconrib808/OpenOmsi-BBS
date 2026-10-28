@@ -1,0 +1,47 @@
+{
+  "schema": 1,
+  "status": "model_selection_defined; assets_not_bundled_or_tested",
+  "fire": {
+    "default_model": "Roman Diesel 12215DFA APCA 6x6",
+    "package": "Romanian AI Traffic Vol. 2 - Roman Truck Pack",
+    "source": "https://reboot.omsi-webdisk.de/file/14215-romanian-ai-traffic-vol-2-roman-truck-pack/",
+    "distribution": "external_installation_only_without_written_permission",
+    "role": "fire_department",
+    "vehicle_definition": null,
+    "inspection_pending": [
+      "actual_ovh_path",
+      "model_and_textures",
+      "emergency_lights",
+      "siren",
+      "OpenOMSI_compatibility"
+    ]
+  },
+  "police": {
+    "selection_order": [
+      "explicit_user_mapping",
+      "verified_installed_police_vehicle",
+      "mipa_bmw_f31_police_1_1"
+    ],
+    "fallback": {
+      "model": "BMW 3er Touring F31 - police variant",
+      "author": "MiPa",
+      "version": "1.1",
+      "source": "https://reboot.omsi-webdisk.de/file/2476-ki-fahrzeug-bmw-3er-touring-zivil-und-polizeivariante/",
+      "license": "WTFPL-2.0 (publisher entry)",
+      "expected_package_directory": "Vehicles/MIPA/MIPA_AI_BMW_F31",
+      "vehicle_definition": null,
+      "variants": "author confirms versions with and without enabled blue lights/siren",
+      "dependency": "Kennz_DtNeu font for licence plates; locate installed copy or licensed source",
+      "asset_state": "download_endpoint_returned_403; no asset_files_obtained",
+      "inspection_pending": [
+        "actual_police_ovh_paths",
+        "license_inside_archive",
+        "model_and_textures",
+        "OpenOMSI_compatibility"
+      ]
+    },
+    "role": "police"
+  },
+  "missing_asset_behavior": "Do not use a generic civilian vehicle or substitute a different service; keep the BCS event untouched and report the missing visual asset.",
+  "classification": "Road-traffic vehicle kind does not assign the emergency role. Only an explicitly verified model/service mapping may identify a response vehicle."
+}

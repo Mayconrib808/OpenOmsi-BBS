@@ -60,3 +60,9 @@ When a Rust toolchain is available:
 cargo check --locked -p omsi-app
 cargo test --locked -p omsi-app --lib bcs_events::
 ```
+
+## Default emergency models selected
+
+See `emergency-models.json` for source attribution, selection order and unresolved asset inspection. The user selected the Roman APCA fire engine as the external installed-package default. Police uses an explicit user mapping first, then a verified installed police vehicle, then the MiPa BMW F31 police variant 1.1 as the intended packaged fallback. An ordinary car classification or a vague filename does not assign a police role.
+
+No third-party asset bytes are included by this change. The BMW download endpoint returned HTTP 403 during inspection; its exact police filenames and archive contents remain unverified. The publisher confirms emergency-light/siren variants and lists WTFPL. The Roman package requires separate installation unless redistribution permission is obtained. The actual dispatcher and model loader still need to consume this policy.
