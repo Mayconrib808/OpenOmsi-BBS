@@ -37,11 +37,13 @@ pub(crate) fn status(app: &crate::App) -> Option<Panel> {
             text("Dinheiro a recolher:", "Payment to collect:", "Geld einzusammeln:"),
             d.uncollected
         )));
-        children.push(button(
-            "collect_payment",
-            text("Recolher dinheiro (Shift+T)", "Collect payment (Shift+T)", "Geld nehmen (Shift+T)"),
-            None,
-        ));
+        // Status is intentionally passive: it does not own mouse focus while driving.
+        // The actual button stays in the Cooperative panel, and Shift+T works on foot.
+        children.push(note(text(
+            "Pressione Shift+T para recolher.",
+            "Press Shift+T to collect.",
+            "Shift+T drücken, um das Geld zu nehmen.",
+        )));
     }
     Some(card(Anchor::TopLeft, 20.0, 80.0, 360.0, 250, children))
 }
