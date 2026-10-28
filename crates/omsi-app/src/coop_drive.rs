@@ -51,6 +51,7 @@ struct Visitor {
     parked: Option<Player>,
     original_bus: Option<String>,
     foot: Option<crate::on_foot::OnFoot>,
+    original_duty: Option<crate::schedule::PlayerDuty>,
     active: bool,
     returning: bool,
     actors: HashSet<u32>,
@@ -62,6 +63,14 @@ struct Visitor {
     sent: Instant,
     started: Instant,
 }
+#[derive(Clone)]
+pub(crate) struct RemoteRoute {
+    pub line: String,
+    pub tour: String,
+    pub trip: String,
+    pub stop: usize,
+    pub seen: Instant,
+}
 #[derive(Default)]
 pub(crate) struct DriveState {
     requests: HashMap<u32, (u64, Instant)>,
@@ -70,6 +79,9 @@ pub(crate) struct DriveState {
     visitor: Option<Visitor>,
     controllers: HashMap<u32, (u32, u64, Instant)>,
     authority_sent: Option<Instant>,
+    route_sent: Option<Instant>,
+    pub(crate) routes: HashMap<u32, RemoteRoute>,
+    pub(crate) passenger_duty: Option<(u32, crate::schedule::PlayerDuty)>,
 }
 impl DriveState {
     pub(crate) fn controller(&self, owner: u32) -> u32 {
@@ -355,6 +367,7 @@ impl App {
                     h.player_bus_swapped(borrowed_uid, p.uid, &mut p.vehicle);
                 }
                 self.session.on_foot = foot;
+                self.session.duty = v.original_duty.take();
                 self.view = if self.session.on_foot.is_some() {
                     "foot"
                 } else {
@@ -368,8 +381,69 @@ impl App {
         self.input.pad_repeat.clear();
         self.net.coop.drive.request = None;
     }
+    /// Send the owner's exact timetable progress without transferring simulation authority.
+    /// On-foot passengers use this for their navigator; the BCS duty remains with its owner.
+    fn drive_route_broadcast(&mut self) {
+        if self.net.coop.drive.route_sent.is_some_and(|t| t.elapsed() < Duration::from_secs(1)) { return; }
+        if self.player.as_ref().is_none_or(|p| p.borrowed_from.is_some()) { return; }
+        let Some(duty) = self.session.duty.as_ref() else { return; };
+        let Ok(json) = serde_json::to_string(&(duty.line.as_str(), duty.tour.as_str(), duty.trip().name.as_str(), duty.next_stop)) else { return };
+        if json.len() > 768 { return; }
+        let Some(lan) = self.net.lan.as_mut() else { return; };
+        let peers: Vec<u32> = lan.peers().map(|p| p.pose.id).collect();
+        let msg = format!("COOPROUTE1 {json}");
+        for peer in peers { lan.command(peer, &msg); }
+        self.net.coop.drive.route_sent = Some(Instant::now());
+    }
+    fn drive_route_duty(&mut self, route: &RemoteRoute) -> Option<crate::schedule::PlayerDuty> {
+        let world = self.world.as_ref()?;
+        let sch = self.session.schedule.as_mut()?;
+        let mut duty = sch.player_duty(world, &route.line, &route.tour, self.clock.time, None, false).ok()?;
+        let trip = duty.trips.iter().position(|t| t.name.eq_ignore_ascii_case(&route.trip))?;
+        duty.start_at_here(trip, route.stop);
+        Some(duty)
+    }
+    /// A navigator-only timetable for the actual bus being ridden, not the passenger's
+    /// parked bus or their independently selected tour. Never writes career/BCS progress.
+    pub(crate) fn drive_route_preview(&mut self) {
+        let owner = match self.foot_bus() {
+            Some(BusId::Ai(id)) => crate::humans::remote_bus_player(id),
+            _ => None,
+        };
+        let Some(owner) = owner else {
+            self.net.coop.drive.passenger_duty = None;
+            return;
+        };
+        let Some(route) = self.net.coop.drive.routes.get(&owner)
+            .filter(|r| r.seen.elapsed() < Duration::from_secs(30)).cloned() else { return };
+        let matches = self.net.coop.drive.passenger_duty.as_ref().is_some_and(|(id, d)|
+            *id == owner && d.line.eq_ignore_ascii_case(&route.line)
+                && d.tour.eq_ignore_ascii_case(&route.tour));
+        if !matches {
+            self.net.coop.drive.passenger_duty = self.drive_route_duty(&route).map(|d| (owner, d));
+        }
+        if let Some((id, duty)) = self.net.coop.drive.passenger_duty.as_mut() {
+            if *id != owner { return; }
+            if let Some(trip) = duty.trips.iter().position(|t| t.name.eq_ignore_ascii_case(&route.trip)) {
+                if duty.trip_index != trip || duty.next_stop != route.stop {
+                    duty.start_at_here(trip, route.stop);
+                }
+            }
+        }
+    }
     // Legacy input replay is intentionally never consumed as vehicle authority.
     pub(crate) fn drive_receive(&mut self, from: u32, text: &str) -> bool {
+        if let Some(json) = text.strip_prefix("COOPROUTE1 ") {
+            if json.len() <= 768 && self.net.lan.as_ref().is_some_and(|l| l.peers().any(|p| p.pose.id == from)) {
+                if let Ok((line, tour, trip, stop)) = serde_json::from_str::<(String, String, String, usize)>(json) {
+                    if line.len() <= 128 && tour.len() <= 128 && trip.len() <= 256 && stop < 1024
+                        && !line.is_empty() && !trip.is_empty() {
+                        self.net.coop.drive.routes.insert(from, RemoteRoute { line, tour, trip, stop, seen: Instant::now() });
+                    }
+                }
+            }
+            return true;
+        }
         if let Some((token, driver, active)) = omsi_lan::vehicle_transfer::parse_authority_notice(text) {
             let valid = from != driver && self.net.lan.as_ref().is_some_and(|l|
                 l.peers().any(|p|p.pose.id == from) && (driver == l.my_id || l.peers().any(|p|p.pose.id == driver)));
@@ -546,6 +620,7 @@ impl App {
                     parked: None,
                     original_bus: self.args.bus.clone(),
                     foot: None,
+                    original_duty: None,
                     active: false,
                     returning: false,
                     actors: HashSet::new(),
@@ -627,6 +702,8 @@ impl App {
                     return;
                 }
                 if !v.active {
+                    let route = self.net.coop.drive.routes.get(&v.owner).cloned();
+                    let prepared_route = route.as_ref().and_then(|r| self.drive_route_duty(r));
                     let same_world = self
                         .world
                         .as_ref()
@@ -656,6 +733,24 @@ impl App {
                         self.drive_reset(true);
                         return;
                     }
+                    // Preserve the visitor's own duty/BCS journey. The borrowed navigator
+                    // shows the owner's tour, even when the visitor picked another tour.
+                    v.original_duty = self.session.duty.take();
+                    let mut followed = self.net.coop.drive.passenger_duty.take()
+                        .filter(|(id, _)| *id == v.owner).map(|(_, duty)| duty)
+                        .or(prepared_route);
+                    if let Some(duty) = followed.as_mut() {
+                        let ids = &state.timetable.3;
+                        let stop = state.timetable.5;
+                        if stop >= 0 {
+                            if let Some(trip) = duty.trips.iter().position(|t|
+                                t.stops.len() == ids.len() &&
+                                t.stops.iter().map(|s| s.object_id).eq(ids.iter().copied())) {
+                                duty.start_at_here(trip, stop as usize);
+                            }
+                        }
+                    }
+                    self.session.duty = followed;
                     p.borrowed_from = Some(v.owner);
                     p.authority_remote = false;
                     p.vehicle.host.auto_clutch = if self.settings.auto_clutch { 1.0 } else { 0.0 };
@@ -984,6 +1079,7 @@ impl App {
         }
     }
     pub(crate) fn drive_tick(&mut self) {
+        self.drive_route_broadcast();
         if self.net.coop.drive.authority_sent.is_none_or(|t| t.elapsed() >= Duration::from_millis(800)) {
             if let Some((token,peer)) = self.net.coop.drive.owner.as_ref().filter(|o|o.active).map(|o|(o.token,o.peer)) {
                 self.drive_announce_authority(token,peer,true);

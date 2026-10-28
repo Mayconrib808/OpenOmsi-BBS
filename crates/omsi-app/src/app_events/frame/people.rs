@@ -14,7 +14,23 @@ impl App {
     pub(super) fn frame_duty(&mut self, dt: f32) {
         let s=&self.settings;
         omsi_sim::people::TICKET_CHANCE_PERCENT.store(if s.ticket_chance_enabled {s.ticket_chance_percent.round() as i32}else{-1},std::sync::atomic::Ordering::Relaxed);
-        if self.player.as_ref().is_some_and(|p| p.borrowed_from.is_some()) { return; }
+        if self.player.as_ref().is_some_and(|p| p.borrowed_from.is_some()) {
+            // The visitor drives the original owner's bus. Advance only the borrowed
+            // navigation timetable, never a second BCS journey, career or passenger sim.
+            if !self.paused {
+                if let (Some(d), Some(p), Some(w)) =
+                    (self.session.duty.as_mut(), self.player.as_mut(), self.world.as_ref()) {
+                    d.learn_loaded(&w.data.peek().objects);
+                    d.update(&mut p.vehicle, self.clock.time);
+                    let _ = d.take_finished();
+                    let _ = d.take_skipped();
+                }
+            }
+            return;
+        }
+        // A walking passenger observes the owner's tour, not the idle local bus.
+        // This is a separate display-only duty and does not alter BCS accounting.
+        self.drive_route_preview();
         if self.session.duty.is_none() {
             self.session.career.no_trip();
         }
