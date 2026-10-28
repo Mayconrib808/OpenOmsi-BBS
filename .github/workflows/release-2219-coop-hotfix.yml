@@ -1,0 +1,75 @@
+name: Build Bridge 2.2.1.9 hotfix 2 cooperative installer
+on:
+  push:
+    branches: [release/2.2.1.9-hotfix.2]
+    paths: [.github/workflows/release-2219-coop-hotfix.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Wait for the pinned native game build
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for ($i=0; $i -lt 300; $i++) {
+            $run = gh api repos/Mayconrib808/OpenOmsi-BBS/actions/runs/40764717872 | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw "Cannot inspect native build" }
+            if ($run.head_sha -ne '55c11a9b4a3fdbf41de762824960431ae1862a2c') { throw "Wrong native build commit" }
+            if ($run.status -eq 'completed') {
+              if ($run.conclusion -ne 'success') { throw "Native build failed" }
+              break
+            }
+            if ($i -eq 299) { throw "Native build timeout" }
+            Start-Sleep -Seconds 20
+          }
+          $base = gh api repos/Mayconrib808/OpenOmsi-BBS/actions/runs/40602950335 | ConvertFrom-Json
+          if ($base.head_sha -ne '9d5e204f69da673e3f1dc855634a863f1ba1c642' -or $base.conclusion -ne 'success') { throw "Wrong retained cumulative hotfix" }
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.1.9-CoopFix1-Windows
+          run-id: 40764717872
+          github-token: ${{ github.token }}
+          path: native
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix1-candidate
+          run-id: 40602950335
+          github-token: ${{ github.token }}
+          path: prior
+      - name: Build installer and verify retained runtime and actual host controls
+        shell: pwsh
+        run: |
+          python scripts/build_2219_coop_hotfix.py --prior prior --native native
+          if ($LASTEXITCODE -ne 0) { throw "Camera installer build or preservation audit failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-candidate
+          path: |
+            build/release-2219-hotfix2/Atualizar-Bridge.exe
+            build/release-2219-hotfix2/build-report.json
+            build/release-2219-hotfix2/coop-spec.json
+            build/release-2219-hotfix2/coop-assets/**
+            build/release-2219-hotfix2/coop_bundle_manifest.go
+            build/release-2219-hotfix2/native-cli-evidence.json
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload small release report
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-report
+          path: build/release-2219-hotfix2/build-report.json
+          if-no-files-found: error
+          retention-days: 30
