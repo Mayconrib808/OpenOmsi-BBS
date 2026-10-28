@@ -702,6 +702,8 @@ impl App {
                     return;
                 }
                 if !v.active {
+                    let route = self.net.coop.drive.routes.get(&v.owner).cloned();
+                    let prepared_route = route.as_ref().and_then(|r| self.drive_route_duty(r));
                     let same_world = self
                         .world
                         .as_ref()
@@ -734,10 +736,9 @@ impl App {
                     // Preserve the visitor's own duty/BCS journey. The borrowed navigator
                     // shows the owner's tour, even when the visitor picked another tour.
                     v.original_duty = self.session.duty.take();
-                    let route = self.net.coop.drive.routes.get(&v.owner).cloned();
                     let mut followed = self.net.coop.drive.passenger_duty.take()
                         .filter(|(id, _)| *id == v.owner).map(|(_, duty)| duty)
-                        .or_else(|| route.as_ref().and_then(|r| self.drive_route_duty(r)));
+                        .or(prepared_route);
                     if let Some(duty) = followed.as_mut() {
                         let ids = &state.timetable.3;
                         let stop = state.timetable.5;
