@@ -276,3 +276,43 @@ func TestSavedDrivingPenaltyCanRecoverWithoutInventingEvents(t *testing.T) {
 		t.Fatal("penalty recovery changed collision counters or its real value")
 	}
 }
+
+func TestPrepareLocalizedBCSDriver(t *testing.T) {
+	d, err := parseDriver(fixture(t, "bbs-before.odr"), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d.Ident[0] = "Simulador de Companhia de Autobuses"
+	dir := t.TempDir()
+	native := filepath.Join(dir, "bbs.odr")
+	original := d.encode(false)
+	if err := os.WriteFile(native, original, 0644); err != nil {
+		t.Fatal(err)
+	}
+	sync, err := prepareDriver(native, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	converted, err := os.ReadFile(sync.OpenPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := parseDriver(converted, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Ident != d.Ident || got.evaluation() != d.evaluation() {
+		t.Fatal("localized profile changed during translation")
+	}
+	after, err := os.ReadFile(native)
+	if err != nil || !bytes.Equal(after, original) {
+		t.Fatal("native profile changed during preparation", err)
+	}
+	d.Ident[0] = "Unrelated driver"
+	if err := os.WriteFile(native, d.encode(false), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := prepareDriver(native, dir); err == nil {
+		t.Fatal("unrelated driver accepted")
+	}
+}

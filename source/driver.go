@@ -302,7 +302,8 @@ func prepareDriver(nativePath, dir string) (*driverSync, error) {
 	if err != nil {
 		return nil, fmt.Errorf("BCS personnel file: %w", err)
 	}
-	if d.Ident[0] != "Bus Company Simulator" {
+	// BCS localizes the driver name; retain the original identity in both formats.
+	if d.Ident[0] != "Bus Company Simulator" && d.Ident[0] != "Simulador de Companhia de Autobuses" {
 		return nil, fmt.Errorf("expected the BCS driver, got %q", d.Ident[0])
 	}
 	if err = os.MkdirAll(dir, 0755); err != nil {
