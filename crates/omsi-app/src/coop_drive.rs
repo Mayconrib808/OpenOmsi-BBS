@@ -370,7 +370,7 @@ impl App {
                 }
             }
             Message::DeskContext { token, desk } => {
-                if desk.name.len()>4096 || desk.stage>4 || ![desk.price,desk.paid,desk.due,desk.given].iter().all(|x|x.is_finite()) { return; }
+                if desk.name.len()>4096 || desk.stage>4 || ![desk.price,desk.paid,desk.due,desk.given,desk.uncollected].iter().all(|x|x.is_finite()) { return; }
                 if let Some(v)=self.net.coop.drive.visitor.as_mut().filter(|v|v.owner==from&&v.token==token&&v.active) { v.cash=desk; }
             }
             Message::PassengerWork { token, actor, wire } => {
