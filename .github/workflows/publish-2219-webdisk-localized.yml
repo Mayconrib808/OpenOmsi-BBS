@@ -1,0 +1,80 @@
+name: Publish 2.2.1.9 hotfix 2 localized WebDisk package
+on:
+  push:
+    branches: [fix/bcs-localized-driver]
+    paths: [.github/workflows/publish-2219-webdisk-localized.yml]
+  workflow_dispatch: {}
+permissions:
+  actions: read
+  contents: write
+concurrency:
+  group: bridge-2219-localized-release
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-candidate
+          run-id: 40765546864
+          github-token: ${{ github.token }}
+          path: candidate
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-WebDisk-localized-binaries
+          run-id: 40781049699
+          github-token: ${{ github.token }}
+          path: localized
+      - name: Verify and build complete ZIP, source and checksum
+        run: python scripts/build_2219_webdisk_localized_release.py
+      - name: Write public release notes
+        shell: bash
+        run: |
+          cat > dist/RELEASE_NOTES.md <<'EOF'
+          ## OpenOMSI + BBS Bridge 2.2.1.9 Hotfix 2 — BCS Localization Fix
+
+          **Complete Windows ZIP** for Bus Company Simulator (BCS/BBS) and openOMSI. Includes the modified cooperative game, native multiplayer P14/P15 servers, Setup, PeDePe adapter, company hosts, source code, licenses and SHA-256 hashes.
+
+          **Fixes in this edition**
+          - BCS driver identity accepts both **Bus Company Simulator** and **Simulador de Companhia de Autobuses** without changing the driver's saved data.
+          - Setup's **Atualizar agora** button reads the OMSI 2 folder currently entered, even before Save/Activate.
+          - Retains the 2.2.1.9 Hotfix 2 cooperative cashier, driver handover, passenger cabin and network corrections.
+
+          **Installation:** Extract the Windows ZIP into its own permanent folder, outside OMSI 2. Close the games and hosts. Run Setup.exe; in BCS choose OpenOMSI (Beta) and point it at PeDePeAdapter/openomsi.exe from this package. Back up any previous Bridge directory and preserve app/bridge.ini and company files.
+
+          **Experimental pre-release:** Windows binaries compiled successfully, but a complete live two-PC BCS trip was not tested for this edition. Other BCS localized driver labels have not been verified. OMSI 2, commercial BCS and paid addons are not included.
+
+          Author: Mayconrib808. Source snapshot and notices are inside the ZIP.
+
+          ---
+          **Português:** pacote completo para Windows com o jogo cooperativo, servidores, Bridge e código-fonte. Corrige o motorista do BCS em outro idioma e o botão Atualizar agora antes de salvar a configuração. Extraia fora da pasta OMSI 2; no BCS selecione OpenOMSI (Beta) e PeDePeAdapter/openomsi.exe. Teste de viagem em dois computadores ainda pendente.
+          EOF
+      - name: Create GitHub Release with ZIP and SHA-256
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="v2.2.1.9-hotfix.2-localized"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release tag exists; refusing to overwrite an existing release"
+            exit 1
+          fi
+          gh release create "$tag" \
+            dist/OpenOMSI_BBS_Bridge_2.2.1.9_Hotfix2_Localized_WebDisk.zip \
+            dist/OpenOMSI_BBS_Bridge_2.2.1.9_Hotfix2_Localized_WebDisk.zip.sha256 \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "OpenOMSI + BBS Bridge 2.2.1.9 Hotfix 2 — BCS Localization Fix" \
+            --notes-file dist/RELEASE_NOTES.md \
+            --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json url,assets --jq '{url,assets:[.assets[]|{name,size,url}]}'
