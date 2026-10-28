@@ -1,0 +1,25 @@
+name: Verify passive BCS event capture beta
+on:
+  push:
+    branches: [beta/bcs-event-capture]
+    paths: [beta/bcs-events/**, .github/workflows/bcs-event-probe-beta.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  observer:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify read-only event capture in isolated JVMs
+        shell: pwsh
+        run: |
+          python beta/bcs-events/test_probe.py
+          if ($LASTEXITCODE -ne 0) { throw "Event observer regression" }

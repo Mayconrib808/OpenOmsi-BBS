@@ -1,0 +1,26 @@
+BETA DE CAPTURA DOS EVENTOS BCS — 0.1.0
+
+Esta primeira etapa identifica os eventos reais do BCS e as chamadas aos serviços. Ainda não cria passageiros desmaiados, brigas, manchas de óleo nem veículos de emergência no OpenOMSI.
+
+COMO TESTAR
+1. Extraia a pasta Beta-Eventos-BCS dentro da pasta OMSI 2\Busbetrieb-Simulator. O arquivo Iniciar-Beta.bat deve ficar dentro de Busbetrieb-Simulator\Beta-Eventos-BCS.
+2. Feche o BCS e abra Iniciar-Beta.bat. Entre no BCS e inicie sua viagem normalmente, com os eventos habilitados.
+3. Quando acontecer uma ocorrência, anote qual foi e qual serviço você chamou. Deixe o atendimento terminar.
+4. Execute Abrir-Capturas.bat e envie os arquivos bcs-events-*.json e bcs-events-*.ndjson que estiverem na pasta.
+
+As capturas ficam em %LOCALAPPDATA%\OpenOmsi-BBS\EventosBeta.
+O arquivo .json contém o estado atual; o .ndjson contém o histórico de mudanças. O número no nome identifica o processo Java. Outros processos iniciados pelo launcher podem gerar arquivos apenas com waiting_for_bcs; o processo que capturou os eventos terá status compatible e event_id maior que zero durante a ocorrência.
+
+O QUE ESTE BETA FAZ
+- Observa o estado do gerenciador de eventos já iniciado pelo BCS.
+- Registra o evento, o serviço solicitado, o prazo interno e os indicadores de conclusão.
+- A passagem do prazo interno é registrada como service_delay_elapsed. Isso não é uma confirmação visual de chegada de uma equipe.
+- Mantém separado cada novo evento, inclusive quando dois eventos do mesmo tipo acontecem em sequência.
+- Não altera o sorteio, recompensas, multas, contadores ou o resultado dos atendimentos.
+- Não modifica o JAR do BCS e não envia dados pela internet.
+
+COMPATIBILIDADE E ESTADO DO BETA
+O observador compara três classes com o JAR fornecido nesta investigação. Se o BCS atualizar esses trechos, ele registra unsupported_bcs_build e suspende a leitura dos eventos.
+A captura foi validada em JVM com cenários sintéticos. A leitura no seu BCS ainda precisa deste primeiro teste real.
+
+Para voltar à abertura normal, feche o BCS e inicie pelo atalho habitual. A opção do observador vale apenas para os processos abertos por Iniciar-Beta.bat; não altera configurações globais do Java.
