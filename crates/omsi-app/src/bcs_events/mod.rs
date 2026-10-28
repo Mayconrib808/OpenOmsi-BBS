@@ -133,10 +133,10 @@ impl crate::App {
         } else {
             incidents.dispatcher.clear_without_world();
         }
-        if let Some((patient, blend)) = incidents.dispatcher.pose() {
-            publish(Some(patient), blend)
-        } else {
-            publish(state.patient, state.blend)
+        let pose = incidents.dispatcher.pose().or_else(|| state.patient.map(|id| (id,state.blend)));
+        publish(pose.map(|p|p.0),pose.map_or(0.0,|p|p.1));
+        if let Some(h)=self.session.humans.as_mut(){
+            h.sim.hold_for_responder(pose.filter(|p|p.1>0.0).map(|p|p.0));
         }
         if let Some(id) = transfer {
             if let Some(h) = self.session.humans.as_mut() {

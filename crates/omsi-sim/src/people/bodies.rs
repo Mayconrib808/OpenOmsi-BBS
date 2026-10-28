@@ -51,6 +51,16 @@ impl BodyOps {
 }
 
 impl PeopleSim {
+    /// Release previous holds every frame; only a seated local rider can be held.
+    pub fn hold_for_responder(&mut self, patient: Option<u32>) {
+        for person in &mut self.people {
+            if let State::Pax(pax) = &mut person.state {
+                pax.responder_hold = patient == Some(person.id) && !person.remote
+                    && pax.inside == Some(BusId::Player) && pax.seat.is_some()
+                    && pax.task == Task::SittingInBus && matches!(person.activity, Activity::Sit);
+            }
+        }
+    }
     /// A local passenger leaves with a physically arrived responder. The caller owns
     /// event/arrival validation; use the normal release path for seats and the cash desk.
     pub fn transfer_to_responder(&mut self,id:u32)->bool{

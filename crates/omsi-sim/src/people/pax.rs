@@ -84,6 +84,8 @@ pub const TICKET_BUY: u8 = 3;
 /// One passenger's state: the fields of the original's human the tasks use.
 #[derive(Debug, Clone)]
 pub struct Pax {
+    /// A selected medical patient keeps their seat until transfer or scene cancellation.
+    pub(crate) responder_hold: bool,
     pub task: Task,
     /// Movement state +0x6c4: 0 stand, 1 to the target, 2 0.7 m short of it, 3 there, 5
     /// along the paths, 6 0.7 m short of the path's end, 7 at the path's end, 9 turning on
@@ -206,6 +208,7 @@ pub struct Pax {
 impl Pax {
     pub fn new(walk_speed: f32, stop_request_random: f64) -> Pax {
         Pax {
+            responder_hold: false,
             task: Task::Nothing,
             st: 0,
             inside: None,

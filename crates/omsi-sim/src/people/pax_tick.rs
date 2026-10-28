@@ -201,9 +201,14 @@ impl PeopleSim {
                 None => p.discomfort = 0.0,
             }
         }
-        self.runner_step(i, dt, world, buses, bus_ix);
-        self.pax_move(i, dt, dt_ms, world, buses, bus_ix);
-        self.pax_task(i, dt, world, buses, bus_ix, at_stops, player_bus, taken_ticket, remove);
+        let held = !self.people[i].remote && self.pax(i).is_some_and(|p|
+            p.responder_hold && p.inside == Some(BusId::Player)
+                && p.seat.is_some() && p.task == Task::SittingInBus);
+        if !held {
+            self.runner_step(i, dt, world, buses, bus_ix);
+            self.pax_move(i, dt, dt_ms, world, buses, bus_ix);
+            self.pax_task(i, dt, world, buses, bus_ix, at_stops, player_bus, taken_ticket, remove);
+        }
         // (got off: a pedestrian now)
         let Some(p) = self.pax(i).cloned() else { return };
         // (0x62d75b) the stop they boarded at is forgotten once the bus has left it

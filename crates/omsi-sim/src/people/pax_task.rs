@@ -832,6 +832,27 @@ pub fn away_point(door: DVec3, out: DVec3, along: DVec3, id: u32) -> DVec3 {
 #[cfg(test)]
 mod connection_tests {
     use super::*;
+    #[test]
+    fn medical_patient_keeps_the_seat_at_an_alighting_stop_and_releases_on_cancel() {
+        let (root,mut h,world,i)=fixture("medical-seat-hold");
+        let buses=vec![bus(&root,BusId::Player,"Destino",DVec3::new(40.,0.,0.))];
+        let ix=HashMap::from([(BusId::Player,0)]);
+        let regs=HashMap::from([(BusId::Player,BusAtStops{all_exit:true,..Default::default()})]);
+        let p=h.pax_mut(i).unwrap();p.inside=Some(BusId::Player);p.bus=Some(BusId::Player);
+        p.task=Task::SittingInBus;p.seat=Some(0);p.st=0;p.pos=DVec3::new(0.,1.,0.);
+        h.people[i].activity=Activity::Sit;
+        let id=h.people[i].id;h.hold_for_responder(Some(id));
+        let mut ticket=false;let mut remove=Vec::new();
+        h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
+        assert_eq!(h.pax(i).unwrap().task,Task::SittingInBus);
+        assert_eq!(h.pax(i).unwrap().seat,Some(0));
+        assert!(h.people[i].position.x>39.,"patient must still follow the bus world transform");
+        assert!(remove.is_empty());
+        h.hold_for_responder(None);
+        h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
+        assert_eq!(h.pax(i).unwrap().task,Task::InBusToExit);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     fn fixture(name:&str)->(std::path::PathBuf,PeopleSim,crate::world_data::WorldData,usize) {
         let root=std::env::temp_dir().join(format!("connection-{name}-{}",std::process::id()));
         let dir=root.join("Humans/Test");std::fs::create_dir_all(&dir).unwrap();

@@ -18,6 +18,9 @@ are not replayed. Multiple compatible source processes are treated as ambiguous.
 Event 4 selects one seated, local passenger of the player's bus. A reversible
 head/torso slump blends in without changing the seat or leg anchor. This is a
 seated collapse; no floor fall, medic or stretcher animation is implemented.
+While unwell, the selected local rider keeps their seat through ordinary
+alighting stops and continues following the bus world transform. Cancellation
+releases that hold so the normal passenger routine can resume.
 
 When service 3 (ambulance) is requested and the bus is stopped:
 
@@ -98,7 +101,8 @@ scene only; police, fire and ticket-inspector scenes are not complete.
 ## Focused validation
 
 Executed locally on Linux with Rust 1.99.1 on 2026-10-28: application compilation
-passed, all three physical response simulation tests passed, and all ten
+passed, all three physical response simulation tests passed, the medical seat-hold
+regression passed (including normal alighting after cancellation), and all ten
 `bcs_events::` tests passed. The local compiler required a single codegen unit;
 the app test crate used optimization level 0. The original BMW staging helper
 also copied and hash-verified 48 original files and preserved author attribution.
@@ -111,8 +115,7 @@ cargo test --locked -p omsi-app --lib bcs_events::
 ```
 
 Before a playable Windows beta, validate the medical capture/call/completion,
-passenger pose in both animation modes, holding the patient through a normal
-alighting stop (the seated-only prototype currently cancels if they get up),
+passenger pose in both animation modes and through alighting stops,
 original ambulance mesh and siren,
 spawn/stop placement on actual maps, and arrival/departure in game. A successful
 headless simulation or compile does not validate these visuals.
