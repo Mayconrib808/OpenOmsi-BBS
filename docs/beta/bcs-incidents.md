@@ -19,8 +19,8 @@ Event 4 selects one seated, local passenger of the player's bus. A reversible
 head/torso slump blends in without changing the seat or leg anchor. This is a
 seated collapse; no floor fall, medic or stretcher animation is implemented.
 While unwell, the selected local rider keeps their seat through ordinary
-alighting stops and continues following the bus world transform. Cancellation
-releases that hold so the normal passenger routine can resume.
+alighting stops and continues following the bus world transform. Resolution of the illness or loss of its source/context releases that hold so
+the normal passenger routine can resume.
 
 When service 3 (ambulance) is requested and the bus is stopped:
 
@@ -100,11 +100,13 @@ scene only; police, fire and ticket-inspector scenes are not complete.
 
 ## Focused validation
 
-Executed locally on Linux with Rust 1.99.1 on 2026-10-28: application compilation
+Fourteen focused tests passed locally on Linux with Rust 1.99.1 on 2026-10-28: application compilation
 passed, all three physical response simulation tests passed, the medical seat-hold
 regression passed (including normal alighting after cancellation), and all ten
 `bcs_events::` tests passed. The local compiler required a single codegen unit;
-the app test crate used optimization level 0. The original BMW staging helper
+the app test crate used optimization level 0. Incremental compilation was disabled
+for the final application verification after a corrupted local compiler cache.
+The original BMW staging helper
 also copied and hash-verified 48 original files and preserved author attribution.
 These results do not establish Windows or in-game compatibility.
 
