@@ -42,7 +42,8 @@ When service 3 (ambulance) is requested and the bus is stopped:
 
 Without a valid model or clear connected route, dispatch retries every three
 seconds. It does not fabricate arrival or remove the patient on a timer. Scenes
-cancel after source loss, leaving/changing bus, map/vehicle UID change, moving
+cancel after source loss, the selected passenger leaving their seated activity,
+leaving/changing bus, map/vehicle UID change, moving
 more than 8 m after dispatch, or 180 simulated seconds. A cancelled ambulance is
 released to drive away; reused vehicle IDs on a new map cannot remove an
 unrelated car. Sessions in LAN mode and borrowed buses are excluded until an
@@ -96,6 +97,13 @@ scene only; police, fire and ticket-inspector scenes are not complete.
 
 ## Focused validation
 
+Executed locally on Linux with Rust 1.99.1 on 2026-10-28: application compilation
+passed, all three physical response simulation tests passed, and all ten
+`bcs_events::` tests passed. The local compiler required a single codegen unit;
+the app test crate used optimization level 0. The original BMW staging helper
+also copied and hash-verified 48 original files and preserved author attribution.
+These results do not establish Windows or in-game compatibility.
+
 ```sh
 cargo check --locked -p omsi-app --lib
 cargo test --locked -p omsi-sim --lib ai_traffic::response::
@@ -103,6 +111,8 @@ cargo test --locked -p omsi-app --lib bcs_events::
 ```
 
 Before a playable Windows beta, validate the medical capture/call/completion,
-passenger pose in both animation modes, original ambulance mesh and siren,
+passenger pose in both animation modes, holding the patient through a normal
+alighting stop (the seated-only prototype currently cancels if they get up),
+original ambulance mesh and siren,
 spawn/stop placement on actual maps, and arrival/departure in game. A successful
 headless simulation or compile does not validate these visuals.
