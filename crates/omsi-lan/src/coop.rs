@@ -62,7 +62,7 @@ pub struct Action {
     pub target: Target,
     /// The real passenger at the cash desk. Stale cash commands must not reach the next one.
     pub desk: u32,
-    /// 0 mesh, 1 HTML/script texture, 2 native ticket, 3 change coin, 4 conductor closing signal.
+    /// 0 mesh, 1 HTML/script texture, 2 native ticket, 3 change coin, 4 conductor closing signal, 5 collect passenger payment.
     pub kind: u8,
     /// 0 front section; 1.. trailer section.
     pub part: u8,
@@ -107,7 +107,7 @@ pub fn authorized(
     desk_bound: bool,
     desk: u32,
 ) -> bool {
-    if !inside || a.kind > 4 {
+    if !inside || a.kind > 5 {
         return false;
     }
     if a.kind == 0 && passenger && a.epoch == 0 {
@@ -129,6 +129,9 @@ pub struct Desk {
     pub paid: f32,
     pub due: f32,
     pub given: f32,
+    /// Payment still lying on the desk after the last ticket sale, even with no active passenger.
+    #[serde(default)]
+    pub uncollected: f32,
     pub name: String,
 }
 
@@ -206,7 +209,7 @@ impl Message {
             Self::Desk(d) => {
                 let name = hex_name(&d.name);
                 format!(
-                    "{PREFIX} s {:x} {:x} {} {:.2} {:.2} {:.2} {:.2} {}",
+                    "{PREFIX} s {:x} {:x} {} {:.2} {:.2} {:.2} {:.2} {} {:.2}",
                     d.epoch,
                     d.id,
                     d.stage,
@@ -214,7 +217,8 @@ impl Message {
                     d.paid.clamp(0.0, 9_999_999.0),
                     d.due.clamp(0.0, 9_999_999.0),
                     d.given.clamp(0.0, 9_999_999.0),
-                    if name.is_empty() { "-" } else { &name }
+                    if name.is_empty() { "-" } else { &name },
+                    d.uncollected.clamp(0.0, 9_999_999.0)
                 )
             }
         }
@@ -260,7 +264,7 @@ impl Message {
                     y: finite(v[12])?,
                 };
                 if a.seq == 0
-                    || a.kind > 4
+                    || a.kind > 5
                     || a.part > 16
                     || a.x.abs() > 4096.0
                     || a.y.abs() > 4096.0
@@ -269,7 +273,7 @@ impl Message {
                 }
                 Self::Action(a)
             }
-            ("s", 10) => Self::Desk(Desk {
+            ("s", 10 | 11) => Self::Desk(Desk {
                 epoch: h(2)?,
                 id: h(3)?.try_into().ok()?,
                 stage: n(4)?,
@@ -278,6 +282,7 @@ impl Message {
                 due: finite(v[7])?,
                 given: finite(v[8])?,
                 name: unhex(v[9])?,
+                uncollected: if v.len() == 11 { finite(v[10])? } else { 0.0 },
             }),
             _ => return None,
         })
@@ -491,10 +496,21 @@ mod tests {
                 a.desk + 1
             ));
         }
-        for kind in [1, 2, 3] {
+        for kind in [1, 2, 3, 5] {
             assert!(desk_bound(kind, None));
         }
     }
+    #[test]
+    fn conductor_collect_payment_requires_current_authority_and_desk() {
+        let mut a = action();
+        a.kind = 5;
+        a.phase = Phase::Tap;
+        assert!(authorized(Some((2, a.epoch)), 2, &a, true, false, true, a.desk));
+        assert!(!authorized(Some((2, a.epoch)), 3, &a, true, false, true, a.desk));
+        assert!(!authorized(Some((2, a.epoch)), 2, &a, false, false, true, a.desk));
+        assert!(!authorized(Some((2, a.epoch)), 2, &a, true, false, true, a.desk + 1));
+    }
+
     #[test]
     fn wire_is_small_and_round_trips() {
         let mut d = Desk {
@@ -505,6 +521,7 @@ mod tests {
             paid: 9999999.0,
             due: 9999999.0,
             given: 9999999.0,
+            uncollected: 9999999.0,
             name: "Integração São Paulo — estudante".into(),
         };
         let parsed = Message::parse(&Message::Desk(d.clone()).encode()).unwrap();
@@ -537,7 +554,7 @@ mod tests {
         for s in [
             "COOP1 c 0 0 0 0 0 0 0 0 0 0 0",
             "COOP1 c 0 1 0 0 0 0 0 0 0 NaN 0",
-            "COOP1 c 0 1 0 0 5 0 0 0 0 0 0",
+            "COOP1 c 0 1 0 0 6 0 0 0 0 0 0",
             "COOP1 a 0 1 2",
             "COOP1 s 0 0 1 1 1 1 1 ff",
             "COOP1 q unexpected",
