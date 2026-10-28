@@ -1,0 +1,87 @@
+name: Normalize 2.2.1.9 release title, assets and complete changelog
+on:
+  push:
+    branches: [fix/bcs-localized-driver]
+    paths: [.github/workflows/normalize-2219-release.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Update original GitHub Release in place
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          oldtag="v2.2.1.9-hotfix.2-localized"
+          newtag="v2.2.1.9"
+          title="OpenOMSI BCS Bridge 2.2.1.9"
+          oldzip="OpenOMSI_BBS_Bridge_2.2.1.9_Hotfix2_Localized_WebDisk.zip"
+          newzip="OpenOMSI_BCS_Bridge_2.2.1.9.zip"
+          digest="edab7b34e026da034ac8635859adafddea1b86f8e90023f23bbc7e3ca98974cd"
+          expected_size=236299847
+          notes="docs/releases/2.2.1.9-full-changelog.md"
+
+          test -s "$notes"
+          if gh release view "$newtag" --repo "$repo" >/dev/null 2>&1; then
+            echo "Desired release tag already exists; inspect before changing existing release"
+            exit 1
+          fi
+          if gh api "repos/$repo/git/ref/tags/$newtag" >/dev/null 2>&1; then
+            echo "Desired tag already exists; refusing to repoint another ref"
+            exit 1
+          fi
+
+          release="$(gh api "repos/$repo/releases/tags/$oldtag")"
+          id="$(jq -r '.id' <<<"$release")"
+          test "$(jq -r '.draft' <<<"$release")" = false
+          asset_id="$(jq -r --arg n "$oldzip" '.assets[] | select(.name == $n) | .id' <<<"$release")"
+          test -n "$asset_id"
+          zip_hash="$(jq -r --arg n "$oldzip" '.assets[] | select(.name == $n) | .digest' <<<"$release")"
+          zip_size="$(jq -r --arg n "$oldzip" '.assets[] | select(.name == $n) | .size' <<<"$release")"
+          test "$zip_hash" = "sha256:$digest"
+          test "$zip_size" = "$expected_size"
+
+          echo "Rename asset without modifying its ZIP bytes"
+          gh api --method PATCH "repos/$repo/releases/assets/$asset_id" \
+            -f name="$newzip" \
+            -f label="Complete Windows package — Bridge and modified openOMSI Coop" \
+            --jq '{name,size,digest}'
+
+          mkdir -p out
+          printf '%s  %s\n' "$digest" "$newzip" > "out/$newzip.sha256"
+          echo "Upload checksum referring to the corrected filename"
+          gh release upload "$oldtag" "out/$newzip.sha256" --repo "$repo"
+          gh release delete-asset "$oldtag" "$oldzip.sha256" --yes --repo "$repo"
+
+          jq -n \
+            --arg tag "$newtag" \
+            --arg title "$title" \
+            --rawfile body "$notes" \
+            '{tag_name:$tag,name:$title,body:$body,draft:false,prerelease:false,make_latest:"true"}' \
+            > out/release-update.json
+          echo "Set concise release title/tag and full cumulative changelog"
+          gh api --method PATCH "repos/$repo/releases/$id" \
+            --input out/release-update.json \
+            --jq '{id,name,tag_name,prerelease,html_url}'
+
+          final="$(gh api "repos/$repo/releases/latest")"
+          test "$(jq -r '.id' <<<"$final")" = "$id"
+          test "$(jq -r '.tag_name' <<<"$final")" = "$newtag"
+          test "$(jq -r '.name' <<<"$final")" = "$title"
+          test "$(jq -r '.prerelease' <<<"$final")" = false
+          test "$(jq -r '.body | contains("Release-by-release summary")' <<<"$final")" = true
+          test "$(jq -r --arg n "$newzip" '[.assets[].name | select(. == $n)] | length' <<<"$final")" = 1
+          test "$(jq -r --arg n "$newzip.sha256" '[.assets[].name | select(. == $n)] | length' <<<"$final")" = 1
+          test "$(jq -r --arg n "$oldzip" '[.assets[].name | select(. == $n)] | length' <<<"$final")" = 0
+          test "$(jq -r --arg n "$newzip" '.assets[] | select(.name == $n) | .digest' <<<"$final")" = "sha256:$digest"
+          test "$(jq -r --arg n "$newzip" '.assets[] | select(.name == $n) | .size' <<<"$final")" = "$expected_size"
+          echo "Verified exact Latest release title, tag, assets and cumulative changelog."
