@@ -240,6 +240,11 @@ impl App {
         vr_nav_display: Option<crate::vr_navigator::Display>,
     ) {
         let passengers = self.coop_riders();
+        let route_owner = match self.foot_bus() {
+            Some(crate::humans::BusId::Ai(id)) => crate::humans::remote_bus_player(id),
+            _ => None,
+        };
+        let followed_bus = route_owner.and_then(|id| self.net.remotes.remotes.get(&id));
         let (Some(r), Some(scene)) = (self.renderer.as_ref(), self.scene.as_mut()) else { return };
         // (on foot with no bus of one's own the navigator and the city map go on as well:
         // a walker who had deleted the bus could not open the map, #2118)
@@ -270,7 +275,17 @@ impl App {
                     d.learn_places(places);
                 }
             }
-            let (line, terminus, stops, trip) = navigator::duty_parts(self.session.duty.as_ref());
+            // The passenger's navigator displays the actual driver's tour, even if
+            // the passenger chose another tour of the same line. Do not overwrite
+            // the passenger's own BCS duty with this read-only preview.
+            if let (Some(places), Some((_, d))) = (nav.places(), self.net.coop.drive.passenger_duty.as_mut()) {
+                d.learn_places(places);
+            }
+            let followed_duty = route_owner.and_then(|owner|
+                self.net.coop.drive.passenger_duty.as_ref()
+                    .filter(|(id, _)| *id == owner).map(|(_, d)| d));
+            let duty = followed_duty.or(self.session.duty.as_ref());
+            let (line, terminus, stops, trip) = navigator::duty_parts(duty);
             match (trip, self.session.schedule.as_ref(), self.session.traffic.as_ref(), self.world.as_ref()) {
                 (Some((key, name)), Some(sch), _, _) if nav.map_net().is_some() => {
                     if nav.wants_route(&key, 0) {
@@ -311,11 +326,12 @@ impl App {
             // (on foot the map follows the walker, not the bus left standing - but on a duty it
             // stays the bus's: the route and the stops are the bus's, and walking round the bus
             // standing at a stop recalculated the route and moved the stops on, #2426)
-            let (at, heading) = match (self.session.on_foot.as_ref(), p) {
-                (Some(_), Some(p)) if self.session.duty.is_some() => (p.vehicle.position, p.vehicle.heading),
-                (Some(f), _) => (f.pos, f.heading),
-                (None, Some(p)) => (p.vehicle.position, p.vehicle.heading),
-                (None, None) => return,
+            let (at, heading) = match (followed_bus, self.session.on_foot.as_ref(), p) {
+                (Some(remote), Some(_), _) => (remote.vehicle().position, remote.vehicle().heading),
+                (None, Some(_), Some(p)) if duty.is_some() => (p.vehicle.position, p.vehicle.heading),
+                (None, Some(f), _) => (f.pos, f.heading),
+                (_, None, Some(p)) => (p.vehicle.position, p.vehicle.heading),
+                _ => return,
             };
             let frame = navigator::NavFrame {
                 traffic: self.session.traffic.as_deref(),
@@ -323,13 +339,13 @@ impl App {
                 players: self.net.lan.as_ref().map(|l| crate::lan::nav_players(&self.net.remotes, l.my_id)).unwrap_or_default(),
                 bus: at,
                 heading,
-                speed_kmh: p.map_or(0.0, |p| p.vehicle.physics.velocity_kmh()),
+                speed_kmh: followed_bus.map_or_else(|| p.map_or(0.0, |p| p.vehicle.physics.velocity_kmh()), |remote| remote.last.speed_kmh),
                 outside_temp,
                 inside_temp,
                 line,
                 terminus,
                 stops,
-                delay: self.session.duty.as_ref().zip(p).map(|(_, p)| p.vehicle.host.tt_delay as f64),
+                delay: duty.zip(p).map(|(_, p)| p.vehicle.host.tt_delay as f64),
                 passengers,
                 stop_requested: p.is_some_and(|p| navigator::stop_requested(&p.vehicle)),
                 time: self.clock.time,
