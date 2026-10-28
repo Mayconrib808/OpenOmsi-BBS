@@ -49,7 +49,10 @@ impl crate::App {
         let incidents = &mut self.integrations.bcs_events;
         if !incidents.configured {
             incidents.configured = true;
-            if std::env::var("OPENOMSI_BCS_EVENTS_BETA").is_ok_and(|v| v == "1") {
+            let enabled = std::env::var("OPENOMSI_BCS_EVENTS_BETA")
+                .map(|v| v == "1")
+                .unwrap_or(option_env!("OPENOMSI_BCS_EVENTS_BETA_DEFAULT") == Some("1"));
+            if enabled {
                 incidents.source = feed::Feed::start();
                 incidents.models.start(self.args.root.clone());
                 log::info!("BCS incident beta: local capture and response controller enabled");

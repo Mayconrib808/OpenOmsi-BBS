@@ -1,0 +1,61 @@
+name: Build BCS incident beta for Windows
+on:
+  push:
+    branches: [beta/bcs-incident-scenes]
+    paths: [.github/workflows/bcs-incident-beta.yml]
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.9-events-beta.0.2.0
+      OPENOMSI_BCS_EVENTS_BETA_DEFAULT: "1"
+      OPENOMSI_COOP_GAME_ONLY: "1"
+      TAURI_CONFIG: '{"version":"0.3.45"}'
+      CARGO_TERM_COLOR: never
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_RELEASE_DEBUG: "0"
+      CARGO_PROFILE_RELEASE_LTO: "false"
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Compile the locally checked native beta
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw "Native incident beta build failed" }
+          & .\target\release\openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "Native beta could not start" }
+      - name: Package game and corresponding source
+        shell: pwsh
+        run: |
+          @'
+          from pathlib import Path
+          import hashlib,json,os,shutil,subprocess
+          out=Path('native');out.mkdir()
+          commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          assert commit==os.environ['GITHUB_SHA']
+          shutil.copy2('target/release/openomsi.exe',out/'openomsi.exe')
+          for dll in Path('target/release').glob('*.dll'):shutil.copy2(dll,out/dll.name)
+          version=subprocess.check_output([str((out/'openomsi.exe').resolve()),'--version'],text=True)
+          assert os.environ['OPENOMSI_VERSION'] in version
+          (out/'version.txt').write_text(version,encoding='utf-8')
+          subprocess.run(['git','archive','--format=tar.gz','--prefix=openomsi-events-source/','-o',str(out/'openomsi-source.tar.gz'),commit],check=True)
+          digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          (out/'SOURCE.json').write_text(json.dumps(dict(commit=commit,run_id=int(os.environ['GITHUB_RUN_ID']),native_sha256=digest(out/'openomsi.exe'),source_sha256=digest(out/'openomsi-source.tar.gz'),version=os.environ['OPENOMSI_VERSION'],beta_enabled_by_default=True,windows_gameplay_tested=False),indent=2),encoding='utf-8')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw "Native incident beta packaging failed" }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BCS-Events-0.2.0-native-Windows
+          path: native/*
+          if-no-files-found: error
+          retention-days: 30
