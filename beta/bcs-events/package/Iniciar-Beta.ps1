@@ -56,7 +56,12 @@ function Invoke-Beta {
     $previous = $env:JAVA_TOOL_OPTIONS
     try {
         $env:JAVA_TOOL_OPTIONS = ($previous + ' -javaagent:"' + $agent + '"="' + $CaptureDirectory + '"').Trim()
-        Start-Process -FilePath $launcher -WorkingDirectory $root | Out-Null
+        $launchInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $launchInfo.FileName = $launcher
+        $launchInfo.WorkingDirectory = $root
+        $launchInfo.UseShellExecute = $false
+        $launchInfo.EnvironmentVariables['JAVA_TOOL_OPTIONS'] = $env:JAVA_TOOL_OPTIONS
+        [System.Diagnostics.Process]::Start($launchInfo) | Out-Null
         Record 'Launcher oficial iniciado com o agente configurado nesta arvore de processos.'
         $limit = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
         while ([DateTime]::UtcNow -lt $limit) {
