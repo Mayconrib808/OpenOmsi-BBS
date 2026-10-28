@@ -1,7 +1,7 @@
 name: Build Coop handover and cashier correction for Windows
 on:
   push:
-    branches: [beta/bcs-incident-scenes]
+    branches: [beta/bcs-incident-scenes, fix/coop15-passenger-route-handover]
 permissions:
   contents: read
 jobs:
