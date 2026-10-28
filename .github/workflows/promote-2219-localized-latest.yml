@@ -1,0 +1,35 @@
+name: Promote localized Bridge release to Latest
+on:
+  push:
+    branches:
+      - fix/bcs-localized-driver
+    paths:
+      - .github/workflows/promote-2219-localized-latest.yml
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Confirm release assets and mark it as the latest stable release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          tag="v2.2.1.9-hotfix.2-localized"
+          details="$(gh api "repos/$repo/releases/tags/$tag")"
+          release_id="$(jq -r '.id' <<<"$details")"
+          test "$(jq -r '.draft' <<<"$details")" = "false"
+          test "$(jq -r '[.assets[].name | select(. == "OpenOMSI_BBS_Bridge_2.2.1.9_Hotfix2_Localized_WebDisk.zip")] | length' <<<"$details")" = "1"
+          test "$(jq -r '[.assets[].name | select(. == "OpenOMSI_BBS_Bridge_2.2.1.9_Hotfix2_Localized_WebDisk.zip.sha256")] | length' <<<"$details")" = "1"
+          gh api -X PATCH "repos/$repo/releases/$release_id" \
+            -F prerelease=false \
+            -f make_latest=true \
+            --jq '{tag_name,prerelease,draft,html_url}'
+          latest="$(gh api "repos/$repo/releases/latest" --jq '.tag_name')"
+          test "$latest" = "$tag" || { echo "Latest mismatch: $latest"; exit 1; }
+          echo "Verified Latest release: $tag"
