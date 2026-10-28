@@ -155,6 +155,23 @@ impl Transit {
 }
 
 impl OnFoot {
+    /// A handover ends beside the bus where it is now, not at the saved boarding point.
+    pub(crate) fn return_from_borrowed(&mut self, owner: u32, v: &omsi_sim::VehicleInstance) {
+        let remote = BusId::Ai(crate::humans::remote_bus_id(owner));
+        let local = self.inside.and_then(|(b, l)| (b == BusId::Player || b == remote).then_some(l));
+        if let Some(local) = local {
+            self.pos = v.position + v.body_rotation().transform_point3(local).as_dvec3();
+            self.inside = Some((remote, local));
+        }
+        if let Some((BusId::Player, seat)) = self.seat { self.seat = Some((remote, seat)); }
+        self.eye = None;
+        self.lag = DVec3::ZERO;
+        self.vel = DVec2::ZERO;
+        self.transit = None;
+        self.arrive = None;
+        self.settle = 0.0;
+        self.bus_turn = None;
+    }
     /// After the people's tick, aboard a bus: the walker and the eyes where the bus is
     /// this frame. The walk above placed them on the bus as the people had it a frame
     /// before, and the camera eased after that: at speed the saloon trembled round the
@@ -170,7 +187,9 @@ impl OnFoot {
                 f.pos = w;
             }
         }
-        let eye = h.avatar_body(AVATAR_KEY).map(|b| b.2).unwrap_or(f.pos + DVec3::new(0.0, 0.0, 1.62)) + f.eye_drop();
+        let eye = h.avatar_body(AVATAR_KEY).map(|b| {
+            if f.seat.is_none() { f.pos + (b.2 - b.0) } else { b.2 }
+        }).unwrap_or(f.pos + DVec3::new(0.0, 0.0, 1.62)) + f.eye_drop();
         let y = (f.eye_yaw as f64).to_radians();
         let at = eye + DVec3::new(y.sin(), y.cos(), 0.0) * 0.08 + f.lag;
         f.eye = Some(at);

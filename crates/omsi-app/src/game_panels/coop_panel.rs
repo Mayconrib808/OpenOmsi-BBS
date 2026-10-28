@@ -5,35 +5,47 @@ use omsi_plugin::ui::{Anchor, Panel};
 
 pub(crate) fn status(app: &crate::App) -> Option<Panel> {
     if !app.net.coop.remote.is_some_and(|(_, e, _)| e != 0)
-        || app.net.coop.desk.stage == 0
+        || (app.net.coop.desk.stage == 0 && app.net.coop.desk.uncollected <= 0.0)
         || app.net.coop.panel
     {
         return None;
     }
     let d = &app.net.coop.desk;
-    Some(card(
-        Anchor::TopLeft,
-        20.0,
-        80.0,
-        360.0,
-        205,
-        vec![
-            title(&d.name),
-            note(&format!(
-                "{} {:.2}  ·  {} {:.2}",
-                text("Preço", "Price", "Preis"),
-                d.price,
-                text("Pagamento", "Payment", "Zahlung"),
-                d.paid
-            )),
-            note(&format!(
-                "{} {:.2} / {:.2}",
-                text("Troco entregue", "Change given", "Gegebenes Rückgeld"),
-                d.given,
-                d.due
-            )),
-        ],
-    ))
+    let mut children = vec![
+        title(if d.name.is_empty() {
+            text("Dinheiro no caixa", "Money on desk", "Geld in der Kasse")
+        } else {
+            &d.name
+        }),
+        note(&format!(
+            "{} {:.2}  ·  {} {:.2}",
+            text("Preço", "Price", "Preis"),
+            d.price,
+            text("Pagamento", "Payment", "Zahlung"),
+            d.paid
+        )),
+        note(&format!(
+            "{} {:.2} / {:.2}",
+            text("Troco entregue", "Change given", "Gegebenes Rückgeld"),
+            d.given,
+            d.due
+        )),
+    ];
+    if d.uncollected > 0.0 {
+        children.push(note(&format!(
+            "{} {:.2}",
+            text("Dinheiro a recolher:", "Payment to collect:", "Geld einzusammeln:"),
+            d.uncollected
+        )));
+        // Status is intentionally passive: it does not own mouse focus while driving.
+        // The actual button stays in the Cooperative panel, and Shift+T works on foot.
+        children.push(note(text(
+            "Pressione Shift+T para recolher.",
+            "Press Shift+T to collect.",
+            "Shift+T drücken, um das Geld zu nehmen.",
+        )));
+    }
+    Some(card(Anchor::TopLeft, 20.0, 80.0, 360.0, 250, children))
 }
 
 pub(crate) fn panel(app: &crate::App) -> Panel {
@@ -204,6 +216,18 @@ pub(crate) fn panel(app: &crate::App) -> Panel {
                 d.given,
                 d.due
             )));
+            if d.uncollected > 0.0 {
+                children.push(note(&format!(
+                    "{} {:.2}",
+                    text("Dinheiro a recolher:", "Payment to collect:", "Geld einzusammeln:"),
+                    d.uncollected
+                )));
+                children.push(button(
+                    "collect_payment",
+                    text("Recolher dinheiro (Shift+T)", "Collect payment (Shift+T)", "Geld nehmen (Shift+T)"),
+                    None,
+                ));
+            }
             // Fallback for buses using the engine's tear-off tickets/change, rather than
             // modelled printer keys. The owner's native cash desk still processes the sale.
             let start = app.net.coop.cash_page * 6;
@@ -294,6 +318,7 @@ pub(crate) fn click(app: &mut crate::App, id: &str) {
         "camera_f1" => app.coop_camera_load_group(true),
         "camera_f2" => app.coop_camera_load_group(false),
         "close_signal" => app.coop_close_signal(),
+        "collect_payment" => { app.coop_collect_payment(); },
         "normal" => app.net.coop.camera = None,
         "prev" => app.coop_camera_slot(-1),
         "next" => app.coop_camera_slot(1),

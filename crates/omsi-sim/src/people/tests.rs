@@ -1223,16 +1223,21 @@ fn coop13_borrowed_cabin_tracks_local_chassis_without_duplicate_boarding() {
     let mut v = VehicleInstance::new(ty, crate::VehicleHost::new(Default::default()));
     let mut h = PeopleSim::new(&dir, 0);
     v.position = DVec3::new(20.0, 15.0, 1.0);
-    h.set_borrowed_cabin(&v);
-    assert_eq!(h.remote_now.len(), 1);
+    h.set_borrowed_cabin(2, &v);
+    assert_eq!(h.remote_now.len(), 2);
     assert_eq!(h.remote_now[0].id, BusId::Player);
     assert!(matches!(h.remote_now[0].takes, Takes::Nobody));
     v.position = DVec3::new(80.0, 40.0, 2.0);
     v.heading = 120.0;
-    h.set_borrowed_cabin(&v);
-    assert_eq!(h.remote_now.len(), 1, "old local cabin must be replaced, not retained");
+    h.set_borrowed_cabin(2, &v);
+    assert_eq!(h.remote_now.len(), 2, "old local and logical cabin frames must be replaced, not retained");
     assert_eq!(h.remote_now[0].pos, v.position);
     assert_eq!(h.remote_now[0].heading, 120.0);
+    assert!(h.knows_bus(remote_bus_id(2)), "mirrored passengers lost their logical cabin");
+    assert_eq!(h.remote_now[1].id, BusId::Ai(remote_bus_id(2)));
+    assert_eq!(h.remote_now[1].pos, v.position);
+    assert_eq!(h.remote_now[1].heading, 120.0);
+    assert!(matches!(h.remote_now[1].takes, Takes::Nobody));
     assert!(matches!(h.remote_now[0].takes, Takes::Nobody));
     std::fs::remove_dir_all(&dir).ok();
 }

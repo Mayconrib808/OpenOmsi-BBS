@@ -239,6 +239,7 @@ impl App {
         nav_hidden: bool,
         vr_nav_display: Option<crate::vr_navigator::Display>,
     ) {
+        let passengers = self.coop_riders();
         let (Some(r), Some(scene)) = (self.renderer.as_ref(), self.scene.as_mut()) else { return };
         // (on foot with no bus of one's own the navigator and the city map go on as well:
         // a walker who had deleted the bus could not open the map, #2118)
@@ -329,7 +330,7 @@ impl App {
                 terminus,
                 stops,
                 delay: self.session.duty.as_ref().zip(p).map(|(_, p)| p.vehicle.host.tt_delay as f64),
-                passengers: self.session.humans.as_ref().map(|h| h.riding()),
+                passengers,
                 stop_requested: p.is_some_and(|p| navigator::stop_requested(&p.vehicle)),
                 time: self.clock.time,
                 weekday: self.clock.weekday(),
@@ -422,6 +423,7 @@ impl App {
         menu_lines: Vec<crate::app_impl::MenuLine>,
         menu_tabs: Option<(Vec<String>, usize)>,
     ) {
+        let passengers = self.coop_riders();
         let menu_lines: Vec<(&str, &str)> = menu_lines.iter().map(|(id, label, _)| (*id, label.as_ref())).collect();
         // (the steering cross: before the renderer and the scene are borrowed)
         let steer_cross = self.steer_cross_point();
@@ -578,7 +580,7 @@ impl App {
                 // (not over the city map, which has the stops and their times: it
                 // covered the map's zoom and close buttons)
                 timetable: (self.menus.timetable && !map_open).then(|| timetable_rows(self.session.duty.as_ref(), self.player.as_ref().map(|p| p.vehicle.host.tt_delay as f64))).flatten(),
-                info: self.menus.info_bar.then(|| info_line(&self.clock, self.player.as_ref(), self.session.duty.as_ref(), self.session.humans.as_ref().map(|h| h.riding()), self.session.career.metres, self.menus.navigator.as_ref().filter(|n| n.enabled).and_then(|n| n.speed_limit))),
+                info: self.menus.info_bar.then(|| info_line(&self.clock, self.player.as_ref(), self.session.duty.as_ref(), passengers, self.session.career.metres, self.menus.navigator.as_ref().filter(|n| n.enabled).and_then(|n| n.speed_limit))),
                 info_room: self.input.touch.info_room.filter(|_| self.input.touch.enabled),
                 tutorial: self.menus.tutorial.as_ref().filter(|t| !t.hidden && self.menus.game_menu.is_none()).and_then(|t| t.page().map(|p| (p.title.as_str(), p.text.as_str(), p.image.as_deref(), t.at, t.pages.len()))),
                 chat,

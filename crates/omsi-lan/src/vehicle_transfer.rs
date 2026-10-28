@@ -30,6 +30,11 @@ pub struct Snapshot {
 }
 impl Snapshot {
     pub fn capture(uid: u64, bus: String, v: &VehicleInstance) -> Self {
+        Self::capture_stream(uid, bus, v, true)
+    }
+    /// Steady-state updates omit unchanged texture pixels. Commits/returns always
+    /// retain the complete state; omitted images never clear the recipient's screens.
+    pub fn capture_stream(uid: u64, bus: String, v: &VehicleInstance, images: bool) -> Self {
         let mut vars: Vec<_> = v
             .var_index()
             .iter()
@@ -88,11 +93,9 @@ impl Snapshot {
                 .iter()
                 .map(|t| (t.position.to_array(), t.heading))
                 .collect(),
-            images: h
-                .script_textures
-                .iter()
-                .map(|t| (t.width, t.height, t.mipmaps, t.rgba.clone()))
-                .collect(),
+            images: if images { h.script_textures.iter()
+                .map(|t| (t.width, t.height, t.mipmaps, t.rgba.clone())).collect()
+            } else { Vec::new() },
             timetable: (
                 h.tt_line.clone(),
                 h.tt_delay,
@@ -140,9 +143,15 @@ impl Snapshot {
             })
     }
     pub fn apply(&self, v: &mut VehicleInstance) -> bool {
+        self.apply_inner(v, false)
+    }
+    pub fn apply_stream(&self, v: &mut VehicleInstance) -> bool {
+        self.apply_inner(v, true)
+    }
+    fn apply_inner(&self, v: &mut VehicleInstance, stream: bool) -> bool {
         if !self.valid()
             || self.trailers.len() != v.trailers.len()
-            || self.images.len() != v.host.script_textures.len()
+            || (!(stream && self.images.is_empty()) && self.images.len() != v.host.script_textures.len())
         {
             return false;
         }
@@ -321,6 +330,7 @@ pub enum Message {
     DeskContext { token: u64, desk: crate::coop::Desk },
     PassengerWork { token: u64, actor: u32, wire: String },
     PassengerResult { token: u64, actor: u32, epoch: u64, seq: u64, ok: bool },
+    CashView { token: u64, cash: crate::coop::CashView },
 }
 // Status metadata only; simulation authority still needs token-bound handover.
 // The logical owner is always the transport sender, never a supplied field.
@@ -401,6 +411,39 @@ mod tests {
             mesh_boxes: vec![],
         };
         VehicleInstance::new(Arc::new(ty), omsi_sim::VehicleHost::new(Default::default()))
+    }
+    #[test]
+    fn streaming_pose_keeps_existing_screen_and_complete_commits_stay_strict() {
+        let mut a = bus();
+        let mut b = bus();
+        a.host.script_textures.push(omsi_sim::scripttex::ScriptTexture::new(1, 1));
+        b.host.script_textures.push(omsi_sim::scripttex::ScriptTexture::new(1, 1));
+        b.host.script_textures[0].rgba = vec![1, 2, 3, 255];
+        a.position.x = 123.0;
+        let state = Snapshot::capture_stream(9, "Vehicles/test.bus".into(), &a, false);
+        assert!(state.images.is_empty());
+        assert!(!state.apply(&mut b), "a partial state cannot activate a new driver");
+        assert!(state.apply_stream(&mut b));
+        assert_eq!(b.position.x, 123.0);
+        assert_eq!(b.host.script_textures[0].rgba, vec![1, 2, 3, 255]);
+        a.host.script_textures[0].rgba = vec![7, 8, 9, 255];
+        let changed = Snapshot::capture_stream(9, "Vehicles/test.bus".into(), &a, true);
+        assert!(changed.apply_stream(&mut b));
+        assert_eq!(b.host.script_textures[0].rgba, vec![7, 8, 9, 255]);
+    }
+    #[test]
+    fn physical_cash_survives_wire_with_exact_positions_and_rejects_bad_coordinates() {
+        use crate::coop::{CashView, CashPiece};
+        let cash = CashView { desk: 44, pieces: vec![CashPiece {
+            coin: 2, local: glam::Mat4::from_translation(glam::Vec3::new(0.5, 2.0, 1.2)).to_cols_array(),
+            change: false, parent: Some("moving_cashdesk".into()),
+        }] };
+        assert!(cash.valid());
+        let Some(Message::CashView {token: 71, cash: read}) = decode(&encode(&Message::CashView {token: 71,cash: cash.clone()}).unwrap()) else { panic!("lost physical cash"); };
+        assert_eq!(read, cash);
+        let mut bad = cash;
+        bad.pieces[0].local[12] = f32::NAN;
+        assert!(!bad.valid());
     }
     #[test]
     fn full_state_preserves_vehicle_scripts_clock_and_physics_without_a_frame() {

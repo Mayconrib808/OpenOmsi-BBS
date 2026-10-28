@@ -25,13 +25,14 @@ struct Motion {
     from: (glam::DVec3, f64, f32, f32),
     to: (glam::DVec3, f64, f32, f32),
     started: Instant,
+    duration: f64,
 }
 impl Motion {
     fn apply(&self, vehicle: &mut omsi_sim::VehicleInstance) {
         self.apply_elapsed(vehicle, self.started.elapsed().as_secs_f64());
     }
     fn apply_elapsed(&self, vehicle: &mut omsi_sim::VehicleInstance, elapsed: f64) {
-        let t = (elapsed / 0.1).clamp(0.0, 1.0);
+        let t = (elapsed / self.duration.max(0.001)).clamp(0.0, 1.0);
         vehicle.position = self.from.0.lerp(self.to.0, t);
         vehicle.heading = self.from.1 + ((self.to.1-self.from.1+180.0).rem_euclid(360.0)-180.0)*t;
         vehicle.pitch = self.from.2 + (self.to.2-self.from.2)*t as f32;
@@ -55,6 +56,8 @@ struct Visitor {
     actors: HashSet<u32>,
     desk: u32,
     cash: omsi_lan::coop::Desk,
+    cash_view: omsi_lan::coop::CashView,
+    images: Vec<Option<(u32, u32, bool, Arc<Vec<u8>>)>>,
     seen: Instant,
     sent: Instant,
     started: Instant,
@@ -118,19 +121,21 @@ impl App {
         else { self.net.coop.drive.controllers.remove(&owner); }
         self.net.coop.drive.authority_sent=Some(Instant::now());
         for peer in peers {
-            self.drive_send(peer,Message::Authority {token,driver,active});
             if let Some(lan)=self.net.lan.as_mut(){
                 lan.command(peer,&omsi_lan::vehicle_transfer::authority_notice(token,driver,active));
             }
         }
     }
-    fn drive_send(&mut self, to: u32, message: Message) {
+    pub(crate) fn drive_send(&mut self, to: u32, message: Message) {
         if let (Some(lan), Some(bytes)) = (
             self.net.lan.as_mut(),
             omsi_lan::vehicle_transfer::encode(&message),
         ) {
             lan.publish_handover(to, bytes);
         }
+    }
+    fn drive_stream_ready(&self, to: u32) -> bool {
+        self.net.lan.as_ref().is_some_and(|l| l.handover_pending(to) < 2)
     }
     pub(crate) fn drive_menu_allowed(&self,id:&str)->bool {
         if self.net.coop.drive.busy()&&matches!(id,"place"|"swap"|"switch"|"remove"|"reload"|"clearplaced"|"couple"|"uncouple"){return false;}
@@ -311,6 +316,17 @@ impl App {
                 }
             }
             if v.active {
+                let restored = self.session.on_foot.is_none();
+                let mut foot = self.session.on_foot.take().or_else(|| v.foot.take());
+                if let (Some(f), Some(p)) = (foot.as_mut(), self.player.as_ref()) {
+                    if restored && f.inside.is_none() {
+                        let remote = BusId::Ai(crate::humans::remote_bus_id(v.owner));
+                        let local = f.seat.and_then(|(_, k)| self.session.humans.as_ref()
+                            .and_then(|h| h.seat_stand(remote, k))).unwrap_or(glam::Vec3::ZERO);
+                        f.inside = Some((remote, local));
+                    }
+                    f.return_from_borrowed(v.owner, &p.vehicle);
+                }
                 let borrowed_uid = self.player.as_ref().map_or(0, |p| p.uid);
                 if let Some(mut p) = self.player.take() {
                     if let (Some(a), Some(mut s)) = (self.sound.audio.as_ref(), p.sounds.take()) {
@@ -338,7 +354,7 @@ impl App {
                 if let (Some(h), Some(p)) = (self.session.humans.as_mut(), self.player.as_mut()) {
                     h.player_bus_swapped(borrowed_uid, p.uid, &mut p.vehicle);
                 }
-                self.session.on_foot = v.foot.take();
+                self.session.on_foot = foot;
                 self.view = if self.session.on_foot.is_some() {
                     "foot"
                 } else {
@@ -353,7 +369,17 @@ impl App {
         self.net.coop.drive.request = None;
     }
     // Legacy input replay is intentionally never consumed as vehicle authority.
-    pub(crate) fn drive_receive(&mut self, _from: u32, _text: &str) -> bool {
+    pub(crate) fn drive_receive(&mut self, from: u32, text: &str) -> bool {
+        if let Some((token, driver, active)) = omsi_lan::vehicle_transfer::parse_authority_notice(text) {
+            let valid = from != driver && self.net.lan.as_ref().is_some_and(|l|
+                l.peers().any(|p|p.pose.id == from) && (driver == l.my_id || l.peers().any(|p|p.pose.id == driver)));
+            if valid {
+                if active { self.net.coop.drive.controllers.insert(from, (driver, token, Instant::now())); }
+                else if self.net.coop.drive.controllers.get(&from).is_some_and(|(_, t, _)| *t == token) {
+                    self.net.coop.drive.controllers.remove(&from);
+                }
+            }
+        }
         false
     }
     fn drive_message(&mut self, from: u32, message: Message) {
@@ -369,14 +395,23 @@ impl App {
                     }
                 }
             }
+            Message::CashView { token, cash } => {
+                if !cash.valid() { return; }
+                if let Some(v) = self.net.coop.drive.visitor.as_mut()
+                    .filter(|v| v.active && v.owner == from && v.token == token) {
+                    v.cash_view = cash;
+                } else if self.net.coop.remote.is_some_and(|(p, e, _)| p == from && e == token && e != 0) {
+                    self.net.coop.cash_view = Some((from, token, cash));
+                }
+            }
             Message::DeskContext { token, desk } => {
-                if desk.name.len()>4096 || desk.stage>4 || ![desk.price,desk.paid,desk.due,desk.given].iter().all(|x|x.is_finite()) { return; }
+                if desk.name.len()>4096 || desk.stage>4 || ![desk.price,desk.paid,desk.due,desk.given,desk.uncollected].iter().all(|x|x.is_finite()) { return; }
                 if let Some(v)=self.net.coop.drive.visitor.as_mut().filter(|v|v.owner==from&&v.token==token&&v.active) { v.cash=desk; }
             }
             Message::PassengerWork { token, actor, wire } => {
                 if !self.net.coop.drive.owner.as_ref().is_some_and(|o|o.peer==from&&o.token==token&&o.active&&o.frozen) || wire.len()>1024 { return; }
                 if let Some(omsi_lan::coop::Message::Action(a))=omsi_lan::coop::Message::parse(&wire) {
-                    if a.target != omsi_lan::coop::Target::Player || !matches!(a.kind,2|3) { return; }
+                    if a.target != omsi_lan::coop::Target::Player || !matches!(a.kind,2|3|5) { return; }
                     let ok = a.desk == self.coop_desk(a.epoch).id && self.coop_apply_delegated(actor,&a);
                     self.drive_send(from,Message::PassengerResult { token,actor,epoch:a.epoch,seq:a.seq,ok });
                 }
@@ -516,6 +551,8 @@ impl App {
                     actors: HashSet::new(),
                     desk: 0,
                     cash: Default::default(),
+                    cash_view: Default::default(),
+                    images: Vec::new(),
                     seen: now,
                     sent: now,
                     started: now,
@@ -660,7 +697,9 @@ impl App {
                     self.args.bus = Some(v.bus.clone());
                     self.player = Some(p);
                     v.active = true;
-                    v.seen = now;
+                    // GPU instantiation can block for seconds on a large vehicle.
+                    // Start the running lease after it completes, not before loading.
+                    v.seen = Instant::now();
                     log::info!("COOP13 handover active logical_owner={} logical_uid={} local_uid={} token={:x}", v.owner, v.uid, self.player.as_ref().map_or(0, |p|p.uid), v.token);
                     self.net.coop.camera = None;
                     self.net.inside_remote = None;
@@ -729,11 +768,13 @@ impl App {
                             p.vehicle.host.tt_busstop_index,
                         );
                         let old_pose = (p.vehicle.position, p.vehicle.heading, p.vehicle.pitch, p.vehicle.bank);
-                        if state.apply(&mut p.vehicle) {
+                        if state.apply_stream(&mut p.vehicle) {
                             let motion = Motion {
                                 from: old_pose,
                                 to: (p.vehicle.position, p.vehicle.heading, p.vehicle.pitch, p.vehicle.bank),
                                 started: now,
+                                duration: self.net.coop.drive.owner.as_ref()
+                                    .map_or(0.1, |o| o.motion.as_ref().map_or(0.1, |m| now.saturating_duration_since(m.started).as_secs_f64().clamp(0.05, 0.25))),
                             };
                             motion.apply(&mut p.vehicle);
                             if let Some(o) = self.net.coop.drive.owner.as_mut() { o.motion = Some(motion); }
@@ -996,7 +1037,7 @@ impl App {
                     .lan
                     .as_ref()
                     .is_none_or(|l| !l.peers().any(|p| p.pose.id == o.peer));
-            // The visitor cuts its authority at 750 ms; only resume after 3 seconds.
+            // The visitor stops after 2 seconds of silence; the owner requests suspension after 3.
             if !o.frozen && (invalid || o.seen.elapsed() > Duration::from_secs(60)) {
                 self.net.coop.drive.owner = Some(o);
                 self.drive_reset(true);
@@ -1004,17 +1045,17 @@ impl App {
             }
             // A frozen owner never resumes on silence alone: a late Commit must not
             // create a second simulator. Only Return/Suspended confirms the peer stopped.
-            if o.frozen && (invalid || o.seen.elapsed() > Duration::from_secs(3)) {
-                if o.sent.elapsed() > Duration::from_millis(250) {
+            if o.frozen && (invalid || o.seen.elapsed() > Duration::from_secs(if o.active { 3 } else { 60 })) {
+                if o.sent.elapsed() > Duration::from_millis(250) && self.drive_stream_ready(o.peer) {
                     self.drive_send(o.peer, Message::Abort { token: o.token });
                     o.sent = now;
                 }
                 self.net.coop.drive.owner = Some(o);
                 return;
             }
-            if o.sent.elapsed() > Duration::from_millis(150) {
+            if o.sent.elapsed() > Duration::from_millis(150) && self.drive_stream_ready(o.peer) {
                 self.drive_send(o.peer, Message::Heartbeat { token: o.token });
-                if o.frozen {
+                if o.frozen && o.active {
                     if let Some(p) = self.player.as_ref() {
                         let h = &p.vehicle.host;
                         let vars = p
@@ -1078,7 +1119,7 @@ impl App {
                     self.drive_reset(true);
                     return;
                 }
-            } else if v.seen.elapsed() > Duration::from_millis(750) {
+            } else if v.seen.elapsed() > Duration::from_secs(2) {
                 // No self-reactivation after a network stall: the owner's lease may resume.
                 if let Some(p) = self.player.as_mut() {
                     p.authority_remote = true;
@@ -1096,10 +1137,24 @@ impl App {
                 self.drive_reset(false);
                 return;
             }
-            if v.sent.elapsed() > Duration::from_millis(100) {
+            if v.sent.elapsed() > Duration::from_millis(100) && self.drive_stream_ready(v.owner) {
                 if v.active && !v.returning {
                     if let Some(p) = self.player.as_mut() {
-                        let state = Snapshot::capture(v.uid, v.bus.clone(), &p.vehicle);
+                        let images: Vec<_> = p.vehicle.host.script_textures.iter_mut()
+                            .map(|t| t.released_image()).collect();
+                        let changed = images.len() != v.images.len() || images.iter().zip(&v.images).any(|(a, b)| match (a, b) {
+                            (Some(a), Some(b)) => (a.0, a.1, a.2) != (b.0, b.1, b.2) || !Arc::ptr_eq(&a.3, &b.3),
+                            (None, None) => false,
+                            _ => true,
+                        });
+                        let mut state = Snapshot::capture_stream(v.uid, v.bus.clone(), &p.vehicle, changed);
+                        // Prefer released images to a script's unfinished locked buffer.
+                        if changed {
+                            for (dst, image) in state.images.iter_mut().zip(&images) {
+                                if let Some((w, h, mip, rgba)) = image { *dst = (*w, *h, *mip, rgba.as_ref().clone()); }
+                            }
+                        }
+                        v.images = images;
                         let message = Message::State {
                             token: v.token,
                             desk: v.desk,
@@ -1112,6 +1167,13 @@ impl App {
                         };
                         self.drive_send(v.owner, message);
                     }
+                } else if v.active && v.returning {
+                    // Return is a control transition, not a one-shot stream update.
+                    // Retry until confirmation even if the initial queue was full.
+                    if let Some(p) = self.player.as_ref() {
+                        let state = Snapshot::capture(v.uid, v.bus.clone(), &p.vehicle);
+                        self.drive_send(v.owner, Message::Return { token: v.token, state });
+                    }
                 } else {
                     self.drive_send(v.owner, Message::Heartbeat { token: v.token });
                 }
@@ -1119,6 +1181,21 @@ impl App {
             }
             self.net.coop.drive.visitor = Some(v);
         }
+    }
+    pub(crate) fn coop_riders(&self) -> Option<usize> {
+        if let Some(p) = self.player.as_ref().filter(|p| p.borrowed_from.is_some()) {
+            return Some(p.vehicle.host.humans_count.max(0.0).round() as usize);
+        }
+        self.session.humans.as_ref().map(|h| h.riding())
+    }
+    pub(crate) fn drive_driver_epoch(&self) -> Option<u64> {
+        self.net.coop.drive.visitor.as_ref().filter(|v|v.active).map(|v|v.token)
+    }
+    pub(crate) fn drive_cash_view(&self) -> Option<&omsi_lan::coop::CashView> {
+        self.net.coop.drive.visitor.as_ref().filter(|v|v.active).map(|v| &v.cash_view)
+    }
+    pub(crate) fn drive_cash_recipient(&self) -> Option<(u32, u64)> {
+        self.net.coop.drive.owner.as_ref().filter(|o|o.active).map(|o|(o.peer,o.token))
     }
     pub(crate) fn drive_cash_desk(&self) -> Option<&omsi_lan::coop::Desk> {
         self.net.coop.drive.visitor.as_ref().filter(|v|v.active).map(|v|&v.cash)
@@ -1273,6 +1350,54 @@ mod coop13_regressions {
         for id in ["camera","coop","options","getout","map"]{assert!(app.drive_menu_allowed(id));}
     }
     #[test]
+    fn coop_borrowed_bus_hud_uses_original_owner_passenger_count() {
+        let mut app = crate::assemble_app(Args::parse_from(["openomsi", "--root", "."]), Default::default());
+        let mut p = crate::spawn::coop13_test_player(bus());
+        p.borrowed_from = Some(2);
+        p.vehicle.host.humans_count = 14.0;
+        app.player = Some(p);
+        assert_eq!(app.coop_riders(), Some(14));
+    }
+    #[test]
+    fn coop_cash_collect_delegation_keeps_change_and_retries_cannot_take_next_fare() {
+        use omsi_lan::coop::{Action, Phase, Target};
+        let mut app = crate::assemble_app(Args::parse_from(["openomsi", "--root", "."]), Default::default());
+        let mut humans = crate::humans::Humans::new(std::path::Path::new("."), &mut app.gfx.sim_view.people);
+        let mut money = omsi_sim::people::Money::new(std::path::Path::new("."), "missing-currency.cfg");
+        money.placed.push((11, glam::Mat4::IDENTITY, 0, false, None));
+        money.placed.push((12, glam::Mat4::IDENTITY, 0, true, None));
+        humans.sim.money = Some(money);
+        app.session.humans = Some(humans);
+        let action = Action { epoch: 77, seq: 1, target: Target::Player, desk: 0,
+            kind: 5, part: 0, index: 0, signature: 0, phase: Phase::Tap, x: 0.0, y: 0.0 };
+        assert!(app.coop_apply_delegated(3, &action));
+        let m = app.session.humans.as_mut().unwrap().sim.money.as_mut().unwrap();
+        assert_eq!(m.placed.len(), 1);
+        assert!(m.placed[0].3);
+        m.placed.push((13, glam::Mat4::IDENTITY, 0, false, None));
+        assert!(app.coop_apply_delegated(3, &action));
+        assert_eq!(app.session.humans.as_ref().unwrap().sim.money.as_ref().unwrap().placed.len(), 2,
+            "a repeated receipt must not collect a later payment");
+    }
+    #[test]
+    fn coop_returned_walker_uses_current_vehicle_pose_and_forgets_old_eye() {
+        let mut app = crate::assemble_app(Args::parse_from(["openomsi", "--root", "."]), Default::default());
+        app.start_on_foot(glam::DVec3::new(1.0, 2.0, 3.0), 0.0);
+        let foot = app.session.on_foot.as_mut().unwrap();
+        let remote = BusId::Ai(crate::humans::remote_bus_id(2));
+        let local = glam::Vec3::new(0.5, 2.0, 1.0);
+        foot.inside = Some((remote, local));
+        foot.eye = Some(foot.pos);
+        let mut vehicle = bus();
+        vehicle.position = glam::DVec3::new(9000.0, -8000.0, 40.0);
+        vehicle.heading = 90.0;
+        foot.return_from_borrowed(2, &vehicle);
+        let expected = vehicle.position + vehicle.body_rotation().transform_point3(local).as_dvec3();
+        assert!((foot.pos - expected).length() < 0.001);
+        assert_eq!(foot.inside, Some((remote, local)));
+        assert!(foot.eye.is_none());
+    }
+    #[test]
     fn coop13_passive_motion_smooths_chassis_without_advancing_simulation() {
         let mut player = crate::spawn::coop13_test_player(bus());
         player.authority_remote = true;
@@ -1281,6 +1406,7 @@ mod coop13_regressions {
             from: (glam::DVec3::ZERO, 359.0, 0.0, 0.0),
             to: (glam::DVec3::new(10.0, 0.0, 0.0), 1.0, 0.1, 0.0),
             started: Instant::now() - Duration::from_millis(50),
+            duration: 0.1,
         };
         motion.apply_elapsed(&mut player.vehicle, 0.05);
         assert!((player.vehicle.position.x-5.0).abs() < 1e-6);

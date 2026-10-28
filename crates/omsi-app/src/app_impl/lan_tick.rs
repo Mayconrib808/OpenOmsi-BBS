@@ -129,10 +129,10 @@ impl App {
     /// (`omsi_lan::commands::Command`), carried out here.
     pub(crate) fn lan_command(&mut self, from: u32, text: &str) {
         use omsi_lan::commands::Command;
+        self.drive_receive(from, text);
         if let Some(lan)=self.net.lan.as_ref(){
             if lan::note_driver_authority(&mut self.net.remotes,lan,from,text){return;}
         }
-        if self.drive_receive(from, text) { return; }
         if self.coop_receive(from, text) { return; }
         if let Some(request) = text.strip_prefix("pax_request ") {
             self.receive_passenger_door_request(from, request);

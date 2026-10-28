@@ -128,7 +128,7 @@ impl Sync {
         };
         for &peer in peers {
             let s = self.tx.entry(peer).or_default();
-            if s.queue.len() >= 8 {
+            if s.queue.len() >= 32 {
                 log::warn!("LAN handover states awaiting acknowledgement from {peer}: queue full");
                 continue;
             }
@@ -139,6 +139,9 @@ impl Sync {
                 wait: 0.0,
             });
         }
+    }
+    pub fn pending(&self, peer: u32) -> usize {
+        self.tx.get(&peer).map_or(0, |s| s.queue.len())
     }
     pub fn retain_peers(&mut self, peers: &[u32]) {
         self.tx.retain(|id, _| peers.contains(id));
@@ -275,6 +278,31 @@ mod tests {
         }
         assert!(b.take_incoming().is_empty());
         assert!(a.tick(14, 1, 1.0).is_empty());
+    }
+    #[test]
+    fn backpressure_leaves_room_for_return_and_cash_without_sequence_holes() {
+        let mut a = Sync::default();
+        let mut b = Sync::default();
+        // A large Commit is still unacknowledged while regular ticks and a cash tap occur.
+        a.publish(&[2], Event { data: vec![9; 300_000] });
+        while a.pending(2) < 2 { a.publish(&[2], Event { data: vec![1] }); }
+        for _ in 0..500 { if a.pending(2) < 2 { a.publish(&[2], Event { data: vec![1] }); } }
+        assert_eq!(a.pending(2), 2);
+        a.publish(&[2], Event { data: b"collect".to_vec() });
+        a.publish(&[2], Event { data: b"return".to_vec() });
+        let packets = a.tick(15, 1, 0.0);
+        for p in packets.iter().skip(1).rev() {
+            if let Some(ack) = b.receive(15, 2, p) { a.receive(15, 1, &ack); }
+        }
+        assert!(b.take_incoming().is_empty());
+        for p in a.tick(15, 1, 0.3) {
+            if let Some(ack) = b.receive(15, 2, &p) { a.receive(15, 1, &ack); }
+        }
+        let got = b.take_incoming();
+        assert_eq!(got.len(), 4);
+        assert_eq!(got[2].event.data, b"collect");
+        assert_eq!(got[3].event.data, b"return");
+        assert_eq!(a.pending(2), 0);
     }
     #[test]
     fn recipient_protocol_and_bounds_are_checked() {

@@ -534,10 +534,16 @@ impl PeopleSim {
 
     /// Walkable local cabin of a delegated bus. Passenger transactions remain
     /// on its original owner, but avatars must follow this authoritative chassis.
-    pub fn set_borrowed_cabin(&mut self, vehicle: &VehicleInstance) {
-        self.remote_now.retain(|b| b.id != BusId::Player);
+    pub fn set_borrowed_cabin(&mut self, owner: u32, vehicle: &VehicleInstance) {
+        let logical = BusId::Ai(remote_bus_id(owner));
+        self.remote_now.retain(|b| b.id != BusId::Player && b.id != logical);
         if let Some(bus) = self.parked_bus(BusId::Player, vehicle) {
+            // Mirrors retain their original logical bus id while local avatars use
+            // Player. Both frames must exist even if the hidden remote render is gone.
+            let mut alias = bus.clone();
+            alias.id = logical;
             self.remote_now.push(bus);
+            self.remote_now.push(alias);
         }
     }
 

@@ -189,7 +189,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
             .filter(|(id, _)| cx.net.coop.drive.visitor_owner() != Some(**id))
             .map(|(id, r)| (*id, r.vehicle())));
         if let Some(p) = cx.player.player.as_ref().filter(|p| p.borrowed_from.is_some()) {
-            h.set_borrowed_cabin(&p.vehicle);
+            h.set_borrowed_cabin(p.borrowed_from.unwrap(), &p.vehicle);
         }
         // (and the vehicles the player placed and left, with their riders)
         h.set_placed_buses(cx.player.placed.iter().map(|q| (q.uid, &q.vehicle)));
@@ -258,7 +258,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
         // the view sync of the people: the coins and ticket blocks of the player's bus,
         // then everybody's pose (see `view_sync`), in the frame's last tick only
         if cx.clock.fixed_tick.view_due() {
-            let bus = cx.player.player.as_ref().map(|p| &p.vehicle);
+            let bus = cx.player.player.as_ref().filter(|p| p.borrowed_from.is_none()).map(|p| &p.vehicle);
             view_sync::sync(ViewSync::people(h, bus, center), &mut cx.gfx.gfx.sim_view, w, r, scene);
         }
     }

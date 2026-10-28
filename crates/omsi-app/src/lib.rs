@@ -18,6 +18,7 @@ mod bcs_events;
 mod coop;
 mod coop_character;
 mod coop_drive;
+mod coop_money;
 mod coop_view;
 mod mouse_control;
 mod player_list;

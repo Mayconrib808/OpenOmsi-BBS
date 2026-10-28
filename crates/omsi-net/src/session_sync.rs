@@ -13,6 +13,7 @@ impl LanSession {
     pub fn publish_handover(&mut self, to:u32, data:Vec<u8>) {
         if self.connected && self.peers.contains_key(&to) { self.handover.publish(&[to], handover::Event{data}); }
     }
+    pub fn handover_pending(&self, peer: u32) -> usize { self.handover.pending(peer) }
     pub fn take_handovers(&mut self)->Vec<handover::Incoming> { self.handover.take_incoming() }
     pub(super) fn route_handover(&self,data:&[u8]) {
         let Some(a)=handover::address(data,PROTOCOL as u8) else{return};

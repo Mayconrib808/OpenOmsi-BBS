@@ -46,6 +46,24 @@ impl PresentedView {
     }
 }
 
+/// Carry a view once from the frame that produced it. At high refresh rates there
+/// can be several pictures between people's ticks; reusing the simulation frame
+/// for each picture would apply the same chassis displacement repeatedly.
+pub(crate) fn carry_camera(cam: &mut omsi_render::Camera, simulated: BodyPose,
+    current: BodyPose, previous: Option<PresentedView>) {
+    let old = previous.filter(|p| p.camera.position == cam.position
+        && p.camera.yaw == cam.yaw && p.camera.pitch == cam.pitch && p.camera.roll == cam.roll)
+        .map_or(simulated, |p| p.body);
+    let (at, forward) = old.remap_ray(current, cam.position, cam.forward());
+    let up = current.rotation.transform_vector3(old.rotation.inverse().transform_vector3(cam.up()));
+    let right = Vec3::new(forward.y, -forward.x, 0.0).normalize_or_zero();
+    let level_up = right.cross(forward);
+    cam.position = at;
+    cam.yaw = forward.x.atan2(forward.y).to_degrees();
+    cam.pitch = forward.z.clamp(-1.0, 1.0).asin().to_degrees();
+    cam.roll = up.dot(right).atan2(up.dot(level_up)).to_degrees();
+}
+
 pub(crate) fn camera_pose(
     v: &omsi_sim::VehicleInstance,
     camera: &omsi_vehicle::Camera,
@@ -171,6 +189,26 @@ mod tests {
             ..cam
         });
         assert!((a.1 - e.1).abs() < 0.001 && (a.2 - e.2).abs() < 0.001);
+    }
+    #[test]
+    fn coop_passenger_camera_is_not_carried_twice_between_simulation_ticks() {
+        let mut v = vehicle();
+        let simulated = BodyPose::of(&v);
+        let local_eye = DVec3::new(0.5, 2.0, 1.7);
+        let mut cam = omsi_render::Camera { position: local_eye, yaw: 0.0,
+            pitch: 0.0, roll: 0.0, fov_deg: 60.0, near: 0.1, far: 1000.0 };
+        v.position.x = 10.0;
+        let first = BodyPose::of(&v);
+        carry_camera(&mut cam, simulated, first, None);
+        assert!((cam.position - (v.position + local_eye)).length() < 1e-5);
+        let previous = PresentedView { camera: cam, body: first };
+        v.position.x = 12.0;
+        let second = BodyPose::of(&v);
+        carry_camera(&mut cam, simulated, second, Some(previous));
+        assert!((cam.position - (v.position + local_eye)).length() < 1e-5);
+        let previous = PresentedView { camera: cam, body: second };
+        carry_camera(&mut cam, simulated, second, Some(previous));
+        assert!((cam.position - (v.position + local_eye)).length() < 1e-5);
     }
     #[test]
     fn visible_ray_follows_the_same_button_in_the_simulation() {

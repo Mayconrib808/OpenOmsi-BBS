@@ -50,9 +50,13 @@ pub(crate) struct CoopState {
     last_grant: Option<Instant>,
     last_sent_desk: Option<(Instant, Desk)>,
     pub desk: Desk,
+    pub(crate) cash_view: Option<(u32, u64, omsi_lan::coop::CashView)>,
+    pub(crate) cash_render: Option<crate::coop_money::CashRender>,
+    pub(crate) cash_sent: HashMap<u32, (u64, Instant, omsi_lan::coop::CashView)>,
+    pub(crate) cash_tick: Option<Instant>,
     bells: Vec<(u32, omsi_sim::people::DoorRequest)>,
     pub camera: Option<CameraView>,
-    drawn: Option<(BusId, PresentedView)>,
+    pub(crate) drawn: Option<(BusId, PresentedView)>,
     auto_drag: Option<(u32, crate::mouse_control::AutoDrag)>,
     last_tick: Option<Instant>,
     ticket_blocks: Option<(u32, crate::money::TicketBlocks)>,
@@ -361,6 +365,9 @@ impl App {
         }
     }
 
+    pub(crate) fn coop_money_grant(&self) -> Option<(u32, u64)> {
+        self.net.coop.grant.as_ref().map(|g| (g.peer, g.epoch))
+    }
     pub(crate) fn coop_desk(&self, epoch: u64) -> Desk {
         if let Some(desk)=self.drive_cash_desk() { let mut d=desk.clone();d.epoch=epoch;return d; }
         let Some(h) = self.session.humans.as_ref() else {
@@ -387,6 +394,15 @@ impl App {
             .unwrap_or(0.0);
         let due = h.change_due.unwrap_or_else(|| (paid - price).max(0.0));
         let given = h.money.as_ref().map_or(0.0, |m| m.change_value());
+        // A finished passenger has left, but their coins may still block the next sale.
+        // The owner's simulation is the only authority for this amount.
+        let uncollected = h.sim.money.as_ref().map_or(0.0, |m| {
+            let pieces: Vec<_> = m.placed.iter()
+                .filter(|p| !p.3)
+                .map(|p| p.2)
+                .collect();
+            m.value_of(&pieces)
+        });
         let stage = pax.map_or(0, |p| match p.sub {
             3 | 4 => 1,
             5 => 2,
@@ -403,6 +419,7 @@ impl App {
             paid,
             due,
             given,
+            uncollected,
         }
     }
 
@@ -513,7 +530,7 @@ impl App {
                     .remote
                     .is_some_and(|(id, e, _)| id == from && e != 0 && e == d.epoch)
                 {
-                    if self.net.coop.desk != d && d.stage != 0 {
+                    if self.net.coop.desk != d && (d.stage != 0 || d.uncollected > 0.0) {
                         self.service_msg = Some((
                             format!(
                                 "{}: {} | {} {:.2} | {} {:.2} | {} {:.2} / {:.2}",
@@ -673,7 +690,7 @@ impl App {
             else { self.net.coop.held.insert(from,Held{from,action:a.clone(),seen:Instant::now(),control:None}); }
             return true;
         }
-        if !delegated && a.target==Target::Player && matches!(a.kind,2|3) && self.net.coop.drive.visitor_active() {
+        if !delegated && a.target==Target::Player && matches!(a.kind,2|3|5) && self.net.coop.drive.visitor_active() {
             if self.net.coop.pending_delegated.len()>=128 && !self.net.coop.pending_delegated.contains_key(&(from,a.epoch,a.seq)) { return false; }
             if !self.drive_forward_cash(from,a) { return false; }
             self.net.coop.pending_delegated.entry((from,a.epoch,a.seq)).or_insert_with(Instant::now);
@@ -709,6 +726,33 @@ impl App {
                 self.coop_finish_held_from(from, true);
             }
             return matches;
+        }
+        if a.kind == 5 {
+            // Shift+T / Collect payment. Never simulate money on the visiting client:
+            // consume the real coins on the authoritative vehicle owner's desk.
+            if a.phase != Phase::Tap || a.target != Target::Player || a.part != 0
+                || a.index != 0 || a.signature != 0 || a.x != 0.0 || a.y != 0.0
+            {
+                return false;
+            }
+            let Some(m) = self.session.humans.as_mut().and_then(|h| h.sim.money.as_mut()) else {
+                return false;
+            };
+            let coin_count = m.currency.as_ref().map_or(0, |c| c.coins.len());
+            let payment_count = m.placed.iter().filter(|p| !p.3).count();
+            if payment_count == 0 {
+                return false;
+            }
+            let had_coins = m.placed.iter().any(|p| !p.3 && p.2 < coin_count);
+            // Do not remove the change lying on the other tray.
+            m.clear(false);
+            if had_coins {
+                if let Some(p) = self.player.as_mut() {
+                    p.vehicle.host.fired_triggers.push("ev_ticketsale_takemoney".into());
+                }
+            }
+            log::info!("COOP cashier collected {payment_count} payment pieces for peer={from}");
+            return true;
         }
         if a.kind == 2 || a.kind == 3 {
             if a.phase != Phase::Tap {
@@ -997,6 +1041,7 @@ impl App {
             self.coop_release_held();
             self.coop_cancel_auto();
             self.coop_drop_ticket_blocks();
+            self.coop_drop_money();
             self.net.coop = CoopState {
                 session,
                 ..Default::default()
@@ -1004,6 +1049,7 @@ impl App {
         }
         self.character_sync();
         self.drive_tick();
+        self.coop_money_tick();
         let revoke = self.net.coop.grant.as_ref().is_some_and(|g| {
             !self.coop_peer_inside(g.peer, Target::Player)
                 || self
@@ -1172,6 +1218,9 @@ impl App {
             y: 0.0,
         };
         if epoch != 0 {
+            if self.coop_payment_hit(bus, o, dir) {
+                return Some(Action { kind: 5, phase: Phase::Tap, ..base });
+            }
             if let Some(index) = self
                 .net
                 .coop
@@ -1270,6 +1319,12 @@ impl App {
     pub(crate) fn coop_mouse(&mut self, down: bool) -> bool {
         // A delegated original bus is now remote too. Use the authority route
         // instead of treating BusId::Player as proof of driving permission.
+        if down && self.net.coop.drive.visitor_active() && self.session.on_foot.is_none() {
+            if let (Some(cam), Some(surface)) = (self.camera.as_ref(), self.gfx.surface.as_ref()) {
+                let (o, d, _) = self.cockpit_cursor_ray(cam, (surface.config.width, surface.config.height));
+                if self.coop_payment_hit(BusId::Player, o, d) { return self.coop_collect_payment(); }
+            }
+        }
         let active = self.view == "foot" && self.foot_bus().and_then(|b| self.coop_route(b)).is_some();
         if !down {
             if let Some((to, a)) = self.net.coop.mouse.take() {
@@ -1615,6 +1670,8 @@ impl App {
 
     pub(crate) fn coop_drawn_view(&mut self) {
         self.coop_sync_ticket_blocks();
+        self.coop_sync_money();
+        self.coop_follow_live_cabin();
         self.coop_camera_frame();
         // Snapshot after the camera override, while the bus still has its drawn
         // pose. Hover, press and HTML drag all use this same view, even if an
@@ -1746,9 +1803,39 @@ impl App {
         }
     }
 
-    pub(crate) fn coop_cash_action(&mut self, kind: u8, index: u32) {
+    /// Shift+T and the cash panel both use the same acknowledged, owner-validated
+    /// cooperative action. The conductor never changes a local duplicate desk.
+    pub(crate) fn coop_collect_payment(&mut self) -> bool {
+        if self.net.coop.drive.visitor_active() && self.session.on_foot.is_none() {
+            let action = Action { epoch: self.drive_driver_epoch().unwrap_or(0), seq: SystemTime::now().duration_since(UNIX_EPOCH)
+                .map_or(1, |d| d.as_nanos() as u64).max(1), target: Target::Player,
+                desk: self.coop_desk(0).id, kind: 5, part: 0, index: 0, signature: 0,
+                phase: Phase::Tap, x: 0.0, y: 0.0 };
+            let actor = self.net.lan.as_ref().map_or(0, |l| l.my_id);
+            return self.drive_forward_cash(actor, &action);
+        }
         let Some((to, epoch, _)) = self.net.coop.remote.filter(|(_, e, _)| *e != 0) else {
-            return;
+            return false;
+        };
+        if self.view != "foot"
+            || self.foot_bus().and_then(|b| self.coop_route(b)) != Some((to, Target::Player))
+            || epoch == 0
+        {
+            return false;
+        }
+        if !self.coop_cash_action(5, 0) {
+            self.coop_notice(
+                "Não foi possível enviar o recolhimento. Confira a conexão cooperativa.",
+                "Could not send the collection command. Check the cooperative connection.",
+                "Geldeinzug konnte nicht gesendet werden. Verbindung prüfen.",
+            );
+        }
+        true
+    }
+
+    pub(crate) fn coop_cash_action(&mut self, kind: u8, index: u32) -> bool {
+        let Some((to, epoch, _)) = self.net.coop.remote.filter(|(_, e, _)| *e != 0) else {
+            return false;
         };
         let a = Action {
             epoch,
@@ -1763,7 +1850,7 @@ impl App {
             x: 0.0,
             y: 0.0,
         };
-        self.coop_queue(to, a);
+        self.coop_queue(to, a)
     }
 }
 

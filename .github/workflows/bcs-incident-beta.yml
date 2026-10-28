@@ -1,8 +1,7 @@
-name: Build BCS incident beta for Windows
+name: Build Coop handover and cashier correction for Windows
 on:
   push:
     branches: [beta/bcs-incident-scenes]
-    paths: [.github/workflows/bcs-incident-beta.yml]
 permissions:
   contents: read
 jobs:
@@ -10,7 +9,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 120
     env:
-      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.9-events-beta.0.2.0
+      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.9-coop-fix.1
       OPENOMSI_BCS_EVENTS_BETA_DEFAULT: "1"
       OPENOMSI_COOP_GAME_ONLY: "1"
       TAURI_CONFIG: '{"version":"0.3.45"}'
@@ -27,6 +26,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
+      - name: Test handover, payment and cumulative cooperative regressions
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-net --lib handover
+          if ($LASTEXITCODE -ne 0) { throw "Handover transport regressions" }
+          cargo test --locked --release -p omsi-lan --lib vehicle_transfer
+          if ($LASTEXITCODE -ne 0) { throw "Vehicle/cash snapshot regressions" }
+          cargo test --locked --release -p omsi-app --lib coop
+          if ($LASTEXITCODE -ne 0) { throw "Cooperative game regressions" }
       - name: Compile the locally checked native beta
         shell: pwsh
         run: |
@@ -44,6 +52,7 @@ jobs:
           commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
           assert commit==os.environ['GITHUB_SHA']
           shutil.copy2('target/release/openomsi.exe',out/'openomsi.exe')
+          shutil.copy2('docs/beta/coop-handover-cash-fix.md',out/'LEIA-ME.md')
           for dll in Path('target/release').glob('*.dll'):shutil.copy2(dll,out/dll.name)
           version=subprocess.check_output([str((out/'openomsi.exe').resolve()),'--version'],text=True)
           assert os.environ['OPENOMSI_VERSION'] in version
@@ -55,7 +64,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Native incident beta packaging failed" }
       - uses: actions/upload-artifact@v4
         with:
-          name: BCS-Events-0.2.0-native-Windows
+          name: OpenOMSI-2.2.1.9-CoopFix1-Windows
           path: native/*
           if-no-files-found: error
           retention-days: 30
