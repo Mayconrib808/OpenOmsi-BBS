@@ -130,6 +130,14 @@ impl App {
             let ctrl = self.input.keys.contains(&KeyCode::ControlLeft) || self.input.keys.contains(&KeyCode::ControlRight);
             let alt = self.input.keys.contains(&KeyCode::AltLeft) || self.input.keys.contains(&KeyCode::AltRight);
             let shift_now = self.input.keys.contains(&KeyCode::ShiftLeft) || self.input.keys.contains(&KeyCode::ShiftRight);
+            // On foot as an authorized conductor, Shift+T collects the owner's
+            // passenger payment through the acknowledged cooperative protocol.
+            // Do not require a local driver vehicle or consume the driver's keys.
+            if pressed && !repeat && code == KeyCode::KeyT && shift_now && !ctrl && !alt
+                && self.coop_collect_payment()
+            {
+                return;
+            }
             if self.shared_drive_key(code, pressed, repeat) { return; }
             // This editable action must reach the walker before its keys consume
             // S (or any key the player assigned), including bindings without modifiers.

@@ -282,6 +282,25 @@ mod tests {
     }
 
     #[test]
+    fn conductor_collection_clears_only_passenger_payment() {
+        let mut m = money_with_currency(&[0.5, 1.0, 2.0], &[5.0]);
+        m.placed.push((11, Mat4::IDENTITY, 2, false, None));
+        m.placed.push((12, Mat4::IDENTITY, 3, false, None));
+        m.placed.push((13, Mat4::IDENTITY, 1, true, None));
+        assert_eq!(m.value_of(&m.placed.iter().filter(|p| !p.3).map(|p| p.2).collect::<Vec<_>>()), 7.0);
+        m.clear(false);
+        assert_eq!(m.placed.len(), 1);
+        assert_eq!(m.placed[0].0, 13);
+        assert_eq!(m.hidden, vec![11, 12]);
+        assert_eq!(m.change_count(), 1);
+        assert_eq!(m.change_value(), 1.0);
+        // A retransmitted or repeated collection cannot touch the change tray.
+        m.clear(false);
+        assert_eq!(m.placed.len(), 1);
+        assert_eq!(m.hidden, vec![11, 12]);
+    }
+
+    #[test]
     fn the_change_left_comes_in_coins_on_top_of_the_tray() {
         let mut m = money_with_currency(&[0.1, 0.2, 0.5, 1.0, 2.0], &[5.0]);
         let all = m.change_left_coins(3.7);
