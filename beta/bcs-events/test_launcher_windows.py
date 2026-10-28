@@ -26,16 +26,27 @@ def main():
 
   def launcher(out,drop):
    command='-cp "'+str(classes)+'" FixtureMain "'+str(out)+'"'
-   code='''using System.Diagnostics; class Launcher { static void Main() {
+   code='''using System.Diagnostics; using System.IO; class Launcher { static void Main() {
     var info=new ProcessStartInfo(JAVA,ARGS);info.UseShellExecute=false;info.CreateNoWindow=true;
     DROP
-    Process.Start(info);
-   }}'''.replace('JAVA',json.dumps(str(java))).replace('ARGS',json.dumps(command)).replace('DROP','info.EnvironmentVariables.Remove("JAVA_TOOL_OPTIONS");'if drop else '')
+    var child=Process.Start(info);child.WaitForExit();File.WriteAllText(DONE,"done");
+   }}'''.replace('JAVA',json.dumps(str(java))).replace('ARGS',json.dumps(command)).replace('DONE',json.dumps(str(out/'fixture-finished.txt'))).replace('DROP','info.EnvironmentVariables.Remove("JAVA_TOOL_OPTIONS");'if drop else '')
    src=work/'Launcher.cs';src.write_text(code)
    subprocess.run([str(csc),'/nologo','/target:winexe','/out:'+str(root/'launcher.exe'),str(src)],check=True)
 
   def run(out,*extra):
-   return subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'Iniciar-Beta.ps1'),'-CaptureDirectory',str(out),'-NoPause','-StartupTimeoutSeconds','8',*extra],capture_output=True,text=True,timeout=45)
+   # Files avoid communicate() waiting on inherited pipe handles in the fixture JVM.
+   stdout=work/(out.name+'-stdout.txt');stderr=work/(out.name+'-stderr.txt')
+   with stdout.open('w')as output,stderr.open('w')as error:
+    result=subprocess.run(['powershell.exe','-NoProfile','-ExecutionPolicy','Bypass','-File',str(package/'Iniciar-Beta.ps1'),'-CaptureDirectory',str(out),'-NoPause','-StartupTimeoutSeconds','8',*extra],stdout=output,stderr=error,timeout=45)
+   return subprocess.CompletedProcess(result.args,result.returncode,stdout.read_text(errors='replace'),stderr.read_text(errors='replace'))
+
+  def finished(out):
+   limit=time.monotonic()+15
+   while time.monotonic()<limit:
+    if (out/'fixture-finished.txt').exists():time.sleep(.2);return
+    time.sleep(.2)
+   raise AssertionError('Synthetic launcher JVM did not exit')
 
   out=work/'capturas reais com espaços';launcher(out,False)
   pre=run(work/'preflight only','-PreflightOnly')
@@ -53,12 +64,13 @@ def main():
    if len([r for r in rows if r.get('transition')=='event_no_longer_visible'])>=3:break
    time.sleep(.2)
   assert [r['event_id']for r in rows if r.get('transition')=='event_started']==[4,32,32]
-  time.sleep(.8)
+  finished(out)
   badout=work/'capturas sem heranca';launcher(badout,True)
   failed=run(badout)
   assert failed.returncode!=0 and 'nenhum processo Java confirmou'in failed.stdout,failed.stdout+failed.stderr
   assert list(badout.glob('diagnostico-inicio-*.txt'))
   assert not list(badout.glob('bcs-events-*.json'))
+  finished(badout)
   print('PASS: Windows installed-JRE preflight, launcher-to-JVM inheritance, live status before events, recorded events, and visible failure when inheritance is lost. Interactive UAC was not exercised.')
 
 if __name__=='__main__':main()
