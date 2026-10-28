@@ -1,0 +1,75 @@
+name: Build localized WebDisk hotfix runtime
+on:
+  push:
+    branches:
+      - fix/bcs-localized-driver
+    paths:
+      - .github/workflows/build-webdisk-2219-localized.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Build localized x86 Windows Bridge components
+        shell: bash
+        run: |
+          python - <<'PY'
+          import os,sys,hashlib,shutil,tempfile,subprocess,json
+          from pathlib import Path
+          sys.path.insert(0,'scripts')
+          import build,setup_resources
+          root=Path.cwd()
+          source=root/'source'
+          out=root/'webdisk-localized'
+          out.mkdir()
+          env=dict(os.environ,GOOS='windows',GOARCH='386',GO386='sse2',CGO_ENABLED='0',GOTOOLCHAIN='local',GOEXPERIMENT='')
+          host='8c39f41ef970c1ce198b8a97b504f29e9a766ae93b48488295b270d7652a25c0'
+          assert build.VERSION=='2.2.1.9-hotfix.2'
+          assert 'Simulador de Companhia de Autobuses' in (source/'driver.go').read_text()
+          setup_code=(source/'setup_updates_windows.go').read_text()
+          assert 'installedBCSJar(root)' in setup_code
+          with tempfile.TemporaryDirectory() as tmp:
+            work=Path(tmp)/'setup'
+            work.mkdir()
+            for name in build.PROGRAMS['Setup.exe']:
+              shutil.copy2(source/name,work/name)
+            (work/'go.mod').write_text('module openomsi-bbs/setup\n\ngo 1.23.2\n')
+            resource=setup_resources.prepare(work,source/'resources')
+            target=out/'Setup.exe'
+            args=['go','build','-trimpath','-buildvcs=false','-ldflags=-s -w -H=windowsgui -X=main.bundledPluginHostSHA256='+host,'-o',str(target),'.']
+            subprocess.run(args,cwd=work,env=dict(env,GO111MODULE='on'),check=True)
+            setup_resources.verify_executable(target,resource)
+          for name in ('PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe','app/compat/Omsi.exe'):
+            target=out/name
+            target.parent.mkdir(parents=True,exist_ok=True)
+            cmd=['go','build','-trimpath','-buildvcs=false','-ldflags=-s -w -H=windowsgui -X=main.bundledPluginHostSHA256='+host,'-o',str(target),*build.PROGRAMS[name]]
+            subprocess.run(cmd,cwd=source,env=dict(env,GO111MODULE='off'),check=True)
+          report={'branch':'fix/bcs-localized-driver','bridge_version':build.VERSION,'localized_bcs_driver':True,'setup_update_unsaved_root':True,'components':{}}
+          for file in out.rglob('*.exe'):
+            rel=file.relative_to(out).as_posix()
+            data=file.read_bytes()
+            assert data[:2]==b'MZ'
+            report['components'][rel]={'sha256':hashlib.sha256(data).hexdigest(),'size':len(data)}
+          (out/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
+          print(json.dumps(report,indent=2))
+          PY
+      - name: Archive transparent source and release notes for WebDisk
+        shell: bash
+        run: |
+          git archive --format=zip -o webdisk-localized/bridge-source.zip HEAD source scripts LICENSE README.pt-BR.md README.md docs/releases/2.2.1.9-hotfix.2.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-WebDisk-localized-binaries
+          path: webdisk-localized/**
+          if-no-files-found: error
+          retention-days: 30
