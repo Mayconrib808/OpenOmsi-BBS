@@ -52,6 +52,8 @@ pub struct BusSetup {
 }
 
 pub struct AiCar {
+    /// An explicitly dispatched incident vehicle, independent of its ordinary AI kind.
+    pub response: Option<super::response::Drive>,
     /// Stable id for references from other systems (passengers).
     pub id: u64,
     /// The random seed it was made with and its paint scheme: a car that goes out of range
@@ -698,6 +700,7 @@ impl TrafficSim {
             state.speed = v.min(state.speed.max(v * 0.5));
         }
         self.cars.push(AiCar {
+            response: None,
             id,
             state,
             vehicle,

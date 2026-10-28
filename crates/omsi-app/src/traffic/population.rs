@@ -257,7 +257,10 @@ impl Traffic {
                 && c.state.s > self.sim.net.lanes[c.state.lane].length() - 25.0;
             // a random car still on its way that goes out of range sleeps instead (see
             // `DormantCar`); only one whose trip is over leaves the map
-            let sleeps_instead = random && !c.gone && !c.is_bus() && self.sim.net.lanes.get(c.state.lane).map(|l| l.kind == LaneKind::Street).unwrap_or(false);
+            // Dedicated responses cannot lose their route/signal overrides in the
+            // ordinary dormant registry and later reappear as an always-active model.
+            let sleeps_instead = random && !c.gone && !c.is_bus() && c.response.is_none()
+                && self.sim.net.lanes.get(c.state.lane).map(|l| l.kind == LaneKind::Street).unwrap_or(false);
             let remove = if unloaded {
                 true
             } else if at_edge {

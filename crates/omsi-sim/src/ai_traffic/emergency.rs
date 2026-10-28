@@ -86,6 +86,9 @@ pub fn lan_siren_id(session: u32) -> u64 {
 
 /// Is car `c` an emergency vehicle on an active drive (see the module)?
 pub fn active(c: &AiCar) -> bool {
+    if let Some(response) = &c.response {
+        return response.phase == super::response::Phase::EnRoute;
+    }
     !c.is_bus() && c.vehicle.var("TrafficPriority").is_some_and(|v| v > 0.5)
 }
 

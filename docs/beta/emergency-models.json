@@ -1,26 +1,23 @@
 {
   "schema": 1,
-  "status": "model_selection_defined; assets_not_bundled_or_tested",
+  "status": "original_assets_inspected; native_dispatch_implemented; in_game_validation_pending",
   "fire": {
     "default_model": "Roman Diesel 12215DFA APCA 6x6",
     "package": "Romanian AI Traffic Vol. 2 - Roman Truck Pack",
     "source": "https://reboot.omsi-webdisk.de/file/14215-romanian-ai-traffic-vol-2-roman-truck-pack/",
     "distribution": "external_installation_only_without_written_permission",
     "role": "fire_department",
-    "vehicle_definition": null,
+    "vehicle_definition": "Vehicles/RO_Roman_Diesel/Roman_apca.bus",
     "inspection_pending": [
-      "actual_ovh_path",
-      "model_and_textures",
-      "emergency_lights",
-      "siren",
-      "OpenOMSI_compatibility"
-    ]
+      "OpenOMSI_in_game_compatibility",
+      "beacon_shutdown_appearance"
+    ],
+    "original_archive_sha256": "2872740705db5f18d383e62ab6435b1ed0a1c9f537058a6d524f90ba9a11ee9d"
   },
   "police": {
     "selection_order": [
       "explicit_user_mapping",
-      "verified_installed_police_vehicle",
-      "mipa_bmw_f31_police_1_1"
+      "installed_mipa_bmw_f31_police_1_1_fallback"
     ],
     "fallback": {
       "model": "BMW 3er Touring F31 - police variant",
@@ -29,19 +26,23 @@
       "source": "https://reboot.omsi-webdisk.de/file/2476-ki-fahrzeug-bmw-3er-touring-zivil-und-polizeivariante/",
       "license": "WTFPL-2.0 (publisher entry)",
       "expected_package_directory": "Vehicles/MIPA/MIPA_AI_BMW_F31",
-      "vehicle_definition": null,
-      "variants": "author confirms versions with and without enabled blue lights/siren",
+      "vehicle_definition": "Vehicles/MIPA/MIPA_AI_BMW_F31/MIPA_AI_BMW_F31_pol_active.ovh",
+      "variants": "Original archive contains civilian, inactive police and active police definitions; exact filenames inspected.",
       "dependency": "Kennz_DtNeu font for licence plates; locate installed copy or licensed source",
-      "asset_state": "download_endpoint_returned_403; no asset_files_obtained",
+      "asset_state": "original_7z_downloaded_and_inspected",
       "inspection_pending": [
-        "actual_police_ovh_paths",
-        "license_inside_archive",
-        "model_and_textures",
-        "OpenOMSI_compatibility"
-      ]
+        "OpenOMSI_in_game_compatibility"
+      ],
+      "inactive_definition": "Vehicles/MIPA/MIPA_AI_BMW_F31/MIPA_AI_BMW_F31_pol.ovh",
+      "original_archive_sha256": "818298bc6085d0a37d5bc0ca1c25ea2ee1d3c2df70b11e01ceec070620883498"
     },
     "role": "police"
   },
   "missing_asset_behavior": "Do not use a generic civilian vehicle or substitute a different service; keep the BCS event untouched and report the missing visual asset.",
-  "classification": "Road-traffic vehicle kind does not assign the emergency role. Only an explicitly verified model/service mapping may identify a response vehicle."
+  "classification": "Road-traffic vehicle kind does not assign the emergency role. Only an explicitly verified model/service mapping may identify a response vehicle.",
+  "scene_implementation": {
+    "medical": "native dispatch, physical stop, completion-gated passenger transfer and departure",
+    "police": "model loader and per-instance signal controls only",
+    "fire": "model loader and per-instance signal controls only"
+  }
 }

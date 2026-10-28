@@ -952,12 +952,13 @@ impl TrafficSim {
         let parked_wait = (self.cars[i].pull_out > 0.0).then(|| self.cars[i].state.front + 0.1);
         // the player's bus indicating out of its stop
         let let_out = self.player.and_then(|p| self.letting_out(i, &p)).map(|g| self.cars[i].state.front + (g - 1.0).max(0.0));
-        let stop_at = [light, yield_at, merge_wait, keep_back, people, parked_wait, let_out, make_way]
+        let response = self.response_stop(i);
+        let stop_at = [light, yield_at, merge_wait, keep_back, people, parked_wait, let_out, make_way, response]
             .into_iter()
             .flatten()
             .reduce(f32::min);
         let mut why: (&'static str, f32) = ("", f32::MAX);
-        for (name, v) in [("light", light), ("yield", yield_at), ("merge", merge_wait), ("keep_back", keep_back), ("people", people), ("pull_out", parked_wait), ("let_out", let_out), ("emergency", make_way)] {
+        for (name, v) in [("light", light), ("yield", yield_at), ("merge", merge_wait), ("keep_back", keep_back), ("people", people), ("pull_out", parked_wait), ("let_out", let_out), ("emergency", make_way), ("incident", response)] {
             if let Some(v) = v {
                 if v < why.1 {
                     why = (name, v);
@@ -1336,6 +1337,8 @@ impl TrafficSim {
         let share = if scripts { 1.0 } else { 0.2 };
         let helpers = omsi_cfg::par::helpers_for(total as f64 * share, BODY_SECS_PER_HELPER);
         omsi_cfg::par::frame_each(&mut work, helpers, |w| step_body(net, dt, scripts, profile, w));
+        drop(work);
+        self.apply_response_signals();
     }
 
     /// The debug output of a tick (`OMSI_DEBUG_TRAILERS`, `OMSI_DEBUG_TRAFFIC`,

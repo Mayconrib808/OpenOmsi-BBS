@@ -51,6 +51,16 @@ impl BodyOps {
 }
 
 impl PeopleSim {
+    /// A local passenger leaves with a physically arrived responder. The caller owns
+    /// event/arrival validation; use the normal release path for seats and the cash desk.
+    pub fn transfer_to_responder(&mut self,id:u32)->bool{
+        let Some(i)=self.people.iter().position(|p|p.id==id&&!p.remote
+            &&p.inside(BusId::Player)&&matches!(p.state,State::Pax(_)))else{return false};
+        self.release(i);
+        let person=self.people.swap_remove(i);
+        self.retire(&person);
+        true
+    }
     /// Somebody has gone: hidden, and their meshes kept for the next person of the type.
     pub fn retire(&mut self, p: &Person) {
         let tkey = Arc::as_ptr(&p.ty) as usize;
