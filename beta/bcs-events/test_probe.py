@@ -78,7 +78,8 @@ def main():
    p=source/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
   subprocess.run([shutil.which('java'),'--module','jdk.compiler/com.sun.tools.javac.Main','--release','8','-d',str(classes),*[str(source/name)for name in SOURCES]],check=True)
   hashes={n:hashlib.sha256((classes/n).read_bytes()).hexdigest()for n in build_probe.CLASSES}
-  agent=build_probe.make_agent(work/'agent with spaces.jar',hashes)
+  bad=dict(hashes);bad['system/q.class']='0'*64
+  agent=build_probe.make_agent(work/'agent with spaces.jar',[bad,hashes])
   rows=run_fixture(classes,agent,work/'capturas com espaços')
   assert any(r['status']=='compatible'for r in rows)
   assert not any(r['status']=='capture_error'for r in rows)
@@ -95,11 +96,12 @@ def main():
    assert not any(n.startswith(('system/','o/','l/'))for n in z.namelist())
    for n in z.namelist():
     if n.endswith('.class'):assert int.from_bytes(z.read(n)[6:8],'big')==52
-  bad=dict(hashes);bad['system/q.class']='0'*64
-  bad_agent=build_probe.make_agent(work/'unsupported agent.jar',bad)
+  # Every class must match the same profile: reject a mixture of two builds.
+  other_bad=dict(hashes);other_bad['o/j.class']='0'*64
+  bad_agent=build_probe.make_agent(work/'unsupported agent.jar',[bad,other_bad])
   unsupported=run_fixture(classes,bad_agent,work/'unsupported capture')
   assert any(r['status']=='unsupported_bcs_build'for r in unsupported)
   assert not any(r.get('event_id',0)>0 for r in unsupported)
-  print('PASS: fainting/oil events, wrong/right service calls, deadline vs completion, consecutive same-type events, JVM paths with spaces, read-only state, and unsupported-build guard.')
+  print('PASS: fainting/oil events, wrong/right service calls, deadline vs completion, consecutive same-type events, JVM paths with spaces, read-only state, multiple profiles, and mixed/unsupported-build rejection.')
 
 if __name__=='__main__':main()

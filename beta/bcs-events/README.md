@@ -1,8 +1,8 @@
-# BCS event capture beta 0.1.0
+# BCS event capture beta 0.1.1
 
 Passive first stage for native visual BCS occurrences. The Java agent observes an already-running `system.q` thread and writes local JSON snapshots plus an NDJSON change history. It does not create 3D scenes or connect the stream to OpenOMSI yet.
 
-The event manager, premium popup and phone controller were mapped from the user-provided BCS JAR. Production packages contain only observer code and three class fingerprints, never vendor classes or the original vendor JAR. The agent checks those fingerprints before reading private state. A changed BCS build disables observation until its mapping has been reviewed again.
+The event manager, premium popup and phone controller were mapped from the user-provided BCS JAR. Production packages contain only observer code and complete reviewed sets of three class fingerprints, never vendor classes or the original vendor JAR. The agent checks those fingerprints before reading private state. Version 0.1.1 supports both supplied BCS builds (9 and 10). All three classes must match the same reviewed profile; unknown or mixed builds disable observation. The reviewed update changes only system/M references to system/O in the event manager and popup bytecode; the observed fields and event conditions are unchanged.
 
 ## Mapped fields
 
@@ -35,3 +35,5 @@ The Windows launcher scripts scope `JAVA_TOOL_OPTIONS` to the launched BCS proce
 Extract the generated `Beta-Eventos-BCS` folder inside the BCS directory, close BCS and launch `Iniciar-Beta.bat`. After a real occurrence and service call, use `Abrir-Capturas.bat` and inspect the JSON/NDJSON files. These captures contain event IDs, service states, process IDs and times; no account credentials or remote upload are collected.
 
 Following successful real captures, the next stage is a Bridge/native event protocol and corresponding passenger/vehicle scenes. Vehicle assets, placement and routing, treatment timing and host-authoritative multiplayer synchronization remain separate implementation work.
+
+The agent reads private fields inside the BCS JVM. Read-only behavior and synthetic tests do not establish PeDePe approval or guarantee against account sanctions. No official authorization for this observer has been confirmed.

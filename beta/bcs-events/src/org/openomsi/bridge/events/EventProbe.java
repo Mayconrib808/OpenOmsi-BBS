@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Passive beta: observes an already-running BCS event thread; never invokes game actions. */
 public final class EventProbe {
     private static final AtomicBoolean STARTED = new AtomicBoolean();
-    private static final String VERSION = "0.1.0";
+    private static final String VERSION = "0.1.1";
     private static final String MANAGER = "system.q";
     private static final String POPUP = "o.j";
     private static final long HEARTBEAT_MS = 5000;
@@ -161,6 +161,7 @@ public final class EventProbe {
     }
 
     private static void verifyClasses(ClassLoader loader, Properties hashes) throws Exception {
+        Map<String,String> actual = new LinkedHashMap<String,String>();
         for (String name : new String[]{"system/q.class", "o/j.class", "l/t.class"}) {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             try (InputStream in = loader.getResourceAsStream(name)) {
@@ -170,8 +171,19 @@ public final class EventProbe {
             }
             StringBuilder value = new StringBuilder();
             for (byte b : digest.digest()) value.append(String.format(Locale.ROOT, "%02x", b & 255));
-            if (!value.toString().equals(hashes.getProperty(name))) throw new IllegalStateException("Unrecognized BCS event code");
+            actual.put(name, value.toString());
         }
+        int profiles = Integer.parseInt(hashes.getProperty("profiles", "0"));
+        for (int profile = 0; profile < profiles; profile++) {
+            boolean matches = true;
+            for (Map.Entry<String,String> entry : actual.entrySet()) {
+                if (!entry.getValue().equals(hashes.getProperty("profile." + profile + "." + entry.getKey()))) {
+                    matches = false; break;
+                }
+            }
+            if (matches) return;
+        }
+        throw new IllegalStateException("Unrecognized BCS event code");
     }
 
     private static String serviceName(int value) {

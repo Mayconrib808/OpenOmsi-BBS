@@ -1,6 +1,9 @@
-BETA DE CAPTURA DOS EVENTOS BCS — 0.1.0
+BETA DE CAPTURA DOS EVENTOS BCS — 0.1.1
 
 Esta primeira etapa identifica os eventos reais do BCS e as chamadas aos serviços. Ainda não cria passageiros desmaiados, brigas, manchas de óleo nem veículos de emergência no OpenOMSI.
+
+AVISO SOBRE A CONTA
+O agente lê campos internos dentro do processo Java do BCS. Ser somente leitura não comprova autorização da PeDePe nem garante ausência de banimento. Não há confirmação oficial de permissão para este método. Recomendação: aguarde essa confirmação antes de usar na sua conta.
 
 COMO TESTAR
 1. Extraia a pasta Beta-Eventos-BCS dentro da pasta OMSI 2\Busbetrieb-Simulator. O arquivo Iniciar-Beta.bat deve ficar dentro de Busbetrieb-Simulator\Beta-Eventos-BCS.
@@ -20,7 +23,7 @@ O QUE ESTE BETA FAZ
 - Não modifica o JAR do BCS e não envia dados pela internet.
 
 COMPATIBILIDADE E ESTADO DO BETA
-O observador compara três classes com o JAR fornecido nesta investigação. Se o BCS atualizar esses trechos, ele registra unsupported_bcs_build e suspende a leitura dos eventos.
+Esta versão reconhece os dois JARs fornecidos (anterior e atualizado). O observador exige que as três classes correspondam ao mesmo conjunto revisado. Se o BCS atualizar esses trechos, ele registra unsupported_bcs_build e suspende a leitura dos eventos.
 A captura foi validada em JVM com cenários sintéticos. A leitura no seu BCS ainda precisa deste primeiro teste real.
 
 Para voltar à abertura normal, feche o BCS e inicie pelo atalho habitual. A opção do observador vale apenas para os processos abertos por Iniciar-Beta.bat; não altera configurações globais do Java.

@@ -4,6 +4,7 @@ import argparse,hashlib,json,shutil,subprocess,tempfile,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 CLASSES=['system/q.class','o/j.class','l/t.class']
+VERSION='0.1.1'
 MANIFEST='Manifest-Version: 1.0\nPremain-Class: org.openomsi.bridge.events.EventProbe\nAgent-Class: org.openomsi.bridge.events.EventProbe\nCan-Redefine-Classes: false\nCan-Retransform-Classes: false\n\n'
 
 def hashes_from_jar(vendor):
@@ -11,6 +12,11 @@ def hashes_from_jar(vendor):
   return {name:hashlib.sha256(z.read(name)).hexdigest()for name in CLASSES}
 
 def make_agent(destination,hashes):
+ profiles=[hashes]if isinstance(hashes,dict)else hashes
+ if not profiles:raise ValueError('At least one complete fingerprint profile is required')
+ properties='profiles='+str(len(profiles))+'\n'
+ for index,profile in enumerate(profiles):
+  properties+=''.join('profile.'+str(index)+'.'+name+'='+profile[name]+'\n'for name in CLASSES)
  java=shutil.which('java')
  if not java:raise RuntimeError('Java JDK 17 or newer is required to build the observer')
  with tempfile.TemporaryDirectory(prefix='bcs-event-build-')as temp:
@@ -19,22 +25,25 @@ def make_agent(destination,hashes):
   destination.parent.mkdir(parents=True,exist_ok=True)
   with zipfile.ZipFile(destination,'w',zipfile.ZIP_DEFLATED)as z:
    z.writestr('META-INF/MANIFEST.MF',MANIFEST)
-   z.writestr('bcs-event-fingerprints.properties',''.join(name+'='+hashes[name]+'\n'for name in CLASSES))
+   z.writestr('bcs-event-fingerprints.properties',properties)
    for file in sorted(classes.rglob('*.class')):z.write(file,file.relative_to(classes))
  return destination
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--vendor-jar',type=Path,required=True);p.add_argument('--output',type=Path,required=True);a=p.parse_args()
  hashes=hashes_from_jar(a.vendor_jar)
+ reviewed=json.loads((ROOT/'compatibility/reviewed-bcs-classes.json').read_text())
+ profiles=[profile['classes']for profile in reviewed['profiles']]
+ if hashes not in profiles:raise ValueError('This BCS build has not been reviewed; package creation refused')
  package=a.output/'Beta-Eventos-BCS';package.mkdir(parents=True,exist_ok=True)
- agent=make_agent(package/'bcs-event-probe.jar',hashes)
+ agent=make_agent(package/'bcs-event-probe.jar',profiles)
  for name in ['Iniciar-Beta.bat','Abrir-Capturas.bat','LEIA-ME.txt']:
   data=(ROOT/'package'/name).read_text(encoding='utf-8').replace('\r\n','\n').replace('\n','\r\n')
   (package/name).write_bytes(data.encode('utf-8'))
  shutil.copy2(ROOT.parents[1]/'LICENSE',package/'LICENSE.txt')
- provenance={'version':'0.1.0','observer_sha256':hashlib.sha256(agent.read_bytes()).hexdigest(),'vendor_class_sha256':hashes,'vendor_code_included':False,'mutates_vendor_jar':False,'visual_events_implemented':False}
+ provenance={'version':VERSION,'observer_sha256':hashlib.sha256(agent.read_bytes()).hexdigest(),'vendor_class_sha256':hashes,'supported_bcs_profiles':reviewed['profiles'],'vendor_code_included':False,'mutates_vendor_jar':False,'visual_events_implemented':False}
  (package/'BUILD.json').write_text(json.dumps(provenance,indent=2)+'\n')
- artifact=a.output/'Beta_Eventos_BCS_0.1.0.zip'
+ artifact=a.output/('Beta_Eventos_BCS_'+VERSION+'.zip')
  with zipfile.ZipFile(artifact,'w',zipfile.ZIP_DEFLATED)as z:
   for file in sorted(package.rglob('*')):
    if file.is_file():z.write(file,file.relative_to(a.output))
