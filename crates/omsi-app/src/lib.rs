@@ -14,6 +14,7 @@
 mod admin;
 mod admin_panel;
 mod auto_announce;
+mod bcs_events;
 mod coop;
 mod coop_character;
 mod coop_drive;
@@ -842,6 +843,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
         last,
         paused: false,
         integrations: Integrations {
+            bcs_events: Default::default(),
             plugin_keys: Vec::new(),
             plugin_events: Vec::new(),
             plugin_events_ex: Vec::new(),
