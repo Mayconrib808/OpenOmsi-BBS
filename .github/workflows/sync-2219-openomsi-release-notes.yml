@@ -2,7 +2,9 @@ name: Publish modified openOMSI launch notes to Bridge 2.2.1.9 Release
 on:
   push:
     branches: [fix/bcs-localized-driver]
-    paths: [.github/workflows/sync-2219-openomsi-release-notes.yml]
+    paths:
+      - .github/workflows/sync-2219-openomsi-release-notes.yml
+      - docs/releases/2.2.1.9-full-changelog.md
   workflow_dispatch: {}
 permissions:
   contents: write
