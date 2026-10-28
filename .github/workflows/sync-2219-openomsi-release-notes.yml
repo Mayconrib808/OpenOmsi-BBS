@@ -1,0 +1,51 @@
+name: Publish modified openOMSI launch notes to Bridge 2.2.1.9 Release
+on:
+  push:
+    branches: [fix/bcs-localized-driver]
+    paths: [.github/workflows/sync-2219-openomsi-release-notes.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  update-notes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Update release body and verify assets are unchanged
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repo="$GITHUB_REPOSITORY"
+          tag="v2.2.1.9"
+          title="OpenOMSI BCS Bridge 2.2.1.9"
+          notes="docs/releases/2.2.1.9-full-changelog.md"
+          zip="OpenOMSI_BCS_Bridge_2.2.1.9.zip"
+          digest="sha256:edab7b34e026da034ac8635859adafddea1b86f8e90023f23bbc7e3ca98974cd"
+          test -s "$notes"
+          grep -Fq "Major release — introducing the modified openOMSI Coop game!" "$notes"
+          grep -Fq "All major changes to the modified openOMSI" "$notes"
+          grep -Fq "Release-by-release summary" "$notes"
+          release="$(gh api "repos/$repo/releases/tags/$tag")"
+          id="$(jq -r '.id' <<<"$release")"
+          test "$(jq -r '.name' <<<"$release")" = "$title"
+          test "$(jq -r --arg n "$zip" '.assets[] | select(.name==$n) | .digest' <<<"$release")" = "$digest"
+          test "$(jq -r --arg n "$zip" '.assets[] | select(.name==$n) | .size' <<<"$release")" = 236299847
+          jq -n --rawfile body "$notes" '{body:$body}' > release-update.json
+          gh api -X PATCH "repos/$repo/releases/$id" --input release-update.json --jq '{id,name,tag_name,html_url}'
+          gh api "repos/$repo/releases/tags/$tag" --jq '.body' > published-body.md
+          # gh --jq adds a newline; compare exact contents without trailing newlines.
+          python3 - <<'PY'
+          from pathlib import Path
+          expected=Path("docs/releases/2.2.1.9-full-changelog.md").read_text().strip()
+          actual=Path("published-body.md").read_text().strip()
+          assert actual==expected, "Release body does not match verified changelog"
+          PY
+          latest="$(gh api "repos/$repo/releases/latest")"
+          test "$(jq -r '.tag_name' <<<"$latest")" = "$tag"
+          test "$(jq -r --arg n "$zip" '.assets[] | select(.name==$n) | .digest' <<<"$latest")" = "$digest"
+          echo "Confirmed: release text updated, tag/title and exact ZIP bytes preserved."
