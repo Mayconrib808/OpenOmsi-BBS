@@ -1795,13 +1795,19 @@ impl App {
         {
             return false;
         }
-        self.coop_cash_action(5, 0);
+        if !self.coop_cash_action(5, 0) {
+            self.coop_notice(
+                "Não foi possível enviar o recolhimento. Confira a conexão cooperativa.",
+                "Could not send the collection command. Check the cooperative connection.",
+                "Geldeinzug konnte nicht gesendet werden. Verbindung prüfen.",
+            );
+        }
         true
     }
 
-    pub(crate) fn coop_cash_action(&mut self, kind: u8, index: u32) {
+    pub(crate) fn coop_cash_action(&mut self, kind: u8, index: u32) -> bool {
         let Some((to, epoch, _)) = self.net.coop.remote.filter(|(_, e, _)| *e != 0) else {
-            return;
+            return false;
         };
         let a = Action {
             epoch,
@@ -1816,7 +1822,7 @@ impl App {
             x: 0.0,
             y: 0.0,
         };
-        self.coop_queue(to, a);
+        self.coop_queue(to, a)
     }
 }
 
