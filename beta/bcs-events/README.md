@@ -1,4 +1,4 @@
-# BCS event capture beta 0.1.1
+# BCS event capture beta 0.1.2
 
 Passive first stage for native visual BCS occurrences. The Java agent observes an already-running `system.q` thread and writes local JSON snapshots plus an NDJSON change history. It does not create 3D scenes or connect the stream to OpenOMSI yet.
 
@@ -37,3 +37,11 @@ Extract the generated `Beta-Eventos-BCS` folder inside the BCS directory, close 
 Following successful real captures, the next stage is a Bridge/native event protocol and corresponding passenger/vehicle scenes. Vehicle assets, placement and routing, treatment timing and host-authoritative multiplayer synchronization remain separate implementation work.
 
 The agent reads private fields inside the BCS JVM. Read-only behavior and synthetic tests do not establish PeDePe approval or guarantee against account sanctions. No official authorization for this observer has been confirmed.
+
+## Startup diagnostics (0.1.2)
+
+The original launcher wrapper set JAVA_TOOL_OPTIONS before launching the official executable, whose PE manifest requires administrator elevation. The real launcher/elevation path was not exercised by the original synthetic JVM tests. A user reported no files after an event; provided BCS logs show the event thread, but no observer thread in the available thread dump. This does not establish the exact cause.
+
+The new wrapper elevates before configuring the scoped environment, runs an explicit javaagent preflight with the installed BCS JRE and java -version, logs startup failures, refuses a detected existing BCS Java session, and checks the actual launched JVM acknowledgement. The agent writes its startup status synchronously. Preflight output is separate from BCS captures and is never considered proof of a live BCS connection. The status checker requires a recent snapshot and a live PID.
+
+Windows tests use a synthetic native launcher and fixture JVM to cover inheritance, startup acknowledgement, live status, and an intentionally dropped environment. They do not run the vendor launcher or exercise interactive UAC, which remains a real-machine validation boundary. The diagnostic-only entry point does not launch vendor code or access a BCS account.

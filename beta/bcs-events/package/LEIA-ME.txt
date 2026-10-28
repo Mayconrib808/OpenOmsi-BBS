@@ -1,4 +1,4 @@
-BETA DE CAPTURA DOS EVENTOS BCS — 0.1.1
+BETA DE CAPTURA DOS EVENTOS BCS — 0.1.2
 
 Esta primeira etapa identifica os eventos reais do BCS e as chamadas aos serviços. Ainda não cria passageiros desmaiados, brigas, manchas de óleo nem veículos de emergência no OpenOMSI.
 
@@ -7,9 +7,10 @@ O agente lê campos internos dentro do processo Java do BCS. Ser somente leitura
 
 COMO TESTAR
 1. Extraia a pasta Beta-Eventos-BCS dentro da pasta OMSI 2\Busbetrieb-Simulator. O arquivo Iniciar-Beta.bat deve ficar dentro de Busbetrieb-Simulator\Beta-Eventos-BCS.
-2. Feche o BCS e abra Iniciar-Beta.bat. Entre no BCS e inicie sua viagem normalmente, com os eventos habilitados.
-3. Quando acontecer uma ocorrência, anote qual foi e qual serviço você chamou. Deixe o atendimento terminar.
-4. Execute Abrir-Capturas.bat e envie os arquivos bcs-events-*.json e bcs-events-*.ndjson que estiverem na pasta.
+2. Feche o BCS e abra Iniciar-Beta.bat. O script solicita a elevacao ja exigida pelo launcher oficial, testa o Java instalado e grava diagnosticos. Entre no BCS e inicie sua viagem normalmente, com os eventos habilitados.
+3. ANTES DE ESPERAR EVENTO, abra Abrir-Capturas.bat. Precisa aparecer CAPTURA ATIVA. Se estiver aguardando BCS, confira apos a viagem iniciar. Se nao houver confirmacao, nao espere outro evento: envie os diagnosticos.
+4. Quando acontecer uma ocorrência, anote qual foi e qual serviço você chamou. Deixe o atendimento terminar.
+5. Execute Abrir-Capturas.bat e envie os arquivos bcs-events-*.json e bcs-events-*.ndjson que estiverem na pasta.
 
 As capturas ficam em %LOCALAPPDATA%\OpenOmsi-BBS\EventosBeta.
 O arquivo .json contém o estado atual; o .ndjson contém o histórico de mudanças. O número no nome identifica o processo Java. Outros processos iniciados pelo launcher podem gerar arquivos apenas com waiting_for_bcs; o processo que capturou os eventos terá status compatible e event_id maior que zero durante a ocorrência.
@@ -27,3 +28,8 @@ Esta versão reconhece os dois JARs fornecidos (anterior e atualizado). O observ
 A captura foi validada em JVM com cenários sintéticos. A leitura no seu BCS ainda precisa deste primeiro teste real.
 
 Para voltar à abertura normal, feche o BCS e inicie pelo atalho habitual. A opção do observador vale apenas para os processos abertos por Iniciar-Beta.bat; não altera configurações globais do Java.
+
+DIAGNOSTICO SEM ABRIR O BCS
+Diagnosticar-Beta.bat testa apenas o carregamento do agente no Java instalado, usando java -version. Nao abre o BCS nem acessa a conta. Envie diagnostico-inicio-*.txt e a subpasta diagnostico se houver falha.
+
+O agente escreve um status de inicializacao imediatamente, mesmo sem evento. Um pre-teste bem-sucedido nao prova que o launcher repassou o agente ao BCS. CAPTURA ATIVA exige um status recente de um processo ainda aberto e o gerenciador do BCS reconhecido. Abrir-Capturas.bat so verifica e abre a pasta.

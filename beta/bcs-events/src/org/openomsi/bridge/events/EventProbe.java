@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Passive beta: observes an already-running BCS event thread; never invokes game actions. */
 public final class EventProbe {
     private static final AtomicBoolean STARTED = new AtomicBoolean();
-    private static final String VERSION = "0.1.1";
+    private static final String VERSION = "0.1.2";
     private static final String MANAGER = "system.q";
     private static final String POPUP = "o.j";
     private static final long HEARTBEAT_MS = 5000;
@@ -27,13 +27,21 @@ public final class EventProbe {
     }
     public static void agentmain(String args, Instrumentation ignored) { premain(args, ignored); }
 
-    private static void start(final String args) {
+    private static void start(final String args) throws Exception {
         if (!STARTED.compareAndSet(false, true)) return;
+        Path out = args == null || args.trim().isEmpty()
+            ? Paths.get(System.getProperty("user.home"), ".openomsi", "bcs-events-beta")
+            : Paths.get(args.trim());
+        final Writer sink = new Writer(out);
+        // Confirm loading synchronously, even for short JVMs such as java -version.
+        sink.emit(status(sink, "agent_loaded", ""), "startup", System.currentTimeMillis());
         Thread worker = new Thread(new Runnable() {
             public void run() {
-                try { observe(args); }
+                try { observe(sink); }
                 catch (Throwable unavailable) {
                     System.err.println("[OpenOMSI events beta] Capture unavailable: " + unavailable.getClass().getSimpleName());
+                    try { sink.emit(status(sink, "observer_failed", unavailable.getClass().getSimpleName()), "status", System.currentTimeMillis()); }
+                    catch (Throwable ignored) { }
                 }
             }
         }, "OpenOMSI BCS event observer beta");
@@ -42,11 +50,15 @@ public final class EventProbe {
         worker.start();
     }
 
-    private static void observe(String args) throws Exception {
-        Path out = args == null || args.trim().isEmpty()
-            ? Paths.get(System.getProperty("user.home"), ".openomsi", "bcs-events-beta")
-            : Paths.get(args.trim());
-        Writer sink = new Writer(out);
+    private static Map<String,Object> status(Writer sink, String state, String detail) {
+        Map<String,Object> row = new LinkedHashMap<String,Object>();
+        row.put("schema", 1); row.put("probe_version", VERSION); row.put("pid", sink.pid);
+        row.put("status", state); row.put("phase", "unavailable"); row.put("event_id", 0);
+        if (!detail.isEmpty()) row.put("detail", detail);
+        return row;
+    }
+
+    private static void observe(Writer sink) throws Exception {
         Properties hashes = new Properties();
         try (InputStream in = EventProbe.class.getResourceAsStream("/bcs-event-fingerprints.properties")) {
             if (in == null) throw new IllegalStateException("Missing build fingerprints");

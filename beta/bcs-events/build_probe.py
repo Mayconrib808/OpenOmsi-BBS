@@ -4,7 +4,7 @@ import argparse,hashlib,json,shutil,subprocess,tempfile,zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parent
 CLASSES=['system/q.class','o/j.class','l/t.class']
-VERSION='0.1.1'
+VERSION='0.1.2'
 MANIFEST='Manifest-Version: 1.0\nPremain-Class: org.openomsi.bridge.events.EventProbe\nAgent-Class: org.openomsi.bridge.events.EventProbe\nCan-Redefine-Classes: false\nCan-Retransform-Classes: false\n\n'
 
 def hashes_from_jar(vendor):
@@ -37,9 +37,9 @@ def main():
  if hashes not in profiles:raise ValueError('This BCS build has not been reviewed; package creation refused')
  package=a.output/'Beta-Eventos-BCS';package.mkdir(parents=True,exist_ok=True)
  agent=make_agent(package/'bcs-event-probe.jar',profiles)
- for name in ['Iniciar-Beta.bat','Abrir-Capturas.bat','LEIA-ME.txt']:
+ for name in ['Iniciar-Beta.bat','Iniciar-Beta.ps1','Abrir-Capturas.bat','Verificar-Captura.ps1','Diagnosticar-Beta.bat','LEIA-ME.txt']:
   data=(ROOT/'package'/name).read_text(encoding='utf-8').replace('\r\n','\n').replace('\n','\r\n')
-  (package/name).write_bytes(data.encode('utf-8'))
+  (package/name).write_bytes(data.encode('utf-8-sig'if name.endswith('.ps1')else 'utf-8'))
  shutil.copy2(ROOT.parents[1]/'LICENSE',package/'LICENSE.txt')
  provenance={'version':VERSION,'observer_sha256':hashlib.sha256(agent.read_bytes()).hexdigest(),'vendor_class_sha256':hashes,'supported_bcs_profiles':reviewed['profiles'],'vendor_code_included':False,'mutates_vendor_jar':False,'visual_events_implemented':False}
  (package/'BUILD.json').write_text(json.dumps(provenance,indent=2)+'\n')

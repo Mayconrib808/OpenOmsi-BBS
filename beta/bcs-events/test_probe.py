@@ -80,7 +80,12 @@ def main():
   hashes={n:hashlib.sha256((classes/n).read_bytes()).hexdigest()for n in build_probe.CLASSES}
   bad=dict(hashes);bad['system/q.class']='0'*64
   agent=build_probe.make_agent(work/'agent with spaces.jar',[bad,hashes])
+  preflight=work/'short JVM startup'
+  check=subprocess.run([shutil.which('java'),'-javaagent:'+str(agent)+'='+str(preflight),'-version'],capture_output=True,text=True,timeout=15)
+  assert check.returncode==0,check.stderr
+  assert list(preflight.glob('bcs-events-*.json')),'Short JVM did not acknowledge agent startup'
   rows=run_fixture(classes,agent,work/'capturas com espaços')
+  assert any(r['status']=='agent_loaded'and r.get('transition')=='startup'for r in rows)
   assert any(r['status']=='compatible'for r in rows)
   assert not any(r['status']=='capture_error'for r in rows)
   started=[r for r in rows if r.get('transition')=='event_started']

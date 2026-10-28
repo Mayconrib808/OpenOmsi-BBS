@@ -23,3 +23,5 @@ jobs:
         run: |
           python beta/bcs-events/test_probe.py
           if ($LASTEXITCODE -ne 0) { throw "Event observer regression" }
+          python beta/bcs-events/test_launcher_windows.py
+          if ($LASTEXITCODE -ne 0) { throw "Windows launcher regression" }

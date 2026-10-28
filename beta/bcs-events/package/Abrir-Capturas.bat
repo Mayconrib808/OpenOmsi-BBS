@@ -1,5 +1,6 @@
 @echo off
 setlocal
-if not exist "%LOCALAPPDATA%\OpenOmsi-BBS\EventosBeta" mkdir "%LOCALAPPDATA%\OpenOmsi-BBS\EventosBeta"
-start "" "%LOCALAPPDATA%\OpenOmsi-BBS\EventosBeta"
+chcp 65001 >nul
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0Verificar-Captura.ps1" -OpenFolder
+pause
 endlocal
