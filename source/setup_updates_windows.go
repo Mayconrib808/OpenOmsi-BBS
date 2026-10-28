@@ -61,6 +61,12 @@ func (g *setupGUI) updateCommand() {
 		g.checkUpdates()
 		return
 	}
+	// Updating must work before activation has saved the form.
+	root, err := cleanInputPath(guiText(g.root))
+	if err != nil {
+		guiMessageBox(g.window, err.Error(), 0x10)
+		return
+	}
 	r := *g.availableUpdate
 	notes := r.Notes[normalizeLanguage(g.config.Language)]
 	if notes == "" {
@@ -73,7 +79,7 @@ func (g *setupGUI) updateCommand() {
 		if err := setupChangesAllowed(g.config.Language); err != nil {
 			return guiResult{err: err}
 		}
-		jar, err := installedBCSJar(g.config.Root)
+		jar, err := installedBCSJar(root)
 		if err != nil {
 			return guiResult{err: err}
 		}
