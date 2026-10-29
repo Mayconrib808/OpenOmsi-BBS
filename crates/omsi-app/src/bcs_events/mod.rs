@@ -78,12 +78,7 @@ impl crate::App {
             .map(|h| {
                 h.people
                     .iter()
-                    .filter(|p| {
-                        !p.remote
-                            && p.inside(omsi_sim::people::BusId::Player)
-                            && matches!(p.state, omsi_sim::people::State::Pax(_))
-                            && matches!(p.activity, omsi_sim::human::Activity::Sit)
-                    })
+                    .filter(|p| p.is_local_seated_passenger(omsi_sim::people::BusId::Player))
                     .map(|p| p.id)
                     .collect()
             })
@@ -172,6 +167,9 @@ impl crate::App {
                 state.patient,
                 state.key
             );
+            if state.stage == Stage::PatientUnwell && state.patient.is_none() {
+                log::warn!("BCS incident beta: medical event received but no eligible seated local passenger is aboard this bus");
+            }
             use omsi_plugin::InfoValue::{Num, Text};
             crate::plugins::queue_event(
                 &mut self.integrations.plugin_events,

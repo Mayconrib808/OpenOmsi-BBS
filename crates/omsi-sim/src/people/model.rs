@@ -168,6 +168,18 @@ impl Person {
     pub fn inside(&self, bus: BusId) -> bool {
         matches!(self.place, Place::Bus(b, _) if b == bus)
     }
+    /// A local passenger actually occupying a seated place in this bus. Passenger
+    /// animation comes from Pax::pax_state; Person::activity is the walker's cache
+    /// and can still say Stand while a passenger is sitting in the rendered cabin.
+    pub fn is_local_seated_passenger(&self, bus: BusId) -> bool {
+        !self.remote
+            && self.inside(bus)
+            && matches!(&self.state, State::Pax(p)
+                if p.inside == Some(bus)
+                    && p.task == super::pax::Task::SittingInBus
+                    && p.seat.is_some()
+                    && p.pax_state.round() == 2.0)
+    }
     pub fn label(&self) -> String {
         format!(
             "#{} {}",

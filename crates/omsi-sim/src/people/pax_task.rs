@@ -839,9 +839,11 @@ mod connection_tests {
         let ix=HashMap::from([(BusId::Player,0)]);
         let regs=HashMap::from([(BusId::Player,BusAtStops{all_exit:true,..Default::default()})]);
         let p=h.pax_mut(i).unwrap();p.inside=Some(BusId::Player);p.bus=Some(BusId::Player);
-        p.task=Task::SittingInBus;p.seat=Some(0);p.st=0;p.pos=DVec3::new(0.,1.,0.);
-        h.people[i].activity=Activity::Sit;
+        p.task=Task::SittingInBus;p.seat=Some(0);p.st=0;p.pos=DVec3::new(0.,1.,0.);p.pax_state=2.0;
+        h.people[i].place=Place::Bus(BusId::Player,Vec3::new(0.,1.,0.));
+        assert_eq!(h.people[i].activity,Activity::Stand,"reproduce the stale walker activity of a seated passenger");
         let id=h.people[i].id;h.hold_for_responder(Some(id));
+        assert!(h.pax(i).unwrap().responder_hold);
         let mut ticket=false;let mut remove=Vec::new();
         h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
         assert_eq!(h.pax(i).unwrap().task,Task::SittingInBus);
@@ -851,6 +853,33 @@ mod connection_tests {
         h.hold_for_responder(None);
         h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
         assert_eq!(h.pax(i).unwrap().task,Task::InBusToExit);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn medical_patient_eligibility_reads_the_seat_state_not_the_walker_cache() {
+        let (root,mut h,_world,i)=fixture("medical-seat-eligibility");
+        let p=h.pax_mut(i).unwrap();
+        p.inside=Some(BusId::Player);p.bus=Some(BusId::Player);
+        p.task=Task::SittingInBus;p.seat=Some(0);p.pax_state=2.0;
+        h.people[i].place=Place::Bus(BusId::Player,Vec3::ZERO);
+        assert_eq!(h.people[i].activity,Activity::Stand);
+        assert!(h.people[i].is_local_seated_passenger(BusId::Player));
+        h.people[i].activity=Activity::Walk;
+        assert!(h.people[i].is_local_seated_passenger(BusId::Player));
+        h.pax_mut(i).unwrap().pax_state=0.0;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"standing riders are excluded");
+        h.pax_mut(i).unwrap().pax_state=2.0;
+        h.people[i].remote=true;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"remote mirrors are excluded");
+        h.people[i].remote=false;
+        h.pax_mut(i).unwrap().seat=None;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"an assigned seat is required");
+        h.pax_mut(i).unwrap().seat=Some(0);
+        h.pax_mut(i).unwrap().task=Task::InBusToExit;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"alighting riders are excluded");
+        h.pax_mut(i).unwrap().task=Task::SittingInBus;
+        h.people[i].place=Place::Ground;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"outside people are excluded");
         std::fs::remove_dir_all(root).unwrap();
     }
     fn fixture(name:&str)->(std::path::PathBuf,PeopleSim,crate::world_data::WorldData,usize) {
