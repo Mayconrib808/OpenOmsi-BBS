@@ -46,7 +46,7 @@ jobs:
         name: Bridge-2.2.1.9-hotfix1-candidate
         run-id: 40602950335
         github-token: ${{ github.token }}
-        path: approved-hotfix3219
+        path: approved-hotfix2219
     - uses: actions/download-artifact@v8
       with:
         name: Bridge-2.2.1.9-candidate
@@ -64,7 +64,7 @@ jobs:
         name: Bridge-2.2.1.8-hotfix1-candidate
         run-id: 40577793377
         github-token: ${{ github.token }}
-        path: approved-hotfix3218
+        path: approved-hotfix2218
     - uses: actions/download-artifact@v8
       with:
         name: Bridge-2.2.0.8-hotfix1-candidate
@@ -73,7 +73,7 @@ jobs:
         path: approved-hf1
     - uses: actions/download-artifact@v8
       with:
-        name: Bridge-2.2.0.8-hotfix3-candidate
+        name: Bridge-2.2.0.8-hotfix2-candidate
         run-id: 40197474614
         github-token: ${{ github.token }}
         path: approved-hf2
@@ -243,4 +243,5 @@ jobs:
     - fix/distribution-configuration
     paths:
     - build-support/bridge2219-hotfix3/stable.json
+    - .github/workflows/publish-2219-update-repair.yml
   workflow_dispatch: {}
