@@ -14,6 +14,18 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 static PATIENT_POSE: AtomicU64 = AtomicU64::new(0);
 
+/// Only the standalone visual harness may keep its seeded test passengers aboard
+/// before a scene. A real BCS session needs its plugins; LAN and unseeded runs are
+/// excluded even if the environment switch is inherited accidentally.
+pub(crate) fn local_visual_test(args: &crate::cli::Args) -> bool {
+    args.riders > 0
+        && args.server.is_none()
+        && args.lan_host.is_none()
+        && args.lan_join.is_none()
+        && omsi_cfg::flags::OMSI_NO_PLUGINS.is_set()
+        && std::env::var("OPENOMSI_BCS_EVENTS_VISUAL_TEST").as_deref() == Ok("1")
+}
+
 /// Read once before parallel skinning; both the target and blend belong to one frame.
 pub(crate) fn patient_pose() -> Option<(u32, f32)> {
     let packed = PATIENT_POSE.load(Ordering::Relaxed);
@@ -135,6 +147,9 @@ impl crate::App {
         publish(pose.map(|p|p.0),pose.map_or(0.0,|p|p.1));
         if let Some(h)=self.session.humans.as_mut(){
             h.sim.hold_for_responder(pose.filter(|p|p.1>0.0).map(|p|p.0));
+            if context.is_some() && state.stage == Stage::Idle && local_visual_test(&self.args) {
+                h.sim.hold_seated_test_passengers();
+            }
         }
         if let Some(id) = transfer {
             if let Some(h) = self.session.humans.as_mut() {

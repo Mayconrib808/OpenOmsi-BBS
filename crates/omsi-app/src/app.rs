@@ -616,6 +616,9 @@ impl App {
                             h.populate(&w, centre);
                             crate::view_sync::apply_people(&mut h, &mut self.gfx.sim_view.people, &w, &renderer, &mut scene);
                             h.seed_riders(self.args.riders, &p.vehicle, &w);
+                            if self.net.lan.is_none() && crate::bcs_events::local_visual_test(&self.args) {
+                                h.sim.hold_seated_test_passengers();
+                            }
                             crate::view_sync::apply_people(&mut h, &mut self.gfx.sim_view.people, &w, &renderer, &mut scene);
                         }
                     }

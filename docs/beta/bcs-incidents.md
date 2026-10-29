@@ -56,6 +56,17 @@ The additive plugin event `bcs_incident(event_id, instance, stage, passenger)`
 reports capture/controller intent. Actual dispatch, physical arrival and transfer
 are logged separately; this event is not proof of physical arrival.
 
+## Standalone visual test
+
+The manual harness sets `OPENOMSI_BCS_EVENTS_VISUAL_TEST=1` only for its own
+game process. It also disables plugins and starts with `--riders 4`. The game
+accepts this hold only in a seeded standalone run, with no server, LAN host or
+LAN join. Seeded seated passengers wait aboard before the medical scene starts,
+including at an out-of-service stop; this avoids normal alighting emptying the
+test bus before the tester presses the event button. Once a patient is selected,
+the ordinary single-patient responder hold takes over. Normal BCS trips and LAN
+sessions do not receive the test hold.
+
 ## Emergency models
 
 The loader consumes `bcs-emergency-vehicles.json` in the original OMSI root.

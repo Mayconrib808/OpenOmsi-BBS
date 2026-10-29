@@ -882,6 +882,25 @@ mod connection_tests {
         assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"outside people are excluded");
         std::fs::remove_dir_all(root).unwrap();
     }
+    #[test]
+    fn medical_patient_test_riders_wait_seated_before_the_incident() {
+        let (root,mut h,world,i)=fixture("medical-test-wait");
+        let buses=vec![bus(&root,BusId::Player,"Destino",DVec3::new(40.,0.,0.))];
+        let ix=HashMap::from([(BusId::Player,0)]);
+        let regs=HashMap::from([(BusId::Player,BusAtStops{all_exit:true,..Default::default()})]);
+        let p=h.pax_mut(i).unwrap();p.inside=Some(BusId::Player);p.bus=Some(BusId::Player);
+        p.task=Task::SittingInBus;p.seat=Some(0);p.st=0;p.pos=DVec3::new(0.,1.,0.);p.pax_state=2.0;
+        h.people[i].place=Place::Bus(BusId::Player,Vec3::new(0.,1.,0.));
+        h.hold_seated_test_passengers();
+        let mut ticket=false;let mut remove=Vec::new();
+        h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
+        assert_eq!(h.pax(i).unwrap().task,Task::SittingInBus);
+        assert!(h.people[i].is_local_seated_passenger(BusId::Player));
+        h.hold_for_responder(None);
+        h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
+        assert_eq!(h.pax(i).unwrap().task,Task::InBusToExit,"normal alighting resumes when the test hold is released");
+        std::fs::remove_dir_all(root).unwrap();
+    }
     fn fixture(name:&str)->(std::path::PathBuf,PeopleSim,crate::world_data::WorldData,usize) {
         let root=std::env::temp_dir().join(format!("connection-{name}-{}",std::process::id()));
         let dir=root.join("Humans/Test");std::fs::create_dir_all(&dir).unwrap();

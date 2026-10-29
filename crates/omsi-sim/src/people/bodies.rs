@@ -51,6 +51,17 @@ impl BodyOps {
 }
 
 impl PeopleSim {
+    /// The standalone visual harness seeds riders without a route. Keep those
+    /// seated until it starts an incident, even at an out-of-service stop. The
+    /// application gates this on its explicit local test switch and no plugins.
+    pub fn hold_seated_test_passengers(&mut self) {
+        for person in &mut self.people {
+            let seated = person.is_local_seated_passenger(BusId::Player);
+            if let State::Pax(pax) = &mut person.state {
+                pax.responder_hold = seated;
+            }
+        }
+    }
     /// Release previous holds every frame; only a seated local rider can be held.
     pub fn hold_for_responder(&mut self, patient: Option<u32>) {
         for person in &mut self.people {
