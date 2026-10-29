@@ -1,0 +1,46 @@
+name: Build and test Bridge update configuration repair
+on:
+  push:
+    branches: [fix/distribution-configuration]
+    paths:
+      - .github/workflows/build-2219-update-repair.yml
+      - scripts/build_2219_update_repair.py
+      - scripts/test_setup_update_service_windows.py
+      - source/version.go
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-candidate
+          run-id: 40765546864
+          github-token: ${{ github.token }}
+          path: baseline
+      - name: Test Bridge, localized driver identity, signed updates and recovery
+        run: python scripts/build_2203.py --tests-only
+      - name: Build retained native package and verify actual Windows controls
+        run: python scripts/build_2219_update_repair.py --baseline baseline --output build/update-repair
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix3-candidate
+          path: |
+            build/update-repair/Atualizar-Bridge.exe
+            build/update-repair/build-report.json
+            build/update-repair/coop-spec.json
+            build/update-repair/coop_bundle_manifest.go
+            build/update-repair/runtime/**
+          if-no-files-found: error
+          retention-days: 30
