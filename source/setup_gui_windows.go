@@ -924,6 +924,12 @@ func runSetupGUI(dir string, smoke bool) error {
 					guiUser.NewProc("DestroyWindow").Call(g.window)
 					return err
 				}
+                notes:=g.showReleaseChangelog(true)
+                if notes==0{return fmt.Errorf("changelog window did not open: %s",lang)}
+                guiUser.NewProc("RedrawWindow").Call(notes,0,0,0x0581)
+                if err:=captureSetupPreview(notes,filepath.Join(previews,"changelog-"+lang+".png"));err!=nil{return err}
+                guiUser.NewProc("SendMessageW").Call(notes,guiWMClose,0,0)
+                if changelogWindow!=0{return fmt.Errorf("changelog window did not close")}
 			}
 		}
 		g.config.Language = "pt"
@@ -990,7 +996,9 @@ func runSetupGUI(dir string, smoke bool) error {
 		if result == 0 {
 			break
 		}
-		dialog, _, _ := guiUser.NewProc("IsDialogMessageW").Call(g.window, uintptr(unsafe.Pointer(&message)))
+        dialog:=uintptr(0)
+        if changelogWindow!=0 {dialog,_,_=guiUser.NewProc("IsDialogMessageW").Call(changelogWindow,uintptr(unsafe.Pointer(&message)))}
+        if dialog==0 {dialog,_,_=guiUser.NewProc("IsDialogMessageW").Call(g.window,uintptr(unsafe.Pointer(&message)))}
 		if dialog == 0 {
 			guiUser.NewProc("TranslateMessage").Call(uintptr(unsafe.Pointer(&message)))
 			guiUser.NewProc("DispatchMessageW").Call(uintptr(unsafe.Pointer(&message)))

@@ -22,11 +22,12 @@ func changelogWindowProc(window uintptr, message uint32, wparam, lparam uintptr)
         if int(wparam&0xffff) != guiIDSave { break }
         fallthrough
     case guiWMClose:
-        if err := os.MkdirAll(appDir(g.dir), 0755); err == nil {
+        if err := os.MkdirAll(appDir(g.dir), 0755); err == nil && !g.smoke {
             _ = os.WriteFile(filepath.Join(appDir(g.dir), "changelog-seen.txt"), []byte(bridgeVersion+"\n"), 0644)
         }
         guiUser.NewProc("DestroyWindow").Call(window)
         changelogWindow = 0
+        guiUser.NewProc("EnableWindow").Call(g.window,1)
         guiUser.NewProc("SetForegroundWindow").Call(g.window)
         return 0
     case guiWMColorEdit, guiWMColorStatic, guiWMColorButton, guiWMDrawItem:
@@ -66,7 +67,7 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     control("STATIC",tr("Atualização instalada","Update installed","Update installiert"),32,24,650,24,0,0,g.smallFont)
     control("STATIC",tr("Novidades da 2.2.2","What's new in 2.2.2","Neu in 2.2.2"),32,52,650,38,0,0,g.titleFont)
     rows:=[][2]string{
-        {tr("Eventos do BCS ganham vida","BCS events come to life","BBS-Ereignisse werden sichtbar"),tr("Ocorrências, equipes de emergência e atendimento no cenário.","Incidents, emergency crews and responses in the scene.","Vorfälle, Einsatzfahrzeuge und Hilfe in der Spielwelt.")},
+        {tr("Eventos do BCS ganham vida","BCS events come to life","BBS-Ereignisse werden sichtbar"),tr("Ocorrências e veículos de emergência aparecem no cenário.","Incidents and emergency vehicles appear in the scene.","Vorfälle, Einsatzfahrzeuge und Hilfe in der Spielwelt.")},
         {tr("Inspetor a bordo","Inspector on board","Kontrolleur an Bord"),tr("Um personagem acompanha a viagem e a fiscalização do BCS.","A character follows the trip and BCS ticket inspection.","Eine Figur begleitet die Fahrt und die BBS-Fahrkartenkontrolle.")},
         {tr("Troca de motorista corrigida","Driver handover fixes","Fahrerwechsel korrigiert"),tr("GPS continua do ponto atual; som e passageiros mantêm seu estado.","The GPS keeps its progress; audio and seated riders retain their state.","GPS-Fortschritt, Ton und sitzende Fahrgäste bleiben erhalten.")},
         {tr("Embarque mais flexível","More flexible boarding","Flexiblerer Einstieg"),tr("Com a porta aberta, passageiros próximos caminham até o ônibus.","Nearby passengers walk to a stopped bus with its door open.","Nahe Fahrgäste gehen zum stehenden Bus mit geöffneter Tür.")},
@@ -75,7 +76,9 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
         {tr("Jogo e servidor 0.3.46","Game and server 0.3.46","Spiel und Server 0.3.46"),tr("A nova base oficial junto das melhorias da Bridge.","The new official base with the Bridge improvements.","Die neue offizielle Basis zusammen mit den Bridge-Verbesserungen.")},
     }
     for i,row:=range rows{top:=110+i*62;control("STATIC",row[0],32,top,650,24,0,0,g.font);control("STATIC",row[1],32,top+25,650,30,0,0,g.smallFont)}
-    control("BUTTON",tr("Vamos jogar","Let's play","Los geht's"),476,590,210,40,guiWSTabStop|0xB,guiIDSave,g.font)
+    button:=control("BUTTON",tr("Vamos jogar","Let's play","Los geht's"),476,590,210,40,guiWSTabStop|0xB,guiIDSave,g.font)
+    guiUser.NewProc("EnableWindow").Call(g.window,0)
     guiUser.NewProc("ShowWindow").Call(window,1);guiUser.NewProc("UpdateWindow").Call(window)
+    guiUser.NewProc("SetFocus").Call(button)
     return window
 }

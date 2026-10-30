@@ -161,7 +161,7 @@ func main() {
 		automaticUpdateMessage(localText(c.Language, "Não foi possível concluir a atualização:\r\n", "Could not complete the update:\r\n", "Update fehlgeschlagen:\r\n")+strings.TrimSpace(err.Error()), true)
 		os.Exit(1)
 	}
-	if opts.reopen {
+	if opts.reopen || bridgeVersion == "2.2.2" {
 		if e := startBridgeUpdateProcess(filepath.Join(dir, "Setup.exe"), dir); e != nil {
 			automaticUpdateMessage(e.Error(), true)
 		}
