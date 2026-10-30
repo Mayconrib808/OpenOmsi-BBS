@@ -2,7 +2,7 @@ name: Publish verified Bridge 2.2.2 to Buscar atualizacoes
 on:
   push:
     branches: [work/bridge-222-build]
-    paths: [build-support/release222/stable.json]
+    paths: [build-support/release222/stable.json, build-support/release222/publish-trigger.txt]
 permissions:
   contents: read
   actions: read
