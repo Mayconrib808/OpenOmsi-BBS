@@ -2,7 +2,7 @@ name: Build 2.2.2 native integration
 on:
   push:
     branches: [work/native-222-build]
-    paths: [ci/release222/native.patch, ci/release222/inspector-patrol.patch, ci/release222/door-reaction.patch, ci/release222/lan-traffic.patch, ci/release222/police-response.patch, crates/omsi-sim/src/people/buses.rs, crates/omsi-sim/src/people/tests.rs, .github/workflows/native-222-build.yml]
+    paths: [ci/release222/native.patch, ci/release222/inspector-patrol.patch, ci/release222/door-reaction.patch, ci/release222/lan-traffic.patch, ci/release222/police-response.patch, ci/release222/emergency-model-axis.patch, crates/omsi-sim/src/people/buses.rs, crates/omsi-sim/src/people/tests.rs, .github/workflows/native-222-build.yml]
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -39,6 +39,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'LAN guest traffic-density patch failed' }
           git apply --index ci/release222/police-response.patch
           if ($LASTEXITCODE -ne 0) { throw 'BCS police response lifecycle patch failed' }
+          git apply --index ci/release222/emergency-model-axis.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Emergency model coordinate patch failed' }
           git -c user.name=Codex -c user.email=codex@openai.com commit -m 'Materialize exact 2.2.2 integration source'
           if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
       - uses: dtolnay/rust-toolchain@stable
@@ -48,7 +50,20 @@ jobs:
           key: native-222-release
       - name: Generate included original emergency assets
         shell: pwsh
-        run: python tools/generate_bcs_assets.py bcs-assets
+        run: |
+          python tools/generate_bcs_assets.py bcs-assets
+          if ($LASTEXITCODE -ne 0) { throw 'Emergency asset generation failed' }
+          @'
+          from pathlib import Path
+          for model,expected in [('Police',4.5),('Fire',7.0)]:
+              path=Path('bcs-assets')/'Vehicles'/'OpenOMSI_BCS'/model/'body.obj'
+              vertices=[[float(v) for v in line.split()[1:]] for line in path.read_text().splitlines() if line.startswith('v ')]
+              height=max(v[1] for v in vertices)-min(v[1] for v in vertices)
+              length=max(v[2] for v in vertices)-min(v[2] for v in vertices)
+              assert length>=expected and height<3.5, (model,length,height)
+              print(f'{model} CC0 vehicle: length={length:.1f}m, height={height:.1f}m (OBJ y-up export)')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Emergency fallback geometry points along the wrong axis' }
       - name: Build matching Windows client and server runtime
         shell: pwsh
         run: |
