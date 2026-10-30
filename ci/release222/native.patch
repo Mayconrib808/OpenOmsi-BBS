@@ -462,9 +462,18 @@ index 9983938c..7288e391 100644
  }
  
 diff --git a/crates/omsi-app/src/app_events/frame/surroundings.rs b/crates/omsi-app/src/app_events/frame/surroundings.rs
-index 451bbb00..cc21162b 100644
+index 451bbb00..2712b79c 100644
 --- a/crates/omsi-app/src/app_events/frame/surroundings.rs
 +++ b/crates/omsi-app/src/app_events/frame/surroundings.rs
+@@ -52,7 +52,7 @@ impl App {
+ 
+ crate::app::stage_ctx!(
+     /// The lights' stage's part of the game: the lamps, the rain and the spray, the sounds of the world around.
+-    LightsCx { reads: [clock, world, net, view, menus], writes: [perf, sound, weather, people, gfx, traffic, player] }
++    LightsCx { reads: [clock, world, net, view, menus, integrations], writes: [perf, sound, weather, people, gfx, traffic, player] }
+ );
+ 
+ /// The lights (the lamps' cones, the light maps, every light that shines), the rain and
 @@ -70,6 +70,14 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
          w.update_light_map_atlas(r, cam.position);
      }
@@ -480,6 +489,14 @@ index 451bbb00..cc21162b 100644
      if let (Some(w), Some(scene), Some(cam)) = (
          cx.world.world.as_ref(),
          cx.gfx.scene.as_mut(),
+@@ -97,6 +105,7 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
+                 tv.push_effects(scene, &p.vehicle);
+             }
+             p.panto_fx.push_effects(scene);
++            crate::bcs_events::append_visuals(&cx.integrations.bcs_events,scene);
+         }
+         cx.perf.profile.add(crate::profile_keys::ProfKey::LightsCollect, __tc.elapsed().as_secs_f64());
+         // the object editor's pick: a magenta glow over it
 diff --git a/crates/omsi-app/src/app_impl/menus.rs b/crates/omsi-app/src/app_impl/menus.rs
 index 556a9171..0ace1a4f 100644
 --- a/crates/omsi-app/src/app_impl/menus.rs
@@ -851,6 +868,92 @@ index 009a2297..8e38ab33 100644
 +fn service_for(event:u32)->Option<Service>{
 +    match event {1..=4=>Some(Service::Medical),6|7=>Some(Service::Police),30..=32=>Some(Service::Fire),_=>None}
 +}
+diff --git a/crates/omsi-app/src/bcs_events/effects.rs b/crates/omsi-app/src/bcs_events/effects.rs
+new file mode 100644
+index 00000000..effe9e92
+--- /dev/null
++++ b/crates/omsi-app/src/bcs_events/effects.rs
+@@ -0,0 +1,80 @@
++//! Bounded scene-only effects. Completion comes from BCS, never a guessed countdown.
++use super::lifecycle::Snapshot;
++use glam::{DVec3,Mat4,Vec2,Vec3};
++use omsi_geometry::MeshData;
++use omsi_render::{AlphaMode,Renderer,Scene,SmokeParticle};
++use omsi_sim::people::world::World as _;
++
++#[derive(Default)]
++pub(super) struct Effects {
++    key:Option<(String,u32,u64,u32)>, at:DVec3, kind:u32, age:f32,
++    geometry:Vec<(usize,usize,usize)>,
++    world:Option<std::sync::Arc<crate::scene::World>>,
++}
++impl Effects {
++    fn clear(&mut self,r:&Renderer,scene:&mut Scene){
++        for (instance,mesh,material)in self.geometry.drain(..){r.remove_instance(scene,instance);r.free_mesh(scene,mesh);r.free_material(scene,material);}
++        self.kind=0;
++    }
++    pub fn update(&mut self,context:Option<&str>,source:Option<&Snapshot>,bus:DVec3,heading:f64,dt:f32,
++        world:&std::sync::Arc<crate::scene::World>,r:&Renderer,scene:&mut Scene){
++        if self.world.as_ref().is_some_and(|old|!std::sync::Arc::ptr_eq(old,world)) {
++            // Resources belonged to the previous world's discarded Scene.
++            self.geometry.clear();self.key=None;self.kind=0;
++        }
++        self.world=Some(world.clone());
++        let next=context.zip(source).filter(|(_,s)|matches!(s.event,30..=32)&&!s.completed)
++            .map(|(c,s)|(c.to_string(),s.pid,s.instance,s.event));
++        if next!=self.key {
++            self.clear(r,scene);self.key=next;self.age=0.0;
++            if let Some((_,_,_,event))=self.key.as_ref(){
++                self.kind=*event;
++                let a=heading.to_radians();let forward=DVec3::new(a.sin(),a.cos(),0.0);let right=DVec3::new(a.cos(),-a.sin(),0.0);
++                self.at=bus+match self.kind{30=>right*3.5-forward*3.0,32=>right*1.6-forward*8.0,_=>DVec3::ZERO};
++                let ground=world.data().walk_height_near(self.at.x,self.at.y,self.at.z);
++                if let Some(z)=ground{self.at.z=z;}else{self.kind=0;return;}
++                let mesh=match self.kind{30=>Some(bin()),32=>Some(oil()),_=>None};
++                if let Some(mesh)=mesh {
++                    let color=if self.kind==32{[0.018,0.022,0.014,0.87]}else{[0.15,0.22,0.12,1.0]};
++                    let material=r.add_material(scene,None,if self.kind==32{AlphaMode::Blend}else{AlphaMode::Opaque},color,false);
++                    let mesh=r.add_mesh(scene,&mesh);
++                    let instance=r.add_instance(scene,mesh,self.at,Mat4::from_rotation_z(-heading.to_radians()as f32),vec![material]);
++                    if self.kind==32{scene.instances[instance].decal=true;scene.instances[instance].surface_bias=true;}
++                    self.geometry.push((instance,mesh,material));
++                }
++                log::info!("BCS visual scene {} created near player bus",self.kind);
++            }
++        }
++        self.age+=dt.max(0.0).min(0.25);
++        if self.kind==31{
++            let a=heading.to_radians();self.at=bus-DVec3::new(a.sin(),a.cos(),0.0)*4.0+DVec3::Z*1.3;
++        }
++    }
++    pub fn sprites(&self,scene:&mut Scene){
++        if !matches!(self.kind,30|31){return;}
++        let fire=self.kind==30;
++        for k in 0..18 {
++            let t=(self.age*0.45+k as f32/18.0).fract();let angle=k as f32*2.39996;
++            let radius=0.18+t*0.55;
++            scene.smoke.push(SmokeParticle{position:self.at+DVec3::new((angle.cos()*radius)as f64,(angle.sin()*radius)as f64,if fire{0.85}else{0.0}+t as f64*2.6),size:0.25+t*0.8,color:if fire{[0.16,0.15,0.14]}else{[0.32,0.34,0.35]},alpha:(1.0-t)*0.44,ground:Some(self.at.z),..Default::default()});
++        }
++        if fire {for k in 0..9 {
++            let t=(self.age*1.9+k as f32/9.0).fract();let a=k as f32*2.39996;
++            scene.smoke.push(SmokeParticle{position:self.at+DVec3::new(a.cos()as f64*0.16,a.sin()as f64*0.16,0.8+t as f64*0.9),size:0.15+(1.0-t)*0.2,color:[1.0,0.2+0.35*(1.0-t),0.015],alpha:(1.0-t)*0.85,ground:Some(self.at.z),..Default::default()});
++        }}
++    }
++}
++fn oil()->MeshData{
++    let mut mesh=MeshData::default();mesh.positions.push(Vec3::new(0.0,0.0,0.022));
++    for k in 0..32{let a=k as f32*std::f32::consts::TAU/32.0;let radius=1.0+0.09*(a*5.0).sin()+0.06*(a*9.0).cos();mesh.positions.push(Vec3::new(a.cos()*1.25*radius,a.sin()*2.4*radius,0.022));}
++    for k in 0..32{mesh.indices.extend([0,k+1,(k+1)%32+1]);}
++    mesh.normals=vec![Vec3::Z;mesh.positions.len()];mesh.uvs=vec![Vec2::ZERO;mesh.positions.len()];mesh.ranges=vec![(0,mesh.indices.len()as u32,0)];mesh
++}
++fn bin()->MeshData{
++    let mut mesh=MeshData::default();
++    for k in 0..12{let a=k as f32*std::f32::consts::TAU/12.0;let b=(k+1)as f32*std::f32::consts::TAU/12.0;let n=mesh.positions.len()as u32;
++        mesh.positions.extend([Vec3::new(a.cos()*0.3,a.sin()*0.3,0.0),Vec3::new(b.cos()*0.3,b.sin()*0.3,0.0),Vec3::new(b.cos()*0.32,b.sin()*0.32,0.85),Vec3::new(a.cos()*0.32,a.sin()*0.32,0.85)]);
++        mesh.normals.extend([Vec3::new(a.cos(),a.sin(),0.0);4]);mesh.uvs.extend([Vec2::ZERO;4]);mesh.indices.extend([n,n+1,n+2,n,n+2,n+3]);
++    }
++    mesh.ranges=vec![(0,mesh.indices.len()as u32,0)];mesh
++}
 diff --git a/crates/omsi-app/src/bcs_events/feed.rs b/crates/omsi-app/src/bcs_events/feed.rs
 index d1aefdfd..b49e4cb3 100644
 --- a/crates/omsi-app/src/bcs_events/feed.rs
@@ -1022,7 +1125,7 @@ index d1aefdfd..b49e4cb3 100644
          assert_eq!(timestamp("2026-10-28T15:45:14.650Z"), Some(1793202314650));
 diff --git a/crates/omsi-app/src/bcs_events/inspector.rs b/crates/omsi-app/src/bcs_events/inspector.rs
 new file mode 100644
-index 00000000..72834211
+index 00000000..cfac26e5
 --- /dev/null
 +++ b/crates/omsi-app/src/bcs_events/inspector.rs
 @@ -0,0 +1,46 @@
@@ -1057,7 +1160,7 @@ index 00000000..72834211
 +        humans:&mut crate::humans::Humans,bus:&omsi_sim::VehicleInstance,world:&crate::scene::World) {
 +        let wanted=snapshot.map(|s|s.id);
 +        if self.context.as_deref()!=context || self.identity!=wanted {
-+            if let Some(id)=self.person.take(){humans.transfer_to_responder(id);}
++            if let Some(id)=self.person.take(){humans.remove_bcs_inspector(id);}
 +            self.context=context.map(str::to_owned);self.identity=wanted;
 +        }
 +        let (Some(_),Some(snapshot))=(context,snapshot) else{return;};
@@ -1109,22 +1212,33 @@ index 10d0cdda..544c59c4 100644
          let mut c = Controller::default(); let mut s = faint();
          c.step(Some("bus A"), Some(&s), &[8,2,7], 0.25);
 diff --git a/crates/omsi-app/src/bcs_events/mod.rs b/crates/omsi-app/src/bcs_events/mod.rs
-index a9827654..73c829b2 100644
+index a9827654..f50b8aca 100644
 --- a/crates/omsi-app/src/bcs_events/mod.rs
 +++ b/crates/omsi-app/src/bcs_events/mod.rs
-@@ -3,6 +3,8 @@
+@@ -3,16 +3,36 @@
  //! an intent only: neither the BCS delay nor completion proves a native vehicle arrived.
  
  mod assets;
 +mod names;
 +mod inspector;
++mod effects;
  mod dispatch;
  mod feed;
  mod lifecycle;
-@@ -14,6 +16,18 @@ use std::sync::atomic::{AtomicU64, Ordering};
+ mod posture;
+-pub(crate) use posture::slump;
++pub(crate) use posture::{slump,reaction};
+ 
+ use lifecycle::{Controller, Stage};
+ use std::sync::atomic::{AtomicU64, Ordering};
  
  static PATIENT_POSE: AtomicU64 = AtomicU64::new(0);
- 
++static ACTOR_POSE: AtomicU64 = AtomicU64::new(0);
++pub(crate) fn actor_pose()->Option<(u32,u32,f32,f32)>{
++    let p=ACTOR_POSE.load(Ordering::Relaxed);
++    (p&255>0).then_some(((p>>32)as u32,((p>>8)&255)as u32,(p&255)as f32/255.0,((p>>16)&65535)as f32/65535.0*std::f32::consts::TAU))
++}
++
 +/// Only the standalone visual harness may keep its seeded test passengers aboard
 +/// before a scene. A real BCS session needs its plugins; LAN and unseeded runs are
 +/// excluded even if the environment switch is inherited accidentally.
@@ -1136,19 +1250,30 @@ index a9827654..73c829b2 100644
 +        && omsi_cfg::flags::OMSI_NO_PLUGINS.is_set()
 +        && std::env::var("OPENOMSI_BCS_EVENTS_VISUAL_TEST").as_deref() == Ok("1")
 +}
-+
+ 
  /// Read once before parallel skinning; both the target and blend belong to one frame.
  pub(crate) fn patient_pose() -> Option<(u32, f32)> {
-     let packed = PATIENT_POSE.load(Ordering::Relaxed);
-@@ -31,6 +45,7 @@ fn publish(patient: Option<u32>, blend: f32) {
+@@ -31,6 +51,11 @@ fn publish(patient: Option<u32>, blend: f32) {
  #[derive(Default)]
  pub(crate) struct Incidents {
      configured: bool,
++    actor_key: Option<(String,lifecycle::Key)>,
++    actor_person: Option<u32>, actor_blend:f32, actor_time:f32,
++
++    effects: effects::Effects,
 +    inspector: inspector::InspectorActor,
      source: Option<feed::Feed>,
      controller: Controller,
      models: assets::Loader,
-@@ -78,17 +93,20 @@ impl crate::App {
+@@ -41,6 +66,7 @@ pub(crate) struct Incidents {
+ impl Drop for Incidents {
+     fn drop(&mut self) {
+         publish(None, 0.0);
++        ACTOR_POSE.store(0,Ordering::Relaxed);
+     }
+ }
+ 
+@@ -78,17 +104,41 @@ impl crate::App {
              .map(|h| {
                  h.people
                      .iter()
@@ -1164,6 +1289,23 @@ index a9827654..73c829b2 100644
              })
              .unwrap_or_default();
          let latest = incidents.source.as_ref().and_then(|f| f.latest());
++        let actor_source=latest.as_ref().filter(|s|matches!(s.event,6|7)&&!s.completed);
++        let actor_key=context.as_ref().zip(actor_source).map(|(c,s)|(c.clone(),lifecycle::Key{pid:s.pid,instance:s.instance}));
++        if incidents.actor_key!=actor_key {
++            incidents.actor_key=actor_key;
++            incidents.actor_person=actor_source.and_then(|_|riders.iter().copied().min());
++        }
++        if incidents.actor_person.is_some_and(|id|!riders.contains(&id)){incidents.actor_person=None;}
++        let delta=if self.paused{0.0}else{dt.max(0.0).min(0.25)};
++        let want=if incidents.actor_key.is_some()&&incidents.actor_person.is_some(){1.0}else{0.0};
++        incidents.actor_blend+=(want-incidents.actor_blend).clamp(-delta,delta);
++        incidents.actor_time+=delta;
++        let actor=incidents.actor_person.zip(actor_source).map_or(0,|(id,s)|{
++            ((id as u64)<<32)|(((incidents.actor_time.rem_euclid(std::f32::consts::TAU)/std::f32::consts::TAU*65535.0)as u64)<<16)
++                |((s.event as u64)<<8)|(incidents.actor_blend.clamp(0.0,1.0)*255.0)as u64
++        });
++        ACTOR_POSE.store(actor,Ordering::Relaxed);
++
 +        if !self.paused {
 +            if let (Some(humans),Some(player),Some(world))=(self.session.humans.as_mut(),self.player.as_ref(),self.world.as_ref()) {
 +                incidents.inspector.update(context.as_deref(),latest.as_ref().and_then(|s|s.inspector.as_ref()),humans,&player.vehicle,world);
@@ -1172,10 +1314,14 @@ index a9827654..73c829b2 100644
 +                }
 +            }
 +        }
++        if let (Some(world),Some(renderer),Some(scene),Some(player))=(self.world.as_ref(),self.renderer.as_ref(),self.scene.as_mut(),self.player.as_ref()) {
++            incidents.effects.update(context.as_deref(),latest.as_ref(),player.vehicle.position,player.vehicle.heading,
++                if self.paused{0.0}else{dt},world,renderer,scene);
++        }
          incidents.controller.step(
              context.as_deref(),
              latest.as_ref(),
-@@ -116,9 +134,7 @@ impl crate::App {
+@@ -116,9 +166,7 @@ impl crate::App {
                      speed: player.vehicle.physics.velocity_kmh(),
                      dt: if self.paused { 0.0 } else { dt },
                  },
@@ -1186,7 +1332,7 @@ index a9827654..73c829b2 100644
                  traffic,
                  world,
              );
-@@ -140,6 +156,9 @@ impl crate::App {
+@@ -140,11 +188,15 @@ impl crate::App {
          publish(pose.map(|p|p.0),pose.map_or(0.0,|p|p.1));
          if let Some(h)=self.session.humans.as_mut(){
              h.sim.hold_for_responder(pose.filter(|p|p.1>0.0).map(|p|p.0));
@@ -1196,7 +1342,13 @@ index a9827654..73c829b2 100644
          }
          if let Some(id) = transfer {
              if let Some(h) = self.session.humans.as_mut() {
-@@ -167,11 +186,16 @@ impl crate::App {
+                 if h.sim.transfer_to_responder(id) {
+                     publish(None, 0.0);
++        ACTOR_POSE.store(0,Ordering::Relaxed);
+                     log::info!(
+                         "BCS response: passenger {id} transferred after physical ambulance arrival and BCS completion"
+                     );
+@@ -167,17 +219,22 @@ impl crate::App {
          let notice = (state.key, state.stage, state.patient);
          if incidents.last_notice != Some(notice) {
              log::info!(
@@ -1215,6 +1367,19 @@ index a9827654..73c829b2 100644
              use omsi_plugin::InfoValue::{Num, Text};
              crate::plugins::queue_event(
                  &mut self.integrations.plugin_events,
+                 "bcs_incident",
+                 vec![
+-                    Num(if state.key.is_some() { 4.0 } else { 0.0 }),
++                    Num(if state.key.is_some() { latest.as_ref().map_or(0.0,|s|s.event as f32) } else { 0.0 }),
+                     Num(state.key.map_or(0, |k| k.instance) as f64),
+                     Text(format!("{:?}", state.stage)),
+                     Num(state.patient.map_or(-1.0, |p| p as f64)),
+@@ -187,3 +244,5 @@ impl crate::App {
+         }
+     }
+ }
++
++pub(crate) fn append_visuals(incidents:&Incidents,scene:&mut omsi_render::Scene){incidents.effects.sprites(scene);}
 diff --git a/crates/omsi-app/src/bcs_events/names-data/GFDL-1.2.txt b/crates/omsi-app/src/bcs_events/names-data/GFDL-1.2.txt
 new file mode 100644
 index 00000000..68d93f4f
@@ -1620,7 +1785,7 @@ index 00000000..68d93f4f
 +to permit their use in free software.
 diff --git a/crates/omsi-app/src/bcs_events/names-data/NOTICE.md b/crates/omsi-app/src/bcs_events/names-data/NOTICE.md
 new file mode 100644
-index 00000000..d65c99d5
+index 00000000..17eced33
 --- /dev/null
 +++ b/crates/omsi-app/src/bcs_events/names-data/NOTICE.md
 @@ -0,0 +1,7 @@
@@ -1628,7 +1793,7 @@ index 00000000..d65c99d5
 +
 +Original: Jörg Michael, 2007–2008, nam_dict.txt 1.2 (2008-11-30). Retrieved from https://github.com/lead-ratings/gender-guesser at 820d86f9f652ef064e784998b516a8aa2abefe3c, gender_guesser/data/nam_dict.txt.
 +
-+The original document and full GFDL 1.2 license are included. No invariant sections or cover texts. names.tsv is a modified lookup by OpenOMSI BCS Bridge contributors (2026): only unambiguous M/F records retained, plus separators expanded, diacritics removed and names lowercased. The derived data is licensed under GFDL 1.2 or later.
++The exact original document is included as nam_dict.txt.gz (gzip, no edits), together with the full GFDL 1.2 license are included. No invariant sections or cover texts. names.tsv is a modified lookup by OpenOMSI BCS Bridge contributors (2026): only unambiguous M/F records retained, plus separators expanded, diacritics removed and names lowercased. The derived data is licensed under GFDL 1.2 or later.
 +
 +Used only to select a fictional character model. This estimates name usage and does not establish identity or sex. Ambiguous and missing names remain unknown and can be overridden by inspector ID.
 diff --git a/crates/omsi-app/src/bcs_events/names-data/nam_dict.txt.gz b/crates/omsi-app/src/bcs_events/names-data/nam_dict.txt.gz
@@ -44713,6 +44878,32 @@ index 00000000..5dd645d8
 +        assert_eq!(infer("xyz-personagem-123"),Appearance::Unknown);
 +    }
 +}
+diff --git a/crates/omsi-app/src/bcs_events/posture.rs b/crates/omsi-app/src/bcs_events/posture.rs
+index 00d27a38..b631b8a5 100644
+--- a/crates/omsi-app/src/bcs_events/posture.rs
++++ b/crates/omsi-app/src/bcs_events/posture.rs
+@@ -21,3 +21,21 @@ pub(crate) fn slump(ty: &HumanType, bones: &mut [Affine3A; SLOTS], blend: f32) {
+         * Affine3A::from_quat(Quat::from_rotation_x(-15.0_f32.to_radians() * blend))
+         * Affine3A::from_translation(-neck) * bones[head];
+ }
++
++pub(crate) fn reaction(ty:&HumanType,bones:&mut[Affine3A;SLOTS],event:u32,blend:f32,phase:f32){
++    if blend<=0.0{return;}
++    let main=slot_of(BONE_MAIN).unwrap();
++    if event==6 {
++        let pivot=bones[main].transform_point3(ty.rig.waist);
++        let sway=Affine3A::from_translation(pivot)*Affine3A::from_quat(
++            Quat::from_rotation_z(0.09*phase.sin()*blend)*Quat::from_rotation_x(0.05*(phase*0.7).sin()*blend))
++            *Affine3A::from_translation(-pivot);
++        for bone in [BONE_MAIN,BONE_HEAD,BONE_OA_L,BONE_OA_R,BONE_UA_L,BONE_UA_R,BONE_HAND_L,BONE_HAND_R]{
++            if let Some(slot)=slot_of(bone){bones[slot]=sway*bones[slot];}
++        }
++    }else if event==7 {
++        let shoulder=bones[main].transform_point3(ty.rig.shoulder[0]);
++        let target=shoulder+glam::Vec3::new(0.14,0.38,0.08+0.08*(phase*2.0).sin());
++        omsi_sim::human::accessory_arm(&ty.rig,bones,0,target,blend*0.8,false,phase.sin()*0.15);
++    }
++}
 diff --git a/crates/omsi-app/src/cli.rs b/crates/omsi-app/src/cli.rs
 index da9477fb..f7df30bb 100644
 --- a/crates/omsi-app/src/cli.rs
@@ -46877,18 +47068,19 @@ index 462402b6..cd04b730 100644
          let cumulative: Vec<f32> = candidates.iter().map(|c| { acc += c.1; acc }).collect();
          let total_w = acc.max(1e-3);
 diff --git a/crates/omsi-app/src/traffic/responder.rs b/crates/omsi-app/src/traffic/responder.rs
-index 236c4aea..14b6f8de 100644
+index 236c4aea..a6317bd4 100644
 --- a/crates/omsi-app/src/traffic/responder.rs
 +++ b/crates/omsi-app/src/traffic/responder.rs
-@@ -1,6 +1,6 @@
+@@ -1,6 +1,7 @@
  //! Dedicated responders use the real road graph, collision checks and normal AI bodies.
  use super::*;
 -use omsi_sim::{ai_traffic::response::Service, traffic::way::lanes_near};
 +use omsi_sim::ai_traffic::response::{Service, short_approaches, roadside_stops};
++use omsi_sim::people::world::World as _;
  
  impl Traffic {
      pub(crate) fn dispatch_incident_vehicle(
-@@ -12,120 +12,64 @@ impl Traffic {
+@@ -12,120 +13,117 @@ impl Traffic {
          service: Service,
      ) -> Result<u64, String> {
          let viewer = self.sim.viewer.ok_or("waiting for camera")?;
@@ -46961,7 +47153,7 @@ index 236c4aea..14b6f8de 100644
 -                let distance = (at - bus).length();
 -                if (160.0..=480.0).contains(&distance) {
 -                    starts.push((distance, lane, s, at, heading));
-+        for goal in goals.into_iter().take(128) {
++        for goal in goals.iter().copied().take(128) {
 +            if self.blocked(&ty, goal.3, goal.4 as f64) { blocked_stops += 1; continue; }
 +            if closest_clear.is_none() { closest_clear = Some(goal); }
 +            let mut starts = short_approaches(&self.sim.net, goal.1, goal.2, ty.def.ai_veh_type)
@@ -47052,9 +47244,62 @@ index 236c4aea..14b6f8de 100644
              self.remove_car(id);
 -            return Err("response route was invalidated".into());
 +            return Err("response roadside placement was invalidated".into());
++        }
++        // The road is occupied: look for a genuinely wide, clear pavement. This
++        // fallback stands still; it never invents a drive across a curb or building.
++        if let Some(goal)=goals.first().copied() {
++            if let Some((at,angle))=self.incident_pavement(world,&ty,bus) {
++                let seed=self.rand();
++                let id=self.create_car(world,bus,LaneKind::Street,goal.1,goal.2,ty,seed,None,None,Some(0.0),None);
++                if self.sim.dispatch_response(id,vec![goal.1],goal.2,service)&&self.sim.park_response(id,at,angle) {
++                    log::info!("BCS response: clear pavement stand {:.1} m from bus",(at-bus).length());
++                    return Ok(id);
++                }
++                self.remove_car(id);
++            }
++        }
++        Err(format!("no clear short connected approach beside the bus (road stops {goal_count}, occupied stops {blocked_stops}, approaches {approach_count}, occupied approaches {blocked_approaches})"))
++    }
++
++    fn incident_pavement(&mut self,world:&crate::scene::World,ty:&Arc<VehicleType>,bus:DVec3)->Option<(DVec3,f64)> {
++        let data=world.data();
++        let bb=ty.def.bounding_box.unwrap_or(DEFAULT_BOX);
++        let mut candidates=Vec::new();
++        for lane in &self.sim.net.lanes {
++            if lane.kind!=LaneKind::Sidewalk || lane.invisible || lane.width<bb[0]+1.0 {continue;}
++            let Some((s,_))=lane.nearest_point(bus)else{continue};
++            for offset in [-12.0_f32,-8.0,-4.0,0.0,4.0,8.0,12.0] {
++                let (at,h)=lane.at((s+offset).clamp(0.0,lane.length()));
++                let d=(at-bus).length();
++                if (6.0..=32.0).contains(&d)&&(at.z-bus.z).abs()<1.0 {candidates.push((d,at,h as f64));}
++            }
++        }
++        candidates.sort_by(|a,b|a.0.total_cmp(&b.0));
++        'candidate:for (_,mut at,h)in candidates.into_iter().take(96) {
++            let Some(z)=data.walk_height_near(at.x,at.y,at.z)else{continue};at.z=z;
++            if self.blocked(ty,at,h){continue;}
++            let mut bounds=omsi_sim::collision::Obb::from_box(bb,at,h);
++            bounds.half+=DVec2::splat(0.4);
++            // Ignore the supporting floor/curb, but keep posts, shelters and walls.
++            bounds.z0=bounds.z0.max(at.z+0.3);
++            if data.collision().hit(&bounds).is_some() || data.parked_boxes().iter().any(|b|b.overlaps(&bounds)) {continue;}
++            if self.sim.people.iter().any(|(p,_,_)|bounds.overlaps(&omsi_sim::collision::Obb::point(*p+DVec3::Z*0.8,0.55))){continue;}
++            for q in bounds.corners().into_iter().chain(std::iter::once(bounds.center)) {
++                let Some(floor)=data.walk_height_near(q.x,q.y,z)else{continue 'candidate};
++                if (floor-z).abs()>0.22 {continue 'candidate;}
++                let Some(foot)=self.sim.net.footing_on_path(q,z,0.35)else{continue 'candidate};
++                if self.sim.net.lanes[foot.lane].width<bb[0]+0.5 {continue 'candidate;}
++                // A pedestrian crossing is a walking path too: do not call it a curb.
++                if self.sim.net.lanes.iter().filter(|l|l.kind==LaneKind::Street).any(|l|{
++                    l.nearest_point(q.extend(z)).is_some_and(|(s,_)|{
++                        let p=l.at(s).0;(p.z-z).abs()<0.7&&(p.truncate()-q).length()<l.width as f64*0.5+0.2
++                    })
++                }){continue 'candidate;}
++            }
++            return Some((at,h));
          }
 -        Err("no hidden connected spawn with enough free space".into())
-+        Err(format!("no clear short connected approach beside the bus (road stops {goal_count}, occupied stops {blocked_stops}, approaches {approach_count}, occupied approaches {blocked_approaches})"))
++        None
      }
  
      /// Normal off-screen retirement after driving away; never pop a vehicle beside the bus.
@@ -47071,6 +47316,30 @@ index 8796749e..8430afdf 100644
      pub light: bool,
  }
  
+diff --git a/crates/omsi-app/src/view_sync/people.rs b/crates/omsi-app/src/view_sync/people.rs
+index e045227c..1ddd971b 100644
+--- a/crates/omsi-app/src/view_sync/people.rs
++++ b/crates/omsi-app/src/view_sync/people.rs
+@@ -535,6 +535,7 @@ impl PeopleView {
+     /// simulation but the frame.
+     pub(crate) fn pose(&mut self, world: &World, renderer: &Renderer, scene: &mut Scene, camera: DVec3) {
+         let bcs_patient = crate::bcs_events::patient_pose();
++        let bcs_actor = crate::bcs_events::actor_pose();
+         for inst in self.hidden.drain(..) {
+             renderer.set_params(scene, inst, &[], false, &[]);
+         }
+@@ -655,6 +656,11 @@ impl PeopleView {
+                     crate::bcs_events::slump(&ty, &mut bones, blend);
+                 }
+             }
++            if let Some((actor,event,blend,phase))=bcs_actor {
++                if p.id==actor&&matches!(p.place,Place::Bus(BusId::Player,_)){
++                    crate::bcs_events::reaction(&ty,&mut bones,event,blend,phase);
++                }
++            }
+             // an avatar's face near the eye: blinks, looks, expressions, the lips
+             // (from the camera the picture is drawn from: a face is seen from there)
+             let near = ty.face.is_some() && (p.position - camera).length() < avatars::FACE_DISTANCE;
 diff --git a/crates/omsi-app/src/view_sync/traffic.rs b/crates/omsi-app/src/view_sync/traffic.rs
 index 1e3221bd..ae809c01 100644
 --- a/crates/omsi-app/src/view_sync/traffic.rs
@@ -52135,13 +52404,17 @@ index e210b86a..d06e922f 100644
              } else if self.phase == Phase::Running && past_by(st, ctx.net, ri, s) > super::berths::CLEAR_PAST {
                  berths.release(key, ctx.id);
 diff --git a/crates/omsi-sim/src/ai_traffic/response.rs b/crates/omsi-sim/src/ai_traffic/response.rs
-index a36ddc21..89ac737a 100644
+index a36ddc21..83e2dc0c 100644
 --- a/crates/omsi-sim/src/ai_traffic/response.rs
 +++ b/crates/omsi-sim/src/ai_traffic/response.rs
-@@ -33,6 +33,71 @@ pub struct Drive {
+@@ -31,6 +31,73 @@ pub struct Drive {
+     pub goal_index: usize,
+     pub phase: Phase,
      pub signals: Arc<Signals>,
- }
- 
++    /// A validated pavement stand. It stays parked until out-of-sight retirement.
++    pub parked: Option<(DVec3, f64)>,
++}
++
 +/// Nearby road stops for a bus that may be parked across, beside or away from
 +/// the AI lane. Bus heading is a preference, never a requirement for access.
 +pub fn roadside_stops(net: &Network, bus: DVec3, heading: f64, veh_type: i32) -> Vec<(f64, usize, f32, DVec3, f32)> {
@@ -52205,12 +52478,62 @@ index a36ddc21..89ac737a 100644
 +        }
 +    }
 +    found
-+}
-+
+ }
+ 
  impl TrafficSim {
-     /// Assign a route to a dedicated, non-timetable vehicle. Reject mismatched routes.
-     pub fn dispatch_response(
-@@ -199,6 +264,65 @@ fn physically_arrived(at: DVec3, goal: DVec3, speed: f32) -> bool {
+@@ -75,6 +142,7 @@ impl TrafficSim {
+             goal_index: route.len() - 1,
+             phase: Phase::EnRoute,
+             signals: Default::default(),
++            parked: None,
+         });
+         car.state.route = route;
+         car.state.route_index = 0;
+@@ -84,10 +152,25 @@ impl TrafficSim {
+         true
+     }
+ 
++    /// Park a responder only after the app checked the whole footprint against
++    /// scenery, pedestrians, vehicles and the pavement's height/width.
++    pub fn park_response(&mut self, id:u64, at:DVec3, heading:f64)->bool {
++        if !at.is_finite() || !heading.is_finite() { return false; }
++        let Some(car)=self.cars.iter_mut().find(|c|c.id==id) else{return false};
++        let Some(drive)=car.response.as_mut()else{return false};
++        drive.parked=Some((at,heading));drive.phase=Phase::OnScene;
++        car.state.speed=0.0;
++        let a=heading.to_radians();let f=DVec3::new(a.sin(),a.cos(),0.0);
++        car.body.place(&|d|at+f*d as f64,car.vehicle.ground.as_ref().map(|g|g.as_ref()as &dyn Fn(f64,f64)->Option<f64>),car.vehicle.contact.as_deref(),0.0);
++        car.body.apply(&mut car.vehicle);
++        true
++    }
++
+     /// An origin stop is converted to the existing front-bumper stop convention.
+     /// Collision avoidance, crossings, leads and lights still contribute their own stops.
+     pub(super) fn response_stop(&mut self, i: usize) -> Option<f32> {
+         let drive = self.cars[i].response.as_ref()?.clone();
++        if drive.parked.is_some() { return Some(self.cars[i].state.front); }
+         if drive.phase == Phase::Departing {
+             return None;
+         }
+@@ -124,6 +207,7 @@ impl TrafficSim {
+             return false;
+         };
+         response.phase = Phase::Departing;
++        if response.parked.is_some() { return true; }
+         car.state.route.clear();
+         car.state.route_index = 0;
+         car.state.ahead.clear();
+@@ -140,6 +224,9 @@ impl TrafficSim {
+         let Some(drive) = &car.response else {
+             return false;
+         };
++        if let Some((at, _)) = drive.parked {
++            return drive.phase == Phase::OnScene && physically_arrived(car.vehicle.position, at, car.state.speed);
++        }
+         drive.phase == Phase::OnScene
+             && car.state.lane == drive.goal_lane
+             && self.net.lanes.get(drive.goal_lane).is_some_and(|lane| {
+@@ -199,6 +286,82 @@ fn physically_arrived(at: DVec3, goal: DVec3, speed: f32) -> bool {
  mod tests {
      use super::*;
      #[test]
@@ -52271,6 +52594,23 @@ index a36ddc21..89ac737a 100644
 +        }
 +        let car = t.cars.iter().find(|c| c.id == id).unwrap();
 +        panic!("short response failed to arrive: position {:?}, speed {}, reason {:?}", car.vehicle.position, car.state.speed, car.why);
++    }
++    #[test]
++    fn pavement_stand_keeps_its_real_pose_and_does_not_jump_to_road_on_release() {
++        use crate::ai_traffic::scenario_tests::{Fixture,add_car,street,traffic};
++        let f=Fixture::new();let mut net=Network::default();
++        net.lanes.push(street(DVec3::ZERO,0.0,300.0));net.link(1.5);
++        let mut t=traffic(&f,net);let id=add_car(&mut t,&f,0,20.0,1,Some(0.0));
++        assert!(t.dispatch_response(id,vec![0],20.0,Service::Fire));
++        let at=DVec3::new(8.0,20.0,0.0);
++        assert!(t.park_response(id,at,0.0));
++        for _ in 0..300 {t.tick(super::super::fixed_step::SIM_DT,None);}
++        assert!(t.response_on_scene(id));
++        assert!((t.cars.iter().find(|c|c.id==id).unwrap().vehicle.position-at).truncate().length()<0.1);
++        assert!(t.release_response(id));
++        for _ in 0..300 {t.tick(super::super::fixed_step::SIM_DT,None);}
++        assert!(!t.response_on_scene(id));
++        assert!((t.cars.iter().find(|c|c.id==id).unwrap().vehicle.position-at).truncate().length()<0.1);
 +    }
 +    #[test]
      fn arrival_requires_position_height_and_standstill() {
@@ -52355,10 +52695,50 @@ index 8cc208f2..509cb127 100644
  /// shut, it does not back up, and it goes on.
  #[test]
 diff --git a/crates/omsi-sim/src/ai_traffic/tick.rs b/crates/omsi-sim/src/ai_traffic/tick.rs
-index 6659a631..71640735 100644
+index 6659a631..918f6c28 100644
 --- a/crates/omsi-sim/src/ai_traffic/tick.rs
 +++ b/crates/omsi-sim/src/ai_traffic/tick.rs
-@@ -1032,7 +1032,11 @@ impl TrafficSim {
+@@ -40,6 +40,7 @@ type BodyWork<'a> = (
+     &'a mut f32,
+     &'a mut super::scenery::SceneryGuard,
+     &'a mut f32,
++    Option<(DVec3,f64)>,
+ );
+ 
+ /// A worker more helps with the cars' bodies and scripts per this much of their work (s,
+@@ -60,7 +61,12 @@ fn step_body(net: &Network, dt: f32, scripts: bool, profile: bool, w: &mut BodyW
+     let trail = &*trail;
+     let behind = |d: f64| rail_behind(trail, state, net, d);
+     // (watched near the scenery, and where it got to for the planner's next step)
+-    let link = guard.step(
++    let link = if let Some((at,heading))=w.8 {
++        state.speed=0.0;frame.speed=0.0;
++        let a=heading.to_radians();let f=DVec3::new(a.sin(),a.cos(),0.0);
++        body.place(&|d|at+f*d as f64,ground.as_ref().map(|g|g.as_ref()as &dyn Fn(f64,f64)->Option<f64>),contact.as_deref(),0.0);
++        crate::traffic::BodyLink::default()
++    }else{guard.step(
+         body,
+         (state, net, dt),
+         &|d| if rail && d < 0.0 { behind(-d as f64) } else { state.way_point(net, d) },
+@@ -68,7 +74,7 @@ fn step_body(net: &Network, dt: f32, scripts: bool, profile: bool, w: &mut BodyW
+             .as_ref()
+             .map(|g| g.as_ref() as &dyn Fn(f64, f64) -> Option<f64>),
+         contact.as_deref(),
+-    );
++    )};
+     body.apply(vehicle);
+     if rail && !vehicle.trailers.is_empty() {
+         // the coupled cars (a train's, a tram's sections) on the track it
+@@ -208,6 +214,8 @@ impl TrafficSim {
+         let mut coming: HashMap<usize, Vec<(usize, f32)>> = HashMap::new();
+         let mut reservations = ClaimBook::default();
+         for (i, c) in self.cars.iter().enumerate() {
++            // A pavement responder has an actual off-road footprint, not a reservation on its former road.
++            if c.response.as_ref().is_some_and(|d|d.parked.is_some()){continue;}
+             by_lane
+                 .entry(c.state.lane)
+                 .or_default()
+@@ -1032,7 +1040,11 @@ impl TrafficSim {
                  st.route.last() == Some(&last)
              };
              let air = self.net.lanes[st.lane].kind == LaneKind::Air;
@@ -52371,6 +52751,15 @@ index 6659a631..71640735 100644
                  let service = car.bus.as_deref_mut();
                  let in_service = service
                      .as_ref()
+@@ -1323,7 +1335,7 @@ impl TrafficSim {
+             .zip(frames.iter_mut())
+             .filter_map(|(c, f)| {
+                 let f = f.as_mut()?;
+-                Some((&mut c.state, &mut c.body, &mut c.vehicle, f, &mut c.rail_trail, &mut c.ai_secs, &mut c.guard, &mut c.script_owed))
++                Some((&mut c.state, &mut c.body, &mut c.vehicle, f, &mut c.rail_trail, &mut c.ai_secs, &mut c.guard, &mut c.script_owed, c.response.as_ref().and_then(|d|d.parked)))
+             })
+             .collect();
+         // (the slowest first, by what each took the step before: the last ones taken are
 diff --git a/crates/omsi-sim/src/people.rs b/crates/omsi-sim/src/people.rs
 index fca1287e..ac9df1ef 100644
 --- a/crates/omsi-sim/src/people.rs
@@ -52417,10 +52806,10 @@ index e50b73a0..a87fa4d2 100644
      }
 diff --git a/crates/omsi-sim/src/people/inspector.rs b/crates/omsi-sim/src/people/inspector.rs
 new file mode 100644
-index 00000000..d2102505
+index 00000000..edf85213
 --- /dev/null
 +++ b/crates/omsi-sim/src/people/inspector.rs
-@@ -0,0 +1,83 @@
+@@ -0,0 +1,88 @@
 +//! A fictional BCS companion uses the ordinary cabin, seat pool and path walker.
 +use super::*;
 +
@@ -52463,6 +52852,11 @@ index 00000000..d2102505
 +        self.people[i].place=Place::Bus(BusId::Player,s.pos);
 +        log::info!("BCS inspector {identity}: character {} in passenger seat {seat}",self.people[i].ty.def.path.display());
 +        Some(self.people[i].id)
++    }
++
++    pub fn remove_bcs_inspector(&mut self,id:u32)->bool{
++        if !self.people.iter().any(|p|p.id==id&&matches!(&p.state,State::Pax(x)if x.inspector)){return false;}
++        self.transfer_to_responder(id)
 +    }
 +
 +    /// `checked`: actual BCS progress; None walks back and sits in the reserved chair.

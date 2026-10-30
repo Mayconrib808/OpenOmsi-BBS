@@ -45,6 +45,16 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
           & .\target\release\openomsi.exe --version
           if ($LASTEXITCODE -ne 0) { throw 'Native startup failed' }
+      - name: Check response lifecycle and international name inference
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim ai_traffic::response::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Responder regression failed' }
+          '#[path="crates/omsi-app/src/bcs_events/names.rs"] mod names;' | Set-Content names-check.rs
+          rustc --edition=2024 --test names-check.rs -o names-check.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Name lookup test build failed' }
+          .\names-check.exe
+          if ($LASTEXITCODE -ne 0) { throw 'International name lookup failed' }
       - name: Package exact binary and corresponding source
         shell: pwsh
         run: |
