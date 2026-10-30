@@ -1,0 +1,60 @@
+name: Build complete Bridge 2.2.2 candidate (not published)
+on:
+  push:
+    branches: [work/bridge-222-build]
+    paths:
+      - .github/workflows/release-222-candidate.yml
+      - scripts/build_222.py
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Download approved Hotfix 3 complete baseline
+        uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix3-candidate
+          run-id: 40901236438
+          github-token: ${{ github.token }}
+          path: baseline
+      - name: Download tested native 0.3.46 client and server
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2-native-Windows
+          run-id: 41132843844
+          github-token: ${{ github.token }}
+          path: native
+      - name: Verify full baseline, preserve hosts and build cumulative 2.2.2
+        shell: pwsh
+        run: |
+          python scripts/build_222.py --baseline baseline --parts baseline --native native --output build/release222
+          if ($LASTEXITCODE -ne 0) { throw 'Cumulative 2.2.2 packaging or regression checks failed' }
+      - name: Publish candidate artifact to GitHub Actions only (no live update)
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.2-CANDIDATE
+          path: |
+            build/release222/Atualizar-Bridge.exe
+            build/release222/build-report.json
+            build/release222/coop-spec.json
+            build/release222/coop_bundle_manifest.go
+            build/release222/coop-assets/*
+            build/release222/native-help.txt
+            build/release222/setup-previews/*
+          if-no-files-found: error
+          retention-days: 30
