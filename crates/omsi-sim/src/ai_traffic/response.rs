@@ -219,7 +219,7 @@ impl TrafficSim {
 fn physically_arrived(at: DVec3, goal: DVec3, speed: f32) -> bool {
     speed.is_finite()
         && speed.abs() < 0.3
-        && (at - goal).truncate().length() <= 3.0
+        && (at - goal).truncate().length() <= 1.5
         && (at.z - goal.z).abs() <= 2.0
 }
 

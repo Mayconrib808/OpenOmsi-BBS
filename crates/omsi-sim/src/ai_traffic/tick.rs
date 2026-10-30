@@ -1032,7 +1032,11 @@ impl TrafficSim {
                 st.route.last() == Some(&last)
             };
             let air = self.net.lanes[st.lane].kind == LaneKind::Air;
-            if exhausted && st.change.is_none() && end < 150.0 {
+            // A responder's route ends at its explicit roadside destination,
+            // not at a finished ordinary trip. Clearing it here makes
+            // response_stop reject the lost route and stop the car on the spot.
+            let responding = car.response.as_ref().is_some_and(|r| r.phase != super::response::Phase::Departing);
+            if exhausted && st.change.is_none() && end < 150.0 && !responding {
                 let service = car.bus.as_deref_mut();
                 let in_service = service
                     .as_ref()
