@@ -39,12 +39,21 @@ pub fn roadside_stops(net: &Network, bus: DVec3, heading: f64, veh_type: i32) ->
     let h = heading.to_radians();
     let forward = DVec3::new(h.sin(), h.cos(), 0.0);
     let mut stops = Vec::new();
-    for lane in crate::traffic::way::lanes_near(net, bus.truncate(), 80.0) {
+    let lanes = if net.grid.is_empty() { (0..net.lanes.len()).collect() }
+        else { crate::traffic::way::lanes_near(net, bus.truncate(), 80.0) };
+    for lane in lanes {
         let l = &net.lanes[lane];
         if l.kind != LaneKind::Street || l.invisible || !l.allows(veh_type) || l.length() < 1.5 { continue; }
         let Some((nearest, _)) = l.nearest_point(bus) else { continue };
         let mut samples = [-24.0, -18.0, -12.0, -8.0, -4.0, 0.0, 4.0, 8.0, 12.0, 18.0, 24.0]
             .into_iter().map(|offset| (nearest + offset).clamp(1.0, l.length() - 0.1)).collect::<Vec<_>>();
+        // Preserve the road point used by the earlier working dispatcher too.
+        // It is a candidate, without the former heading/behind restrictions.
+        if l.length() >= 8.0 {
+            if let Some((s, _)) = l.nearest_point(bus - forward * 30.0) {
+                samples.push(s.clamp(3.0, l.length() - 3.0));
+            }
+        }
         samples.sort_by(f32::total_cmp);
         samples.dedup_by(|a, b| (*a - *b).abs() < 0.1);
         for s in samples {
@@ -254,6 +263,16 @@ fn physically_arrived(at: DVec3, goal: DVec3, speed: f32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn unindexed_long_road_keeps_the_previously_reachable_stop() {
+        use crate::ai_traffic::scenario_tests::{Fixture, street};
+        let f = Fixture::new();
+        let mut net = Network::default();
+        net.lanes.push(street(DVec3::new(0.0, -200.0, 0.0), 0.0, 400.0));
+        net.link(1.5);
+        let stops = roadside_stops(&net, DVec3::ZERO, 0.0, f.ty.def.ai_veh_type);
+        assert!(stops.iter().any(|s| (s.3.y + 30.0).abs() < 0.1));
+    }
     #[test]
     fn parked_bus_can_be_served_from_a_perpendicular_nearby_road() {
         use crate::ai_traffic::scenario_tests::{Fixture, street};

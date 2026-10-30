@@ -6,7 +6,7 @@ permissions:
   contents: read
 jobs:
   native:
-    runs-on: windows-latest
+    runs-on: windows-2022
     timeout-minutes: 120
     env:
       OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.9-events-beta.0.2.4
