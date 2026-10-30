@@ -2,7 +2,7 @@ name: Build 2.2.2 native integration
 on:
   push:
     branches: [work/native-222-build]
-    paths: [ci/release222/native.patch, .github/workflows/native-222-build.yml]
+    paths: [ci/release222/native.patch, ci/release222/inspector-patrol.patch, .github/workflows/native-222-build.yml]
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -31,6 +31,8 @@ jobs:
         run: |
           git apply --index ci/release222/native.patch
           if ($LASTEXITCODE -ne 0) { throw 'Cumulative source patch failed' }
+          git apply --index ci/release222/inspector-patrol.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Inspector route-patrol patch failed' }
           git -c user.name=Codex -c user.email=codex@openai.com commit -m 'Materialize exact 2.2.2 integration source'
           if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
       - uses: dtolnay/rust-toolchain@stable
@@ -53,6 +55,8 @@ jobs:
         run: |
           cargo test --locked --release -p omsi-sim ai_traffic::response::tests -- --nocapture
           if ($LASTEXITCODE -ne 0) { throw 'Responder regression failed' }
+          cargo test --locked --release -p omsi-sim people::inspector::patrol_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'BCS inspector patrol regression failed' }
           '#[path="crates/omsi-app/src/bcs_events/names.rs"] mod names;' | Set-Content names-check.rs
           rustc --edition=2024 --test names-check.rs -o names-check.exe
           if ($LASTEXITCODE -ne 0) { throw 'Name lookup test build failed' }
