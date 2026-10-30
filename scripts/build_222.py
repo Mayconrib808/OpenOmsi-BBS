@@ -5,7 +5,7 @@ import build,build_bridge_update,setup_resources
 from build_runtime_2203 import embedded_payload,EXPECTED
 
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='2.2.2';SEQUENCE=2026103001
+VERSION='2.2.2';SEQUENCE=2026103002
 COOP='OpenOmsi Coop 0.3.41'  # Existing installation path; actual runtime is 0.3.46.
 ORIGIN='https://openomsi-bbs-updates.maycongamesmaximo.workers.dev'
 BASE_UPDATER='cd055e9a00c2b0459128c088f93b05b7cfd8668bdd42616e582673cf338f4f6b'
