@@ -1,4 +1,4 @@
-BETA DE CAPTURA DOS EVENTOS BCS — 0.1.2
+BETA DE CAPTURA DOS EVENTOS BCS — 0.1.4
 
 Esta primeira etapa identifica os eventos reais do BCS e as chamadas aos serviços. Ainda não cria passageiros desmaiados, brigas, manchas de óleo nem veículos de emergência no OpenOMSI.
 
@@ -33,3 +33,15 @@ DIAGNOSTICO SEM ABRIR O BCS
 Diagnosticar-Beta.bat testa apenas o carregamento do agente no Java instalado, usando java -version. Nao abre o BCS nem acessa a conta. Envie diagnostico-inicio-*.txt e a subpasta diagnostico se houver falha.
 
 O agente escreve um status de inicializacao imediatamente, mesmo sem evento. Um pre-teste bem-sucedido nao prova que o launcher repassou o agente ao BCS. CAPTURA ATIVA exige um status recente de um processo ainda aberto e o gerenciador do BCS reconhecido. Abrir-Capturas.bat so verifica e abre a pasta.
+
+LOCALIZACAO DOS ARQUIVOS (0.1.4)
+Aceita os arquivos do beta diretamente ao lado de busbetrieb-simulator.jar ou dentro da subpasta Beta-Eventos-BCS. O diagnostico informa a pasta do beta, a pasta BCS reconhecida e o caminho exato do Java procurado.
+
+INSPETOR — NOVO NA 0.1.4
+Atualize os arquivos na mesma pasta do capturador antigo, com o BCS fechado. Abra Iniciar-Beta.bat para usar a nova captura.
+Selecione um inspetor para acompanhar a viagem da empresa. Abra Abrir-Capturas.bat e confira a linha INSPETOR. Quando o BCS permitir, inicie uma fiscalizacao pelo botao do proprio BCS. Nao e necessario esperar um evento aleatorio para testar isso.
+Depois envie os dois arquivos bcs-events-*.json e bcs-events-*.ndjson. O historico registra a selecao e as mudancas da fiscalizacao.
+O agente captura identificador, nome, quantidade de fiscalizacoes disponiveis, abertura do painel, passageiros conferidos, pausa e encerramento. Selecao nao confirma que um personagem ja embarcou. Encerramento nao distingue cancelamento de sucesso.
+Homem/mulher ainda fica como desconhecido: nao foi encontrado um campo de sexo/modelo no cadastro revisado, e o nome pode ser editado.
+Esta atualizacao e apenas do capturador. O OpenOMSI beta 0.2.4 ainda nao cria nem anima o inspetor com esses dados.
+As leituras novas foram testadas em cenarios sinteticos; falta confirmar uma fiscalizacao no BCS real.

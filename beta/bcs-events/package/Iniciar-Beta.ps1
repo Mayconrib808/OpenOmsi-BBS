@@ -5,8 +5,13 @@ param(
     [ValidateRange(1,120)][int]$StartupTimeoutSeconds = 30
 )
 $ErrorActionPreference = 'Stop'
-$version = '0.1.2'
-$root = Split-Path $PSScriptRoot -Parent
+$version = '0.1.4'
+# Accept the beta beside the vendor JAR or inside its own subfolder.
+$root = if (Test-Path -LiteralPath (Join-Path $PSScriptRoot 'busbetrieb-simulator.jar')) {
+    $PSScriptRoot
+} else {
+    Split-Path $PSScriptRoot -Parent
+}
 $agent = Join-Path $PSScriptRoot 'bcs-event-probe.jar'
 $java = Join-Path $root 'jre\bin\java.exe'
 $launcher = Join-Path $root 'launcher.exe'
@@ -23,8 +28,10 @@ function Invoke-Beta {
     $script:diagnostic = Join-Path $CaptureDirectory ('diagnostico-inicio-' + (Get-Date -Format 'yyyyMMdd-HHmmssfff') + '.txt')
     Record "BCS event capture beta $version"
     Record "Pasta de capturas: $CaptureDirectory"
+    Record "Pasta do beta: $PSScriptRoot"
+    Record "Pasta do BCS verificada: $root"
     if (!(Test-Path -LiteralPath $agent)) { throw 'Extraia o ZIP completo: bcs-event-probe.jar ausente.' }
-    if (!(Test-Path -LiteralPath $java)) { throw 'Java do BCS nao encontrado. Extraia Beta-Eventos-BCS dentro de OMSI 2\Busbetrieb-Simulator e envie este diagnostico.' }
+    if (!(Test-Path -LiteralPath $java)) { throw "Java nao encontrado em $java. Envie este diagnostico para identificar o runtime instalado; isso nao confirma extracao incorreta." }
     if (!(Test-Path -LiteralPath $launcher)) { throw 'launcher.exe do BCS nao encontrado na pasta acima do beta.' }
 
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()

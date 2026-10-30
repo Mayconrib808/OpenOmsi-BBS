@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 /** Passive beta: observes an already-running BCS event thread; never invokes game actions. */
 public final class EventProbe {
     private static final AtomicBoolean STARTED = new AtomicBoolean();
-    private static final String VERSION = "0.1.2";
+    private static final String VERSION = "0.1.4";
     private static final String MANAGER = "system.q";
     private static final String POPUP = "o.j";
     private static final long HEARTBEAT_MS = 5000;
@@ -66,6 +66,7 @@ public final class EventProbe {
         }
         Thread target = null;
         Binding binding = null;
+        Inspector inspector = null;
         String bindingStatus = "waiting_for_bcs";
         String detail = "";
         Object lastPopup = null;
@@ -76,7 +77,7 @@ public final class EventProbe {
             long now = System.currentTimeMillis();
             try {
                 if (target != null && !target.isAlive()) {
-                    target = null; binding = null; bindingStatus = "waiting_for_bcs";
+                    target = null; binding = null; inspector = null; bindingStatus = "waiting_for_bcs";
                     detail = "event_thread_restarted";
                 }
                 if (target == null && now >= nextDiscovery) {
@@ -87,8 +88,9 @@ public final class EventProbe {
                         if (thread.isAlive() && thread.getClass().getName().equals(MANAGER)) {
                             target = thread;
                             try {
-                                verifyClasses(thread.getClass().getClassLoader(), hashes);
+                                int profile = verifyClasses(thread.getClass().getClassLoader(), hashes);
                                 binding = new Binding(thread.getClass());
+                                inspector = new Inspector(thread.getClass(), hashes, profile);
                                 bindingStatus = "compatible"; detail = "";
                             } catch (Throwable mismatch) {
                                 bindingStatus = "unsupported_bcs_build";
@@ -131,6 +133,7 @@ public final class EventProbe {
                     // Skip torn frames while JavaFX swaps the active popup.
                     if (binding.popup.get(target) != popup) { Thread.sleep(POLL_MS); continue; }
                 } else row.put("phase", "unavailable");
+                if (binding != null && target != null && inspector != null) inspector.read(target, row);
                 row.put("event_id", event);
                 row.put("event_kind", eventName(event));
                 boolean started = event > 0 && (event != lastEvent || popup != lastPopup);
@@ -172,7 +175,7 @@ public final class EventProbe {
         result.setAccessible(true); return result;
     }
 
-    private static void verifyClasses(ClassLoader loader, Properties hashes) throws Exception {
+    private static int verifyClasses(ClassLoader loader, Properties hashes) throws Exception {
         Map<String,String> actual = new LinkedHashMap<String,String>();
         for (String name : new String[]{"system/q.class", "o/j.class", "l/t.class"}) {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
@@ -193,9 +196,93 @@ public final class EventProbe {
                     matches = false; break;
                 }
             }
-            if (matches) return;
+            if (matches) return profile;
         }
         throw new IllegalStateException("Unrecognized BCS event code");
+    }
+
+    /** Independent capability: a mapping failure must not disable emergency capture. */
+    private static final class Inspector {
+        Field panel, selectedId, selectedName, remaining;
+        String status = "unsupported_bcs_build";
+        Object previous;
+        long instance;
+        Inspector(Class<?> manager, Properties hashes, int profile) {
+            try {
+                ClassLoader loader = manager.getClassLoader();
+                String prefix = "profile." + profile + ".";
+                String state = hashes.getProperty(prefix + "system/O.class") != null ? "system.O" : "system.M";
+                for (String name : new String[]{state.replace('.', '/') + ".class", "o/f.class", "l/i.class", "p/E.class", "webservicesbbs/FahrkartenkontrolleurDto.class"}) {
+                    String expected = hashes.getProperty(prefix + name);
+                    if (expected == null || !expected.equals(classHash(loader, name))) return;
+                }
+                panel = manager.getDeclaredField("g"); panel.setAccessible(true);
+                if (!panel.getType().getName().equals("o.f")) return;
+                // Spieldaten is already used by the running event manager. Never invoke
+                // its getters, UI callbacks, network calls, or setters from the observer.
+                Class<?> stateType = Class.forName(state, false, loader);
+                selectedId = field(stateType, "aE", int.class);
+                selectedName = field(stateType, "aF", String.class);
+                remaining = field(stateType, "S", short.class);
+                for (Field value : new Field[]{selectedId, selectedName, remaining})
+                    if (!java.lang.reflect.Modifier.isStatic(value.getModifiers())) return;
+                status = "compatible";
+            } catch (Throwable unavailable) { status = "unavailable"; }
+        }
+        void read(Object manager, Map<String,Object> row) {
+            row.put("inspector_status", status);
+            // No sex/model field exists in the reviewed inspector DTO or selection.
+            // Names are editable and must never be used to guess a person's sex.
+            row.put("inspector_gender", "unknown");
+            row.put("inspector_appearance_source", "not_exposed_by_reviewed_mapping");
+            if (!status.equals("compatible")) return;
+            try {
+                int id = selectedId.getInt(null);
+                String name = (String) selectedName.get(null);
+                Object current = panel.get(manager);
+                boolean stopped = false, paused = false, submitted = false;
+                int checked = 0;
+                String phase = current == null ? (previous == null ? "idle" : "closed") : "requested";
+                if (current != null) {
+                    if (!current.getClass().getName().equals("o.f")) throw new IllegalStateException("Inspection panel changed");
+                    stopped = ((AtomicBoolean) field(current.getClass(), "i", AtomicBoolean.class).get(current)).get();
+                    paused = ((AtomicBoolean) field(current.getClass(), "a", AtomicBoolean.class).get(current)).get();
+                    submitted = ((AtomicBoolean) field(current.getClass(), "r", AtomicBoolean.class).get(current)).get();
+                    checked = field(current.getClass(), "n", int.class).getInt(current);
+                    phase = stopped ? "stopped" : paused ? "paused" : checked > 0 ? "checking" : "requested";
+                }
+                // Do not publish a mixed selection/panel while BCS replaces them.
+                if (panel.get(manager) != current || selectedId.getInt(null) != id) {
+                    row.put("inspector_status", "updating"); return;
+                }
+                if (current != null && current != previous) instance++;
+                row.put("inspector_selected", id > 0);
+                row.put("inspector_id", id);
+                row.put("inspector_name", name == null ? "" : name.substring(0, Math.min(name.length(), 160)));
+                row.put("inspector_checks_remaining", remaining.getShort(null));
+                row.put("inspection_instance", instance);
+                row.put("inspection_popup_present", current != null);
+                row.put("inspection_phase", phase);
+                row.put("inspection_passengers_checked", checked);
+                row.put("inspection_stopped_flag", stopped);
+                row.put("inspection_report_submitted_flag", submitted);
+                // Stopped/closed do not distinguish cancellation from success.
+                row.put("inspection_outcome", "unknown");
+                previous = current;
+            } catch (Throwable unavailable) { row.put("inspector_status", "capture_error"); }
+        }
+    }
+
+    private static String classHash(ClassLoader loader, String name) throws Exception {
+        MessageDigest digest = MessageDigest.getInstance("SHA-256");
+        try (InputStream in = loader.getResourceAsStream(name)) {
+            if (in == null) throw new IllegalStateException("Class resource missing");
+            byte[] buffer = new byte[8192]; int length;
+            while ((length = in.read(buffer)) != -1) digest.update(buffer, 0, length);
+        }
+        StringBuilder value = new StringBuilder();
+        for (byte b : digest.digest()) value.append(String.format(Locale.ROOT, "%02x", b & 255));
+        return value.toString();
     }
 
     private static String serviceName(int value) {

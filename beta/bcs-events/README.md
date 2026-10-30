@@ -1,4 +1,4 @@
-# BCS event capture beta 0.1.2
+# BCS event capture beta 0.1.4
 
 Passive first stage for native visual BCS occurrences. The Java agent observes an already-running `system.q` thread and writes local JSON snapshots plus an NDJSON change history. It does not create 3D scenes or connect the stream to OpenOMSI yet.
 
@@ -45,3 +45,21 @@ The original launcher wrapper set JAVA_TOOL_OPTIONS before launching the officia
 The new wrapper elevates before configuring the scoped environment, runs an explicit javaagent preflight with the installed BCS JRE and java -version, logs startup failures, refuses a detected existing BCS Java session, and checks the actual launched JVM acknowledgement. The agent writes its startup status synchronously. Preflight output is separate from BCS captures and is never considered proof of a live BCS connection. The status checker requires a recent snapshot and a live PID.
 
 Windows tests use a synthetic native launcher and fixture JVM to cover inheritance, startup acknowledgement, live status, and an intentionally dropped environment. They do not run the vendor launcher or exercise interactive UAC, which remains a real-machine validation boundary. The diagnostic-only entry point does not launch vendor code or access a BCS account.
+
+## Inspector capture (0.1.4)
+
+This upgrade adds independent inspector fields to the existing schema-1 stream; emergency event IDs and completion semantics are unchanged. The packaged launcher retains the shipped 0.1.3 support for installation beside the vendor JAR or in its own subfolder.
+
+Reviewed mappings for the supplied BCS 9/10 builds:
+
+- `system.M` (9) / `system.O` (10), `aE:int`: selected inspector ID. `aF:String`: editable display name. `S:short`: available inspections. The `aC/aD/aE` getters return these fields; the trip-selection success callback in `p.E` sets the ID/name after a successful server response. Selection alone is not proof of a passenger already aboard or of an active OpenOMSI trip.
+- `system.q.g:o.f`: inspection panel, separate from emergency popup `h`. The inspection-start button in `l.i` calls `system.q.e`, which creates this panel. A new panel increments `inspection_instance`, including consecutive inspections with the same selected inspector.
+- `o.f.n:int`: number checked; the inspection worker increments it when processing passengers. `a:AtomicBoolean`: pause flag; `i:AtomicBoolean`: stopped flag; `r:AtomicBoolean`: report-submitted flag.
+- `inspection_phase`: `idle`, `requested` (panel exists; no passenger checked yet), `checking`, `paused`, `stopped`, or `closed` (panel disappeared). These phases report observations, not invented timers. `stopped`, report submitted, and disappearance do **not** establish successful completion; cancellations can follow the same paths. `inspection_outcome` stays `unknown`.
+- The reviewed inspector DTO has no sex or human-model field. Names are editable, so `inspector_gender` stays `unknown` and `inspector_appearance_source` explains the missing mapping. No sex is inferred from a name.
+
+Inspector reads require matching additional fingerprints of the corresponding Spieldaten class, `o.f`, `l.i`, `p.E`, and inspector DTO. Unknown inspector code disables this capability while leaving the independently verified emergency reader available. No vendor callback, setter, network service, UI getter, or inspection action is invoked. No vendor bytecode is rewritten or distributed.
+
+Run `python beta/bcs-events/test_inspector.py` for isolated JVM fixtures covering both state layouts, absence/selection, repeated inspections, checking, pause, stop, closure, editable names, unchanged state, and rejection of an inspector-only fingerprint mismatch. These fixtures do not execute vendor BCS or validate a live inspection. The existing ambulance tester is synthetic and cannot validate this capture.
+
+To validate live: close BCS, replace the existing beta capture files with 0.1.4, launch `Iniciar-Beta.bat`, choose an inspector for a normal company trip, check `Abrir-Capturas.bat`, then use the actual BCS start-inspection control once allowed. Save both JSON and NDJSON after the inspection. No random emergency occurrence or full-length trip is required merely to confirm the selected inspector and requested/working phases. The native 0.2.4 game does not yet consume these inspector fields or create a dedicated inspector character.
