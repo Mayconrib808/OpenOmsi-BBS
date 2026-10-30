@@ -8620,10 +8620,59 @@ index 46c3c067..89a1ed06 100644
      /// Pedestrians to keep strolling near the player (scaled by `density`).
      pub pedestrians: usize,
      /// Omsi.exe's people (`[AIMaxCountRandom]`'s second line, the `ai_max_humans` setting):
+diff --git a/crates/omsi-sim/src/people/pax_stops.rs b/crates/omsi-sim/src/people/pax_stops.rs
+index 076bcfe5..a3249091 100644
+--- a/crates/omsi-sim/src/people/pax_stops.rs
++++ b/crates/omsi-sim/src/people/pax_stops.rs
+@@ -237,6 +237,26 @@ impl PeopleSim {
+         })
+     }
+ 
++    /// A small curb-offset/traffic stop can be reached without collecting the
++    /// opposite platform. Normal route, destination, capacity and door rules still apply.
++    pub fn can_walk_to_stopped_bus(&self, i: usize, stop: i64, bn: &BusNow) -> bool {
++        let Some(platform) = self.stops.get(&stop) else { return false; };
++        if bn.speed.abs() > 0.28 || bn.served.is_some_and(|id| id != stop) { return false; }
++        let heading = platform.heading.to_radians();
++        if bn.fwd().dot(DVec2::new(heading.sin(), heading.cos())) < 0.7 { return false; }
++        let person = self.people[i].position;
++        let local = bn.to_local(person);
++        if local.x.abs() > 6.0 || (person.z - bn.pos.z).abs() > 1.8 { return false; }
++        let side = self.preferred_entry_side(stop, bn, person);
++        bn.cabin.entries.iter().enumerate().any(|(index, door)| {
++            door.point.is_some() && bn.entry_open.get(index).copied().unwrap_or(false)
++                && entry_on_platform(side, door.side)
++                // The door and waiting person must be on the same physical side.
++                && local.x * door.side >= 0.5
++                && (bn.world(door.outside) - person).length() <= 18.0
++        })
++    }
++
+     /// Whether the bus stands in the stop's box (the flag of its entry, sub_61ee18).
+     pub fn in_stop_box(&self, stop: i64, bus: BusId) -> bool {
+         self.stops.get(&stop).is_some_and(|s| s.buses.iter().any(|b| b.0 == bus && b.1))
 diff --git a/crates/omsi-sim/src/people/pax_task.rs b/crates/omsi-sim/src/people/pax_task.rs
-index f1417e65..3b5a7328 100644
+index f1417e65..fa449738 100644
 --- a/crates/omsi-sim/src/people/pax_task.rs
 +++ b/crates/omsi-sim/src/people/pax_task.rs
+@@ -324,7 +324,7 @@ impl PeopleSim {
+                 }
+                 self.pax_mut(i).unwrap().bus = Some(b);
+                 // still rolling in, or standing in the stop's box: to the gather point
+-                if bn.speed.abs() <= 2.0 && !self.in_stop_box(stop, b) {
++                if bn.speed.abs() <= 2.0 && !self.in_stop_box(stop, b) && !self.can_walk_to_stopped_bus(i, stop, bn) {
+                     return;
+                 }
+                 if super::debug_pax() {
+@@ -335,7 +335,7 @@ impl PeopleSim {
+             Task::ToBus => {
+                 let Some(stop) = p.stop else { return };
+                 if let Some(bn) = bn {
+-                    if bn.speed.abs() < 3.0 && self.in_stop_box(stop, bn.id) {
++                    if bn.speed.abs() < 3.0 && (self.in_stop_box(stop, bn.id) || self.can_walk_to_stopped_bus(i, stop, bn)) {
+                         // A seat in a disconnected trailer needs an entry on this side
+                         // too; otherwise a passenger reserves it and can never board.
+                         let side = self.preferred_entry_side(stop, bn, p.pos);
 @@ -574,7 +574,7 @@ impl PeopleSim {
          if p.ticket == TICKET_STAMP {
              if p.sub == 1 && p.timer < 0.5 {
