@@ -16,7 +16,7 @@ function decode(raw) {
 }
 const current=decode(oldSigned), release=decode(signed);
 if(current.version!=='2.2.2'||current.sequence!==2026103001)throw Error('Unexpected previous signed version');
-if(release.schema!==1||release.version!=='2.2.2'||release.sequence!==2026103002||release.sequence<=current.sequence)throw Error('Wrong signed new release identity');
+if(release.schema!==1||release.version!=='2.2.2-hotfix.1'||release.sequence!==2026103002||release.sequence<=current.sequence)throw Error('Wrong signed new release identity');
 if(info.version!==release.version||info.sequence!==release.sequence)throw Error('Publication record disagrees with signature');
 const installer=release.installer;
 if(installer.url!==origin+'/packages/'+installer.sha256+'.exe'||installer.sha256!==info.installer_sha256||installer.size!==info.installer_size||installer.size>25*1024*1024)throw Error('Invalid signed installer');
