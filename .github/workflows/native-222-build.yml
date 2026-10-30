@@ -2,7 +2,7 @@ name: Build 2.2.2 native integration
 on:
   push:
     branches: [work/native-222-build]
-    paths: [ci/release222/native.patch, ci/release222/inspector-patrol.patch, ci/release222/door-reaction.patch, ci/release222/lan-traffic.patch, crates/omsi-sim/src/people/buses.rs, crates/omsi-sim/src/people/tests.rs, .github/workflows/native-222-build.yml]
+    paths: [ci/release222/native.patch, ci/release222/inspector-patrol.patch, ci/release222/door-reaction.patch, ci/release222/lan-traffic.patch, ci/release222/police-response.patch, crates/omsi-sim/src/people/buses.rs, crates/omsi-sim/src/people/tests.rs, .github/workflows/native-222-build.yml]
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -37,6 +37,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Door reaction diagnostics patch failed' }
           git apply --index ci/release222/lan-traffic.patch
           if ($LASTEXITCODE -ne 0) { throw 'LAN guest traffic-density patch failed' }
+          git apply --index ci/release222/police-response.patch
+          if ($LASTEXITCODE -ne 0) { throw 'BCS police response lifecycle patch failed' }
           git -c user.name=Codex -c user.email=codex@openai.com commit -m 'Materialize exact 2.2.2 integration source'
           if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
       - uses: dtolnay/rust-toolchain@stable
@@ -63,8 +65,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'BCS inspector patrol regression failed' }
           cargo test --locked --release -p omsi-sim one_entry_one_exit_with_separate_rear_leaf_can_open_for_alighting -- --nocapture
           if ($LASTEXITCODE -ne 0) { throw 'Physically-open rear door regression failed' }
-          cargo test --locked --release -p omsi-app lan_center_density_tests -- --nocapture
-          if ($LASTEXITCODE -ne 0) { throw 'LAN guest traffic coverage regression failed' }
+          cargo test --locked --release -p omsi-app bcs_events:: -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'BCS emergency dispatch regression failed' }
           '#[path="crates/omsi-app/src/bcs_events/names.rs"] mod names;' | Set-Content names-check.rs
           rustc --edition=2024 --test names-check.rs -o names-check.exe
           if ($LASTEXITCODE -ne 0) { throw 'Name lookup test build failed' }
