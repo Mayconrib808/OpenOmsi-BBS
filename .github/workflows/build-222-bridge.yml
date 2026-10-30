@@ -1,0 +1,53 @@
+name: Compile 2.2.2 Setup and normal BCS capture
+on:
+  push:
+    branches: [work/bridge-222-build]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  bridge:
+    runs-on: windows-2022
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify embedded capture bytecode, archive upgrade and backups
+        shell: pwsh
+        run: |
+          @'
+          import os,subprocess,sys
+          sys.path.insert(0,'scripts')
+          import build
+          env=dict(os.environ,GO111MODULE='off',GOTOOLCHAIN='local')
+          files=build.TEST_COMMON+['bcs_trip_log_patch_test.go','bcs_capture_test.go']
+          subprocess.run(['go','test','-count=1','-run','TestBCS','-v',*files],cwd='source',env=env,check=True)
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Capture integration regression failed' }
+      - name: Compile Setup without rebuilding complete released hosts
+        shell: pwsh
+        run: |
+          @'
+          import os,subprocess,sys
+          from pathlib import Path
+          sys.path.insert(0,'scripts')
+          import build
+          out=Path('bridge-check');out.mkdir()
+          env=dict(os.environ,GOOS='windows',GOARCH='386',GO386='sse2',CGO_ENABLED='0',GO111MODULE='off',GOTOOLCHAIN='local')
+          subprocess.run(['go','build','-trimpath','-buildvcs=false','-ldflags=-s -w -H=windowsgui','-o',str((out/'Setup.exe').resolve()),*build.PROGRAMS['Setup.exe']],cwd='source',env=env,check=True)
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Setup compilation failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.2-Setup-compile-check
+          path: bridge-check/*
+          retention-days: 14

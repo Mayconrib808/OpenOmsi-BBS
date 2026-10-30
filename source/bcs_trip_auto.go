@@ -393,14 +393,14 @@ func prepareBCSNextTrip(c Config, checkClosed func(string) error) (bcsNextTripPr
 		}
 		return state, err
 	}
-	// If our logger is already present, do not reject the JAR merely because
-	// replacing one entry necessarily changed the whole-archive SHA.
-	if bytes.Equal(original, logger) {
-		return state, nil
-	}
-	// This snapshot detects concurrent writes only; every installed BCS release
-	// is accepted. Never compare this digest to a release/build allowlist.
-	state.Changed, err = patchBCSJar(path, jarSHA, logger)
+	logger,err=bcsCaptureLogger(logger)
+ if err!=nil{return state,err}
+ entries,err:=bcsCaptureEntries(logger)
+ if err!=nil{return state,err}
+ // Detect concurrent writes, and preserve the complete original archive in a
+ // verified backup. Existing players receive the observer even if their logger
+ // already contains the next-trip extension.
+ state.Changed,err=patchBCSJarEntries(path,jarSHA,entries)
 	return state, err
 }
 

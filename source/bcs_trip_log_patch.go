@@ -8,6 +8,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+ "sort"
+ "strings"
 )
 
 const bcsLoggerEntry = "bbs/f.class"
@@ -50,6 +52,11 @@ func bcsPatchBackupPath(path, expectedSHA string) (string, error) {
 // expectedSHA is a snapshot of this installed archive, not a BCS version gate.
 // Detect concurrent changes, preserve other entries and keep a recoverable copy.
 func patchBCSJar(path, expectedSHA string, logger []byte) (bool, error) {
+ return patchBCSJarEntries(path,expectedSHA,map[string][]byte{bcsLoggerEntry:logger})
+}
+
+func patchBCSJarEntries(path, expectedSHA string, replacements map[string][]byte) (bool,error) {
+ logger:=replacements[bcsLoggerEntry]
 	if len(logger) == 0 {
 		return false, fmt.Errorf("payload de comunicação ausente")
 	}
@@ -57,31 +64,26 @@ func patchBCSJar(path, expectedSHA string, logger []byte) (bool, error) {
 	if e != nil {
 		return false, fmt.Errorf("não foi possível ler o JAR: %w", e)
 	}
-	found := false
-	for _, entry := range reader.File {
-		if entry.Name == bcsLoggerEntry {
-			found = true
-			r, err := entry.Open()
-			if err != nil {
-				reader.Close()
-				return false, err
-			}
-			data, err := io.ReadAll(io.LimitReader(r, 256<<10))
-			r.Close()
-			if err != nil {
-				reader.Close()
-				return false, err
-			}
-			if bytes.Equal(data, logger) {
-				reader.Close()
-				return false, nil
-			}
-		}
-	}
-	if !found {
-		reader.Close()
-		return false, fmt.Errorf("este arquivo não contém o logger do BCS verificado")
-	}
+	found, changed := false, false
+ seen:=map[string]bool{}
+ for _,entry:=range reader.File {
+  if seen[entry.Name] {reader.Close();return false,fmt.Errorf("entrada duplicada no JAR: %s",entry.Name)}
+  seen[entry.Name]=true
+  upper:=strings.ToUpper(entry.Name)
+  if strings.HasPrefix(upper,"META-INF/")&&(strings.HasSuffix(upper,".SF")||strings.HasSuffix(upper,".RSA")||strings.HasSuffix(upper,".DSA")||strings.HasSuffix(upper,".EC")) {
+   reader.Close();return false,fmt.Errorf("o JAR assinado foi preservado")
+  }
+  if entry.Name==bcsLoggerEntry {found=true}
+  if want,ok:=replacements[entry.Name];ok {
+   r,err:=entry.Open();if err!=nil {reader.Close();return false,err}
+   data,err:=io.ReadAll(io.LimitReader(r,1<<20));r.Close()
+   if err!=nil {reader.Close();return false,err}
+   if !bytes.Equal(data,want){changed=true}
+  }
+ }
+ if !found {reader.Close();return false,fmt.Errorf("este arquivo não contém o logger do BCS verificado")}
+ for name:=range replacements {if !seen[name]{changed=true}}
+ if !changed {reader.Close();return false,nil}
 	actual, e := bcsJarSHA(path)
 	if e != nil || actual != expectedSHA {
 		reader.Close()
@@ -102,12 +104,12 @@ func patchBCSJar(path, expectedSHA string, logger []byte) (bool, error) {
 	}
 	for _, entry := range reader.File {
 		header := entry.FileHeader
-		if entry.Name == bcsLoggerEntry {
+		if payload,replace := replacements[entry.Name]; replace {
 			header.CRC32, header.CompressedSize, header.CompressedSize64 = 0, 0, 0
 			header.UncompressedSize, header.UncompressedSize64 = 0, 0
 			w, err := writer.CreateHeader(&header)
 			if err == nil {
-				_, err = w.Write(logger)
+				_, err = w.Write(payload)
 			}
 			if err != nil {
 				reader.Close()
@@ -132,6 +134,13 @@ func patchBCSJar(path, expectedSHA string, logger []byte) (bool, error) {
 			}
 		}
 	}
+	var additions []string
+ for name:=range replacements {if !seen[name]{additions=append(additions,name)}}
+ sort.Strings(additions)
+ for _,name:=range additions {
+  w,err:=writer.Create(name);if err==nil {_,err=w.Write(replacements[name])}
+  if err!=nil {reader.Close();tmp.Close();return false,err}
+ }
 	if e = writer.Close(); e == nil {
 		e = tmp.Sync()
 	}
@@ -144,7 +153,7 @@ func patchBCSJar(path, expectedSHA string, logger []byte) (bool, error) {
 		return false, e
 	}
 	// Verify every entry and CRC before allowing replacement.
-	if e = verifyPatchedBCSJar(tmpName, reader, logger); e != nil {
+	if e = verifyPatchedBCSEntries(tmpName, reader, replacements); e != nil {
 		reader.Close()
 		return false, e
 	}
@@ -201,17 +210,23 @@ func copyBCSBackup(source, destination string) error {
 }
 
 func verifyPatchedBCSJar(path string, before *zip.ReadCloser, logger []byte) error {
+ return verifyPatchedBCSEntries(path,before,map[string][]byte{bcsLoggerEntry:logger})
+}
+func verifyPatchedBCSEntries(path string,before *zip.ReadCloser,replacements map[string][]byte)error {
 	after, e := zip.OpenReader(path)
 	if e != nil {
 		return e
 	}
 	defer after.Close()
-	if len(after.File) != len(before.File) {
+	oldNames:=map[string]bool{};for _,entry:=range before.File {oldNames[entry.Name]=true}
+ added:=0;for name:=range replacements {if !oldNames[name]{added++}}
+ if len(after.File) != len(before.File)+added {
 		return fmt.Errorf("a estrutura do JAR não foi preservada")
 	}
 	for i, entry := range after.File {
-		previous := before.File[i]
-		if entry.Name != previous.Name {
+        var previous *zip.File
+        if i<len(before.File){previous=before.File[i]}
+        if previous!=nil && entry.Name != previous.Name {
 			return fmt.Errorf("a ordem dos arquivos do JAR mudou")
 		}
 		r, err := entry.Open()
@@ -224,12 +239,13 @@ func verifyPatchedBCSJar(path string, before *zip.ReadCloser, logger []byte) err
 		if err != nil {
 			return fmt.Errorf("verificação CRC: %w", err)
 		}
-		if entry.Name == bcsLoggerEntry {
-			want := sha256.Sum256(logger)
+		if payload,replace:=replacements[entry.Name]; replace {
+			want := sha256.Sum256(payload)
 			if !bytes.Equal(h.Sum(nil), want[:]) {
 				return fmt.Errorf("logger atualizado inválido")
 			}
 		} else {
+			if previous==nil{return fmt.Errorf("arquivo adicional inesperado: %s",entry.Name)}
 			r, err = previous.Open()
 			if err != nil {
 				return err

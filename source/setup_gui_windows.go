@@ -972,6 +972,7 @@ func runSetupGUI(dir string, smoke bool) error {
 		guiUser.NewProc("ShowWindow").Call(g.window, 1)
 		guiUser.NewProc("UpdateWindow").Call(g.window)
 		guiUser.NewProc("SetFocus").Call(g.root)
+		g.showReleaseChangelog(false)
 		g.startServerStatus()
 		if g.autoCheckUpdates {
 			g.checkUpdates()

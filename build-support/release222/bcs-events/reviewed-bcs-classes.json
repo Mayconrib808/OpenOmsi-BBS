@@ -1,0 +1,32 @@
+{
+  "profiles": [
+    {
+      "label": "user-supplied-bcs-9",
+      "jar_sha256": "3584c5c7131fcf0df7cd5ccc0ae29b0f8fa352619b08d1eac374f53276c95b37",
+      "classes": {
+        "system/q.class": "2f8ef36256cb13ef634854408cda93fb2050608b0843467d20bc34345b273df6",
+        "o/j.class": "f5930c6e5f8f56a6ad526456044eab67d3d827682c4a4ba05ed01c683b979b31",
+        "l/t.class": "3c60e3f7f8d826080d5a8a4ee3c090102cdce0d04b8692f2f39660fb9d38cdb7",
+        "system/M.class": "23122764d8d978848daa039bed797142ad770038e264560a598ee3e3c4592f1b",
+        "o/f.class": "0cd3e7d81ca289dce6cc8ead7371acb514b1b4dc5fe3a6a8effe26771087a0ec",
+        "l/i.class": "3982cd549b9843a33d3314fae8a0fd2d0860f367e0f8d54cf8b6e10a663422b5",
+        "p/E.class": "d174a673285341f86c3cb970a87cd4fbf4d7947aea1ca1a54244940dd5d45e67",
+        "webservicesbbs/FahrkartenkontrolleurDto.class": "4bb668febcfc3279e499675afb07f5dc763129b93aaa9b9cd6ad4615b05ebe50"
+      }
+    },
+    {
+      "label": "user-supplied-bcs-10",
+      "jar_sha256": "d777330fa5b49b534bdd9c9c90ffa3b6d75acb93492b3b58740911084fedfe93",
+      "classes": {
+        "system/q.class": "e73a455f08072f231b7085fdf87a98d0a866b052c29b8fc1867c1a692d31fb76",
+        "o/j.class": "2d199e3df005eb775940e919e9487f722d93fd46999a3445fbee4bc2dfcc0909",
+        "l/t.class": "3c60e3f7f8d826080d5a8a4ee3c090102cdce0d04b8692f2f39660fb9d38cdb7",
+        "system/O.class": "724a59c76c6066708606bc0d02a35c257644184474b61937792f4cfad8ba21d1",
+        "o/f.class": "947b5dfd862d806d7a71a5bfccaebdcb37220643b3421582911b7154978cc314",
+        "l/i.class": "6ec05feaea244b0b9e5485981f500c2dac7ba9146449939101ed5741e8d57f39",
+        "p/E.class": "3c0bf748bd2e82c50ce5f303f7366f976e30616831f5ab9a2ebcc091a6bcce51",
+        "webservicesbbs/FahrkartenkontrolleurDto.class": "4bb668febcfc3279e499675afb07f5dc763129b93aaa9b9cd6ad4615b05ebe50"
+      }
+    }
+  ]
+}
