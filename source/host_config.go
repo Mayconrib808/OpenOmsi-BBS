@@ -82,7 +82,7 @@ func hostSelectServer(c *hostAgentConfig, packageDir, selected string) {
 }
 func defaultHostAgentConfig() hostAgentConfig {
 	return hostAgentConfig{Schema: 1, Language: "pt", HostKey: hostRandomCode() + hostRandomCode(), RoomID: hostRandomCode(), ControlKey: hostRandomCode(), ControlPort: 27199, Maps: map[string]hostMapOptions{},
-		Company: CompanyProfile{SchemaVersion: 1, CompanyID: "transfort-br", CompanyName: "Transfort - BR", OpenOMSIVersion: "0.3.45", Protocol: 15, Clock: &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: -480}}}
+		Company: CompanyProfile{SchemaVersion: 1, CompanyID: "transfort-br", CompanyName: "Transfort - BR", OpenOMSIVersion: "0.3.46", Protocol: 15, Clock: &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: -480}}}
 }
 func defaultHostMapOptions(c hostAgentConfig) hostMapOptions {
 	port, web := 27015, 27025

@@ -149,6 +149,7 @@ jobs:
 'on':
   push:
     branches-ignore:
+    - work/bridge-222-build
     # Release 2.2.1.7 runs its own full Go tests, actual HostAgent/Setup UI,
     # and exact 0.3.45 native suites; it retains the P14 runtime by SHA256.
     - release/2.2.1.7

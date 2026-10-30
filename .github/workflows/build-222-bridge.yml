@@ -21,6 +21,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Verify single-player and company multiplayer event capture
+        run: python scripts/test_bcs_capture_events.py
       - name: Verify embedded capture bytecode, archive upgrade and backups
         shell: pwsh
         run: |

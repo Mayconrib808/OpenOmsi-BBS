@@ -21,7 +21,7 @@ SOURCE = ROOT / 'source'
 
 UPDATER_SOURCES = (
     'coop_update.go coop_bundle_manifest.go bridge_update_progress_windows.go setup_updates.go bridge_update_main.go update_process_windows.go bridge_update_options.go bridge_update_setup.go bridge_update_handoff_windows.go dynamic_host_update.go bridge_update.go bridge_update_native.go bridge_update_discovery_windows.go bridge_update_windows.go '
-    'bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go '
+    'bcs_trip_log_patch.go bcs_trip_auto.go bcs_trip_auto_payload.go bcs_capture.go bcs_capture_payload.go '
     'package_integrity.go setup_windows.go config.go plugin_host.go registry.go '
     'paths.go version.go company.go company_directory.go weather.go log_text.go '
     'company_content.go company_clock.go profile_store.go openomsi_compatibility.go openomsi_probe_windows.go'

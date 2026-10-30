@@ -98,7 +98,7 @@ public final class EventProbe {
                             target = thread;
                             try {
                                 int profile = verifyClasses(thread.getClass().getClassLoader(), hashes);
-                                binding = new Binding(thread.getClass());
+                                binding = new Binding(thread.getClass(), hashes, profile);
                                 inspector = new Inspector(thread.getClass(), hashes, profile);
                                 bindingStatus = "compatible"; detail = "";
                             } catch (Throwable mismatch) {
@@ -126,10 +126,13 @@ public final class EventProbe {
                     row.put("requested_service", serviceName(service));
                     row.put("service_ready_at_unix_ms", readyAt);
                     row.put("service_delay_elapsed", readyAt > 0 && now >= readyAt);
-                    if (popup != null && popup.getClass().getName().equals(POPUP)) {
-                        Field id = field(popup.getClass(), "l", int.class);
-                        Field countdown = field(popup.getClass(), "n", AtomicInteger.class);
-                        Field completed = field(popup.getClass(), "p", AtomicBoolean.class);
+                    if (popup != null && (popup.getClass().getName().equals(POPUP) ||
+                            (popup.getClass().getName().equals("o.d") && binding.standardPopup))) {
+                        boolean standard = popup.getClass().getName().equals("o.d");
+                        row.put("popup_mode", standard ? "company_multiplayer" : "single_player");
+                        Field id = field(popup.getClass(), standard ? "h" : "l", int.class);
+                        Field countdown = field(popup.getClass(), standard ? "j" : "n", AtomicInteger.class);
+                        Field completed = field(popup.getClass(), standard ? "l" : "p", AtomicBoolean.class);
                         event = id.getInt(popup);
                         boolean done = ((AtomicBoolean) completed.get(popup)).get();
                         row.put("popup_countdown", ((AtomicInteger) countdown.get(popup)).get());
@@ -169,7 +172,9 @@ public final class EventProbe {
 
     private static final class Binding {
         final Field event, service, readyAt, popup;
-        Binding(Class<?> type) throws Exception {
+        final boolean standardPopup;
+        Binding(Class<?> type, Properties hashes, int profile) throws Exception {
+            standardPopup = reviewedClass(type.getClassLoader(), hashes, profile, "o/d.class");
             event = field(type, "j", int.class);
             service = field(type, "l", byte.class);
             readyAt = field(type, "m", long.class);
@@ -182,6 +187,22 @@ public final class EventProbe {
         Field result = type.getDeclaredField(name);
         if (result.getType() != wanted) throw new IllegalStateException("Field API changed");
         result.setAccessible(true); return result;
+    }
+
+    private static boolean reviewedClass(ClassLoader loader, Properties hashes, int profile, String name) {
+        try {
+            String expected = hashes.getProperty("profile." + profile + "." + name);
+            if (expected == null) return false;
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            try (InputStream in = loader.getResourceAsStream(name)) {
+                if (in == null) return false;
+                byte[] buffer = new byte[8192]; int length;
+                while ((length = in.read(buffer)) != -1) digest.update(buffer, 0, length);
+            }
+            StringBuilder actual = new StringBuilder();
+            for (byte b : digest.digest()) actual.append(String.format(Locale.ROOT, "%02x", b & 255));
+            return expected.equals(actual.toString());
+        } catch (Throwable unavailable) { return false; }
     }
 
     private static int verifyClasses(ClassLoader loader, Properties hashes) throws Exception {

@@ -29,7 +29,7 @@ var setupStrings = map[string][3]string{
 	"server_unconfigured":   {"Host/empresa não configurado", "Host/company not configured", "Host/Firma nicht eingerichtet"},
 	"server_no_maps":        {"Nenhum mapa disponível", "No map available", "Keine Karte verfügbar"},
 	"bundled_coop":          {"Usar Coop incluído", "Use bundled Coop", "Coop auswählen"},
-	"bundled_coop_selected": {"Coop incluído 0.3.45 selecionado. Use Salvar e ativar para aplicar.", "Bundled Coop 0.3.45 selected. Use Save and activate to apply.", "Enthaltener Coop 0.3.45 ausgewählt. Mit Speichern und aktivieren übernehmen."},
+	"bundled_coop_selected": {"Coop incluído 0.3.46 selecionado. Use Salvar e ativar para aplicar.", "Bundled Coop 0.3.46 selected. Use Save and activate to apply.", "Enthaltener Coop 0.3.46 ausgewählt. Mit Speichern und aktivieren übernehmen."},
 	"bundled_coop_missing":  {"A pasta OpenOmsi Coop 0.3.41 não foi encontrada. Conclua a atualização 2.2 ou extraia o pacote completo.", "The OpenOmsi Coop 0.3.41 folder was not found. Complete the 2.2 update or extract the full package.", "Der Ordner OpenOmsi Coop 0.3.41 fehlt. Das Update 2.2 abschließen oder das vollständige Paket entpacken."},
 	"autostart":             {"Ligar o ônibus automaticamente", "Start the bus automatically", "Bus automatisch starten"},
 	"autostart_hint":        {"Desmarcado: partida e IBIS manuais.", "Unchecked: start bus and set up IBIS manually.", "Ohne Häkchen: Bus und IBIS selbst vorbereiten."},

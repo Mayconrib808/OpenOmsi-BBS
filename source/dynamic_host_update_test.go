@@ -11,7 +11,7 @@ import (
 )
 
 func TestCoop15MigrationKeepsAllHostPreferencesAndChoosesMatchingServer(t *testing.T) {
-	if got := defaultHostAgentConfig().Company.OpenOMSIVersion; got != "0.3.45" {
+	if got := defaultHostAgentConfig().Company.OpenOMSIVersion; got != "0.3.46" {
 		t.Fatalf("new host advertises %s instead of the shipped version", got)
 	}
 	dir := t.TempDir()
@@ -46,7 +46,7 @@ func TestCoop15MigrationKeepsAllHostPreferencesAndChoosesMatchingServer(t *testi
 		}
 		var company map[string]json.RawMessage
 		json.Unmarshal(got["company"], &company)
-		if string(company["protocol"]) != "15" || hostJSONString(company, "openomsi_version") != "0.3.45" || hostJSONString(company, "opaque") != "preserved" {
+		if string(company["protocol"]) != "15" || hostJSONString(company, "openomsi_version") != "0.3.46" || hostJSONString(company, "opaque") != "preserved" {
 			t.Fatal(string(got["company"]))
 		}
 		if hostJSONString(got, "server") != filepath.Join(dir, filepath.FromSlash(managedDynamicP15Server)) {
@@ -92,12 +92,12 @@ func TestCoop15InstallationMigratesHostClientAndCachedProfileTogether(t *testing
 	json.Unmarshal(updatedHost, &doc)
 	var hostCompany map[string]json.RawMessage
 	json.Unmarshal(doc["company"], &hostCompany)
-	if hostJSONString(hostCompany, "openomsi_version") != "0.3.45" || hostJSONString(doc, "server") != filepath.Join(dir, filepath.FromSlash(managedDynamicP15Server)) || !bytes.Contains(doc["maps"], []byte("voice_radio")) || !bytes.Contains(doc["maps"], []byte("keep")) {
+	if hostJSONString(hostCompany, "openomsi_version") != "0.3.46" || hostJSONString(doc, "server") != filepath.Join(dir, filepath.FromSlash(managedDynamicP15Server)) || !bytes.Contains(doc["maps"], []byte("voice_radio")) || !bytes.Contains(doc["maps"], []byte("keep")) {
 		t.Fatal(string(updatedHost))
 	}
 	updatedProfile, _ := os.ReadFile(profilePath)
 	json.Unmarshal(updatedProfile, &doc)
-	if string(doc["protocol"]) != "15" || hostJSONString(doc, "openomsi_version") != "0.3.45" || hostJSONString(doc, "future") != "keep" {
+	if string(doc["protocol"]) != "15" || hostJSONString(doc, "openomsi_version") != "0.3.46" || hostJSONString(doc, "future") != "keep" {
 		t.Fatal(string(updatedProfile))
 	}
 	updatedINI, _ := os.ReadFile(configPath(dir))
