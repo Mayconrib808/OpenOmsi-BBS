@@ -1,7 +1,7 @@
 diff --git a/crates/omsi-app/src/traffic/population.rs b/crates/omsi-app/src/traffic/population.rs
 --- a/crates/omsi-app/src/traffic/population.rs
 +++ b/crates/omsi-app/src/traffic/population.rs
-@@ -792,22 +792,56 @@
+@@ -821,22 +821,56 @@
 -    pub(super) fn populate_lan_centers(
 -        &mut self,
 -        world: &World,
