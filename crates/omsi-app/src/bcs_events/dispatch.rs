@@ -15,10 +15,10 @@ struct Medical {
     bus_at: Option<DVec3>,
     age: f32,
     retry: f32,
-    serving: f32,
     completed: bool,
     arrived: bool,
     blend: f32,
+    stalled_reported: bool,
 }
 #[derive(Default)]
 pub(super) struct Dispatcher {
@@ -70,10 +70,10 @@ impl Dispatcher {
                         bus_at: None,
                         age: 0.0,
                         retry: 0.0,
-                        serving: 0.0,
                         completed: false,
                         arrived: false,
                         blend: input.blend,
+                        stalled_reported: false,
                     });
                 }
             }
@@ -87,7 +87,7 @@ impl Dispatcher {
             || !source_ok
             || !input.riders.contains(&scene.patient)
             || moved
-            || scene.age > 180.0
+            || scene.age > 30.0
         {
             self.cancel(traffic);
             return None;
@@ -106,7 +106,7 @@ impl Dispatcher {
         scene.retry -= dt;
         scene.blend = (scene.blend + dt).min(1.0);
         if scene.vehicle.is_none() && scene.retry <= 0.0 && input.speed.abs() < 1.0 && dt > 0.0 {
-            scene.retry = 3.0;
+            scene.retry = 0.5;
             let result = match model {
                 Some(model) => traffic
                     .dispatch_incident_vehicle(
@@ -150,14 +150,16 @@ impl Dispatcher {
                     scene.arrived = true;
                     log::info!("BCS response: ambulance {id} physically on scene");
                 }
-                scene.serving += dt;
-                if dt > 0.0 && transfer_ready(scene.completed, scene.serving, input.speed) {
+                if dt > 0.0 && transfer_ready(scene.completed, input.speed) {
                     let patient = scene.patient;
                     self.cancel(traffic);
                     return Some(patient);
                 }
-            } else {
-                scene.serving = 0.0;
+            } else if !scene.stalled_reported {
+                if let Some(car) = traffic.sim.cars.iter().find(|c| c.id == id && c.stopped >= 2.0) {
+                    scene.stalled_reported = true;
+                    log::warn!("BCS response: ambulance {id} stopped before arrival: reason {}, bus distance {:.1} m, lane {}, s {:.1}, response {:?}", car.why.0, (car.vehicle.position - input.bus).length(), car.state.lane, car.state.s, car.response);
+                }
             }
         }
         None
@@ -180,17 +182,16 @@ impl Dispatcher {
     }
 }
 
-fn transfer_ready(bcs_complete: bool, on_scene_secs: f32, bus_speed: f32) -> bool {
-    bcs_complete && on_scene_secs >= 5.0 && bus_speed.is_finite() && bus_speed.abs() < 1.0
+fn transfer_ready(bcs_complete: bool, bus_speed: f32) -> bool {
+    bcs_complete && bus_speed.is_finite() && bus_speed.abs() < 1.0
 }
 #[cfg(test)]
 mod tests {
     use super::*;
     #[test]
     fn bcs_delay_alone_does_not_transfer_a_passenger() {
-        assert!(!transfer_ready(false, 60.0, 0.0));
-        assert!(!transfer_ready(true, 0.0, 0.0));
-        assert!(!transfer_ready(true, 6.0, 30.0));
-        assert!(transfer_ready(true, 5.0, 0.0));
+        assert!(!transfer_ready(false, 0.0));
+        assert!(!transfer_ready(true, 30.0));
+        assert!(transfer_ready(true, 0.0));
     }
 }

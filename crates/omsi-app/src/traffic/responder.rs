@@ -1,6 +1,6 @@
 //! Dedicated responders use the real road graph, collision checks and normal AI bodies.
 use super::*;
-use omsi_sim::{ai_traffic::response::Service, traffic::way::lanes_near};
+use omsi_sim::{ai_traffic::response::{Service, short_approaches}, traffic::way::lanes_near};
 
 impl Traffic {
     pub(crate) fn dispatch_incident_vehicle(
@@ -14,9 +14,9 @@ impl Traffic {
         let viewer = self.sim.viewer.ok_or("waiting for camera")?;
         let h = heading.to_radians();
         let forward = DVec3::new(h.sin(), h.cos(), 0.0);
-        let desired = bus - forward * 30.0;
+        let desired = bus - forward * 14.0;
         let mut goals = Vec::new();
-        for lane in lanes_near(&self.sim.net, desired.truncate(), 150.0) {
+        for lane in lanes_near(&self.sim.net, desired.truncate(), 60.0) {
             let l = &self.sim.net.lanes[lane];
             if l.kind != LaneKind::Street
                 || l.invisible
@@ -34,98 +34,49 @@ impl Traffic {
             let angle = ((lane_heading as f64 - heading + 180.0).rem_euclid(360.0) - 180.0).abs();
             if distance <= 12.0
                 && (at.z - bus.z).abs() <= 3.0
-                && (-50.0..=-16.0).contains(&behind)
-                && angle < 35.0
+                && (-24.0..=-10.0).contains(&behind)
+                && angle < 50.0
             {
                 goals.push((distance, lane, s, at, lane_heading));
             }
         }
         goals.sort_by(|a, b| a.0.total_cmp(&b.0));
-        let goal = goals
-            .into_iter()
-            .take(16)
-            .find(|g| !self.blocked(&ty, g.3, g.4 as f64))
-            .ok_or("no clear road stop behind bus")?;
         let radius = ty.half_length().unwrap_or(6.0) as f64 + 2.0;
-        let mut starts = Vec::new();
-        for lane in lanes_near(&self.sim.net, bus.truncate(), 500.0) {
-            let l = &self.sim.net.lanes[lane];
-            if l.kind != LaneKind::Street
-                || l.invisible
-                || !l.allows(ty.def.ai_veh_type)
-                || l.length() < 10.0
-            {
-                continue;
-            }
-            // A long spline can pass the bus while its start lies kilometres away.
-            let near = l.nearest_point(bus).map_or(0.0, |x| x.0);
-            let mut samples = vec![
-                4.0,
-                l.length() - 4.0,
-                near - 400.0,
-                near - 240.0,
-                near + 240.0,
-                near + 400.0,
-            ];
-            samples.retain(|s| *s >= 4.0 && *s <= l.length() - 4.0);
-            samples.sort_by(f32::total_cmp);
-            samples.dedup_by(|a, b| (*a - *b).abs() < 1.0);
-            for s in samples {
-                let (at, heading) = l.at(s);
-                let distance = (at - bus).length();
-                if (160.0..=480.0).contains(&distance) {
-                    starts.push((distance, lane, s, at, heading));
+        for goal in goals.into_iter().take(16) {
+            if self.blocked(&ty, goal.3, goal.4 as f64) { continue; }
+            let mut starts = short_approaches(&self.sim.net, goal.1, goal.2, ty.def.ai_veh_type)
+                .into_iter().filter_map(|(route, s, length)| {
+                    let (at, heading) = self.sim.net.lanes[route[0]].at(s);
+                    if (at - bus).length() > 50.0 || self.blocked(&ty, at, heading as f64) { return None; }
+                    for (k, &lane) in route.iter().enumerate() {
+                        let from = if k == 0 { s } else { 0.0 };
+                        let end = if k + 1 == route.len() { goal.2 } else { self.sim.net.lanes[lane].length() };
+                        let mut check = from + 3.0;
+                        while check < end {
+                            let (pos, angle) = self.sim.net.lanes[lane].at(check);
+                            if self.blocked(&ty, pos, angle as f64) { return None; }
+                            check += 3.0;
+                        }
+                    }
+                    let hidden = viewer.hides(at, radius, || self.occluded(world, &viewer, at, radius));
+                    Some((!hidden, length, route, s))
+                }).collect::<Vec<_>>();
+            // Prefer an unseen approach, but never send the ambulance hundreds of
+            // metres away just to hide its creation during the short BCS call.
+            starts.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
+            if let Some((visible, length, route, s)) = starts.into_iter().next() {
+                let seed = self.rand();
+                let id = self.create_car(world, bus, LaneKind::Street, route[0], s, ty, seed,
+                    None, None, Some(6.0_f32.min((2.0 * 3.0 * length).sqrt())), None);
+                if self.sim.dispatch_response(id, route, goal.2, service) {
+                    log::info!("BCS response: short approach {length:.1} m to a stop {:.1} m behind bus, spawn visible {visible}", (goal.3 - bus).length());
+                    return Ok(id);
                 }
+                self.remove_car(id);
+                return Err("response route was invalidated".into());
             }
         }
-        starts.sort_by(|a, b| a.0.total_cmp(&b.0));
-        for start in starts.into_iter().take(64) {
-            if !viewer.hides(start.3, radius, || {
-                self.occluded(world, &viewer, start.3, radius)
-            }) || self.blocked(&ty, start.3, start.4 as f64)
-            {
-                continue;
-            }
-            let Some(route) = self.sim.net.shortest_path(start.1, goal.1) else {
-                continue;
-            };
-            if route.len() > 512
-                || route
-                    .iter()
-                    .any(|&i| !self.sim.net.lanes[i].allows(ty.def.ai_veh_type))
-            {
-                continue;
-            }
-            let length: f32 = route
-                .iter()
-                .map(|&i| self.sim.net.lanes[i].length())
-                .sum::<f32>()
-                - start.2
-                - (self.sim.net.lanes[goal.1].length() - goal.2);
-            if length > 2000.0 || (route.len() == 1 && goal.2 <= start.2) {
-                continue;
-            }
-            let seed = self.rand();
-            let id = self.create_car(
-                world,
-                bus,
-                LaneKind::Street,
-                start.1,
-                start.2,
-                ty,
-                seed,
-                None,
-                None,
-                Some(0.0),
-                None,
-            );
-            if self.sim.dispatch_response(id, route, goal.2, service) {
-                return Ok(id);
-            }
-            self.remove_car(id);
-            return Err("response route was invalidated".into());
-        }
-        Err("no hidden connected spawn with enough free space".into())
+        Err("no clear short connected approach beside the bus".into())
     }
 
     /// Normal off-screen retirement after driving away; never pop a vehicle beside the bus.

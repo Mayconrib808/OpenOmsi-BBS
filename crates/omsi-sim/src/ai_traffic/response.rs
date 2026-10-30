@@ -33,6 +33,34 @@ pub struct Drive {
     pub signals: Arc<Signals>,
 }
 
+/// A short, connected approach to the scene. Follow predecessors so a nearby
+/// spawn never needs a long loop around the map to reach the selected lane.
+pub fn short_approaches(net: &Network, goal: usize, goal_s: f32, veh_type: i32) -> Vec<(Vec<usize>, f32, f32)> {
+    let mut found = Vec::new();
+    for distance in [10.0_f32, 14.0, 18.0] {
+        let mut pending = vec![(goal, goal_s, distance, vec![goal])];
+        let mut visited = 0;
+        while let Some((lane, s, remaining, route)) = pending.pop() {
+            visited += 1;
+            if visited > 128 { break; }
+            let l = &net.lanes[lane];
+            if l.kind != LaneKind::Street || l.invisible || !l.allows(veh_type) { continue; }
+            let start = s - remaining;
+            if start >= 2.0 && start <= l.length() - 2.0 {
+                found.push((route, start, distance));
+            } else if remaining > s && route.len() < 8 {
+                for &prev in &net.prev[lane] {
+                    if route.contains(&prev) || !net.lanes[prev].next.contains(&lane) { continue; }
+                    let mut before = vec![prev];
+                    before.extend_from_slice(&route);
+                    pending.push((prev, net.lanes[prev].length(), remaining - s, before));
+                }
+            }
+        }
+    }
+    found
+}
+
 impl TrafficSim {
     /// Assign a route to a dedicated, non-timetable vehicle. Reject mismatched routes.
     pub fn dispatch_response(
@@ -191,13 +219,34 @@ impl TrafficSim {
 fn physically_arrived(at: DVec3, goal: DVec3, speed: f32) -> bool {
     speed.is_finite()
         && speed.abs() < 0.3
-        && (at - goal).truncate().length() <= 1.5
+        && (at - goal).truncate().length() <= 3.0
         && (at.z - goal.z).abs() <= 2.0
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn short_connected_approach_arrives_in_seconds_without_a_map_detour() {
+        use crate::ai_traffic::scenario_tests::{Fixture, add_car, street, traffic};
+        let f = Fixture::new();
+        let mut net = Network::default();
+        net.lanes.push(street(DVec3::ZERO, 0.0, 40.0));
+        net.lanes.push(street(DVec3::new(0.0, 40.0, 0.0), 0.0, 60.0));
+        net.link(1.5);
+        let (route, start, length) = short_approaches(&net, 1, 6.0, f.ty.def.ai_veh_type).remove(0);
+        assert_eq!(route, vec![0, 1]);
+        assert_eq!(length, 10.0);
+        let mut t = traffic(&f, net);
+        let id = add_car(&mut t, &f, route[0], start, 1, Some(6.0));
+        assert!(t.dispatch_response(id, route, 6.0, Service::Medical));
+        for _ in 0..(6.0 / super::super::fixed_step::SIM_DT) as usize {
+            t.tick(super::super::fixed_step::SIM_DT, None);
+            if t.response_on_scene(id) { return; }
+        }
+        let car = t.cars.iter().find(|c| c.id == id).unwrap();
+        panic!("short response failed to arrive: position {:?}, speed {}, reason {:?}", car.vehicle.position, car.state.speed, car.why);
+    }
     #[test]
     fn arrival_requires_position_height_and_standstill() {
         let goal = DVec3::new(100.0, 200.0, 3.0);

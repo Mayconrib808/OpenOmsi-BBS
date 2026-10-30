@@ -132,3 +132,13 @@ passenger pose in both animation modes and through alighting stops,
 original ambulance mesh and siren,
 spawn/stop placement on actual maps, and arrival/departure in game. A successful
 headless simulation or compile does not validate these visuals.
+
+### Short BCS medical calls (beta 0.2.2)
+
+Responders now enter on a connected 10–18 m approach to a road stop roughly 14 m
+behind the bus, already moving. The route is built backwards from the stop, so
+a nearby origin cannot require a kilometre-long detour. Nearby creation can be
+visible when a hidden origin is unavailable. Actual road clearance, braking and
+physical arrival still apply. The arrival envelope includes up to 3 m of lateral
+road offset. BCS completion is latched and adds no further five-second hold.
+A stalled approach records the AI stop reason and expires after 30 s.

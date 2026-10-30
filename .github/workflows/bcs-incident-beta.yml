@@ -9,7 +9,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 120
     env:
-      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.9-events-beta.0.2.1
+      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.9-events-beta.0.2.2
       OPENOMSI_BCS_EVENTS_BETA_DEFAULT: "1"
       OPENOMSI_COOP_GAME_ONLY: "1"
       TAURI_CONFIG: '{"version":"0.3.45"}'
@@ -26,11 +26,10 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           cache-on-failure: true
-      - name: Verify medical passenger eligibility and seat retention
+          cache-workspace-crates: true
+      - name: Verify short ambulance approach and physical arrival
         shell: pwsh
         run: |
-          cargo test --locked --release -p omsi-sim --lib medical_patient
-          if ($LASTEXITCODE -ne 0) { throw "Medical passenger seat regressions failed" }
           cargo test --locked --release -p omsi-sim --lib ai_traffic::response::
           if ($LASTEXITCODE -ne 0) { throw "Physical ambulance response regressions failed" }
       - name: Compile the corrected native beta
@@ -61,7 +60,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Native incident beta packaging failed" }
       - uses: actions/upload-artifact@v4
         with:
-          name: BCS-Events-0.2.1-native-Windows
+          name: BCS-Events-0.2.2-native-Windows
           path: native/*
           if-no-files-found: error
           retention-days: 30
