@@ -48,7 +48,7 @@ if(process.argv[2]==='prepare'){
       ||report.coop_archive_sha256!==spec.sha256||report.previous_installer_sha256!=='cd055e9a00c2b0459128c088f93b05b7cfd8668bdd42616e582673cf338f4f6b'
       ||report.previous_coop_sha256!=='bef8e67010ea9c53fe2b80684ae0b8727b7f18e3b9f0e14c31ea5c75ab406574'
       ||report.native_version!=='0.3.46-coop.15-2.2.2'
-      ||report.native_candidate_run!==41143539911||report.native_build_commit!=='e5e45dc4a6a802405b8f06952eaa4bb8755f95a0'
+      ||report.native_candidate_run!==41145183918||report.native_build_commit!=='58ea10745dbbcada60faac9487a15f00c4d1fddb'
       ||report.complete_hosts_unchanged!==true||report.complete_hosts_rebuilt!==false||report.p14_server_unchanged!==true
       ||report.custom_sounds_unchanged!==true||report.bcs_single_and_company_event_fixture_tested!==true
       ||report.bcs_capture_normal_launch_tested!==true||report.setup_changelog_ui_tested!==true
