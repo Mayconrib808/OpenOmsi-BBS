@@ -32,6 +32,13 @@ jobs:
           run-id: 40901236438
           github-token: ${{ github.token }}
           path: baseline
+      - name: Download unchanged Hotfix 2 Coop archive chunks still used by Hotfix 3
+        uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-candidate
+          run-id: 40765546864
+          github-token: ${{ github.token }}
+          path: parts
       - name: Download tested native 0.3.46 client and server
         uses: actions/download-artifact@v4
         with:
@@ -42,7 +49,7 @@ jobs:
       - name: Verify full baseline, preserve hosts and build cumulative 2.2.2
         shell: pwsh
         run: |
-          python scripts/build_222.py --baseline baseline --parts baseline --native native --output build/release222
+          python scripts/build_222.py --baseline baseline --parts parts --native native --output build/release222
           if ($LASTEXITCODE -ne 0) { throw 'Cumulative 2.2.2 packaging or regression checks failed' }
       - name: Publish candidate artifact to GitHub Actions only (no live update)
         uses: actions/upload-artifact@v4
