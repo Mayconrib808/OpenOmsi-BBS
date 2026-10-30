@@ -10,75 +10,388 @@ import (
     "unsafe"
 )
 
-// An owned window in Setup's message loop. No browser, temporary HTML or editor.
+// A native, offline, scrollable, localized release-tour window. Everything
+// renders inside Setup; no WebView, external site, registry or asset download.
+const changelogSeenVersion = "2.2.2-hotfix.1"
+const (
+    logWMPaint=0x000F
+    logWMMouseWheel=0x020A
+    logWMKeyDown=0x0100
+    logWMSize=0x0005
+    logIDDone=1401
+    logIDSectionBase=1410
+)
+type logString struct {pt,en,de string}
+type logEntry struct {title,body logString}
+type logSection struct {label logString; accent uintptr; entries []logEntry}
+type logPaintStruct struct {
+    DC uintptr
+    Erase int32
+    Rect guiRect
+    Restore,IncUpdate int32
+    Reserved [32]byte
+}
+type logWindowState struct {
+    section,scroll,maxScroll int
+    heading,body,subhead,tiny uintptr
+    buttons []uintptr
+}
 var changelogWindow uintptr
-var changelogProcedure = syscall.NewCallback(changelogWindowProc)
+var changelogProcedure=syscall.NewCallback(changelogWindowProc)
+var changelogState *logWindowState
 
-func changelogWindowProc(window uintptr, message uint32, wparam, lparam uintptr) uintptr {
-    g := activeSetupGUI
-    if g == nil { result, _, _ := guiUser.NewProc("DefWindowProcW").Call(window, uintptr(message), wparam, lparam); return result }
-    switch message {
+func logT(pt,en,de string) logString {return logString{pt,en,de}}
+func logL(lang string,t logString) string{return localText(lang,t.pt,t.en,t.de)}
+func logAccent(r,g,b byte)uintptr{return guiRGB(r,g,b)}
+
+func logSections() []logSection {
+    return []logSection{
+        {
+            label:logT("🛠️ HOTFIX DO FISCAL","🛠️ INSPECTOR HOTFIX","🛠️ KONTROLLEUR-HOTFIX"),
+            accent:logAccent(255,203,92),
+            entries:[]logEntry{
+                {logT("✅ Fiscal agora percorre o corredor","✅ Inspector now patrols the aisle","✅ Kontrolleur läuft durch den Gang"),
+                 logT("Corrigimos o fiscal que levantava e ficava parado perto da porta. Durante a fiscalização, ele usa os caminhos internos do ônibus para visitar diferentes regiões e fazer pequenas pausas perto dos passageiros, sem depender de o contador do BCS mudar a cada passo.",
+                 "Fixes the inspector standing still by the door after getting up. During inspection, the character walks through the bus using its interior paths, visiting passenger areas with short pauses instead of waiting for the BCS count to change at every step.",
+                 "Behebt den Kontrolleur, der nach dem Aufstehen an der Tür stehen blieb. Während der Kontrolle nutzt er die Innenwege des Busses, besucht die Fahrgastbereiche und legt kurze Pausen ein, ohne ständig auf den BBS-Zähler zu warten.")},
+                {logT("✅ Banco reservado e retorno ao lugar","✅ Reserved seat and return","✅ Reservierter Sitz und Rückkehr"),
+                 logT("O banco continua reservado enquanto o fiscal caminha. Ao encerrar a inspeção, ele procura voltar ao mesmo assento. O trajeto depende dos caminhos internos definidos no modelo do ônibus; ele não deve se teletransportar nem sair automaticamente no ponto final.",
+                 "The seat remains reserved while the inspector walks. When inspection ends, the character attempts to return to the same seat. This requires a usable interior path; the inspector should neither teleport nor automatically leave at the final stop.",
+                 "Der Sitz bleibt während des Rundgangs reserviert. Nach der Kontrolle versucht die Figur, zu diesem Sitz zurückzukehren. Dafür ist ein gültiger Innenweg nötig; sie soll sich weder teleportieren noch am Endpunkt automatisch aussteigen.")},
+                {logT("✨ Novidades da 2.2.2 reapresentadas","✨ Full 2.2.2 changes shown again","✨ Alle Neuerungen von 2.2.2 erneut"),
+                 logT("Mesmo quem já fechou a janela da 2.2.2 verá este changelog novamente após instalar o hotfix. Use as categorias à esquerda e a roda do mouse para consultar todas as mudanças em português, inglês ou alemão.",
+                 "The full release tour appears again after installing this hotfix, even if you dismissed the 2.2.2 notes earlier. Browse categories on the left and scroll with the mouse wheel. Available in Portuguese, English and German.",
+                 "Nach dem Hotfix erscheint die vollständige Änderungsliste erneut, auch wenn die 2.2.2-Hinweise bereits geschlossen wurden. Links Kategorie wählen und mit dem Mausrad blättern. Auf Portugiesisch, Englisch und Deutsch.")},
+            },
+        },
+        {
+            label:logT("🚨 EVENTOS DO BCS","🚨 BCS INCIDENTS","🚨 BBS-EREIGNISSE"),
+            accent:logAccent(255,112,122),
+            entries:[]logEntry{
+                {logT("✅ Polícia e bombeiros","✅ Police and fire brigade","✅ Polizei und Feuerwehr"),
+                 logT("Ocorrências compatíveis do BCS podem aparecer no cenário com veículos de atendimento, sirenes e luzes. O sistema prioriza modelos disponíveis no jogo e inclui carro policial e caminhão de bombeiros genéricos como substitutos quando os modelos esperados não estiverem instalados.",
+                 "Compatible BCS incidents can appear in the world with emergency vehicles, sirens and flashing lights. Installed vehicle models are preferred; a generic police car and fire truck are bundled when the expected models are unavailable.",
+                 "Passende BBS-Ereignisse erscheinen in der Spielwelt mit Einsatzfahrzeugen, Sirenen und Blaulicht. Vorhandene Modelle werden bevorzugt; ein generisches Polizeiauto und ein Feuerwehrfahrzeug sind als Ersatz enthalten.")},
+                {logT("✅ Ambulâncias para emergências médicas","✅ Ambulances for medical incidents","✅ Rettungswagen bei medizinischen Notfällen"),
+                 logT("Desmaios, mal-estar e outras ocorrências médicas reconhecidas pelo BCS podem solicitar atendimento usando os modelos de ambulância encontrados no OpenOMSI. O resgate visual acompanha a ocorrência, sem substituir o resultado oficial do BCS.",
+                 "Fainting and other recognized medical incidents can call for an ambulance using models found in OpenOMSI. The visual response follows the incident and does not override BCS outcomes.",
+                 "Ohnmacht und andere erkannte medizinische Notfälle können einen Rettungswagen aus den OpenOMSI-Modellen anfordern. Der sichtbare Einsatz begleitet das Ereignis, ohne das BBS-Ergebnis zu ersetzen.")},
+                {logT("✅ Óleo, fumaça e incêndio","✅ Oil, smoke and fire","✅ Öl, Rauch und Feuer"),
+                 logT("Mancha de óleo na pista, fumaça no ônibus e lixeira pegando fogo recebem representações visuais próximas ao veículo. Antes, esses acontecimentos eram mostrados principalmente nos avisos do BCS; agora também podem ser vistos no cenário.",
+                 "Oil spills on the road, smoke on the bus and a burning bin now have visual representations near the vehicle. Previously these events were mostly shown through BCS notifications.",
+                 "Ölflecken auf der Fahrbahn, Rauch im Bus und ein brennender Abfalleimer erhalten sichtbare Effekte in Fahrzeugnähe. Zuvor erschienen sie hauptsächlich als BBS-Meldungen.")},
+                {logT("✅ Alternativa pela calçada","✅ Sidewalk parking fallback","✅ Halten am Gehweg als Alternative"),
+                 logT("Se não houver um espaço viável na rua, veículos de emergência podem procurar uma área de calçada suficientemente larga e livre para parar. A alternativa verifica espaço e obstáculos; não significa que o veículo possa atravessar qualquer calçada.",
+                 "If no suitable road space is available, responders may use a sufficiently wide, unobstructed sidewalk area for parking. The fallback checks clearance and obstacles; it does not allow driving through arbitrary sidewalks.",
+                 "Ist auf der Straße kein geeigneter Platz frei, können Einsatzfahrzeuge auf einem ausreichend breiten und freien Gehwegbereich halten. Platz und Hindernisse werden geprüft; beliebige Gehwege dürfen nicht befahren werden.")},
+                {logT("✅ Captura automática do BCS","✅ Automatic BCS event capture","✅ Automatische Erkennung aus BBS"),
+                 logT("A Bridge observa os eventos do BCS ao iniciar normalmente, tanto em viagens individuais quanto no multiplayer da empresa. Eventos puramente informativos, como rádio ou contagem de passageiros, continuam no BCS sem uma cena visual desnecessária.",
+                 "The Bridge observes BCS events during normal startup, both on solo routes and in company multiplayer. Informational events, such as radio and passenger counts, stay within BCS without unnecessary world effects.",
+                 "Die Bridge erkennt BBS-Ereignisse beim normalen Start im Einzelspieler und Firmen-Mehrspieler. Rein informative Ereignisse wie Funk oder Fahrgastzählung bleiben ohne unnötige Szeneneffekte im BBS.")},
+            },
+        },
+        {
+            label:logT("👮 FISCAIS E PASSAGEIROS","👮 INSPECTORS & RIDERS","👮 KONTROLLE & FAHRGÄSTE"),
+            accent:logAccent(93,215,188),
+            entries:[]logEntry{
+                {logT("✅ Fiscal já dentro do ônibus","✅ Inspector already on board","✅ Kontrolleur bereits im Bus"),
+                 logT("Quando o BCS identifica uma fiscalização, o OpenOMSI cria um personagem adulto num banco disponível, preferindo lugares próximos ao motorista. O visual é escolhido entre os humanos instalados; a identificação do fiscal orienta a escolha masculina ou feminina, quando possível.",
+                 "When BCS identifies an inspector, OpenOMSI places an adult character in an available seat, preferring one near the driver. The model comes from installed human assets and the inspector's name can guide male or female appearance when possible.",
+                 "Erkennt BBS einen Kontrolleur, setzt OpenOMSI eine erwachsene Figur auf einen freien Sitz, möglichst in Fahrernähe. Das Modell stammt aus vorhandenen Figuren; der Name kann die männliche oder weibliche Darstellung beeinflussen.")},
+                {logT("✅ Inspeção com caminhada e retorno","✅ Walking inspection and return","✅ Rundgang und Rückkehr zum Sitz"),
+                 logT("Ao iniciar a fiscalização, o fiscal deve levantar e circular pelo ônibus, acompanhando os passageiros. Ao terminar, deve procurar o banco reservado. Este hotfix corrige o caso em que ele ficava parado na porta depois de levantar.",
+                 "Once inspection starts, the inspector should stand up, walk through the bus and visit passenger areas. After finishing, the character returns towards the reserved seat. This hotfix addresses the inspector remaining at the door.",
+                 "Bei Kontrollbeginn steht die Figur auf, läuft durch den Bus und besucht die Fahrgastbereiche. Danach kehrt sie zum reservierten Sitz zurück. Dieser Hotfix behebt das Stehenbleiben an der Tür.")},
+                {logT("✅ Embarque até 18 metros do ônibus","✅ Boarding within 18 metres","✅ Einstieg bis zu 18 Meter entfernt"),
+                 logT("O motorista não precisa acertar exatamente a marca do ponto. Com o ônibus parado, porta de entrada aberta e linha correta, passageiros próximos podem caminhar até a porta, respeitando o limite de 18 metros e a posição do ponto.",
+                 "Drivers no longer need to stop exactly on the marker. If the bus is stopped, the correct service is selected and an entrance door is open, nearby passengers can walk to it from up to 18 metres away, subject to stop constraints.",
+                 "Der Bus muss nicht exakt auf der Haltestellenmarkierung stehen. Bei stehendem Bus, richtiger Linie und offener Einstiegstür können nahe Fahrgäste bis zu 18 Meter zur Tür laufen, sofern die Haltestellenbedingungen passen.")},
+                {logT("✅ Passageiros do lado correto","✅ Passengers on the correct side","✅ Fahrgäste auf der richtigen Straßenseite"),
+                 logT("A lógica de embarque confere a direção do ônibus, a altura, a posição do ponto e o lado físico da porta. Isso evita convidar passageiros do lado oposto da rua para atravessá-la apenas porque o ônibus parou por perto.",
+                 "Boarding checks bus direction, height, stop position and the physical door side. This prevents people across the road from being invited to cross traffic just because a bus stopped nearby.",
+                 "Beim Einstieg werden Fahrtrichtung, Höhe, Haltestelle und tatsächliche Türseite geprüft. So werden Fahrgäste auf der gegenüberliegenden Straßenseite nicht einfach durch den Verkehr zum Bus geführt.")},
+                {logT("✅ Agradecimentos na saída","✅ Thanks when leaving","✅ Dank beim Aussteigen"),
+                 logT("Alguns passageiros agradecem ao desembarcar usando as falas já existentes no pacote de vozes instalado. A reação não acontece com todos, para não ficar repetitiva.",
+                 "Some passengers thank the driver when getting off, using the already installed voice pack. The reaction is occasional, rather than repeated for every passenger.",
+                 "Einige Fahrgäste bedanken sich beim Aussteigen mit Stimmen aus dem installierten Sprachpaket. Das passiert gelegentlich und nicht bei jedem Fahrgast.")},
+                {logT("✅ Pedidos para abrir a porta","✅ Requests to open the door","✅ Bitten, die Tür zu öffnen"),
+                 logT("Quem espera para entrar ou sair pode pedir atenção quando a porta permanece fechada por tempo demais; há também reação ao fechamento junto ao desembarque. As falas são buscadas entre os áudios instalados e há intervalo entre reclamações para evitar repetição.",
+                 "Waiting passengers may ask for attention when a suitable door stays closed too long; a door closing during an exit can also trigger a reaction. The game searches installed voice clips and applies cooldowns to avoid spam.",
+                 "Wartende Fahrgäste können sich melden, wenn eine passende Tür lange geschlossen bleibt; auch das Schließen beim Ausstieg kann eine Reaktion auslösen. Vorhandene Sprachdateien werden genutzt, mit Pausen gegen ständige Wiederholungen.")},
+            },
+        },
+        {
+            label:logT("🚗 TRÂNSITO E CIDADE","🚗 TRAFFIC & CITY","🚗 VERKEHR UND STADT"),
+            accent:logAccent(124,176,255),
+            entries:[]logEntry{
+                {logT("✅ Melhor distribuição dos veículos","✅ Better vehicle distribution","✅ Gleichmäßigere Fahrzeugverteilung"),
+                 logT("A inteligência artificial considera a extensão das faixas disponíveis e a ocupação dos diferentes sentidos da via ao decidir onde criar carros. Isso busca reduzir concentrações estranhas num único lado de avenidas largas, respeitando os limites de tráfego configurados.",
+                 "Traffic AI considers available lane length and occupancy by travel direction when placing cars. This aims to reduce strange clusters on one side of wide roads while preserving your configured traffic limits.",
+                 "Die Verkehrs-KI berücksichtigt verfügbare Fahrstreifenlängen und die Auslastung je Richtung. Dadurch sollen ungewöhnliche Ansammlungen auf einer Seite breiter Straßen reduziert werden, ohne die eingestellten Verkehrslimits zu ändern.")},
+                {logT("✅ Atendimento sem bloquear tudo","✅ Responders avoid unnecessary obstruction","✅ Rettungseinsätze ohne unnötige Blockaden"),
+                 logT("Os atendimentos procuram um local seguro próximo ao incidente. Quando a pista não oferece espaço adequado, o posicionamento pode usar a alternativa de calçada livre e larga. A lógica evita locais com obstáculos e passagem insuficiente.",
+                 "Responders look for a suitable position near the incident. Where the road lacks space, placement may use a free, wide sidewalk instead. Obstructions and insufficient clearance are considered.",
+                 "Einsatzfahrzeuge suchen eine geeignete Stelle in Ereignisnähe. Reicht der Platz auf der Fahrbahn nicht aus, kann ein freier, breiter Gehweg genutzt werden. Hindernisse und zu geringe Durchfahrt werden berücksichtigt.")},
+            },
+        },
+        {
+            label:logT("👥 MULTIPLAYER E DIREÇÃO","👥 MULTIPLAYER & DRIVING","👥 MULTIPLAYER & FAHREN"),
+            accent:logAccent(190,142,255),
+            entries:[]logEntry{
+                {logT("✅ Troca de motorista mais consistente","✅ More reliable driver handover","✅ Zuverlässigerer Fahrerwechsel"),
+                 logT("O sistema de cooperação recebeu ajustes para conservar melhor o controle do ônibus e as informações associadas à viagem quando outro jogador assume o volante, reduzindo divergências entre motorista e passageiro.",
+                 "Cooperative driving received improvements intended to preserve bus control and trip information when another player takes the wheel, reducing inconsistencies between driver and passenger views.",
+                 "Der kooperative Fahrbetrieb wurde verbessert, damit Fahrzeugsteuerung und Fahrtdaten beim Fahrerwechsel möglichst erhalten bleiben und Ansichten zwischen Fahrer und Mitfahrer weniger voneinander abweichen.")},
+                {logT("✅ GPS e sequência de pontos","✅ GPS and stop sequence","✅ GPS und Haltestellenfolge"),
+                 logT("Há mudanças destinadas a conservar o ponto atual da rota na troca de motorista, evitando reiniciar a indicação desde o primeiro ponto. Esse cenário ainda precisa de confirmação em viagens compartilhadas completas.",
+                 "Changes aim to retain the active route stop during handover instead of jumping back to the first one. This still needs verification in complete shared journeys.",
+                 "Änderungen sollen beim Fahrerwechsel die aktuelle Haltestelle erhalten, statt zur ersten zurückzuspringen. Das muss noch in vollständigen gemeinsamen Fahrten geprüft werden.")},
+                {logT("✅ Áudio restaurado ao voltar ao próprio ônibus","✅ Audio restored on returning to your bus","✅ Ton beim Zurückkehren zum eigenen Bus"),
+                 logT("Ao reassumir o próprio veículo, o OpenOMSI tenta restabelecer os sons associados a ele caso estejam ausentes. A mudança trata o problema de retornar à direção sem o áudio normal do ônibus.",
+                 "When returning to your own vehicle, OpenOMSI attempts to reload its sounds if missing. This targets the case where a returned driver cannot hear the normal bus audio.",
+                 "Bei Rückkehr zum eigenen Fahrzeug versucht OpenOMSI, fehlende Fahrzeuggeräusche erneut zu laden. Das behebt den Fall, dass nach der Rückkehr der normale Buston fehlt.")},
+                {logT("✅ Personagens sentados nos outros PCs","✅ Seated characters on other PCs","✅ Sitzende Figuren auf anderen PCs"),
+                 logT("A sincronização passa a utilizar o estado real da posição sentada de passageiros, em vez de confiar apenas num estado antigo de animação. Isso ajuda a evitar figuras aparecendo de pé para um jogador enquanto estão sentadas para outro.",
+                 "Synchronization uses the actual seated passenger state rather than an outdated animation cache. This helps prevent people appearing to stand for one player while sitting for another.",
+                 "Die Synchronisierung nutzt den tatsächlichen Sitzstatus statt eines veralteten Animationszustands. So sollen Figuren nicht bei einem Spieler stehen, während sie bei einem anderen sitzen.")},
+                {logT("✅ Respostas compartilhadas no servidor","✅ Server-coordinated shared events","✅ Vom Server koordinierte Ereignisse"),
+                 logT("Em sessões cooperativas, o host coordena os atendimentos de emergência e retransmite dados visuais para os demais jogadores. A intenção é que todos vejam a mesma ocorrência, sem criar um veículo de resgate separado em cada PC.",
+                 "In co-op sessions, the host coordinates emergency responders and relays visual incident data to connected players. The goal is a shared scene rather than separately spawned rescue vehicles on each PC.",
+                 "In kooperativen Sitzungen koordiniert der Host die Einsatzfahrzeuge und verteilt sichtbare Ereignisdaten. Ziel ist eine gemeinsame Szene statt separat erzeugter Rettungsfahrzeuge auf jedem PC.")},
+            },
+        },
+        {
+            label:logT("⚙️ ATUALIZAÇÃO E VERSÕES","⚙️ UPDATES & VERSIONS","⚙️ UPDATES & VERSIONEN"),
+            accent:logAccent(255,179,119),
+            entries:[]logEntry{
+                {logT("✅ OpenOMSI 0.3.46 e servidor P15","✅ OpenOMSI 0.3.46 and P15 server","✅ OpenOMSI 0.3.46 und P15-Server"),
+                 logT("O OpenOMSI modificado e o executável do servidor dinâmico P15 foram compilados sobre a base 0.3.46. A Bridge permanece integrada ao BCS e conserva o caminho de instalação já usado pelos jogadores.",
+                 "The modified client and dynamic P15 server were built on the 0.3.46 base. Bridge-to-BCS integration and the existing installation path are preserved.",
+                 "Der modifizierte Client und der dynamische P15-Server basieren auf 0.3.46. Die BBS-Anbindung und der bisherige Installationspfad bleiben erhalten.")},
+                {logT("✅ Novidades completas em três idiomas","✅ Full release tour in three languages","✅ Vollständige Neuerungen in drei Sprachen"),
+                 logT("O antigo resumo foi substituído por este painel navegável, com emojis, seções coloridas e explicações de cada mecânica. Disponível em português, inglês e alemão. O hotfix mostra a janela novamente, mesmo para quem já viu a versão anterior.",
+                 "The previous short list is replaced by this navigable panel with emoji, colored sections and detailed mechanics. Available in Portuguese, English and German. The hotfix opens it again even if the original was dismissed.",
+                 "Die alte Kurzliste wird durch dieses durchsuchbare Fenster mit Emoji, farbigen Bereichen und detaillierten Erklärungen ersetzt. Auf Portugiesisch, Englisch und Deutsch. Der Hotfix zeigt die Hinweise erneut.")},
+                {logT("✅ Arquivos antigos preservados","✅ Previous components preserved","✅ Bisherige Komponenten bleiben erhalten"),
+                 logT("A montagem da atualização mantém os hosts completos, o servidor P14 e recursos anteriores, enquanto troca somente os componentes necessários do cliente, servidor P15 e Setup. Os pacotes são verificados por hashes e assinatura.",
+                 "The release assembly preserves the complete hosts, P14 server and earlier assets, replacing only the necessary client, P15 server and Setup components. Packages are verified by hashes and publisher signature.",
+                 "Die Update-Erstellung bewahrt vollständige Hosts, den P14-Server und bisherige Dateien. Nur notwendige Client-, P15- und Setup-Komponenten werden ersetzt. Pakete werden mit Hashes und Signatur geprüft.")},
+                {logT("📌 Testes em viagens reais","📌 Real gameplay testing","📌 Tests während echter Fahrten"),
+                 logT("Compilação e verificações automatizadas não substituem testes jogando. Eventos do BCS, movimentação do fiscal em diferentes modelos de ônibus, GPS após troca de motorista e sincronização multiplayer precisam ser confirmados durante viagens reais.",
+                 "Compilation and automated checks do not replace gameplay tests. BCS incidents, inspector walking on different bus models, handover GPS and multiplayer synchronization still require verification during real journeys.",
+                 "Kompilierung und automatisierte Tests ersetzen keine Fahrten im Spiel. BBS-Ereignisse, der Kontrolleur in verschiedenen Busmodellen, GPS beim Fahrerwechsel und Mehrspieler-Synchronisierung müssen noch geprüft werden.")},
+            },
+        },
+    }
+}
+
+func logFill(dc uintptr,r guiRect,color uintptr){
+    brush,_,_:=guiGDI.NewProc("CreateSolidBrush").Call(color)
+    guiUser.NewProc("FillRect").Call(dc,uintptr(unsafe.Pointer(&r)),brush)
+    guiGDI.NewProc("DeleteObject").Call(brush)
+}
+func logTextDraw(dc uintptr,content string,r guiRect,font,color,flags uintptr) int32 {
+    old,_,_:=guiGDI.NewProc("SelectObject").Call(dc,font)
+    guiGDI.NewProc("SetBkMode").Call(dc,1)
+    guiGDI.NewProc("SetTextColor").Call(dc,color)
+    height,_,_:=guiUser.NewProc("DrawTextW").Call(dc,uintptr(unsafe.Pointer(winPtr(content))),^uintptr(0),uintptr(unsafe.Pointer(&r)),flags|0x0800)
+    guiGDI.NewProc("SelectObject").Call(dc,old)
+    return int32(height)
+}
+func logMeasure(dc uintptr,content string,r guiRect,font uintptr)int32{
+    old,_,_:=guiGDI.NewProc("SelectObject").Call(dc,font)
+    // DT_CALCRECT|DT_WORDBREAK|DT_NOPREFIX
+    guiUser.NewProc("DrawTextW").Call(dc,uintptr(unsafe.Pointer(winPtr(content))),^uintptr(0),uintptr(unsafe.Pointer(&r)),0x0400|0x0010|0x0800)
+    guiGDI.NewProc("SelectObject").Call(dc,old)
+    return r.Bottom-r.Top
+}
+func logWindowPaint(window uintptr){
+    state:=changelogState
+    if state==nil{return}
+    g:=activeSetupGUI
+    if g==nil{return}
+    var ps logPaintStruct
+    dc,_,_:=guiUser.NewProc("BeginPaint").Call(window,uintptr(unsafe.Pointer(&ps)))
+    if dc==0{return}
+    defer guiUser.NewProc("EndPaint").Call(window,uintptr(unsafe.Pointer(&ps)))
+    var client guiRect
+    guiUser.NewProc("GetClientRect").Call(window,uintptr(unsafe.Pointer(&client)))
+    w,h:=client.Right,client.Bottom
+    if w<500||h<400{return}
+    navy:=guiRGB(13,21,35)
+    white:=guiRGB(239,246,255)
+    muted:=guiRGB(160,179,201)
+    logFill(dc,client,navy)
+    logFill(dc,guiRect{0,0,w,113},guiRGB(21,37,61))
+    logFill(dc,guiRect{0,109,w,113},guiRGB(255,202,84))
+    logTextDraw(dc,"OpenOMSI  BCS BRIDGE",guiRect{26,15,w-22,44},state.heading,white,0x0000|0x0020)
+    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2  ·  HOTFIX DO FISCAL","✨ UPDATE 2.2.2  ·  INSPECTOR HOTFIX","✨ UPDATE 2.2.2  ·  KONTROLLEUR-HOTFIX")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
+    logTextDraw(dc,logL(g.config.Language,logT("Escolha um assunto à esquerda. Role para ler todas as mudanças.","Choose a category on the left. Scroll to read the complete notes.","Links ein Thema wählen und für alle Änderungen scrollen.")),guiRect{26,83,w-24,107},state.tiny,muted,0x0020)
+    logFill(dc,guiRect{0,114,268,h-76},guiRGB(17,29,47))
+    logFill(dc,guiRect{0,h-77,w,h},guiRGB(21,37,61))
+    logFill(dc,guiRect{0,h-77,w,h-74},guiRGB(43,63,89))
+    logTextDraw(dc,logL(g.config.Language,logT("📌  Algumas mudanças ainda precisam de testes em viagens reais.","📌  Some changes still need testing in real journeys.","📌  Einige Änderungen benötigen noch Tests im Spiel.")),guiRect{26,h-65,w-245,h-28},state.tiny,muted,0x0010)
+    sections:=logSections()
+    if state.section<0||state.section>=len(sections){state.section=0}
+    selected:=sections[state.section]
+    x0,x1:=int32(292),w-28
+    top,bottom:=int32(133),h-96
+    logFill(dc,guiRect{x0-9,top-10,x1+9,bottom+10},guiRGB(24,36,55))
+    save,_,_:=guiGDI.NewProc("SaveDC").Call(dc)
+    guiGDI.NewProc("IntersectClipRect").Call(dc,uintptr(x0),uintptr(top),uintptr(x1),uintptr(bottom))
+    y:=top+8-int32(state.scroll)
+    logFill(dc,guiRect{x0,y,x0+5,y+42},selected.accent)
+    logTextDraw(dc,logL(g.config.Language,selected.label),guiRect{x0+16,y,x1-18,y+37},state.heading,white,0x0020)
+    y+=52
+    for _,item:=range selected.entries{
+        head:=logL(g.config.Language,item.title)
+        body:=logL(g.config.Language,item.body)
+        bodyRect:=guiRect{x0+24,y+52,x1-26,y+52}
+        bodyHeight:=logMeasure(dc,body,guiRect{Left:bodyRect.Left,Top:bodyRect.Top,Right:bodyRect.Right,Bottom:bodyRect.Top+500},state.body)
+        cardHeight:=int32(71)+bodyHeight
+        logFill(dc,guiRect{x0+2,y,x1-9,y+cardHeight},guiRGB(31,46,68))
+        logFill(dc,guiRect{x0+2,y,x0+7,y+cardHeight},selected.accent)
+        logTextDraw(dc,head,guiRect{x0+22,y+12,x1-20,y+47},state.subhead,guiRGB(232,245,255),0x0010)
+        logTextDraw(dc,body,guiRect{x0+24,y+51,x1-28,y+52+bodyHeight},state.body,guiRGB(186,204,224),0x0010)
+        y+=cardHeight+14
+    }
+    y+=12
+    guiGDI.NewProc("RestoreDC").Call(dc,save)
+    fullHeight:=int(y-top+state.scroll)
+    windowHeight:=int(bottom-top)
+    state.maxScroll=fullHeight-windowHeight
+    if state.maxScroll<0{state.maxScroll=0}
+    if state.scroll>state.maxScroll{state.scroll=state.maxScroll}
+    if state.maxScroll>0{
+        track:=guiRect{x1-5,top+8,x1-1,bottom-8}
+        logFill(dc,track,guiRGB(52,68,88))
+        railHeight:=int(track.Bottom-track.Top)
+        thumbHeight:=railHeight*windowHeight/fullHeight
+        if thumbHeight<36{thumbHeight=36}
+        thumbTop:=int(track.Top)+state.scroll*(railHeight-thumbHeight)/state.maxScroll
+        logFill(dc,guiRect{x1-5,int32(thumbTop),x1-1,int32(thumbTop+thumbHeight)},selected.accent)
+    }
+}
+func changelogWindowProc(window uintptr,message uint32,wparam,lparam uintptr)uintptr{
+    g:=activeSetupGUI
+    if g==nil{result,_,_:=guiUser.NewProc("DefWindowProcW").Call(window,uintptr(message),wparam,lparam);return result}
+    switch message{
+    case logWMPaint:
+        logWindowPaint(window)
+        return 0
+    case logWMMouseWheel:
+        if changelogState!=nil {
+            ticks:=int(int16(uint16(wparam>>16)))
+            changelogState.scroll-=ticks*95/120
+            if changelogState.scroll<0{changelogState.scroll=0}
+            if changelogState.scroll>changelogState.maxScroll{changelogState.scroll=changelogState.maxScroll}
+            guiUser.NewProc("InvalidateRect").Call(window,0,0)
+        }
+        return 0
+    case logWMKeyDown:
+        if changelogState!=nil {
+            switch wparam {
+            case 0x26:changelogState.scroll-=64 // Up
+            case 0x28:changelogState.scroll+=64 // Down
+            case 0x21:changelogState.scroll-=460 // PageUp
+            case 0x22:changelogState.scroll+=460 // PageDown
+            case 0x24:changelogState.scroll=0   // Home
+            case 0x23:changelogState.scroll=changelogState.maxScroll // End
+            default:break
+            }
+            if changelogState.scroll<0{changelogState.scroll=0}
+            if changelogState.scroll>changelogState.maxScroll{changelogState.scroll=changelogState.maxScroll}
+            guiUser.NewProc("InvalidateRect").Call(window,0,0)
+        }
+        return 0
+    case logWMSize:
+        guiUser.NewProc("InvalidateRect").Call(window,0,0)
+        return 0
     case guiWMCommand:
-        if int(wparam&0xffff) != guiIDSave { break }
+        id:=int(wparam&0xffff)
+        if id>=logIDSectionBase && id<logIDSectionBase+len(logSections()){
+            if changelogState!=nil{
+                changelogState.section=id-logIDSectionBase
+                changelogState.scroll=0
+                for _,button:=range changelogState.buttons{guiUser.NewProc("InvalidateRect").Call(button,0,1)}
+                guiUser.NewProc("InvalidateRect").Call(window,0,0)
+            }
+            return 0
+        }
+        if id!=logIDDone{break}
         fallthrough
     case guiWMClose:
-        if err := os.MkdirAll(appDir(g.dir), 0755); err == nil && !g.smoke {
-            _ = os.WriteFile(filepath.Join(appDir(g.dir), "changelog-seen.txt"), []byte(bridgeVersion+"\n"), 0644)
+        if err:=os.MkdirAll(appDir(g.dir),0755);err==nil&&!g.smoke{
+            _=os.WriteFile(filepath.Join(appDir(g.dir),"changelog-seen.txt"),[]byte(changelogSeenVersion+"\n"),0644)
+        }
+        if changelogState!=nil {
+            for _,font:=range []uintptr{changelogState.heading,changelogState.body,changelogState.subhead,changelogState.tiny}{
+                guiGDI.NewProc("DeleteObject").Call(font)
+            }
+            changelogState=nil
         }
         guiUser.NewProc("DestroyWindow").Call(window)
-        changelogWindow = 0
+        changelogWindow=0
         guiUser.NewProc("EnableWindow").Call(g.window,1)
         guiUser.NewProc("SetForegroundWindow").Call(g.window)
         return 0
-    case guiWMColorEdit, guiWMColorStatic, guiWMColorButton, guiWMDrawItem:
-        return setupWindowProcedure(window, message, wparam, lparam)
+    case guiWMDrawItem:
+        if changelogState==nil{break}
+        item:=(*guiDrawItem)(unsafe.Pointer(lparam))
+        if item==nil{break}
+        dc:=item.DC
+        chosen:=int(item.ID)-logIDSectionBase==changelogState.section
+        bgcolor:=guiRGB(27,43,63)
+        fgcolor:=guiRGB(186,203,225)
+        if chosen{bgcolor=guiRGB(48,71,95);fgcolor=guiRGB(255,244,204)}
+        if int(item.ID)==logIDDone{bgcolor=guiRGB(255,206,86);fgcolor=guiRGB(22,31,45)}
+        logFill(dc,item.Rect,bgcolor)
+        if chosen&&int(item.ID)!=logIDDone {
+            logFill(dc,guiRect{item.Rect.Left,item.Rect.Top,item.Rect.Left+5,item.Rect.Bottom},logSections()[changelogState.section].accent)
+        }
+        logTextDraw(dc,guiText(item.Window),guiRect{item.Rect.Left+12,item.Rect.Top,item.Rect.Right-8,item.Rect.Bottom},g.font,fgcolor,0x0000|0x0004|0x0020)
+        return 1
     }
-    result, _, _ := guiUser.NewProc("DefWindowProcW").Call(window, uintptr(message), wparam, lparam)
+    result,_,_:=guiUser.NewProc("DefWindowProcW").Call(window,uintptr(message),wparam,lparam)
     return result
 }
-
 func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
-    if changelogWindow != 0 { return changelogWindow }
-    if !force {
-        if bridgeVersion != "2.2.2" { return 0 }
-        seen, _ := os.ReadFile(filepath.Join(appDir(g.dir), "changelog-seen.txt"))
-        if strings.TrimSpace(string(seen)) == bridgeVersion { return 0 }
+    if changelogWindow!=0{return changelogWindow}
+    if !force{
+        if bridgeVersion!="2.2.2"{return 0}
+        seen,_:=os.ReadFile(filepath.Join(appDir(g.dir),"changelog-seen.txt"))
+        if strings.TrimSpace(string(seen))==changelogSeenVersion{return 0}
     }
-    instance, _, _ := setupKernel.NewProc("GetModuleHandleW").Call(0)
-    cursor, _, _ := guiUser.NewProc("LoadCursorW").Call(0, 32512)
-    class := guiWindowClass{Procedure:changelogProcedure,Instance:instance,Icon:g.icon,SmallIcon:g.smallIcon,Cursor:cursor,Background:g.background,Name:winPtr("OpenOMSIReleaseNotes")}
+    instance,_,_:=setupKernel.NewProc("GetModuleHandleW").Call(0)
+    cursor,_,_:=guiUser.NewProc("LoadCursorW").Call(0,32512)
+    class:=guiWindowClass{Procedure:changelogProcedure,Instance:instance,Icon:g.icon,SmallIcon:g.smallIcon,Cursor:cursor,Background:g.background,Name:winPtr("OpenOMSIReleaseNotesTour")}
     class.Size=uint32(unsafe.Sizeof(class))
     guiUser.NewProc("RegisterClassExW").Call(uintptr(unsafe.Pointer(&class)))
     style:=uintptr(0x00C00000|0x00080000|0x02000000)
-    rect:=guiRect{Right:720,Bottom:650}
+    rect:=guiRect{Right:1080,Bottom:780}
     guiUser.NewProc("AdjustWindowRectEx").Call(uintptr(unsafe.Pointer(&rect)),style,0,0)
     var parent guiRect
     guiUser.NewProc("GetWindowRect").Call(g.window,uintptr(unsafe.Pointer(&parent)))
     width,height:=int(rect.Right-rect.Left),int(rect.Bottom-rect.Top)
-    x,y:=int(parent.Left)+(int(parent.Right-parent.Left)-width)/2,int(parent.Top)+20
+    x,y:=int(parent.Left)+(int(parent.Right-parent.Left)-width)/2,int(parent.Top)
     if x<0{x=0};if y<0{y=0}
-    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge — 2.2.2"))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
-    if window==0{return 0};changelogWindow=window
-    control:=func(kind,text string,x,y,w,h int,style uintptr,id int,font uintptr)uintptr{
-        c,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(winPtr(kind))),uintptr(unsafe.Pointer(winPtr(text))),guiWSChild|guiWSVisible|style,uintptr(x),uintptr(y),uintptr(w),uintptr(h),window,uintptr(id),instance,0)
-        guiUser.NewProc("SendMessageW").Call(c,guiWMSetFont,font,1);return c
+    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  2.2.2 Hotfix 1"))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
+    if window==0{return 0}
+    changelogWindow=window
+    changelogState=&logWindowState{heading:guiFont(26,700),subhead:guiFont(19,700),body:guiFont(18,400),tiny:guiFont(16,400)}
+    control:=func(label string,x,y,w,h,id int)uintptr{
+        hwnd,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(winPtr("BUTTON"))),uintptr(unsafe.Pointer(winPtr(label))),guiWSChild|guiWSVisible|guiWSTabStop|0x000B,uintptr(x),uintptr(y),uintptr(w),uintptr(h),window,uintptr(id),instance,0)
+        guiUser.NewProc("SendMessageW").Call(hwnd,guiWMSetFont,g.font,1)
+        return hwnd
     }
-    tr:=func(pt,en,de string)string{return localText(g.config.Language,pt,en,de)}
-    control("STATIC",tr("Atualização instalada","Update installed","Update installiert"),32,24,650,24,0,0,g.smallFont)
-    control("STATIC",tr("Novidades da 2.2.2","What's new in 2.2.2","Neu in 2.2.2"),32,52,650,38,0,0,g.titleFont)
-    rows:=[][2]string{
-        {tr("Eventos do BCS ganham vida","BCS events come to life","BBS-Ereignisse werden sichtbar"),tr("Ocorrências e veículos de emergência aparecem no cenário.","Incidents and emergency vehicles appear in the scene.","Vorfälle, Einsatzfahrzeuge und Hilfe in der Spielwelt.")},
-        {tr("Inspetor a bordo","Inspector on board","Kontrolleur an Bord"),tr("Um personagem acompanha a viagem e a fiscalização do BCS.","A character follows the trip and BCS ticket inspection.","Eine Figur begleitet die Fahrt und die BBS-Fahrkartenkontrolle.")},
-        {tr("Troca de motorista corrigida","Driver handover fixes","Fahrerwechsel korrigiert"),tr("GPS continua do ponto atual; som e passageiros mantêm seu estado.","The GPS keeps its progress; audio and seated riders retain their state.","GPS-Fortschritt, Ton und sitzende Fahrgäste bleiben erhalten.")},
-        {tr("Embarque mais flexível","More flexible boarding","Flexiblerer Einstieg"),tr("Com a porta aberta, passageiros próximos caminham até o ônibus.","Nearby passengers walk to a stopped bus with its door open.","Nahe Fahrgäste gehen zum stehenden Bus mit geöffneter Tür.")},
-        {tr("Tráfego mais equilibrado","More balanced traffic","Ausgewogenerer Verkehr"),tr("Carros distribuídos pelas faixas e nos dois sentidos.","Vehicles spread across lanes and both directions.","Fahrzeuge verteilen sich auf Fahrstreifen und beide Richtungen.")},
-        {tr("Passageiros mais participativos","More passenger reactions","Mehr Fahrgastreaktionen"),tr("Agradecimentos e pedidos de abertura das portas com vozes existentes.","Thanks and door-opening requests use the installed voices.","Dank und Türöffnungswünsche mit vorhandenen Stimmen.")},
-        {tr("Jogo e servidor 0.3.46","Game and server 0.3.46","Spiel und Server 0.3.46"),tr("A nova base oficial junto das melhorias da Bridge.","The new official base with the Bridge improvements.","Die neue offizielle Basis zusammen mit den Bridge-Verbesserungen.")},
+    for i,s:=range logSections(){
+        hwnd:=control(logL(g.config.Language,s.label),17,152+i*65,232,54,logIDSectionBase+i)
+        changelogState.buttons=append(changelogState.buttons,hwnd)
     }
-    for i,row:=range rows{top:=110+i*62;control("STATIC",row[0],32,top,650,24,0,0,g.font);control("STATIC",row[1],32,top+25,650,30,0,0,g.smallFont)}
-    button:=control("BUTTON",tr("Vamos jogar","Let's play","Los geht's"),476,590,210,40,guiWSTabStop|0xB,guiIDSave,g.font)
+    done:=control(logL(g.config.Language,logT("✓ VAMOS JOGAR","✓ LET'S PLAY","✓ LOS GEHT'S")),810,716,230,44,logIDDone)
     guiUser.NewProc("EnableWindow").Call(g.window,0)
-    guiUser.NewProc("ShowWindow").Call(window,1);guiUser.NewProc("UpdateWindow").Call(window)
-    guiUser.NewProc("SetFocus").Call(button)
+    guiUser.NewProc("ShowWindow").Call(window,1)
+    guiUser.NewProc("UpdateWindow").Call(window)
+    guiUser.NewProc("SetFocus").Call(done)
     return window
 }
