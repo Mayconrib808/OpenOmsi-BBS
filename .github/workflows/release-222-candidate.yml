@@ -48,9 +48,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           for ($i = 0; $i -lt 300; $i++) {
-            $native = gh api repos/Mayconrib808/OpenOmsi-BBS/actions/runs/41143539911 | ConvertFrom-Json
+            $native = gh api repos/Mayconrib808/OpenOmsi-BBS/actions/runs/41145183918 | ConvertFrom-Json
             if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect fixed native build' }
-            if ($native.head_sha -ne 'e5e45dc4a6a802405b8f06952eaa4bb8755f95a0') { throw 'Wrong fiscal patrol source commit' }
+            if ($native.head_sha -ne '58ea10745dbbcada60faac9487a15f00c4d1fddb') { throw 'Wrong fiscal patrol source commit' }
             if ($native.status -eq 'completed') {
               if ($native.conclusion -ne 'success') { throw 'Fiscal patrol native tests did not pass' }
               break
@@ -62,7 +62,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: OpenOMSI-2.2.2-native-Windows
-          run-id: 41143539911
+          run-id: 41145183918
           github-token: ${{ github.token }}
           path: native
       - name: Verify full baseline, preserve hosts and build cumulative 2.2.2
