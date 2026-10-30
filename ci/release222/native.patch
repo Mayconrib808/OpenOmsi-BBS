@@ -415,6 +415,18 @@ index 19272c78..3eee7250 100644
                  sizes: self.settings.hud_sizes,
                  width: w,
                  height: h,
+diff --git a/crates/omsi-app/src/app_events/frame/people.rs b/crates/omsi-app/src/app_events/frame/people.rs
+index 04f703e5..2645fcb6 100644
+--- a/crates/omsi-app/src/app_events/frame/people.rs
++++ b/crates/omsi-app/src/app_events/frame/people.rs
+@@ -292,6 +292,7 @@ pub(super) fn on_foot(mut cx: crate::on_foot::OnFootCx, dt: f32) {
+ /// (`Languages/<LANG>_basic*.olf`, `RL_PassDlg_<name>`): Omsi.exe shows them as the riders
+ /// speak. None for what has no hint (a greeting).
+ fn passenger_dialog(name: &str) -> Option<String> {
++    if name=="BridgeOpenDoor"{return Some(crate::coop::text("Pode abrir a porta, por favor?","Could you open the door, please?","Bitte die Tür öffnen!").into());}
+     static TEXTS: std::sync::OnceLock<Option<omsi_content::language::Language>> = std::sync::OnceLock::new();
+     let texts = TEXTS.get_or_init(|| {
+         let lang = crate::settings::Settings::load().language;
 diff --git a/crates/omsi-app/src/app_events/frame/steps.rs b/crates/omsi-app/src/app_events/frame/steps.rs
 index 9983938c..7288e391 100644
 --- a/crates/omsi-app/src/app_events/frame/steps.rs
@@ -462,7 +474,7 @@ index 9983938c..7288e391 100644
  }
  
 diff --git a/crates/omsi-app/src/app_events/frame/surroundings.rs b/crates/omsi-app/src/app_events/frame/surroundings.rs
-index 451bbb00..2712b79c 100644
+index 451bbb00..fa4a96c6 100644
 --- a/crates/omsi-app/src/app_events/frame/surroundings.rs
 +++ b/crates/omsi-app/src/app_events/frame/surroundings.rs
 @@ -52,7 +52,7 @@ impl App {
@@ -489,14 +501,26 @@ index 451bbb00..2712b79c 100644
      if let (Some(w), Some(scene), Some(cam)) = (
          cx.world.world.as_ref(),
          cx.gfx.scene.as_mut(),
-@@ -97,6 +105,7 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
-                 tv.push_effects(scene, &p.vehicle);
+@@ -98,6 +106,7 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
              }
              p.panto_fx.push_effects(scene);
-+            crate::bcs_events::append_visuals(&cx.integrations.bcs_events,scene);
          }
++        crate::bcs_events::append_visuals(&cx.integrations.bcs_events,scene);
          cx.perf.profile.add(crate::profile_keys::ProfKey::LightsCollect, __tc.elapsed().as_secs_f64());
          // the object editor's pick: a magenta glow over it
+         if let Some(id) = cx.menus.menus.editor.as_ref().and_then(|e| e.selected) {
+diff --git a/crates/omsi-app/src/app_impl/lan_tick.rs b/crates/omsi-app/src/app_impl/lan_tick.rs
+index e2df7cf7..19de98a0 100644
+--- a/crates/omsi-app/src/app_impl/lan_tick.rs
++++ b/crates/omsi-app/src/app_impl/lan_tick.rs
+@@ -133,6 +133,7 @@ impl App {
+         if let Some(lan)=self.net.lan.as_ref(){
+             if lan::note_driver_authority(&mut self.net.remotes,lan,from,text){return;}
+         }
++        if self.receive_bcs_event(from,text){return;}
+         if self.coop_receive(from, text) { return; }
+         if let Some(request) = text.strip_prefix("pax_request ") {
+             self.receive_passenger_door_request(from, request);
 diff --git a/crates/omsi-app/src/app_impl/menus.rs b/crates/omsi-app/src/app_impl/menus.rs
 index 556a9171..0ace1a4f 100644
 --- a/crates/omsi-app/src/app_impl/menus.rs
@@ -637,10 +661,22 @@ index d823e1c2..91396393 100644
          crate::shell::pause::draw(&mut self.shell, &view);
          self.shell.finish();
 diff --git a/crates/omsi-app/src/bcs_events/assets.rs b/crates/omsi-app/src/bcs_events/assets.rs
-index ed3e554f..bae50211 100644
+index ed3e554f..741b8344 100644
 --- a/crates/omsi-app/src/bcs_events/assets.rs
 +++ b/crates/omsi-app/src/bcs_events/assets.rs
-@@ -89,10 +89,14 @@ impl Loader {
+@@ -65,6 +65,11 @@ impl Loader {
+         if self.value.is_some() {
+             return;
+         }
++        if let Some(root)=std::env::current_exe().ok().and_then(|p|p.parent().map(|p|p.join("bcs-assets"))).filter(|p|p.is_dir()) {
++            // A shared relative Vehicles/OpenOMSI_BCS path resolves on every
++            // client/server; installed content retains its existing priority.
++            omsi_cfg::add_content_root(root);
++        }
+         let value = Arc::new(Mutex::new(None));
+         self.value = Some(value.clone());
+         let launched = std::thread::Builder::new()
+@@ -89,10 +94,14 @@ impl Loader {
                  } else {
                      Config::default()
                  };
@@ -657,7 +693,7 @@ index ed3e554f..bae50211 100644
                  };
                  if let Ok(mut slot) = value.lock() {
                      *slot = Some(catalog);
-@@ -184,6 +188,11 @@ fn signals(binding: &Binding, service: Service) -> Option<Signals> {
+@@ -184,6 +193,11 @@ fn signals(binding: &Binding, service: Service) -> Option<Signals> {
                  on_scene: variables(&["Folgetonhorn"], 0.0),
                  departing: variables(&["Folgetonhorn", "blaulicht_1", "blaulicht_2"], 0.0),
              },
@@ -1212,13 +1248,15 @@ index 10d0cdda..544c59c4 100644
          let mut c = Controller::default(); let mut s = faint();
          c.step(Some("bus A"), Some(&s), &[8,2,7], 0.25);
 diff --git a/crates/omsi-app/src/bcs_events/mod.rs b/crates/omsi-app/src/bcs_events/mod.rs
-index a9827654..f50b8aca 100644
+index a9827654..e815213f 100644
 --- a/crates/omsi-app/src/bcs_events/mod.rs
 +++ b/crates/omsi-app/src/bcs_events/mod.rs
-@@ -3,16 +3,36 @@
+@@ -3,16 +3,41 @@
  //! an intent only: neither the BCS delay nor completion proves a native vehicle arrived.
  
  mod assets;
++mod network;
++pub(crate) use network::HostResponses;
 +mod names;
 +mod inspector;
 +mod effects;
@@ -1234,6 +1272,9 @@ index a9827654..f50b8aca 100644
  
  static PATIENT_POSE: AtomicU64 = AtomicU64::new(0);
 +static ACTOR_POSE: AtomicU64 = AtomicU64::new(0);
++static REMOTE_POSES:std::sync::Mutex<Vec<(u32,u32,f32,f32)>>=std::sync::Mutex::new(Vec::new());
++pub(crate) fn remote_poses()->Vec<(u32,u32,f32,f32)>{REMOTE_POSES.lock().map(|p|p.clone()).unwrap_or_default()}
++
 +pub(crate) fn actor_pose()->Option<(u32,u32,f32,f32)>{
 +    let p=ACTOR_POSE.load(Ordering::Relaxed);
 +    (p&255>0).then_some(((p>>32)as u32,((p>>8)&255)as u32,(p&255)as f32/255.0,((p>>16)&65535)as f32/65535.0*std::f32::consts::TAU))
@@ -1253,7 +1294,7 @@ index a9827654..f50b8aca 100644
  
  /// Read once before parallel skinning; both the target and blend belong to one frame.
  pub(crate) fn patient_pose() -> Option<(u32, f32)> {
-@@ -31,6 +51,11 @@ fn publish(patient: Option<u32>, blend: f32) {
+@@ -31,6 +56,13 @@ fn publish(patient: Option<u32>, blend: f32) {
  #[derive(Default)]
  pub(crate) struct Incidents {
      configured: bool,
@@ -1261,19 +1302,33 @@ index a9827654..f50b8aca 100644
 +    actor_person: Option<u32>, actor_blend:f32, actor_time:f32,
 +
 +    effects: effects::Effects,
++    network:network::Network,
++    remote_effects:std::collections::HashMap<u32,effects::Effects>,
 +    inspector: inspector::InspectorActor,
      source: Option<feed::Feed>,
      controller: Controller,
      models: assets::Loader,
-@@ -41,6 +66,7 @@ pub(crate) struct Incidents {
+@@ -41,6 +73,8 @@ pub(crate) struct Incidents {
  impl Drop for Incidents {
      fn drop(&mut self) {
          publish(None, 0.0);
 +        ACTOR_POSE.store(0,Ordering::Relaxed);
++        if let Ok(mut p)=REMOTE_POSES.lock(){p.clear();}
      }
  }
  
-@@ -78,17 +104,41 @@ impl crate::App {
+@@ -62,8 +96,8 @@ impl crate::App {
+             return;
+         }
+ 
+-        // Multiplayer needs an authoritative incident protocol before it may change looks.
+-        let context = if self.net.lan.is_none() && self.args.server.is_none() {
++        // Each capture belongs to its original bus; shared responders are host-authoritative.
++        let context = if self.args.server.is_none() {
+             self.player
+                 .as_ref()
+                 .filter(|p| p.borrowed_from.is_none())
+@@ -78,17 +112,41 @@ impl crate::App {
              .map(|h| {
                  h.people
                      .iter()
@@ -1321,7 +1376,16 @@ index a9827654..f50b8aca 100644
          incidents.controller.step(
              context.as_deref(),
              latest.as_ref(),
-@@ -116,9 +166,7 @@ impl crate::App {
+@@ -104,7 +162,7 @@ impl crate::App {
+         ) {
+             transfer = incidents.dispatcher.advance(
+                 dispatch::Input {
+-                    context: context.as_deref(),
++                    context: if self.net.lan.as_ref().is_some_and(|l|l.role==omsi_net::Role::Client){None}else{context.as_deref()},
+                     source: latest.as_ref(),
+                     key: state.key,
+                     stage: state.stage,
+@@ -116,9 +174,7 @@ impl crate::App {
                      speed: player.vehicle.physics.velocity_kmh(),
                      dt: if self.paused { 0.0 } else { dt },
                  },
@@ -1332,7 +1396,7 @@ index a9827654..f50b8aca 100644
                  traffic,
                  world,
              );
-@@ -140,11 +188,15 @@ impl crate::App {
+@@ -140,11 +196,15 @@ impl crate::App {
          publish(pose.map(|p|p.0),pose.map_or(0.0,|p|p.1));
          if let Some(h)=self.session.humans.as_mut(){
              h.sim.hold_for_responder(pose.filter(|p|p.1>0.0).map(|p|p.0));
@@ -1348,7 +1412,7 @@ index a9827654..f50b8aca 100644
                      log::info!(
                          "BCS response: passenger {id} transferred after physical ambulance arrival and BCS completion"
                      );
-@@ -167,17 +219,22 @@ impl crate::App {
+@@ -167,17 +227,22 @@ impl crate::App {
          let notice = (state.key, state.stage, state.patient);
          if incidents.last_notice != Some(notice) {
              log::info!(
@@ -1370,16 +1434,61 @@ index a9827654..f50b8aca 100644
                  "bcs_incident",
                  vec![
 -                    Num(if state.key.is_some() { 4.0 } else { 0.0 }),
-+                    Num(if state.key.is_some() { latest.as_ref().map_or(0.0,|s|s.event as f32) } else { 0.0 }),
++                    Num(if state.key.is_some() { latest.as_ref().map_or(0.0,|s|s.event as f64) } else { 0.0 }),
                      Num(state.key.map_or(0, |k| k.instance) as f64),
                      Text(format!("{:?}", state.stage)),
                      Num(state.patient.map_or(-1.0, |p| p as f64)),
-@@ -187,3 +244,5 @@ impl crate::App {
+@@ -185,5 +250,50 @@ impl crate::App {
+             );
+             incidents.last_notice = Some(notice);
          }
++        if let Some(lan)=self.net.lan.as_mut(){
++            let selected=pose.map(|p|p.0).or(incidents.actor_person);
++            let actor=self.session.humans.as_ref().and_then(|h|h.people.iter().find(|p|Some(p.id)==selected)).and_then(|p|{
++                if let omsi_sim::people::Place::Bus(omsi_sim::people::BusId::Player,local)=p.place{Some(local)}else{None}
++            });
++            incidents.network.local(lan,context.as_ref().and(latest.as_ref()),selected,actor,
++                pose.map_or(incidents.actor_blend,|p|p.1),incidents.actor_time,delta);
++            if let (Some(traffic),Some(world))=(self.session.traffic.as_mut(),self.world.as_ref()){
++                incidents.network.host.tick(lan,traffic,world,delta);
++            }
++            if let Some((_,id))=incidents.network.returned.take(){
++                if let Some(h)=self.session.humans.as_mut(){
++                    if h.sim.transfer_to_responder(id){publish(None,0.0);}
++                }
++            }
++        }
++        let mut remote_poses=Vec::new();
++        let visuals=incidents.network.visuals().map(|(id,v)|(id,v.clone())).collect::<Vec<_>>();
++        let mut active=std::collections::HashSet::new();
++        if let (Some(world),Some(renderer),Some(scene))=(self.world.as_ref(),self.renderer.as_ref(),self.scene.as_mut()){
++            for (owner,visual)in visuals{
++                if visual.heard.elapsed()>std::time::Duration::from_secs(8){continue;}
++                let Some(remote)=self.net.remotes.remotes.get(&owner)else{continue};
++                let vehicle=remote.vehicle();active.insert(owner);
++                incidents.remote_effects.entry(owner).or_default().update(Some(&format!("{}:{owner}",self.net.lan.as_ref().map_or(0,|l|l.session))),
++                    Some(&visual.source),vehicle.position,vehicle.heading,delta,world,renderer,scene);
++                if let (Some(local),Some(h))=(visual.actor,self.session.humans.as_ref()){
++                    if let Some(person)=h.people.iter().filter(|p|p.remote).find(|p|matches!(p.place,
++                        omsi_sim::people::Place::Bus(omsi_sim::people::BusId::Ai(bus),at)
++                        if bus==crate::humans::remote_bus_id(owner)&&(at-local).length()<0.2)){
++                        remote_poses.push((person.id,visual.source.event,visual.blend,visual.phase));
++                    }
++                }
++            }
++            incidents.remote_effects.retain(|owner,e|{
++                if active.contains(owner){true}else{e.update(None,None,glam::DVec3::ZERO,0.0,0.0,world,renderer,scene);false}
++            });
++        }
++        if let Ok(mut p)=REMOTE_POSES.lock(){*p=remote_poses;}
++    }
++    pub(crate) fn receive_bcs_event(&mut self,from:u32,text:&str)->bool{
++        let Some(lan)=self.net.lan.as_ref()else{return false};
++        self.integrations.bcs_events.network.receive(lan,from,text)
      }
  }
 +
-+pub(crate) fn append_visuals(incidents:&Incidents,scene:&mut omsi_render::Scene){incidents.effects.sprites(scene);}
++pub(crate) fn append_visuals(incidents:&Incidents,scene:&mut omsi_render::Scene){incidents.effects.sprites(scene);for e in incidents.remote_effects.values(){e.sprites(scene);}}
 diff --git a/crates/omsi-app/src/bcs_events/names-data/GFDL-1.2.txt b/crates/omsi-app/src/bcs_events/names-data/GFDL-1.2.txt
 new file mode 100644
 index 00000000..68d93f4f
@@ -44878,6 +44987,166 @@ index 00000000..5dd645d8
 +        assert_eq!(infer("xyz-personagem-123"),Appearance::Unknown);
 +    }
 +}
+diff --git a/crates/omsi-app/src/bcs_events/network.rs b/crates/omsi-app/src/bcs_events/network.rs
+new file mode 100644
+index 00000000..70aeed76
+--- /dev/null
++++ b/crates/omsi-app/src/bcs_events/network.rs
+@@ -0,0 +1,154 @@
++//! BCS intent stays with its player's bus. The LAN host alone dispatches shared AI.
++//! Compact, repeated snapshots use the authenticated existing command channel.
++use super::{assets::Loader,dispatch::{Dispatcher,Input},lifecycle::{Key,Snapshot,Stage}};
++use glam::{DVec3,Vec3};
++use std::{collections::HashMap,time::{Duration,Instant}};
++
++const REQUEST:&str="bcs222_req ";
++const VIEW:&str="bcs222_view ";
++const DONE:&str="bcs222_done ";
++
++#[derive(Clone)]
++pub(super) struct Visual {
++    pub source:Snapshot,pub actor:Option<Vec3>,pub blend:f32,pub phase:f32,pub heard:Instant,
++}
++impl Visual {
++    fn encode(&self)->String {
++        let p=self.actor.unwrap_or(Vec3::splat(99.0));
++        format!("{} {} {} {} {} {} {} {} {:.2} {:.2} {:.2}",self.source.pid,self.source.instance,
++            self.source.event,self.source.service,u8::from(self.source.completed),
++            (self.blend.clamp(0.0,1.0)*255.0)as u8,
++            (self.phase.rem_euclid(std::f32::consts::TAU)/std::f32::consts::TAU*255.0)as u8,
++            self.source.inspector.as_ref().map_or(0,|_|0),p.x,p.y,p.z)
++    }
++    fn decode(text:&str)->Option<Self>{
++        if text.len()>145{return None;}
++        let v=text.split_whitespace().collect::<Vec<_>>();if v.len()!=11{return None;}
++        let pid=v[0].parse::<u32>().ok()?;let instance=v[1].parse::<u64>().ok()?;
++        let event=v[2].parse::<u32>().ok()?;let service=v[3].parse::<u32>().ok()?;
++        let done=v[4].parse::<u8>().ok()?;let blend=v[5].parse::<u8>().ok()?as f32/255.0;
++        let phase=v[6].parse::<u8>().ok()?as f32/255.0*std::f32::consts::TAU;
++        let p=Vec3::new(v[8].parse().ok()?,v[9].parse().ok()?,v[10].parse().ok()?);
++        if pid==0||done>1||!matches!(event,0..=4|6|7|30..=34)||!matches!(service,0|2|3|5|6|7)||(event>0&&instance==0)||!p.is_finite(){return None;}
++        let actor=(p.abs().max_element()<40.0).then_some(p);
++        Some(Self{source:Snapshot{pid,event,instance,service,completed:done==1,delay_elapsed:false,observed_ms:0,inspector:None},actor,blend,phase,heard:Instant::now()})
++    }
++}
++
++struct Response {
++    visual:Visual,patient:Option<u32>,dispatcher:Dispatcher,
++    returned:Option<(Key,u32)>,reply:f32,
++}
++#[derive(Default)]
++pub(crate) struct HostResponses {entries:HashMap<u32,Response>,models:Loader,relay:f32}
++impl HostResponses {
++    pub fn receive(&mut self,lan:&omsi_net::LanSession,from:u32,text:&str)->bool{
++        let Some(rest)=text.strip_prefix(REQUEST)else{return false};
++        if lan.role!=omsi_net::Role::Host||from==lan.my_id||!lan.peers().any(|p|p.pose.id==from){return true;}
++        let Some((patient,rest))=rest.split_once(' ')else{return true};let Ok(patient)=patient.parse::<u32>()else{return true};
++        let Some(visual)=Visual::decode(rest)else{return true};
++        if self.entries.len()>=64&&!self.entries.contains_key(&from){return true;}
++        let entry=self.entries.entry(from).or_insert_with(||Response{visual:visual.clone(),patient:None,dispatcher:Default::default(),returned:None,reply:0.0});
++        entry.visual=visual;entry.patient=(patient>0).then_some(patient);
++        true
++    }
++    pub fn tick(&mut self,lan:&mut omsi_net::LanSession,traffic:&mut crate::traffic::Traffic,
++        world:&crate::scene::World,dt:f32){
++        if lan.role!=omsi_net::Role::Host{return;}
++        if !self.entries.is_empty(){self.models.start(world.root.clone());}
++        let peers=lan.peers().map(|p|p.pose.id).collect::<Vec<_>>();
++        self.entries.retain(|id,entry|{
++            let keep=peers.contains(id)&&entry.visual.heard.elapsed()<Duration::from_secs(8);
++            if !keep{entry.dispatcher.cancel(traffic);}
++            keep
++        });
++        self.relay-=dt.max(0.0);let relay=self.relay<=0.0;if relay{self.relay=0.75;}
++        for (&owner,entry)in &mut self.entries{
++            let Some(pose)=lan.peers().find(|p|p.pose.id==owner&&p.has_pose&&!p.pose.bus.is_empty()).map(|p|p.pose.clone())else{entry.dispatcher.cancel(traffic);continue};
++            let at=DVec3::new(pose.x,pose.y,pose.z);if !at.is_finite(){continue;}
++            let context=format!("{}:{owner}",lan.session);
++            let riders=entry.patient.into_iter().collect::<Vec<_>>();
++            let source=&entry.visual.source;
++            if let Some(patient)=entry.dispatcher.advance(Input{context:Some(&context),source:Some(source),key:Some(Key{pid:source.pid,instance:source.instance}),
++                stage:Stage::AwaitingAmbulance,patient:entry.patient,riders:&riders,blend:entry.visual.blend,
++                bus:at,heading:pose.heading as f64,speed:pose.speed_kmh,dt},&self.models,traffic,world){
++                entry.returned=Some((Key{pid:source.pid,instance:source.instance},patient));entry.reply=0.0;
++            }
++            entry.reply-=dt.max(0.0);
++            if entry.reply<=0.0{
++                entry.reply=0.6;
++                if let Some((key,patient))=entry.returned{lan.command(owner,&format!("{DONE}{} {} {patient}",key.pid,key.instance));}
++            }
++            if relay{
++                let message=format!("{VIEW}{owner} {}",entry.visual.encode());
++                for &peer in &peers{if peer!=owner{lan.command(peer,&message);}}
++            }
++        }
++    }
++    fn visuals(&self)->impl Iterator<Item=(u32,&Visual)>{self.entries.iter().map(|(id,e)|(*id,&e.visual))}
++}
++
++#[derive(Default)]
++pub(super) struct Network {
++    pub host:HostResponses,pub remote:HashMap<u32,Visual>,
++    session:Option<(u64,u32)>,send:f32,last:Option<Visual>,last_patient:Option<u32>,
++    pub returned:Option<(Key,u32)>,applied:Vec<Key>,
++}
++impl Network {
++    pub fn receive(&mut self,lan:&omsi_net::LanSession,from:u32,text:&str)->bool{
++        if self.host.receive(lan,from,text){return true;}
++        if let Some(rest)=text.strip_prefix(VIEW){
++            if from==1&&lan.role==omsi_net::Role::Client{
++                if let Some((owner,rest))=rest.split_once(' '){if let (Ok(owner),Some(v))=(owner.parse::<u32>(),Visual::decode(rest)){
++                    if owner!=lan.my_id&&self.remote.len()<64{self.remote.insert(owner,v);}
++                }}
++            }return true;
++        }
++        if let Some(rest)=text.strip_prefix(DONE){
++            if from==1&&lan.role==omsi_net::Role::Client{
++                let v=rest.split_whitespace().collect::<Vec<_>>();
++                if v.len()==3{if let (Ok(pid),Ok(instance),Ok(patient))=(v[0].parse::<u32>(),v[1].parse::<u64>(),v[2].parse::<u32>()){
++                    let key=Key{pid,instance};
++                    if !self.applied.contains(&key)&&self.last.as_ref().is_some_and(|s|s.source.pid==pid&&s.source.instance==instance&&s.source.completed&&self.last_patient==Some(patient)){
++                        self.returned=Some((key,patient));self.applied.push(key);if self.applied.len()>64{self.applied.remove(0);}
++                    }
++                }}
++            }return true;
++        }
++        false
++    }
++    pub fn local(&mut self,lan:&mut omsi_net::LanSession,source:Option<&Snapshot>,patient:Option<u32>,
++        actor:Option<Vec3>,blend:f32,phase:f32,dt:f32){
++        let session=Some((lan.session,lan.my_id));
++        if self.session!=session{self.remote.clear();self.applied.clear();self.last=None;self.last_patient=None;self.returned=None;self.session=session;self.send=0.0;}
++        self.remote.retain(|owner,v|v.heard.elapsed()<Duration::from_secs(4)&&lan.peers().any(|p|p.pose.id==*owner));
++        self.send-=dt.max(0.0);
++        if let Some(source)=source{
++            // Keep the observed completion alive until the host has had time to
++            // finish the real response; a popup disappearing is not arrival.
++            let keep=self.last.as_ref().is_some_and(|v|v.source.completed&&source.event==0&&v.heard.elapsed()<Duration::from_secs(8));
++            if !keep{self.last_patient=patient;self.last=Some(Visual{source:source.clone(),actor,blend,phase,heard:Instant::now()});}
++        }else{self.last=None;}
++        if self.send<=0.0{
++            self.send=0.5;
++            if let Some(v)=&self.last{
++                let text=format!("{REQUEST}{} {}",self.last_patient.unwrap_or(0),v.encode());
++                if lan.role==omsi_net::Role::Client{lan.command(1,&text);}
++                else{let peers=lan.peers().map(|p|p.pose.id).collect::<Vec<_>>();for peer in peers{lan.command(peer,&format!("{VIEW}{} {}",lan.my_id,v.encode()));}}
++            }
++        }
++    }
++    pub fn visuals(&self)->impl Iterator<Item=(u32,&Visual)>{self.remote.iter().map(|(id,v)|(*id,v)).chain(self.host.visuals())}
++}
++
++#[cfg(test)]mod tests{
++    use super::*;
++    #[test]fn compact_snapshot_fits_command_and_rejects_bad_values(){
++        let text="12345 99 4 3 1 255 23 0 0.80 -5.40 1.10";
++        let v=Visual::decode(text).unwrap();assert!(v.source.completed);assert_eq!(v.source.event,4);
++        assert!(format!("{VIEW}4294967295 {}",v.encode()).chars().count()<160);
++        assert!(Visual::decode(&text.replace("0.80","NaN")).is_none());
++        assert!(Visual::decode(&text.replace("99 4","0 4")).is_none());
++        assert!(Visual::decode(&text.replace("4 3 1","400 3 1")).is_none());
++    }
++}
 diff --git a/crates/omsi-app/src/bcs_events/posture.rs b/crates/omsi-app/src/bcs_events/posture.rs
 index 00d27a38..b631b8a5 100644
 --- a/crates/omsi-app/src/bcs_events/posture.rs
@@ -45690,6 +45959,32 @@ index 5fb18341..65c24ef2 100644
      }
  }
  
+diff --git a/crates/omsi-app/src/lib.rs b/crates/omsi-app/src/lib.rs
+index 76cf2d2c..a8041228 100644
+--- a/crates/omsi-app/src/lib.rs
++++ b/crates/omsi-app/src/lib.rs
+@@ -433,6 +433,9 @@ pub(crate) fn prepare(mut args: Args, bare: bool) -> Result<Option<(Args, Option
+         omsi_cfg::vfs::mount_dir_zips(&c.join("Archives"));
+     }
+     omsi_cfg::add_content_root(args.root.clone());
++    if let Some(root)=std::env::current_exe().ok().and_then(|p|p.parent().map(|p|p.join("bcs-assets"))).filter(|p|p.is_dir()){
++        omsi_cfg::add_content_root(root);
++    }
+     if args.list_maps {
+         for m in server::installed_maps() {
+             println!("{m}");
+diff --git a/crates/omsi-app/src/offscreen.rs b/crates/omsi-app/src/offscreen.rs
+index 3d47d98b..f2537f74 100644
+--- a/crates/omsi-app/src/offscreen.rs
++++ b/crates/omsi-app/src/offscreen.rs
+@@ -80,6 +80,7 @@ struct Offscreen<'a> {
+     /// a dedicated server's administration and clock (see `admin`)
+     srv_admin: crate::admin::ServerAdmin,
+     coop_ai: crate::coop::AiServer,
++    bcs_responses: crate::bcs_events::HostResponses,
+     srv_clock: f64,
+     srv_metar: Option<String>,
+     srv_metar_due: std::time::Instant,
 diff --git a/crates/omsi-app/src/offscreen/picture.rs b/crates/omsi-app/src/offscreen/picture.rs
 index 3ed62e5b..0a62cabf 100644
 --- a/crates/omsi-app/src/offscreen/picture.rs
@@ -45774,11 +46069,44 @@ index 004fb976..aedd2c58 100644
          if let Some(h) = self.humans_off.as_mut() {
              view_sync::sync(ViewSync::people(h, None, cam.position), &mut self.sim_view, &self.world, &self.renderer, &mut self.scene);
          }
+diff --git a/crates/omsi-app/src/offscreen/setup.rs b/crates/omsi-app/src/offscreen/setup.rs
+index 7e7f2424..37bb6139 100644
+--- a/crates/omsi-app/src/offscreen/setup.rs
++++ b/crates/omsi-app/src/offscreen/setup.rs
+@@ -279,6 +279,7 @@ impl<'a> Offscreen<'a> {
+         let recorder = record::Recorder::new(out, player.as_mut(), &args.root, settings.doppler);
+         Ok(Offscreen {
+             coop_ai: Default::default(),
++            bcs_responses:Default::default(),
+             args,
+             out,
+             w,
 diff --git a/crates/omsi-app/src/offscreen/step.rs b/crates/omsi-app/src/offscreen/step.rs
-index e68ebadc..4c69fb72 100644
+index e68ebadc..f7c0c55d 100644
 --- a/crates/omsi-app/src/offscreen/step.rs
 +++ b/crates/omsi-app/src/offscreen/step.rs
-@@ -922,6 +922,7 @@ impl Offscreen<'_> {
+@@ -51,6 +51,7 @@ impl Offscreen<'_> {
+             ref mut srv_clock,
+             ref mut srv_admin,
+             ref mut coop_ai,
++            ref mut bcs_responses,
+             ref srv_metar,
+             ref mut srv_metar_due,
+             ref mut srv_metar_rx,
+@@ -125,10 +126,12 @@ impl Offscreen<'_> {
+             let hub = omsi_lan::admin::hub().map(|h| &**h);
+             let rules = crate::admin::server_rules(srv_metar.is_some());
+             for (from, text) in commands {
++                if bcs_responses.receive(l,from,&text){continue;}
+                 if coop_ai.receive(l, traffic.as_mut(), humans_off.as_mut(), from, &text) { continue; }
+                 omsi_lan::admin::server_command(l, from, &text, srv_admin, &positions, &rules, hub);
+             }
+             coop_ai.tick(l, traffic.as_mut(), humans_off.as_mut());
++            if let Some(t)=traffic.as_mut(){bcs_responses.tick(l,t,world,dt);}
+             for text in crate::lan::take_local_admin() {
+                 srv_admin.admins.insert(crate::admin::LOCAL_ADMIN, omsi_admin::Role::Admin);
+                 omsi_lan::admin::server_command(l, crate::admin::LOCAL_ADMIN, &format!("admin {text}"), srv_admin, &positions, &rules, hub);
+@@ -922,6 +925,7 @@ impl Offscreen<'_> {
              ref mut spray,
              ref mut cabin_air,
              ref mut wetness,
@@ -45786,7 +46114,7 @@ index e68ebadc..4c69fb72 100644
              ref traffic,
              ref player,
              ref camera,
-@@ -961,6 +962,8 @@ impl Offscreen<'_> {
+@@ -961,6 +965,8 @@ impl Offscreen<'_> {
              steps::throw_spray(spray, dt, player.as_ref(), traffic.as_ref(), remotes_off, eye, steps::spray_wind(weather), world, spray_wet, world.settings.rain_quality());
          }
          *wetness = crate::weather_setup::road_wetness(precip_of(weather).1, dt as f64, *wetness);
@@ -47068,19 +47396,20 @@ index 462402b6..cd04b730 100644
          let cumulative: Vec<f32> = candidates.iter().map(|c| { acc += c.1; acc }).collect();
          let total_w = acc.max(1e-3);
 diff --git a/crates/omsi-app/src/traffic/responder.rs b/crates/omsi-app/src/traffic/responder.rs
-index 236c4aea..a6317bd4 100644
+index 236c4aea..d83b35a5 100644
 --- a/crates/omsi-app/src/traffic/responder.rs
 +++ b/crates/omsi-app/src/traffic/responder.rs
-@@ -1,6 +1,7 @@
+@@ -1,6 +1,8 @@
  //! Dedicated responders use the real road graph, collision checks and normal AI bodies.
  use super::*;
 -use omsi_sim::{ai_traffic::response::Service, traffic::way::lanes_near};
++use glam::DVec2;
 +use omsi_sim::ai_traffic::response::{Service, short_approaches, roadside_stops};
 +use omsi_sim::people::world::World as _;
  
  impl Traffic {
      pub(crate) fn dispatch_incident_vehicle(
-@@ -12,120 +13,117 @@ impl Traffic {
+@@ -12,120 +14,117 @@ impl Traffic {
          service: Service,
      ) -> Result<u64, String> {
          let viewer = self.sim.viewer.ok_or("waiting for camera")?;
@@ -47317,18 +47646,19 @@ index 8796749e..8430afdf 100644
  }
  
 diff --git a/crates/omsi-app/src/view_sync/people.rs b/crates/omsi-app/src/view_sync/people.rs
-index e045227c..1ddd971b 100644
+index e045227c..598b70bc 100644
 --- a/crates/omsi-app/src/view_sync/people.rs
 +++ b/crates/omsi-app/src/view_sync/people.rs
-@@ -535,6 +535,7 @@ impl PeopleView {
+@@ -535,6 +535,8 @@ impl PeopleView {
      /// simulation but the frame.
      pub(crate) fn pose(&mut self, world: &World, renderer: &Renderer, scene: &mut Scene, camera: DVec3) {
          let bcs_patient = crate::bcs_events::patient_pose();
 +        let bcs_actor = crate::bcs_events::actor_pose();
++        let bcs_remotes=crate::bcs_events::remote_poses();
          for inst in self.hidden.drain(..) {
              renderer.set_params(scene, inst, &[], false, &[]);
          }
-@@ -655,6 +656,11 @@ impl PeopleView {
+@@ -655,6 +657,16 @@ impl PeopleView {
                      crate::bcs_events::slump(&ty, &mut bones, blend);
                  }
              }
@@ -47336,6 +47666,11 @@ index e045227c..1ddd971b 100644
 +                if p.id==actor&&matches!(p.place,Place::Bus(BusId::Player,_)){
 +                    crate::bcs_events::reaction(&ty,&mut bones,event,blend,phase);
 +                }
++            }
++            for &(id,event,blend,phase)in &bcs_remotes{
++                if p.id!=id||!matches!(p.place,Place::Bus(_, _)){continue;}
++                if matches!(event,1..=4)&&matches!(p.facts.activity,omsi_sim::human::Activity::Sit){crate::bcs_events::slump(&ty,&mut bones,blend);}
++                else if matches!(event,6|7){crate::bcs_events::reaction(&ty,&mut bones,event,blend,phase);}
 +            }
              // an avatar's face near the eye: blinks, looks, expressions, the lips
              // (from the camera the picture is drawn from: a face is seen from there)
@@ -52303,6 +52638,33 @@ index 0e81fcbb..43f694ce 100644
      #[test]
      fn tokens() {
          let t = tokenize(r#"(L.L.a) 0.5 > {if} "Krueger 7x6" (M.V.GetFontIndex) $+ 'comment (x)"#);
+diff --git a/crates/omsi-sim/examples/bcs_models.rs b/crates/omsi-sim/examples/bcs_models.rs
+new file mode 100644
+index 00000000..535e0f59
+--- /dev/null
++++ b/crates/omsi-sim/examples/bcs_models.rs
+@@ -0,0 +1,21 @@
++//! Load the exact shipped fallback geometry, scripts and sound config headlessly.
++use std::{path::PathBuf,sync::Arc};
++fn main(){
++ let root=PathBuf::from(std::env::args().nth(1).expect("bcs-assets path"));
++ omsi_cfg::add_content_root(root.clone());
++ for kind in ["Police","Fire"]{
++  let path=root.join(format!("Vehicles/OpenOMSI_BCS/{kind}/{kind}.ovh"));
++  let ty=Arc::new(omsi_sim::VehicleType::load_ai(&root,&path).expect("load fallback vehicle"));
++  assert_eq!(ty.meshes.len(),2,"body and beacon meshes must load");
++  for i in 0..ty.meshes.len(){let mesh=ty.mesh_data(i).expect("actual mesh data");assert!(mesh.positions.len()>20);assert!(mesh.positions.iter().all(|p|p.is_finite()));}
++  let sound=omsi_vehicle::SoundCfg::load(&path.parent().unwrap().join("sound.cfg")).expect("load own siren config");
++  assert_eq!(sound.sounds.len(),1);
++  let mut v=omsi_sim::VehicleInstance::new(ty,omsi_sim::VehicleHost::new(Default::default()));
++  assert_eq!(v.var("bcs_pitch"),Some(1.0),"init script must run");
++  v.set_var("bcs_beacon",1.0);
++  let mut states=std::collections::HashSet::new();
++  for k in 0..120{v.host.clock.time=k as f64/30.0;v.update_ai(1.0/30.0,&Default::default());states.insert(v.var("bcs_blue").unwrap_or(-1.0)as i32);}
++  assert!(states.contains(&0)&&states.contains(&1),"beacons must flash");
++  println!("PASS {kind}: geometry, materials, scripts, siren config and beacon cycle");
++ }
++}
 diff --git a/crates/omsi-sim/src/ai_motion.rs b/crates/omsi-sim/src/ai_motion.rs
 index f466ed60..8fa5c40a 100644
 --- a/crates/omsi-sim/src/ai_motion.rs
@@ -53119,14 +53481,14 @@ index f1417e65..0b28725e 100644
          let root=std::env::temp_dir().join(format!("connection-{name}-{}",std::process::id()));
          let dir=root.join("Humans/Test");std::fs::create_dir_all(&dir).unwrap();
 diff --git a/crates/omsi-sim/src/people/pax_tick.rs b/crates/omsi-sim/src/people/pax_tick.rs
-index 0e8284d3..388fefb6 100644
+index 0e8284d3..f091aba8 100644
 --- a/crates/omsi-sim/src/people/pax_tick.rs
 +++ b/crates/omsi-sim/src/people/pax_tick.rs
 @@ -201,8 +201,13 @@ impl PeopleSim {
                  None => p.discomfort = 0.0,
              }
          }
-+        if let Some(bn)=self.pax(i).and_then(|p|p.bus).and_then(|b|bus_ix.get(&b)).map(|k|&buses[*k]) {
++        if let Some(bn)=self.pax(i).and_then(|p|p.bus.or((p.task==Task::WaitingForBus).then_some(BusId::Player))).and_then(|b|bus_ix.get(&b)).map(|k|&buses[*k]) {
 +            let near=at_stops.get(&bn.id).is_some_and(|r|r.near.iter().any(|id|
 +                self.stops.get(id).is_some_and(|s|(s.pos-bn.pos).truncate().length()<22.0)));
 +            self.door_reaction(i,bn,near,dt);
@@ -53139,10 +53501,10 @@ index 0e8284d3..388fefb6 100644
              self.runner_step(i, dt, world, buses, bus_ix);
 diff --git a/crates/omsi-sim/src/people/reactions.rs b/crates/omsi-sim/src/people/reactions.rs
 new file mode 100644
-index 00000000..906799b7
+index 00000000..143fd25c
 --- /dev/null
 +++ b/crates/omsi-sim/src/people/reactions.rs
-@@ -0,0 +1,41 @@
+@@ -0,0 +1,52 @@
 +//! Reactions use each installed ticket pack's own voice, with bus-wide and rider cooldowns.
 +use super::*;
 +impl PeopleSim {
@@ -53150,35 +53512,46 @@ index 00000000..906799b7
 +        let Some(p)=self.pax(i).cloned() else{return;};
 +        if p.inspector || self.people[i].remote || bn.id!=BusId::Player{return;}
 +        let exiting=p.task==Task::InBusToExit;
-+        let entering=matches!(p.task,Task::ToBus|Task::WalkingToBus);
++        let waiting_at_stop=p.task==Task::WaitingForBus;
++        if waiting_at_stop&&self.visual_hail_bus(i,std::slice::from_ref(bn)).map(|b|b.0)!=Some(BusId::Player){return;}
++        let entering=matches!(p.task,Task::WaitingForBus|Task::ToBus|Task::WalkingToBus);
++        let side=p.stop.and_then(|stop|self.preferred_entry_side(stop,bn,self.people[i].position));
 +        let door=p.door.or_else(|| {
 +            let list=if exiting{&bn.cabin.exits}else{&bn.cabin.entries};
-+            list.iter().enumerate().min_by(|(_,a),(_,b)|
++            list.iter().enumerate().filter(|(_,d)|exiting||(
++                super::pax_stops::entry_on_platform(side,d.side)&&bn.to_local(self.people[i].position).x*d.side>=0.5))
++                .min_by(|(_,a),(_,b)|
 +                (self.people[i].position-bn.world(a.outside)).length_squared().total_cmp(&(self.people[i].position-bn.world(b.outside)).length_squared())).map(|(k,_)|k)
 +        });
 +        let open=door.and_then(|k|if exiting{bn.exit_open.get(k)}else{bn.entry_open.get(k)}).copied().unwrap_or(false);
 +        let near_door=door.and_then(|k|if exiting{bn.cabin.exits.get(k)}else{bn.cabin.entries.get(k)})
-+            .is_some_and(|d|if exiting{(p.pos-d.inside.as_dvec3()).length()<1.6}else{(self.people[i].position-bn.world(d.outside)).length()<if p.task==Task::ToBus{18.0}else{2.5}});
++            .is_some_and(|d|if exiting{(p.pos-d.inside.as_dvec3()).length()<1.6}else{(self.people[i].position-bn.world(d.outside)).length()<if matches!(p.task,Task::ToBus|Task::WaitingForBus){18.0}else{2.5}});
 +        let shut_on_rider=exiting&&p.reaction_door_was_open&&!open&&near_door;
 +        let waiting=(entering||exiting)&&near_platform&&near_door&&!open&&bn.speed.abs()<0.28;
 +        let elapsed=if waiting{p.door_reaction_wait+dt.max(0.0).min(0.25)}else{0.0};
 +        let cooldown=(p.door_reaction_cooldown-dt.max(0.0)).max(0.0);
 +        if let Some(p)=self.pax_mut(i){p.door_reaction_wait=elapsed;p.door_reaction_cooldown=cooldown;p.reaction_door_was_open=open;}
 +        if cooldown>0.0 || (!shut_on_rider&&elapsed<7.0){return;}
++        if self.time-self.last_chat<CHAT_PAUSE&&self.time>=self.last_chat{return;}
 +        self.pax_mut(i).unwrap().door_reaction_cooldown=25.0;
 +        // Voice packs may provide only one variant. Missing lines are skipped.
 +        for line in ["OpenDoor_1","OpenDoor_2","OpenDoor_A","Door_1","DoorOpen_1"] {
-+            if self.voice_file(i,line).is_some(){self.say_ex(i,line,true);return;}
++            if self.voice_file(i,line).is_some(){self.say_ex(i,line,true);self.dialog=Some("BridgeOpenDoor".into());return;}
 +        }
 +        let directory=self.voice_file(i,"Thanks_1").or_else(||self.voice_file(i,"Hello_1")).and_then(|p|p.parent().map(Path::to_path_buf));
 +        if let Some(directory)=directory {
 +            for (file,is_dir) in omsi_cfg::vfs::list_dir(&directory).unwrap_or_default().into_iter().take(256) {
 +                let name=file.to_string_lossy();let lower=name.to_lowercase();
-+                if !is_dir&&lower.ends_with(".wav")&&["opendoor","dooropen","tuerauf","türauf","abrirporta","porta_"].iter().any(|s|lower.contains(s)) {
-+                    self.say_ex(i,&name[..name.len()-4],true);return;
++                if !is_dir&&lower.ends_with(".wav")&&["opendoor","dooropen","pleaseopen","tuerauf","türauf","tuer_","tür_","abrirporta","porta_"].iter().any(|s|lower.contains(s)) {
++                    self.say_ex(i,&name[..name.len()-4],true);self.dialog=Some("BridgeOpenDoor".into());return;
 +                }
 +            }
 +        }
++        // Stock packs without a door-specific line can still ask for attention
++        // in their own voice. The localized hint supplies the actual request.
++        if self.voice_file(i,"Pardon_1").is_some(){self.say_ex(i,"Pardon_1",true);}
++        else{self.last_chat=self.time;}
++        self.dialog=Some("BridgeOpenDoor".into());
 +    }
 +    pub(super) fn thank_on_exit(&mut self,i:usize){
 +        if self.rand_f()<0.22 {self.say_ex(i,"Thanks_1",true);}
@@ -54743,3 +55116,79 @@ index 1feccf95..f7694e77 100644
    try {
      const [c, st] = [await call('controllers_load'), await call('controllers_state')];
      check('game controllers', Array.isArray(c.devices) && Array.isArray(st.connected), `${c.devices.length} set up, ${st.connected.length} connected`);
+diff --git a/tools/generate_bcs_assets.py b/tools/generate_bcs_assets.py
+new file mode 100644
+index 00000000..a187cbda
+--- /dev/null
++++ b/tools/generate_bcs_assets.py
+@@ -0,0 +1,70 @@
++#!/usr/bin/env python3
++"""Original low-poly emergency fallback assets, generated without vendor content.
++Geometry, scripts and synthesized alert audio are CC0-1.0 (OpenOMSI BCS Bridge, 2026).
++"""
++import argparse,math,struct,wave
++from pathlib import Path
++MATERIALS={'red':(.72,.025,.035),'white':(.9,.92,.92),'blue':(.025,.17,.8),'black':(.025,.03,.035),'glass':(.06,.15,.22),'metal':(.44,.49,.52),'lamp':(1,.95,.7)}
++class Model:
++ def __init__(self):self.v=[];self.faces=[]
++ def quad(self,pts,mat):
++  start=len(self.v)+1;self.v.extend(pts);self.faces.append((mat,[start+i for i in [0,1,2,3]]))
++ def box(self,x,y,z,w,l,h,mat):
++  a,b=x-w/2,x+w/2;c,d=y-l/2,y+l/2;e,f=z-h/2,z+h/2
++  for q in [[(a,c,e),(a,c,f),(a,d,f),(a,d,e)],[(b,c,e),(b,d,e),(b,d,f),(b,c,f)],[(a,c,e),(b,c,e),(b,c,f),(a,c,f)],[(a,d,e),(a,d,f),(b,d,f),(b,d,e)],[(a,c,e),(a,d,e),(b,d,e),(b,c,e)],[(a,c,f),(b,c,f),(b,d,f),(a,d,f)]]:self.quad(q,mat)
++ def wheel(self,x,y,z,r):
++  for k in range(24):
++   a,b=k*math.tau/24,(k+1)*math.tau/24
++   self.quad([(x-.12,y+math.sin(a)*r,z+math.cos(a)*r),(x+.12,y+math.sin(a)*r,z+math.cos(a)*r),(x+.12,y+math.sin(b)*r,z+math.cos(b)*r),(x-.12,y+math.sin(b)*r,z+math.cos(b)*r)],'black')
++  for side in [-1,1]:
++   points=[(x+side*.121,y+math.sin(k*math.tau/24)*r*.62,z+math.cos(k*math.tau/24)*r*.62)for k in range(24)]
++   start=len(self.v)+1;self.v.extend(points);self.faces.append(('metal',[start+k for k in (range(24)if side>0 else reversed(range(24)))]))
++ def save(self,path):
++  out=['# Original CC0 emergency fallback geometry','mtllib materials.mtl'];out +=['v %.5f %.5f %.5f'%v for v in self.v]
++  current=None
++  for mat,face in self.faces:
++   if mat!=current:out.append('usemtl '+mat);current=mat
++   # Fan triangles work in both the native OBJ reader and modelling tools.
++   for k in range(1,len(face)-1):out.append('f %d %d %d'%(face[0],face[k],face[k+1]))
++  path.write_text('\n'.join(out)+'\n')
++def generate(root):
++ for kind in ['Police','Fire']:
++  folder=root/'Vehicles/OpenOMSI_BCS'/kind;folder.mkdir(parents=True,exist_ok=True)
++  body=Model();lights=Model();truck=kind=='Fire';width,length,height=(2.4,7.4,3.15)if truck else(1.85,4.7,1.65)
++  if truck:
++   body.box(0,0,.64,2.1,7.2,.35,'black');body.box(0,-1.1,1.85,2.35,4.5,2.25,'red');body.box(0,2.37,1.48,2.35,2.2,1.9,'red')
++   body.box(0,3.485,1.98,2.08,.02,.75,'glass');body.box(0,2.38,2.43,2.4,2.25,.14,'white');body.box(0,3.53,.72,2.4,.18,.2,'metal')
++   for side in [-1,1]:
++    body.box(side*1.19,2.35,2.0,.025,1.48,.7,'glass');body.box(side*1.19,-1.1,1.83,.025,4.05,1.6,'metal')
++    for y in [-2.45,-1.1,.25]:body.box(side*1.205,y,1.83,.025,.045,1.6,'white')
++    body.box(side*1.21,0,1.02,.025,6.6,.18,'white')
++    for y in [-2.3,2.5]:body.wheel(side*1.12,y,.5,.49)
++    body.box(side*.54,-.9,3.04,.07,5.3,.07,'metal')
++   for y in range(-3,2):body.box(0,y,3.05,1.15,.055,.055,'metal')
++   for side in [-1,1]:lights.box(side*.72,2.4,2.64,.4,.4,.28,'blue')
++  else:
++   body.box(0,0,.64,1.8,4.6,.7,'white');body.box(0,-.1,1.15,1.55,2.4,.7,'glass');body.box(0,-.1,1.55,1.65,2.45,.12,'white')
++   body.box(0,1.65,.98,1.77,1.3,.12,'black');body.box(0,-1.9,.98,1.77,.75,.12,'black')
++   for side in [-1,1]:
++    body.box(side*.91,0,.85,.02,4.3,.2,'blue')
++    for y in [-1.45,1.5]:body.wheel(side*.83,y,.36,.36)
++   lights.box(-.46,0,1.73,.44,.32,.18,'blue');lights.box(.46,0,1.73,.44,.32,.18,'blue')
++  for side in [-1,1]:body.box(side*width*.35,length/2+.01,.97 if truck else .73,.3,.03,.17,'lamp')
++  body.save(folder/'body.obj');lights.save(folder/'beacons.obj')
++  mtl=''
++  for name,rgb in MATERIALS.items():
++   mtl+=f'newmtl {name}\nKd {rgb[0]} {rgb[1]} {rgb[2]}\nKa .08 .08 .08\nKs .15 .15 .15\nNs 20\n'
++   if name in ['blue','lamp']:mtl+='Ke .1 .2 .65\n'if name=='blue'else'Ke .3 .25 .1\n'
++  (folder/'materials.mtl').write_text(mtl)
++  (folder/'model.cfg').write_text('[mesh]\nbody.obj\n\n[mesh]\nbeacons.obj\n\n[visible]\nbcs_blue\n1\n')
++  (folder/(kind+'.ovh')).write_text(f'[friendlyname]\nOpenOMSI BCS\n{kind} responder\nGeneric CC0 fallback\n\n[ai_veh_type]\n0\n[model]\nmodel.cfg\n[sound]\nsound.cfg\n[mass]\n{9 if truck else 1.6}\n[boundingbox]\n{width}\n{length}\n{height}\n0\n0\n{height/2}\n[varnamelist]\n1\nvars.txt\n[script]\n1\nresponse.osc\n')
++  (folder/'vars.txt').write_text('bcs_siren\nbcs_beacon\nbcs_blue\nbcs_pitch\n')
++  (folder/'response.osc').write_text('{init}\n1 (S.L.bcs_pitch)\n0 (S.L.bcs_siren) (S.L.bcs_beacon)\n{end}\n{frame}\n(L.L.bcs_beacon) 0.5 >\n{if}\n(L.S.Time) 9 * sin 0 > (S.L.bcs_blue)\n{else}\n0 (S.L.bcs_blue)\n{endif}\n{end}\n')
++  (folder/'sound.cfg').write_text('[loopsound]\nsiren.wav\n22050\nbcs_pitch\n1\n0.6\n[volcurve]\nbcs_siren\n[pnt]\n0\n0\n[pnt]\n1\n1\n[3d]\n0\n0\n1.5\n100\n')
++  rate=22050
++  with wave.open(str(folder/'siren.wav'),'wb')as f:
++   f.setparams((1,2,rate,0,'NONE','not compressed'))
++   f.writeframes(b''.join(struct.pack('<h',int(11000*math.sin(math.tau*(660 if int(i/rate*2)%2==0 else 880)*i/rate)))for i in range(rate*2)))
++ (root/'LICENSE-emergency-fallbacks.txt').write_text('Original fictional generic Police and Fire vehicle assets, including geometry, scripts and synthesized alert audio.\nOpenOMSI BCS Bridge contributors, 2026. Dedicated to the public domain under CC0 1.0 Universal.\nNo OEM, third-party game content or trademark assets are included.\nGenerator source accompanies the release. https://creativecommons.org/publicdomain/zero/1.0/\n')
++if __name__=='__main__':
++ p=argparse.ArgumentParser();p.add_argument('output',type=Path);generate(p.parse_args().output)

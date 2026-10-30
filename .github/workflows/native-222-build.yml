@@ -38,6 +38,9 @@ jobs:
         with:
           cache-on-failure: true
           key: native-222-release
+      - name: Generate included original emergency assets
+        shell: pwsh
+        run: python tools/generate_bcs_assets.py bcs-assets
       - name: Build matching Windows client and server runtime
         shell: pwsh
         run: |
@@ -55,6 +58,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Name lookup test build failed' }
           .\names-check.exe
           if ($LASTEXITCODE -ne 0) { throw 'International name lookup failed' }
+          cargo run --locked --release -p omsi-sim --example bcs_models -- bcs-assets
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled emergency models failed to load' }
       - name: Package exact binary and corresponding source
         shell: pwsh
         run: |
@@ -64,6 +69,7 @@ jobs:
           out=Path('native');out.mkdir()
           commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
           shutil.copy2('target/release/openomsi.exe',out/'openomsi.exe')
+          shutil.copytree('bcs-assets',out/'bcs-assets')
           for dll in Path('target/release').glob('*.dll'):shutil.copy2(dll,out/dll.name)
           version=subprocess.check_output([str((out/'openomsi.exe').resolve()),'--version'],text=True)
           assert os.environ['OPENOMSI_VERSION'] in version
