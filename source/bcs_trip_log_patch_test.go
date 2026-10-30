@@ -265,7 +265,9 @@ func TestBCSObserverHotfixUpgradesAlreadyInstalledJarAndPreservesBackup(t *testi
 	}
 	defer old.Close()
 	fixed, _ := bcsLoggerBytes(jar)
-	if err := verifyPatchedBCSJar(jar, old, fixed); err != nil {
+	entries,err:=bcsCaptureEntries(fixed)
+ if err!=nil{t.Fatal(err)}
+ if err := verifyPatchedBCSEntries(jar, old, entries); err != nil {
 		t.Fatal("vendor entries changed", err)
 	}
 	after, _ := os.ReadFile(jar)
