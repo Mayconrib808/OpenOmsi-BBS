@@ -4,15 +4,28 @@ package main
 
 import (
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"syscall"
 )
 
-// exec.Command supplies valid NUL handles for GUI processes without a console.
-// Direct os.StartProcess with an empty Files slice returns EINVAL on Windows.
-func startBridgeUpdateProcess(path, directory string, args ...string) error {
+// The updater is a background helper, but Setup is a GUI application that must
+// become visible after installation. Windows uses STARTUPINFO.ShowWindow for the
+// first ShowWindow call in the child: passing SW_HIDE can silently suppress
+// Setup's own ShowWindow(SW_SHOWNORMAL) and therefore its release notes.
+func bridgeUpdateCommand(path, directory string, args ...string) *exec.Cmd {
 	cmd := exec.Command(path, args...)
 	cmd.Dir = directory
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	// Keep the updater helper's previous behavior while allowing the re-opened
+	// Setup.exe to display its window (including the 2.2.2 changelog).
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow: !strings.EqualFold(filepath.Base(path), "Setup.exe"),
+	}
+	return cmd
+}
+
+func startBridgeUpdateProcess(path, directory string, args ...string) error {
+	cmd := bridgeUpdateCommand(path, directory, args...)
 	if err := cmd.Start(); err != nil {
 		return err
 	}
