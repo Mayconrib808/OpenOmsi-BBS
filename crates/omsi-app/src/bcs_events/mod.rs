@@ -177,10 +177,12 @@ impl crate::App {
         let notice = (state.key, state.stage, state.patient);
         if incidents.last_notice != Some(notice) {
             log::info!(
-                "BCS incident beta: {:?}, passenger {:?}, source {:?}",
+                "BCS incident beta: {:?}, passenger {:?}, source {:?}, capture {:?}, bus {:?}",
                 state.stage,
                 state.patient,
-                state.key
+                state.key,
+                latest.as_ref().map(|s| (s.pid, s.instance)),
+                context.as_deref()
             );
             if state.stage == Stage::PatientUnwell && state.patient.is_none() {
                 log::warn!("BCS incident beta: medical event received but no eligible seated local passenger is aboard this bus");

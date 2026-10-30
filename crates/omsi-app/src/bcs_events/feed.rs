@@ -21,7 +21,7 @@ impl Feed {
         std::thread::Builder::new().name("BCS incident capture reader".into()).spawn(move || {
             while worker_running.load(Ordering::Relaxed) {
                 let next = scan(&directory, now_ms());
-                if let Ok(mut slot) = worker_value.lock() { *slot = next; }
+                if let Ok(mut slot) = worker_value.lock() { *slot = accept_poll(slot.take(), next, now_ms()); }
                 std::thread::sleep(Duration::from_millis(250));
             }
         }).ok()?;
@@ -40,25 +40,71 @@ impl Drop for Feed {
 fn now_ms() -> u64 { SystemTime::now().duration_since(UNIX_EPOCH).unwrap_or_default().as_millis() as u64 }
 fn fresh(observed: u64, now: u64) -> bool { observed <= now.saturating_add(2000) && now.saturating_sub(observed) <= FRESH_MS }
 
-fn scan(directory: &Path, now: u64) -> Option<Snapshot> {
+enum Poll {
+    Ready(Snapshot),
+    Unreadable(Option<u32>),
+    Missing,
+    Rejected,
+    Ambiguous,
+}
+
+fn accept_poll(previous: Option<Snapshot>, poll: Poll, now: u64) -> Option<Snapshot> {
+    match poll {
+        Poll::Ready(snapshot) => Some(snapshot),
+        // Windows can briefly deny a read while the publisher replaces the JSON.
+        // Keep only the same source's already validated, still-fresh heartbeat.
+        Poll::Unreadable(pid) => previous.filter(|s| pid.is_none_or(|p| p == s.pid) && fresh(s.observed_ms, now)),
+        Poll::Missing => previous.filter(|s| fresh(s.observed_ms, now)),
+        Poll::Rejected | Poll::Ambiguous => None,
+    }
+}
+
+fn choose(found: &mut Option<Snapshot>, snapshot: Snapshot) -> bool {
+    if let Some(old) = found.as_ref() {
+        if old.pid != snapshot.pid { return false; }
+        if old.observed_ms > snapshot.observed_ms { return true; }
+    }
+    // Directory enumeration may repeat a filename during an atomic replacement.
+    // Two entries for one PID are still one source, not two BCS processes.
+    *found = Some(snapshot);
+    true
+}
+
+fn scan(directory: &Path, now: u64) -> Poll {
     let mut found = None;
-    let entries = fs::read_dir(directory).ok()?;
-    for entry in entries.take(256).flatten() {
+    let Ok(entries) = fs::read_dir(directory) else { return Poll::Unreadable(None) };
+    let mut failed = Vec::new();
+    let mut directory_error = false;
+    let mut rejected = false;
+    for entry in entries.take(256) {
+        let Ok(entry) = entry else { directory_error = true; continue };
         let name = entry.file_name();
         let Some(name) = name.to_str() else { continue };
         let Some(pid) = name.strip_prefix("bcs-events-").and_then(|n| n.strip_suffix(".json")).and_then(|n| n.parse::<u32>().ok()) else { continue };
-        let Ok(meta) = entry.metadata() else { continue };
-        if !meta.is_file() || meta.len() > MAX_BYTES { continue; }
+        let Ok(meta) = entry.metadata() else { failed.push(pid); continue };
+        if !meta.is_file() || meta.len() > MAX_BYTES { rejected = true; continue; }
         let mut bytes = Vec::new();
-        let Ok(file) = fs::File::open(entry.path()) else { continue };
-        if file.take(MAX_BYTES + 1).read_to_end(&mut bytes).is_err() || bytes.len() as u64 > MAX_BYTES { continue; }
-        let Some(snapshot) = decode(&bytes, now) else { continue };
-        if snapshot.pid != pid { continue; }
-        // Two active BCS JVMs cannot be associated with this bus reliably. Do not guess.
-        if found.is_some() { return None; }
-        found = Some(snapshot);
+        let Ok(file) = fs::File::open(entry.path()) else { failed.push(pid); continue };
+        if file.take(MAX_BYTES + 1).read_to_end(&mut bytes).is_err() { failed.push(pid); continue; }
+        if bytes.len() as u64 > MAX_BYTES { rejected = true; continue; }
+        let Some(snapshot) = decode(&bytes, now) else {
+            if serde_json::from_slice::<serde_json::Value>(&bytes).is_err() { failed.push(pid); }
+            else { rejected = true; }
+            continue;
+        };
+        if snapshot.pid != pid { rejected = true; continue; }
+        if !choose(&mut found, snapshot) { return Poll::Ambiguous; }
     }
-    found
+    failed.sort_unstable();
+    failed.dedup();
+    if let Some(snapshot) = found {
+        if failed.iter().any(|&pid| pid != snapshot.pid) { return Poll::Ambiguous; }
+        return Poll::Ready(snapshot);
+    }
+    if failed.len() > 1 { return Poll::Ambiguous; }
+    if rejected { return Poll::Rejected; }
+    if directory_error { return Poll::Unreadable(None); }
+    failed.first().map_or(Poll::Missing, |&pid| Poll::Unreadable(Some(pid)))
 }
 
 pub(super) fn decode(bytes: &[u8], now: u64) -> Option<Snapshot> {
@@ -100,6 +146,49 @@ fn timestamp(text: &str) -> Option<u64> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn interrupted_json_read_does_not_block_the_following_ambulance_call() {
+        use super::super::lifecycle::{Controller, Stage};
+        let dir = std::env::temp_dir().join(format!("bcs-capture-continuity-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("bcs-events-9324.json");
+        let now = timestamp("2026-10-28T15:45:14.650Z").unwrap();
+        let mut raw = serde_json::json!({"schema":1,"pid":"9324","status":"compatible","event_id":4,"event_instance":1,"requested_service_id":0,"manager_event_id":4,"popup_completed_flag":false,"service_delay_elapsed":false,"observed_at":"2026-10-28T15:45:14.650Z"});
+        fs::write(&path, raw.to_string()).unwrap();
+        let mut latest = accept_poll(None, scan(&dir, now), now);
+        let mut c = Controller::default();
+        c.step(Some("same bus"), latest.as_ref(), &[1, 2], 0.25);
+        assert_eq!(c.patient, Some(1));
+        fs::remove_file(&path).unwrap();
+        latest = accept_poll(latest, scan(&dir, now + 250), now + 250);
+        c.step(Some("same bus"), latest.as_ref(), &[1, 2], 0.25);
+        assert_eq!(c.patient, Some(1));
+        fs::write(&path, "{").unwrap();
+        latest = accept_poll(latest, scan(&dir, now + 500), now + 500);
+        c.step(Some("same bus"), latest.as_ref(), &[1, 2], 0.25);
+        raw["requested_service_id"] = 3.into();
+        fs::write(&path, raw.to_string()).unwrap();
+        latest = accept_poll(latest, scan(&dir, now + 1000), now + 1000);
+        c.step(Some("same bus"), latest.as_ref(), &[1, 2], 0.25);
+        assert_eq!(c.stage, Stage::AmbulanceRequested);
+        assert_eq!(c.patient, Some(1));
+        fs::remove_dir_all(dir).unwrap();
+    }
+    #[test]
+    fn duplicate_pid_and_brief_absence_preserve_only_a_fresh_unambiguous_source() {
+        let s = Snapshot { pid: 9324, event: 4, instance: 1, service: 0, completed: false, delay_elapsed: false, observed_ms: 1000 };
+        let mut found = None;
+        assert!(choose(&mut found, s.clone()));
+        assert!(choose(&mut found, s.clone()));
+        assert!(!choose(&mut found, Snapshot { pid: 99, ..s.clone() }));
+        assert!(accept_poll(Some(s.clone()), Poll::Unreadable(Some(9324)), 1500).is_some());
+        assert!(accept_poll(Some(s.clone()), Poll::Unreadable(Some(99)), 1500).is_none());
+        assert!(accept_poll(Some(s.clone()), Poll::Unreadable(None), 16_001).is_none());
+        assert!(accept_poll(Some(s.clone()), Poll::Missing, 1500).is_some());
+        assert!(accept_poll(Some(s.clone()), Poll::Missing, 16_001).is_none());
+        assert!(accept_poll(Some(s.clone()), Poll::Rejected, 1500).is_none());
+        assert!(accept_poll(Some(s), Poll::Ambiguous, 1500).is_none());
+    }
     #[test] fn java_instant_and_calendar() {
         assert_eq!(timestamp("1970-01-01T00:00:00Z"), Some(0));
         assert_eq!(timestamp("2026-10-28T15:45:14.650Z"), Some(1793202314650));

@@ -143,3 +143,12 @@ physical arrival still apply. Generic end-of-trip cleanup preserves the response
 route until arrival; previously it erased the route within 150 m and the response
 controller stopped the car immediately. BCS completion adds no five-second hold.
 A stalled approach records the AI stop reason and expires after 30 s.
+
+### Capture continuity (beta 0.2.3)
+
+A missing/unreadable poll during atomic JSON replacement keeps the last validated
+heartbeat only within the existing 15-second freshness limit. A repeated directory
+entry for the same PID is one source. Explicit incompatible data, another unreadable
+PID and multiple active sources remain rejected. This prevents one filesystem poll
+from permanently blocking the medical event before the ambulance is requested.
+The capture/lifecycle regression compiles the actual modules in a small test harness.
