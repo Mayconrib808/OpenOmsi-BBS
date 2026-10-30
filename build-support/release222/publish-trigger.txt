@@ -1,0 +1,1 @@
+Retry 2.2.2 signed publication after preserving exact 2.2.1.9 Hotfix 3 fallback artifact.
