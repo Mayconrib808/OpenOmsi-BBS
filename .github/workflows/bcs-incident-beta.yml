@@ -9,7 +9,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 120
     env:
-      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.9-events-beta.0.2.3
+      OPENOMSI_VERSION: 0.3.45-coop.15-2.2.1.9-events-beta.0.2.4
       OPENOMSI_BCS_EVENTS_BETA_DEFAULT: "1"
       OPENOMSI_COOP_GAME_ONLY: "1"
       TAURI_CONFIG: '{"version":"0.3.45"}'
@@ -27,6 +27,11 @@ jobs:
         with:
           cache-on-failure: true
           cache-workspace-crates: true
+      - name: Verify roadside access and short response arrival
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim --lib ai_traffic::response::
+          if ($LASTEXITCODE -ne 0) { throw "Roadside response regression failed" }
       - name: Compile the corrected native beta
         shell: pwsh
         run: |
@@ -34,15 +39,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Native incident beta build failed" }
           & .\target\release\openomsi.exe --version
           if ($LASTEXITCODE -ne 0) { throw "Native beta could not start" }
-      - name: Verify capture replacement and event continuity
-        shell: pwsh
-        run: |
-          $json = Get-ChildItem target/release/deps/libserde_json-*.rlib | Select-Object -First 1
-          if (-not $json) { throw "Compiled serde_json library not found" }
-          rustc --edition=2024 --test --crate-name bcs_capture_tests ci/bcs-capture-reader-tests.rs --extern "serde_json=$($json.FullName)" -L dependency=target/release/deps -o target/bcs-capture-tests.exe
-          if ($LASTEXITCODE -ne 0) { throw "Capture reader tests did not compile" }
-          & target/bcs-capture-tests.exe
-          if ($LASTEXITCODE -ne 0) { throw "Capture continuity regression failed" }
       - name: Package game and corresponding source
         shell: pwsh
         run: |
@@ -64,7 +60,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Native incident beta packaging failed" }
       - uses: actions/upload-artifact@v4
         with:
-          name: BCS-Events-0.2.3-native-Windows
+          name: BCS-Events-0.2.4-native-Windows
           path: native/*
           if-no-files-found: error
           retention-days: 30

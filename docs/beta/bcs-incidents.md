@@ -152,3 +152,16 @@ entry for the same PID is one source. Explicit incompatible data, another unread
 PID and multiple active sources remain rejected. This prevents one filesystem poll
 from permanently blocking the medical event before the ambulance is requested.
 The capture/lifecycle regression compiles the actual modules in a small test harness.
+
+### Roadside access (beta 0.2.4)
+
+Search actual road space within 60 m around the bus; do not require a lane
+aligned exactly behind a parked bus. Sample nearby positions along the road so
+the bus body can be avoided. The connected approach stays 10–18 m long and
+can cross small map segments without an artificial 2 m margin on each segment.
+Spawn distance is bounded by 80 m; body clearance still rejects occupied space.
+Failures record candidate and occupancy counts.
+
+If a terminal offers a clear road stop but lacks a clear drive-in, place the
+actual responder there stationary. Its real position and standstill still gate
+arrival; no timer fabricates a vehicle. The nearest clear stop is preferred.

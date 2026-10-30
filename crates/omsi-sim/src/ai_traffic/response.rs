@@ -33,6 +33,34 @@ pub struct Drive {
     pub signals: Arc<Signals>,
 }
 
+/// Nearby road stops for a bus that may be parked across, beside or away from
+/// the AI lane. Bus heading is a preference, never a requirement for access.
+pub fn roadside_stops(net: &Network, bus: DVec3, heading: f64, veh_type: i32) -> Vec<(f64, usize, f32, DVec3, f32)> {
+    let h = heading.to_radians();
+    let forward = DVec3::new(h.sin(), h.cos(), 0.0);
+    let mut stops = Vec::new();
+    for lane in crate::traffic::way::lanes_near(net, bus.truncate(), 80.0) {
+        let l = &net.lanes[lane];
+        if l.kind != LaneKind::Street || l.invisible || !l.allows(veh_type) || l.length() < 1.5 { continue; }
+        let Some((nearest, _)) = l.nearest_point(bus) else { continue };
+        let mut samples = [-24.0, -18.0, -12.0, -8.0, -4.0, 0.0, 4.0, 8.0, 12.0, 18.0, 24.0]
+            .into_iter().map(|offset| (nearest + offset).clamp(1.0, l.length() - 0.1)).collect::<Vec<_>>();
+        samples.sort_by(f32::total_cmp);
+        samples.dedup_by(|a, b| (*a - *b).abs() < 0.1);
+        for s in samples {
+            let (at, road_heading) = l.at(s);
+            let distance = (at - bus).truncate().length();
+            if distance > 60.0 || (at.z - bus.z).abs() > 3.0 { continue; }
+            let behind = (at - bus).dot(forward);
+            let angle = ((road_heading as f64 - heading + 180.0).rem_euclid(360.0) - 180.0).abs();
+            let score = distance + behind.max(0.0) * 0.05 + angle * 0.01;
+            stops.push((score, lane, s, at, road_heading));
+        }
+    }
+    stops.sort_by(|a, b| a.0.total_cmp(&b.0));
+    stops
+}
+
 /// A short, connected approach to the scene. Follow predecessors so a nearby
 /// spawn never needs a long loop around the map to reach the selected lane.
 pub fn short_approaches(net: &Network, goal: usize, goal_s: f32, veh_type: i32) -> Vec<(Vec<usize>, f32, f32)> {
@@ -46,9 +74,9 @@ pub fn short_approaches(net: &Network, goal: usize, goal_s: f32, veh_type: i32) 
             let l = &net.lanes[lane];
             if l.kind != LaneKind::Street || l.invisible || !l.allows(veh_type) { continue; }
             let start = s - remaining;
-            if start >= 2.0 && start <= l.length() - 2.0 {
+            if start >= 0.0 && start <= l.length() {
                 found.push((route, start, distance));
-            } else if remaining > s && route.len() < 8 {
+            } else if remaining > s && route.len() < 64 {
                 for &prev in &net.prev[lane] {
                     if route.contains(&prev) || !net.lanes[prev].next.contains(&lane) { continue; }
                     let mut before = vec![prev];
@@ -226,6 +254,34 @@ fn physically_arrived(at: DVec3, goal: DVec3, speed: f32) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn parked_bus_can_be_served_from_a_perpendicular_nearby_road() {
+        use crate::ai_traffic::scenario_tests::{Fixture, street};
+        let f = Fixture::new();
+        let bus = DVec3::new(502.4, 735.7, 8.9);
+        let mut net = Network::default();
+        net.lanes.push(street(bus + DVec3::new(-30.0, 10.0, 0.0), 90.0, 60.0));
+        net.link(1.5);
+        net.build_grid();
+        let stops = roadside_stops(&net, bus, 20.0, f.ty.def.ai_veh_type);
+        assert!(!stops.is_empty(), "a road beside the parked bus was rejected by bus heading");
+        assert!(stops.iter().all(|s| (s.3 - bus).truncate().length() <= 60.0));
+        assert!(stops.iter().any(|s| !short_approaches(&net, s.1, s.2, f.ty.def.ai_veh_type).is_empty()));
+    }
+    #[test]
+    fn short_approach_can_cross_many_small_road_segments() {
+        use crate::ai_traffic::scenario_tests::{Fixture, street};
+        let f = Fixture::new();
+        let mut net = Network::default();
+        for i in 0..16 { net.lanes.push(street(DVec3::new(0.0, i as f64 * 2.0, 0.0), 0.0, 2.0)); }
+        net.link(1.5);
+        let approaches = short_approaches(&net, 15, 1.0, f.ty.def.ai_veh_type);
+        assert!(!approaches.is_empty(), "short connected splines cannot require a 2 m interior margin");
+        for (route, s, length) in approaches {
+            let distance = route.iter().map(|&l| net.lanes[l].length()).sum::<f32>() - s - 1.0;
+            assert!((distance - length).abs() < 0.01);
+        }
+    }
     #[test]
     fn short_connected_approach_arrives_in_seconds_without_a_map_detour() {
         use crate::ai_traffic::scenario_tests::{Fixture, add_car, street, traffic};

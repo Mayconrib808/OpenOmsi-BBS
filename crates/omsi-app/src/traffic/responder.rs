@@ -1,6 +1,6 @@
 //! Dedicated responders use the real road graph, collision checks and normal AI bodies.
 use super::*;
-use omsi_sim::{ai_traffic::response::{Service, short_approaches}, traffic::way::lanes_near};
+use omsi_sim::ai_traffic::response::{Service, short_approaches, roadside_stops};
 
 impl Traffic {
     pub(crate) fn dispatch_incident_vehicle(
@@ -12,49 +12,28 @@ impl Traffic {
         service: Service,
     ) -> Result<u64, String> {
         let viewer = self.sim.viewer.ok_or("waiting for camera")?;
-        let h = heading.to_radians();
-        let forward = DVec3::new(h.sin(), h.cos(), 0.0);
-        let desired = bus - forward * 14.0;
-        let mut goals = Vec::new();
-        for lane in lanes_near(&self.sim.net, desired.truncate(), 60.0) {
-            let l = &self.sim.net.lanes[lane];
-            if l.kind != LaneKind::Street
-                || l.invisible
-                || !l.allows(ty.def.ai_veh_type)
-                || l.length() < 8.0
-            {
-                continue;
-            }
-            let Some((s, distance)) = l.nearest_point(desired) else {
-                continue;
-            };
-            let s = s.clamp(3.0, l.length() - 3.0);
-            let (at, lane_heading) = l.at(s);
-            let behind = (at - bus).dot(forward);
-            let angle = ((lane_heading as f64 - heading + 180.0).rem_euclid(360.0) - 180.0).abs();
-            if distance <= 12.0
-                && (at.z - bus.z).abs() <= 3.0
-                && (-24.0..=-10.0).contains(&behind)
-                && angle < 50.0
-            {
-                goals.push((distance, lane, s, at, lane_heading));
-            }
-        }
-        goals.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let goals = roadside_stops(&self.sim.net, bus, heading, ty.def.ai_veh_type);
+        let goal_count = goals.len();
+        let mut closest_clear = None;
+        let mut blocked_stops = 0;
+        let mut approach_count = 0;
+        let mut blocked_approaches = 0;
         let radius = ty.half_length().unwrap_or(6.0) as f64 + 2.0;
-        for goal in goals.into_iter().take(16) {
-            if self.blocked(&ty, goal.3, goal.4 as f64) { continue; }
+        for goal in goals.into_iter().take(128) {
+            if self.blocked(&ty, goal.3, goal.4 as f64) { blocked_stops += 1; continue; }
+            if closest_clear.is_none() { closest_clear = Some(goal); }
             let mut starts = short_approaches(&self.sim.net, goal.1, goal.2, ty.def.ai_veh_type)
                 .into_iter().filter_map(|(route, s, length)| {
+                    approach_count += 1;
                     let (at, heading) = self.sim.net.lanes[route[0]].at(s);
-                    if (at - bus).length() > 50.0 || self.blocked(&ty, at, heading as f64) { return None; }
+                    if (at - bus).length() > 80.0 || self.blocked(&ty, at, heading as f64) { blocked_approaches += 1; return None; }
                     for (k, &lane) in route.iter().enumerate() {
                         let from = if k == 0 { s } else { 0.0 };
                         let end = if k + 1 == route.len() { goal.2 } else { self.sim.net.lanes[lane].length() };
                         let mut check = from + 3.0;
                         while check < end {
                             let (pos, angle) = self.sim.net.lanes[lane].at(check);
-                            if self.blocked(&ty, pos, angle as f64) { return None; }
+                            if self.blocked(&ty, pos, angle as f64) { blocked_approaches += 1; return None; }
                             check += 3.0;
                         }
                     }
@@ -69,14 +48,28 @@ impl Traffic {
                 let id = self.create_car(world, bus, LaneKind::Street, route[0], s, ty, seed,
                     None, None, Some(6.0_f32.min((2.0 * 3.0 * length).sqrt())), None);
                 if self.sim.dispatch_response(id, route, goal.2, service) {
-                    log::info!("BCS response: short approach {length:.1} m to a stop {:.1} m behind bus, spawn visible {visible}", (goal.3 - bus).length());
+                    log::info!("BCS response: short approach {length:.1} m to a stop {:.1} m from bus, spawn visible {visible}", (goal.3 - bus).length());
                     return Ok(id);
                 }
                 self.remove_car(id);
                 return Err("response route was invalidated".into());
             }
         }
-        Err("no clear short connected approach beside the bus".into())
+        // A terminal or short cul-de-sac can have a clear stopping place without
+        // room for a drive-in. Create the real vehicle stopped on that road;
+        // arrival is still confirmed from its actual position and speed.
+        if let Some(goal) = closest_clear {
+            let seed = self.rand();
+            let id = self.create_car(world, bus, LaneKind::Street, goal.1, goal.2, ty, seed,
+                None, None, Some(0.0), None);
+            if self.sim.dispatch_response(id, vec![goal.1], goal.2, service) {
+                log::info!("BCS response: nearby roadside placement {:.1} m from bus; no clear drive-in", (goal.3 - bus).length());
+                return Ok(id);
+            }
+            self.remove_car(id);
+            return Err("response roadside placement was invalidated".into());
+        }
+        Err(format!("no clear short connected approach beside the bus (road stops {goal_count}, occupied stops {blocked_stops}, approaches {approach_count}, occupied approaches {blocked_approaches})"))
     }
 
     /// Normal off-screen retirement after driving away; never pop a vehicle beside the bus.
