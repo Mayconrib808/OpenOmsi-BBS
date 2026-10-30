@@ -5,6 +5,9 @@ on:
     paths:
       - .github/workflows/release-222-candidate.yml
       - scripts/build_222.py
+      - source/setup_changelog_windows.go
+      - source/setup_gui_windows.go
+      - docs/releases/2.2.2.md
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -39,6 +42,22 @@ jobs:
           run-id: 40765546864
           github-token: ${{ github.token }}
           path: parts
+      - name: Wait for exact tested fiscal-patrol native client and server
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for ($i = 0; $i -lt 300; $i++) {
+            $native = gh api repos/Mayconrib808/OpenOmsi-BBS/actions/runs/41141986179 | ConvertFrom-Json
+            if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect fixed native build' }
+            if ($native.head_sha -ne '9e72d7c94fce6d995795e42ea52da0bccbad73c8') { throw 'Wrong fiscal patrol source commit' }
+            if ($native.status -eq 'completed') {
+              if ($native.conclusion -ne 'success') { throw 'Fiscal patrol native tests did not pass' }
+              break
+            }
+            if ($i -eq 299) { throw 'Native build is not complete' }
+            Start-Sleep -Seconds 20
+          }
       - name: Download tested native 0.3.46 client and server
         uses: actions/download-artifact@v4
         with:
