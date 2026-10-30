@@ -257,7 +257,7 @@ func logWindowPaint(window uintptr){
     }
     y+=12
     guiGDI.NewProc("RestoreDC").Call(dc,save)
-    fullHeight:=int(y-top+state.scroll)
+    fullHeight:=int(y-top)+state.scroll
     windowHeight:=int(bottom-top)
     state.maxScroll=fullHeight-windowHeight
     if state.maxScroll<0{state.maxScroll=0}
