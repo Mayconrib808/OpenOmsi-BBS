@@ -1,0 +1,82 @@
+diff --git a/crates/omsi-app/src/traffic/population.rs b/crates/omsi-app/src/traffic/population.rs
+--- a/crates/omsi-app/src/traffic/population.rs
++++ b/crates/omsi-app/src/traffic/population.rs
+@@ -792,22 +792,56 @@
+-    pub(super) fn populate_lan_centers(
+-        &mut self,
+-        world: &World,
+-        center: DVec3,
+-        target: usize,
+-    ) {
+-        let centers = self.sim.lan_centers.clone();
+-        let mut done = vec![center];
+-        for c in centers {
+-            if done
+-                .iter()
+-                .any(|d| (*d - c).truncate().length() < self.sim.spawn_radius)
+-            {
+-                continue;
+-            }
+-            self.sim.count_near = Some((c, self.sim.spawn_radius));
+-            self.populate_kind(world, c, LaneKind::Street, target);
+-            self.sim.count_near = None;
+-            done.push(c);
+-        }
+-    }
+-}
++    pub(super) fn populate_lan_centers(
++        &mut self,
++        world: &World,
++        center: DVec3,
++        target: usize,
++    ) {
++        let centers = self.sim.lan_centers.clone();
++        let mut done = vec![center];
++        for c in centers.iter().copied() {
++            // When a guest drives within the edge of the host's spawn radius,
++            // the former whole-radius overlap test suppressed *all* local
++            // spawning around the guest. The visible region on the far side
++            // of their bus could be empty, even though the host had cars.
++            // Two overlapping circles already limit admissions separately
++            // via count_near, so only suppress near-identical centers.
++            if !needs_local_lan_traffic(&done, c, self.sim.spawn_radius) {
++                continue;
++            }
++            self.sim.count_near = Some((c, self.sim.spawn_radius));
++            self.populate_kind(world, c, LaneKind::Street, target);
++            self.sim.count_near = None;
++            done.push(c);
++        }
++        // Host-only telemetry to distinguish density policy from cars blocked
++        // by a map's no-cars lanes, loaded terrain or admission constraints.
++        // The client merely mirrors cars and cannot measure host production.
++        static LAST_REPORT:std::sync::atomic::AtomicU64=std::sync::atomic::AtomicU64::new(0);
++        let seconds=self.sim.time.max(0.0) as u64;
++        let last=LAST_REPORT.load(std::sync::atomic::Ordering::Relaxed);
++        if seconds>=last.saturating_add(45)
++            && LAST_REPORT.compare_exchange(last,seconds,
++                 std::sync::atomic::Ordering::Relaxed,std::sync::atomic::Ordering::Relaxed).is_ok() {
++            let cars=self.sim.cars.iter().filter(|c| !c.is_bus()).count();
++            let near=|p:DVec3| self.sim.cars.iter().filter(|car| !car.is_bus()
++                && (car.vehicle.position-p).truncate().length()<self.sim.spawn_radius).count();
++            let local=near(center);
++            let remote:Vec<usize>=centers.iter().map(|&p|near(p)).collect();
++            log::info!("LAN traffic population: requested={} target_near={} actual_host_near={} remote_near={:?} total_unscheduled={} centers={} populated_centers={} radius={:.0}",
++                self.sim.target,target,local,remote,cars,centers.len(),done.len(),self.sim.spawn_radius);
++        }
++    }
++}
++fn needs_local_lan_traffic(done:&[DVec3],center:DVec3,radius:f64)->bool{
++    !done.iter().any(|p|(*p-center).truncate().length()<radius*0.65)
++}
++#[cfg(test)]
++mod lan_center_density_tests {
++    use super::*;
++    #[test]
++    fn guest_on_edge_of_host_coverage_gets_own_car_population(){
++        let a=DVec3::ZERO;
++        assert!(!needs_local_lan_traffic(&[a],DVec3::new(50.0,0.0,0.0),100.0));
++        assert!(needs_local_lan_traffic(&[a],DVec3::new(70.0,0.0,0.0),100.0));
++        assert!(needs_local_lan_traffic(&[a],DVec3::new(120.0,0.0,0.0),100.0));
++    }
++}
