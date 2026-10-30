@@ -928,6 +928,16 @@ func runSetupGUI(dir string, smoke bool) error {
                 if notes==0{return fmt.Errorf("changelog window did not open: %s",lang)}
                 guiUser.NewProc("RedrawWindow").Call(notes,0,0,0x0581)
                 if err:=captureSetupPreview(notes,filepath.Join(previews,"changelog-"+lang+".png"));err!=nil{return err}
+                if changelogState==nil || len(changelogState.buttons)!=len(logSections()) {return fmt.Errorf("detailed changelog navigation was not created: %s",lang)}
+                for i:=range logSections(){
+                    guiUser.NewProc("SendMessageW").Call(notes,guiWMCommand,uintptr(logIDSectionBase+i),0)
+                    if changelogState.section!=i{return fmt.Errorf("changelog category %d did not switch: %s",i,lang)}
+                    guiUser.NewProc("RedrawWindow").Call(notes,0,0,0x0581)
+                    if lang=="pt"{
+                        if err:=captureSetupPreview(notes,filepath.Join(previews,fmt.Sprintf("changelog-pt-section-%d.png",i)));err!=nil{return err}
+                    }
+                }
+                guiUser.NewProc("SendMessageW").Call(notes,guiWMCommand,uintptr(logIDSectionBase),0)
                 guiUser.NewProc("SendMessageW").Call(notes,guiWMClose,0,0)
                 if changelogWindow!=0{return fmt.Errorf("changelog window did not close")}
 			}
