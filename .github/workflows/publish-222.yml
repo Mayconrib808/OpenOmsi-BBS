@@ -37,6 +37,12 @@ jobs:
           path: approved-new
       - uses: actions/download-artifact@v4
         with:
+          name: Bridge-2.2.1.9-hotfix3-candidate
+          run-id: 40901236438
+          github-token: ${{ github.token }}
+          path: approved-current
+      - uses: actions/download-artifact@v4
+        with:
           name: Bridge-2.2.1.9-hotfix2-candidate
           run-id: 40765546864
           github-token: ${{ github.token }}
