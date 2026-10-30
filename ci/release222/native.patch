@@ -52695,7 +52695,7 @@ index 8cc208f2..509cb127 100644
  /// shut, it does not back up, and it goes on.
  #[test]
 diff --git a/crates/omsi-sim/src/ai_traffic/tick.rs b/crates/omsi-sim/src/ai_traffic/tick.rs
-index 6659a631..918f6c28 100644
+index 6659a631..e96e0cf3 100644
 --- a/crates/omsi-sim/src/ai_traffic/tick.rs
 +++ b/crates/omsi-sim/src/ai_traffic/tick.rs
 @@ -40,6 +40,7 @@ type BodyWork<'a> = (
@@ -52706,13 +52706,15 @@ index 6659a631..918f6c28 100644
  );
  
  /// A worker more helps with the cars' bodies and scripts per this much of their work (s,
-@@ -60,7 +61,12 @@ fn step_body(net: &Network, dt: f32, scripts: bool, profile: bool, w: &mut BodyW
+@@ -58,9 +59,14 @@ fn step_body(net: &Network, dt: f32, scripts: bool, profile: bool, w: &mut BodyW
+         record_rail_trail(trail, state.odometer as f64, state.way_point(net, 0.0));
+     }
      let trail = &*trail;
++    if w.8.is_some(){state.speed=0.0;frame.speed=0.0;}
      let behind = |d: f64| rail_behind(trail, state, net, d);
      // (watched near the scenery, and where it got to for the planner's next step)
 -    let link = guard.step(
 +    let link = if let Some((at,heading))=w.8 {
-+        state.speed=0.0;frame.speed=0.0;
 +        let a=heading.to_radians();let f=DVec3::new(a.sin(),a.cos(),0.0);
 +        body.place(&|d|at+f*d as f64,ground.as_ref().map(|g|g.as_ref()as &dyn Fn(f64,f64)->Option<f64>),contact.as_deref(),0.0);
 +        crate::traffic::BodyLink::default()
