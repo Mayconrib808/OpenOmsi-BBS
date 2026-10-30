@@ -20,14 +20,15 @@ jobs:
       CARGO_PROFILE_RELEASE_LTO: 'false'
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
     steps:
+      - name: Use LF source files on the ephemeral Windows runner
+        shell: pwsh
+        run: git config --global core.autocrlf false
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
       - name: Apply cumulative source delta and record exact source tree
         shell: pwsh
         run: |
-          git config core.autocrlf false
-          git checkout-index --force --all
           git apply --index ci/release222/native.patch
           if ($LASTEXITCODE -ne 0) { throw 'Cumulative source patch failed' }
           git -c user.name=Codex -c user.email=codex@openai.com commit -m 'Materialize exact 2.2.2 integration source'
