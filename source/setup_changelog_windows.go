@@ -47,13 +47,25 @@ func logAccent(r,g,b byte)uintptr{return guiRGB(r,g,b)}
 func logSections() []logSection {
     return []logSection{
         {
-            label:logT("🛠️ HOTFIX DO FISCAL","🛠️ INSPECTOR HOTFIX","🛠️ KONTROLLEUR-HOTFIX"),
+            label:logT("🛠️ CORREÇÕES DO HOTFIX","🛠️ HOTFIX CORRECTIONS","🛠️ HOTFIX-KORREKTUREN"),
             accent:logAccent(255,203,92),
             entries:[]logEntry{
                 {logT("✅ Fiscal agora percorre o corredor","✅ Inspector now patrols the aisle","✅ Kontrolleur läuft durch den Gang"),
                  logT("Corrigimos o fiscal que levantava e ficava parado perto da porta. Durante a fiscalização, ele usa os caminhos internos do ônibus para visitar diferentes regiões e fazer pequenas pausas perto dos passageiros, sem depender de o contador do BCS mudar a cada passo.",
                  "Fixes the inspector standing still by the door after getting up. During inspection, the character walks through the bus using its interior paths, visiting passenger areas with short pauses instead of waiting for the BCS count to change at every step.",
                  "Behebt den Kontrolleur, der nach dem Aufstehen an der Tür stehen blieb. Während der Kontrolle nutzt er die Innenwege des Busses, besucht die Fahrgastbereiche und legt kurze Pausen ein, ohne ständig auf den BBS-Zähler zu warten.")},
+                {logT("🚓 Polícia e bombeiros em tamanho correto","🚓 Police and fire engines at proper scale","🚓 Polizei und Feuerwehr in richtiger Größe"),
+                 logT("Os carros substitutos incluídos na Bridge tinham um erro de conversão de eixos dos modelos 3D. A carroceria da viatura aparecia como se tivesse apenas 1,8 metro de comprimento. A geometria da polícia e dos bombeiros foi corrigida para preservar o tamanho real; o posicionamento em mapas diferentes ainda precisa ser confirmado.",
+                 "Bundled emergency replacements had an incorrect 3D axis conversion. The police car could be interpreted as only 1.8 metres long. The geometry for police and fire vehicles now uses the proper dimensions. In-game placement still needs verification on different maps.",
+                 "Die mitgelieferten Ersatzfahrzeuge hatten eine falsche Umrechnung der 3D-Achsen. Das Polizeiauto konnte nur als 1,8 Meter lang erkannt werden. Die Geometrie von Polizei und Feuerwehr wurde berichtigt; die Positionierung muss noch auf verschiedenen Karten getestet werden.")},
+                {logT("🚨 Emergências com mais tempo e diagnóstico","🚨 Longer response window and diagnostics","🚨 Längere Einsatzzeit und Protokollierung"),
+                 logT("O sistema não deve mais encerrar a tentativa de atendimento depois de apenas 30 segundos. O tempo máximo foi ampliado para 180 segundos, com registros no host sobre o recebimento da ocorrência, despacho, chegada, cancelamentos e dificuldades de rota. A cena só aparece quando o BCS realmente informar um evento compatível.",
+                 "The responder is no longer cancelled after just 30 seconds; the limit increases to 180 seconds. Host logs now report received events, dispatch, arrival, cancellation and routing problems. A visual scene still requires a compatible real BCS event.",
+                 "Ein Einsatz wird nicht mehr schon nach 30 Sekunden beendet; die Grenze wurde auf 180 Sekunden erhöht. Das Host-Protokoll dokumentiert empfangene Ereignisse, Entsendung, Ankunft, Abbruch und Routenprobleme. Voraussetzung bleibt ein passendes BBS-Ereignis.")},
+                {logT("🚗 Trânsito mais completo no multiplayer","🚗 Better multiplayer traffic coverage","🚗 Bessere Verkehrsabdeckung im Multiplayer"),
+                 logT("Corrigida a regra que considerava áreas do host e dos convidados sobrepostas mesmo quando parte da área do jogador ainda estava sem carros. O servidor pode preencher essa região respeitando os limites de densidade, espaço livre e desempenho; não significa tráfego infinito ou aumento forçado das configurações.",
+                 "The host previously treated nearby guest coverage as already populated even if part of the guest's area was empty. The server can fill the remaining area while honoring traffic settings, free space and performance limits, rather than forcing extra cars everywhere.",
+                 "Der Host betrachtete die Umgebung anderer Spieler teilweise als bereits versorgt, obwohl Abschnitte leer waren. Jetzt kann der Server diese Bereiche unter Beachtung von Verkehrsmenge, freiem Platz und Leistung füllen, ohne überall mehr Autos zu erzwingen.")},
                 {logT("✅ Banco reservado e retorno ao lugar","✅ Reserved seat and return","✅ Reservierter Sitz und Rückkehr"),
                  logT("O banco continua reservado enquanto o fiscal caminha. Ao encerrar a inspeção, ele procura voltar ao mesmo assento. O trajeto depende dos caminhos internos definidos no modelo do ônibus; ele não deve se teletransportar nem sair automaticamente no ponto final.",
                  "The seat remains reserved while the inspector walks. When inspection ends, the character attempts to return to the same seat. This requires a usable interior path; the inspector should neither teleport nor automatically leave at the final stop.",
@@ -229,7 +241,7 @@ func logWindowPaint(window uintptr){
     logFill(dc,guiRect{0,0,w,113},guiRGB(21,37,61))
     logFill(dc,guiRect{0,109,w,113},guiRGB(255,202,84))
     logTextDraw(dc,"OpenOMSI  BCS BRIDGE",guiRect{26,15,w-22,44},state.heading,white,0x0000|0x0020)
-    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2  ·  HOTFIX DO FISCAL","✨ UPDATE 2.2.2  ·  INSPECTOR HOTFIX","✨ UPDATE 2.2.2  ·  KONTROLLEUR-HOTFIX")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
+    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2  ·  HOTFIX 1","✨ UPDATE 2.2.2  ·  HOTFIX 1","✨ UPDATE 2.2.2  ·  HOTFIX 1")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
     logTextDraw(dc,logL(g.config.Language,logT("Escolha um assunto à esquerda. Role para ler todas as mudanças.","Choose a category on the left. Scroll to read the complete notes.","Links ein Thema wählen und für alle Änderungen scrollen.")),guiRect{26,83,w-24,107},state.tiny,muted,0x0020)
     logFill(dc,guiRect{0,114,268,h-76},guiRGB(17,29,47))
     logFill(dc,guiRect{0,h-77,w,h},guiRGB(21,37,61))
