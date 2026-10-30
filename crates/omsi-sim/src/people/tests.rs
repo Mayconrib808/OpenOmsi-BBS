@@ -514,6 +514,31 @@ fn doors_open_falls_back_when_exit_vars_are_undeclared() {
 
 
 #[test]
+fn one_entry_one_exit_with_separate_rear_leaf_can_open_for_alighting() {
+    let dir = std::env::temp_dir().join(format!("omsi-doors-rear-apache-{}",std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("test.bus"),
+        "[model]\nmodel.cfg\n[varnamelist]\n1\nvars.txt\n[script]\n1\nmain.osc\n").unwrap();
+    std::fs::write(dir.join("model.cfg"), "").unwrap();
+    // Exit0 may be miswired in the addon; the actual rear leaf is door_4.
+    std::fs::write(dir.join("vars.txt"),
+        "door_0\ndoor_1\ndoor_2\ndoor_3\ndoor_4\nPAX_Exit0_Open\n").unwrap();
+    std::fs::write(dir.join("main.osc"), "{init}\n{end}\n").unwrap();
+    let ty=std::sync::Arc::new(crate::VehicleType::load(&dir,&dir.join("test.bus")).unwrap());
+    let mut v=VehicleInstance::new(ty,crate::VehicleHost::new(Default::default()));
+    v.set_var("door_0",1.0);
+    let (_,closed)=PeopleSim::doors_open(&v,1,1);
+    assert_eq!(closed,vec![false],"front entrance alone must not open the exit");
+    v.set_var("door_4",0.5);
+    let (_,half)=PeopleSim::doors_open(&v,1,1);
+    assert_eq!(half,vec![false],"partly animated door is not yet open");
+    v.set_var("door_4",1.0);
+    let (_,open)=PeopleSim::doors_open(&v,1,1);
+    assert_eq!(open,vec![true],"real rear leaf opens the registered exit");
+    std::fs::remove_dir_all(&dir).ok();
+}
+
+#[test]
 fn doors_open_reads_pax_vars_the_script_writes_without_declaring() {
     let dir = std::env::temp_dir().join(format!("omsi-doors-open-undeclared-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
