@@ -1,0 +1,67 @@
+name: Build 2.2.2 native integration
+on:
+  push:
+    branches: [work/native-222-build]
+    paths: [ci/release222/native.patch, .github/workflows/native-222-build.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-2022
+    timeout-minutes: 100
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2
+      OPENOMSI_BCS_EVENTS_BETA_DEFAULT: '1'
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Apply cumulative source delta and record exact source tree
+        shell: pwsh
+        run: |
+          git apply --index ci/release222/native.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Cumulative source patch failed' }
+          git -c user.name=Codex -c user.email=codex@openai.com commit -m 'Materialize exact 2.2.2 integration source'
+          if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: native-222-release
+      - name: Build matching Windows client and server runtime
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
+          & .\target\release\openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Native startup failed' }
+      - name: Package exact binary and corresponding source
+        shell: pwsh
+        run: |
+          @'
+          import hashlib,json,os,shutil,subprocess
+          from pathlib import Path
+          out=Path('native');out.mkdir()
+          commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          shutil.copy2('target/release/openomsi.exe',out/'openomsi.exe')
+          for dll in Path('target/release').glob('*.dll'):shutil.copy2(dll,out/dll.name)
+          version=subprocess.check_output([str((out/'openomsi.exe').resolve()),'--version'],text=True)
+          assert os.environ['OPENOMSI_VERSION'] in version
+          (out/'version.txt').write_text(version)
+          subprocess.run(['git','archive','--format=tar.gz','--prefix=openomsi-222/','-o',str(out/'openomsi-source.tar.gz'),commit],check=True)
+          digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          (out/'SOURCE.json').write_text(json.dumps(dict(commit=commit,build_commit=os.environ['GITHUB_SHA'],source_tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),run_id=int(os.environ['GITHUB_RUN_ID']),upstream_commit='17be22987d7c01c813a1473e7696fc71fb3b1d89',native_sha256=digest(out/'openomsi.exe'),source_sha256=digest(out/'openomsi-source.tar.gz'),version=os.environ['OPENOMSI_VERSION'],windows_gameplay_tested=False),indent=2))
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Source packaging failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2-native-Windows
+          path: native/*
+          retention-days: 30
