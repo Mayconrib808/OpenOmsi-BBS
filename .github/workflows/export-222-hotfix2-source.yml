@@ -1,0 +1,74 @@
+name: Publish exact Hotfix 2 source separated for developer review
+on:
+  push:
+    branches: [tools/export-openomsi-222-hotfix2-source]
+    paths: [review-export-support/**, .github/workflows/export-222-hotfix2-source.yml]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: openomsi-222-hotfix2-source-export
+  cancel-in-progress: false
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Preserve source bytes on checkout
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 64db8910d135d123162ed90d772b06831909c9e2
+          path: native
+          persist-credentials: true
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2-native-Windows
+          run-id: 41157142308
+          github-token: ${{ github.token }}
+          path: artifact
+      - name: Import exact released native sources and verify the artifact tree
+        run: |
+          set -euo pipefail
+          branch=source/openomsi-0.3.46-coop15-2.2.2-hotfix2
+          if test -n "$(git -C native ls-remote --heads origin "refs/heads/$branch")"; then
+            echo 'Source branch already exists; refuse to overwrite it.'
+            exit 1
+          fi
+          git -C native switch -c "$branch"
+          python3 control/review-export-support/export_exact_source.py artifact native
+          git -C native -c user.name=Codex -c user.email=codex@openai.com commit -m 'source: publish exact native source tree of 2.2.2 Hotfix 2'
+      - name: Generate complete file-disjoint feature patches and review report
+        run: |
+          set -euo pipefail
+          git -C native fetch --depth=1 https://github.com/openOMSI-org/openOMSI.git 17be22987d7c01c813a1473e7696fc71fb3b1d89
+          export OPENOMSI_REVIEW_ROOT="$GITHUB_WORKSPACE/native"
+          export OPENOMSI_REVIEW_METADATA="$GITHUB_WORKSPACE/artifact/SOURCE.json"
+          export OPENOMSI_REVIEW_EXACT="$(git -C native rev-parse HEAD)"
+          python3 control/review-export-support/build_review_bundle.py
+          cp control/review-export-support/verify.py native/REVIEW-2.2.2-HOTFIX2/verify.py
+          cp control/review-export-support/REVIEW.md native/REVIEW-2.2.2-HOTFIX2/REVIEW.md
+          python3 native/REVIEW-2.2.2-HOTFIX2/verify.py
+      - name: Publish only source and review documentation
+        run: |
+          set -euo pipefail
+          git -C native add REVIEW-2.2.2-HOTFIX2
+          git -C native -c user.name=Codex -c user.email=codex@openai.com commit -m 'review: separate BCS events, inspectors, passengers and traffic with exact-source audit'
+          git -C native push origin HEAD:refs/heads/source/openomsi-0.3.46-coop15-2.2.2-hotfix2
+          git -C native rev-parse HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OpenOMSI-2.2.2-Hotfix2-source-review-evidence
+          path: |
+            artifact/SOURCE.json
+            native/REVIEW-2.2.2-HOTFIX2/provenance.json
+            native/REVIEW-2.2.2-HOTFIX2/verification.json
+            native/REVIEW-2.2.2-HOTFIX2/REVIEW.md
+            native/REVIEW-2.2.2-HOTFIX2/VALIDATION.md
+          if-no-files-found: warn
+          retention-days: 30
