@@ -1,0 +1,292 @@
+[
+  {
+    "path": "crates/omsi-app/src/app_events/frame/people.rs",
+    "source": {
+      "path": "crates/omsi-app/src/app_events/frame/people.rs",
+      "mode": "100644",
+      "blob_sha1": "2645fcb68bb5c50fb3c53177957cc6daa9ee5bdf",
+      "sha256": "e74f4ed6387db3b7d8ee861d2fd90963237a701ef40015f9a04afc7d498a977d",
+      "size": 16218
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/view_sync/people.rs",
+    "source": {
+      "path": "crates/omsi-app/src/view_sync/people.rs",
+      "mode": "100644",
+      "blob_sha1": "598b70bcb03ed5c6ec51170a5ceabcea56b86c1a",
+      "sha256": "1d71f019b4f7e35465f0e970859cb561806c203ef84960017a5126f9950d49c2",
+      "size": 45151
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/view_sync/people/animation.rs",
+    "source": {
+      "path": "crates/omsi-app/src/view_sync/people/animation.rs",
+      "mode": "100644",
+      "blob_sha1": "1d930109b7b281e5be14e4ac7af14429ada85ef4",
+      "sha256": "277d03777279114b2c561d742da53d675a9015985bf6cd71ece8abd432671146",
+      "size": 7194
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/view_sync/people/extras.rs",
+    "source": {
+      "path": "crates/omsi-app/src/view_sync/people/extras.rs",
+      "mode": "100644",
+      "blob_sha1": "5718f6f7eeedc75d9ad7384268a29805dcf88bb4",
+      "sha256": "5feb098bcd0336f73204ab5c1d400a2e2b9d67d42560e3a644349e9f0779809d",
+      "size": 13067
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/view_sync/people/extras/geometry.rs",
+    "source": {
+      "path": "crates/omsi-app/src/view_sync/people/extras/geometry.rs",
+      "mode": "100644",
+      "blob_sha1": "0dec5bf566ced1b6200a5aed1408c2e864b42592",
+      "sha256": "a87b32f94f39932eb15831ad8f844363f7aae88210b5f264f39d950a0b03f32e",
+      "size": 3842
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/view_sync/people/extras/water.rs",
+    "source": {
+      "path": "crates/omsi-app/src/view_sync/people/extras/water.rs",
+      "mode": "100644",
+      "blob_sha1": "f11e570841fc1ee1b1974cac1c09c7f19d24da18",
+      "sha256": "90e5435b7495da56343dc91bfac672fcce4090ffc2a591754b33ba2d5ff2cc96",
+      "size": 5207
+    }
+  },
+  {
+    "path": "crates/omsi-launcher-core/src/passenger_animation_tests.rs",
+    "source": {
+      "path": "crates/omsi-launcher-core/src/passenger_animation_tests.rs",
+      "mode": "100644",
+      "blob_sha1": "352d57c5ae98650ddcc3ef7aa3aaa6b253ed3e17",
+      "sha256": "aa9e3f34178c88bae9b1749d606d533bab1e770bb0798ae1ce031fd6a36d4a94",
+      "size": 2353
+    }
+  },
+  {
+    "path": "crates/omsi-launcher-core/src/passenger_defaults.rs",
+    "source": {
+      "path": "crates/omsi-launcher-core/src/passenger_defaults.rs",
+      "mode": "100644",
+      "blob_sha1": "0e5e8ef8f070684e65c6f9edae68a95c8a701aa2",
+      "sha256": "db58132e92fc37a966d64eeeba5d527e08c91c3bbc9a49bdeb70616623fcda67",
+      "size": 1567
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/human/bones.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/human/bones.rs",
+      "mode": "100644",
+      "blob_sha1": "224976b99852345f40740df193d0b1858d90d06d",
+      "sha256": "77eaf37b31191588f4b0e59e61c379cd39af10b46ce5e3b7fdb8f10a26f3c2ee",
+      "size": 27888
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/human/gesture.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/human/gesture.rs",
+      "mode": "100644",
+      "blob_sha1": "d4312e7f12492b86722e83772d73cd7c75dbee07",
+      "sha256": "cb1fc27339c5a1d20109b04509c49c688752e4f523f750782d005277945661fa",
+      "size": 15805
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/human/hail_look.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/human/hail_look.rs",
+      "mode": "100644",
+      "blob_sha1": "13b802b6966b28c56588d5199058b0653262b8a5",
+      "sha256": "acb27cda931c97032bfdf8d9611d760087a5465c0c9fdb91198a60851238b87a",
+      "size": 10432
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/human/hail_motion.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/human/hail_motion.rs",
+      "mode": "100644",
+      "blob_sha1": "aaf2e11dbc512d309c87dbbaaa318b0dcf4956ee",
+      "sha256": "887847e1dddc7ec0c4b65158fc4b5c31138bb8d162db8caf5326f7e3017d236b",
+      "size": 2602
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/human/mod.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/human/mod.rs",
+      "mode": "100644",
+      "blob_sha1": "42acc8968e3e075d4c3907edd2ddf98282e80301",
+      "sha256": "ebc2cd81c5d58dfa569108c3a2543382284ca2b1471385282d1fe17c811e45d9",
+      "size": 17851
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people.rs",
+      "mode": "100644",
+      "blob_sha1": "ac9df1efd6d7a2ebddfbf0315a1faf3a4abe6954",
+      "sha256": "748aefc67821f7e2bf5b09970b9d8334daa2dd61896d2332288f5d979b2cdd28",
+      "size": 6628
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/avatar.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/avatar.rs",
+      "mode": "100644",
+      "blob_sha1": "d7bff667e4d000c9f6278a7a36a66d25561aad3e",
+      "sha256": "8dbad02c633fe0d29194b240021758e99513acb73f1a2b3ff9bcaf29b618833c",
+      "size": 24876
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/bodies.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/bodies.rs",
+      "mode": "100644",
+      "blob_sha1": "a87fa4d20201948124c0dbc9ab9faa1964ff8bc7",
+      "sha256": "0365a8c0f48bfc4485276a8e5b463785eeafb16376dfd74ed59461bd0916064f",
+      "size": 3989
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/buses.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/buses.rs",
+      "mode": "100644",
+      "blob_sha1": "6e2d204c30798eaaa223dc0ae2d7ac177d28d6fc",
+      "sha256": "091ea24aba55d13adc5ed3b442a044f7168bca6f0f1342970335470775119659",
+      "size": 26210
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/mirror.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/mirror.rs",
+      "mode": "100644",
+      "blob_sha1": "124b6ba374fbd197b92842e1befb6b9fd916df9f",
+      "sha256": "ebec496ddc53a51cbcd04e76b29e9fed1a12e495c1628af31923d173008d620b",
+      "size": 22201
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/model.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/model.rs",
+      "mode": "100644",
+      "blob_sha1": "fa00ebde87accd96b7cf919332eeddabd870a3dd",
+      "sha256": "552f331934f533a5b96420fe7ac86bb9d1d0c7151366d98f673f98b80e8d4644",
+      "size": 26330
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/money.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/money.rs",
+      "mode": "100644",
+      "blob_sha1": "5ec897a2bad34a7f6077966ffff83ab82431999e",
+      "sha256": "3c54a20bb50bf873b7a0aa96398199f98ea3923733a9af32e511926d8e359ce9",
+      "size": 16756
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/pax.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/pax.rs",
+      "mode": "100644",
+      "blob_sha1": "f3ba6bd4bbc1c888431b8446f574efa5547bd62e",
+      "sha256": "b0eaf5a2120a366e765e017293224c5f1d047b1cdf8c234e657fe316a51db5f3",
+      "size": 38807
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/pax_stops.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/pax_stops.rs",
+      "mode": "100644",
+      "blob_sha1": "436fa5cc323319771cd0a07e0c7995f986e058d5",
+      "sha256": "776f6ce9e295e063c53f671c72b97258edcbef3882ffa935d61dbd6c72283ba6",
+      "size": 19900
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/pax_task.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/pax_task.rs",
+      "mode": "100644",
+      "blob_sha1": "946a9aa3d4e4766e5c3f0a1e77c9a50af55f7c2a",
+      "sha256": "a0d9812cd2d55823c69ef6f81ce982f7356ec3d8cea035cf4169e53607a58dc6",
+      "size": 60819
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/pax_tick.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/pax_tick.rs",
+      "mode": "100644",
+      "blob_sha1": "f091aba8a17de99a278ec1491be09ac5c93f7dfb",
+      "sha256": "6d236994d1c7feeb4f19b210082ceae8448ae59754734d73c902cdacde948fea",
+      "size": 23382
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/reactions.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/reactions.rs",
+      "mode": "100644",
+      "blob_sha1": "56dc27423afcbe4225e72776a09f3c88b8dcfac4",
+      "sha256": "9de62b10b92d014c3620d82fa68d23d964354ef3be3bd68c4b7f736bdf1cbdce",
+      "size": 5755
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/spawn.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/spawn.rs",
+      "mode": "100644",
+      "blob_sha1": "7f12c5b538cbb876742b000d0c6442c560564b84",
+      "sha256": "10956ce4d6407baf1f3fb8df3f31cc28e0e99d2b3c35d3b75f9488c110b8a21a",
+      "size": 34138
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/tests.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/tests.rs",
+      "mode": "100644",
+      "blob_sha1": "8e618a3b94814782e843935ca8352e89f2f0fc31",
+      "sha256": "99c374a438975473982042c1dab0ed83ec1d54ecfdbd8d6d06670cba31e1efe6",
+      "size": 61838
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/view_events.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/view_events.rs",
+      "mode": "100644",
+      "blob_sha1": "30333d868794b31d3d6855effb18374ed8fd1745",
+      "sha256": "b3dcbdb5370ab4951a5a4a3d479eec38ec58e589f667fe6f0a0179bbeecfaa10",
+      "size": 16680
+    }
+  },
+  {
+    "path": "launcher/ui/js/pages/passenger-settings.js",
+    "source": {
+      "path": "launcher/ui/js/pages/passenger-settings.js",
+      "mode": "100644",
+      "blob_sha1": "d40ff83d13b649c8e19bc15f821348fedcfbf42f",
+      "sha256": "6d972fc5ebe8af919cb2fdf53d6a064b4b9454ead87c4d022251513f0a5811a7",
+      "size": 662
+    }
+  }
+]

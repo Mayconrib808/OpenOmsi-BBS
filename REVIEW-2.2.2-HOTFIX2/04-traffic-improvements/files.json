@@ -1,0 +1,112 @@
+[
+  {
+    "path": "crates/omsi-app/src/traffic.rs",
+    "source": {
+      "path": "crates/omsi-app/src/traffic.rs",
+      "mode": "100644",
+      "blob_sha1": "89aa59af0e50287c76190e980b03bf4bbe750532",
+      "sha256": "f8416534a916403991a8a4ab3b573f2a87d1fd80bda3acf61a464171f8b3da54",
+      "size": 7359
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/traffic/mirror.rs",
+    "source": {
+      "path": "crates/omsi-app/src/traffic/mirror.rs",
+      "mode": "100644",
+      "blob_sha1": "1ae5d92f9d616b9d62fdc3d835bb239a0f5f0e70",
+      "sha256": "707003945816fd576852dcaa2fb49cfd4a2a2f4122566a5c53a9ed857c31f91c",
+      "size": 5266
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/traffic/population.rs",
+    "source": {
+      "path": "crates/omsi-app/src/traffic/population.rs",
+      "mode": "100644",
+      "blob_sha1": "686f71e120954570b02918e8c1f40483056b8f23",
+      "sha256": "39912cd1659017f05b4fd6e1c3eda9d9aa5dce9e410500b11a7e0b38767e13e3",
+      "size": 47498
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/view_sync/traffic.rs",
+    "source": {
+      "path": "crates/omsi-app/src/view_sync/traffic.rs",
+      "mode": "100644",
+      "blob_sha1": "ae809c01856ce1e15b2b3c975d59a171d114a7a4",
+      "sha256": "56da4ea178c1d7ec2d0e4824bbdab5f6f29307d07a4ad29e05d7c8a2ece6c900",
+      "size": 37412
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/view_sync/traffic_audio.rs",
+    "source": {
+      "path": "crates/omsi-app/src/view_sync/traffic_audio.rs",
+      "mode": "100644",
+      "blob_sha1": "019fe67477dff22de402a170c1720c5b289c8f82",
+      "sha256": "6c6c23a10f133de58ddd4e4a02e8d3e6242887e67d6441c92df94c18c770856f",
+      "size": 15403
+    }
+  },
+  {
+    "path": "crates/omsi-audio/src/greeting.rs",
+    "source": {
+      "path": "crates/omsi-audio/src/greeting.rs",
+      "mode": "100644",
+      "blob_sha1": "b5e851a3268e651fee48dc27129c962cfcac52cd",
+      "sha256": "3b18f78fcf19202df51c391a4f2d3890cf0a385f3e2f4480e0aa78c6c48ee463",
+      "size": 6730
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/ai_traffic.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/ai_traffic.rs",
+      "mode": "100644",
+      "blob_sha1": "46650cb63ad4152a44ad48d4f5107e03cb2aa927",
+      "sha256": "4a5efaad4fbf593fd7aecbe667ba7fe003d1effeebcd509a86967d2f54955479",
+      "size": 17453
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/ai_traffic/emergency.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/ai_traffic/emergency.rs",
+      "mode": "100644",
+      "blob_sha1": "1262263270f96048b436449838917d958fc3ad02",
+      "sha256": "c3db2dbef50549ef5f8b4f5d5ccbba833f14eeb17311432a1a4a1e1445ba3ffc",
+      "size": 40072
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/ai_traffic/greetings.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/ai_traffic/greetings.rs",
+      "mode": "100644",
+      "blob_sha1": "90c8b43b3e18ae792ebdf57dfb26365285577d69",
+      "sha256": "76c4b4ddafc2fca262ca20a3dfdecd8736e05117356e9ae9c77fe4cfca5fe366",
+      "size": 21315
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/ai_traffic/model.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/ai_traffic/model.rs",
+      "mode": "100644",
+      "blob_sha1": "188e187732c6aedfd3ef2462e3afd6b8a38f5f72",
+      "sha256": "9f94d53e9cc0d87c235795a79eba7756c1dec2187b40f01ca75da6517fb96706",
+      "size": 31356
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/ai_traffic/tick.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/ai_traffic/tick.rs",
+      "mode": "100644",
+      "blob_sha1": "e96e0cf36cb9eb8b751843a72e22ce51c2cba1c4",
+      "sha256": "1b0aebe872e6dafa563d2efc6ec10d0a5f748104e59f8e217dde79152647c72d",
+      "size": 79039
+    }
+  }
+]

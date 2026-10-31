@@ -1,0 +1,162 @@
+[
+  {
+    "path": "ci/bcs-capture-reader-tests.rs",
+    "source": {
+      "path": "ci/bcs-capture-reader-tests.rs",
+      "mode": "100644",
+      "blob_sha1": "2eb118e9ebfc033b2c3feaf09ca4a96d5e13fb3a",
+      "sha256": "3702cbc6955499028f04708f2e19d977058f896bf24e8b8c99b2a71d2859815b",
+      "size": 230
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/assets.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/assets.rs",
+      "mode": "100644",
+      "blob_sha1": "741b8344a80e4097f7e875c75b2d115a07fd059c",
+      "sha256": "3286a35c2395555780c4902c530b2b68e56315801dd95d46775fb8a407c316e3",
+      "size": 9264
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/dispatch.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/dispatch.rs",
+      "mode": "100644",
+      "blob_sha1": "6bb88f7ad60b47a8476a076dd9874c957ba5deba",
+      "sha256": "c5c126bdd5a36185862c57c29e374a59c1208b5bb21ed89122ebc9ce053198ed",
+      "size": 7864
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/effects.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/effects.rs",
+      "mode": "100644",
+      "blob_sha1": "effe9e92a04574756a213e64ec4ec32eaa35abe8",
+      "sha256": "a05c692b97999272863d09079bca133b73e50caaec04e4c88f2cd567d9fd6a8b",
+      "size": 5060
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/feed.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/feed.rs",
+      "mode": "100644",
+      "blob_sha1": "b49e4cb33c03097477a085a01237bc195de20fa7",
+      "sha256": "90f96538bd2280d5c6800c34a844a20609e9ec7a45849380d03db23a127bcf41",
+      "size": 11864
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/lifecycle.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/lifecycle.rs",
+      "mode": "100644",
+      "blob_sha1": "544c59c4bfc2c2605cf3a25dae2f265ff3288262",
+      "sha256": "be32e37209275a956dacf4364b47c0d97c5143d4d02e339587776dcadd8a49f4",
+      "size": 5316
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/mod.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/mod.rs",
+      "mode": "100644",
+      "blob_sha1": "e815213f22134a46225271865e6b71b9b355d707",
+      "sha256": "9b29ac46666410fbea341111d64ca14fdb4247b021cab403b5aa1cfb8cf83db0",
+      "size": 14146
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/network.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/network.rs",
+      "mode": "100644",
+      "blob_sha1": "3928e18c39b0cf2e77f3af569ae2a86b2c44901d",
+      "sha256": "2b66024d95541ba4aac6abefd5e78d555fde32e6ae6cd1e5218c21bf5bf5235e",
+      "size": 9821
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/posture.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/posture.rs",
+      "mode": "100644",
+      "blob_sha1": "b631b8a59af80a123b19c536b6478dbbd775512d",
+      "sha256": "3952e7237322b594f19dfecd732362184368a9fc3434d1e036e9f6eeabbb87b7",
+      "size": 2276
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/traffic/responder.rs",
+    "source": {
+      "path": "crates/omsi-app/src/traffic/responder.rs",
+      "mode": "100644",
+      "blob_sha1": "d83b35a5df153465a0af95ad75b7aa9faf264397",
+      "sha256": "f136e21f4a7125ef5b76b31084a8ae54ca77acd8877400563890beb3ceaeddf1",
+      "size": 8445
+    }
+  },
+  {
+    "path": "crates/omsi-sim/examples/bcs_models.rs",
+    "source": {
+      "path": "crates/omsi-sim/examples/bcs_models.rs",
+      "mode": "100644",
+      "blob_sha1": "535e0f59cf697c700f5ad62981902c0ea9735949",
+      "sha256": "c3fa0a03984edde5093332be1e9e2fd16fce94c8b96b4f39a161e2ead8da0cd5",
+      "size": 1402
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/ai_traffic/response.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/ai_traffic/response.rs",
+      "mode": "100644",
+      "blob_sha1": "83e2dc0c0d80366736141712dd897d0b9bfc9484",
+      "sha256": "caca5e1b38d42300814d4b18d51278fc1a82099af5032a345f5e0d7dd30fd010",
+      "size": 17682
+    }
+  },
+  {
+    "path": "docs/beta/bcs-incidents.md",
+    "source": {
+      "path": "docs/beta/bcs-incidents.md",
+      "mode": "100644",
+      "blob_sha1": "1e8eb7bc5d015d2a09ab13eb1bcf87d50d310b2c",
+      "sha256": "ea9a9a3561258bd7b4e540500df463206b33119c0e8d6c239c6dff0279c49564",
+      "size": 9491
+    }
+  },
+  {
+    "path": "docs/beta/emergency-models.json",
+    "source": {
+      "path": "docs/beta/emergency-models.json",
+      "mode": "100644",
+      "blob_sha1": "4b87379db0dbe199adabcb2f5dc7e4ae7cb2a40e",
+      "sha256": "aa6a3c493b7b838694493a6dd33b731f7ef92fca8203b288d482b16f09897559",
+      "size": 2509
+    }
+  },
+  {
+    "path": "scripts/stage-bcs-police.py",
+    "source": {
+      "path": "scripts/stage-bcs-police.py",
+      "mode": "100644",
+      "blob_sha1": "6f026c427899b8d8b6d3934c644ba698a8475d3a",
+      "sha256": "6a44c2ab54ee52d7d904286297bfe8aeb8210878f5a9f647dae19a76cc764795",
+      "size": 3584
+    }
+  },
+  {
+    "path": "tools/generate_bcs_assets.py",
+    "source": {
+      "path": "tools/generate_bcs_assets.py",
+      "mode": "100644",
+      "blob_sha1": "f0f4d39b35f57067ecbf43423c42f2a2ea388e98",
+      "sha256": "71a12082150a60cf56d9dd3264817e59e48c8cba2a2410c92f679a693bab920b",
+      "size": 5717
+    }
+  }
+]

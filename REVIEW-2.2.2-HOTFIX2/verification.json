@@ -1,0 +1,15 @@
+{
+  "verified_at_utc": "2026-10-31T03:06:08.685819+00:00",
+  "source_files": 1994,
+  "changed_files": 227,
+  "patches": 5,
+  "exact_source_commit": "b6c22b1b993b0126ab799c7634105c2f1b9d0d87",
+  "expected_source_tree": "990d5300185280c6f209d72ddaa0666a07f9d482",
+  "reproduced_source_tree": "990d5300185280c6f209d72ddaa0666a07f9d482",
+  "source_sha256s_verified": true,
+  "patches_file_disjoint": true,
+  "patch_roundtrip_passed": true,
+  "new_rust_compilation_performed": false,
+  "gameplay_tested": false,
+  "fps_or_vram_measured": false
+}

@@ -1,0 +1,72 @@
+[
+  {
+    "path": "crates/omsi-app/src/bcs_events/inspector.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/inspector.rs",
+      "mode": "100644",
+      "blob_sha1": "cfac26e5bc1d9fae529e523b23e81689f0692ae7",
+      "sha256": "d569f3533dcb0cf0eece4f0fac8cc9856a033c41bc4ce6419de0eddbbcafdb87",
+      "size": 2704
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/names-data/GFDL-1.2.txt",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/names-data/GFDL-1.2.txt",
+      "mode": "100644",
+      "blob_sha1": "68d93f4f67fd715b2a3fb01c9b96fbe3e10c9e41",
+      "sha256": "d8e94ae5fdb5433fcae2961aeb1a8cf17174d6f4a0465d24bf37dd8a038bd439",
+      "size": 20432
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/names-data/NOTICE.md",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/names-data/NOTICE.md",
+      "mode": "100644",
+      "blob_sha1": "17eced33a3fc6052d5d5643093268441b7d11c87",
+      "sha256": "71a9611b4b52f97e886649a367e64e7b91c371848927839ebb164caf2152856d",
+      "size": 863
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/names-data/nam_dict.txt.gz",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/names-data/nam_dict.txt.gz",
+      "mode": "100644",
+      "blob_sha1": "0a2d51feac6f99305f85a806de5d5817b6165a46",
+      "sha256": "a11e18ca745dc88003ce9772e95ca23863a22369461d43186d776c64aa30d7af",
+      "size": 330643
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/names-data/names.tsv",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/names-data/names.tsv",
+      "mode": "100644",
+      "blob_sha1": "823e0bc0bf47c67c28102444e8e5b6787c99b1c8",
+      "sha256": "f9c527c3c699ad8f663cff4b91b75c1a15d53ff1fba7031f37dc203200bb300c",
+      "size": 350922
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/bcs_events/names.rs",
+    "source": {
+      "path": "crates/omsi-app/src/bcs_events/names.rs",
+      "mode": "100644",
+      "blob_sha1": "5dd645d87efbf1cf8dce05702317c8fb2e2c6419",
+      "sha256": "9aeea3ed445d29b0c91a75221716338d46fb091461db2112694b484cfb96a1f4",
+      "size": 1559
+    }
+  },
+  {
+    "path": "crates/omsi-sim/src/people/inspector.rs",
+    "source": {
+      "path": "crates/omsi-sim/src/people/inspector.rs",
+      "mode": "100644",
+      "blob_sha1": "60ec1653a2ce883a93a05763a85291d2044043e1",
+      "sha256": "172c45afdeaccf48a2acc26c5c43f6494ab61479edb8713283a93f17ccf7c98f",
+      "size": 11920
+    }
+  }
+]

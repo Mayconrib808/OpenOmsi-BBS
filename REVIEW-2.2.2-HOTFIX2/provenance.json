@@ -1,0 +1,73 @@
+{
+  "release": "2.2.2-hotfix.2",
+  "release_sequence": 2026103003,
+  "native_version": "0.3.46-coop.15-2.2.2",
+  "official_base": "17be22987d7c01c813a1473e7696fc71fb3b1d89",
+  "exact_source_commit": "b6c22b1b993b0126ab799c7634105c2f1b9d0d87",
+  "exact_source_tree": "990d5300185280c6f209d72ddaa0666a07f9d482",
+  "original_build_record": {
+    "commit": "783179c36d111fc15f1e14a6fdd4bc66c9f6357d",
+    "build_commit": "64db8910d135d123162ed90d772b06831909c9e2",
+    "source_tree": "990d5300185280c6f209d72ddaa0666a07f9d482",
+    "run_id": 41157142308,
+    "upstream_commit": "17be22987d7c01c813a1473e7696fc71fb3b1d89",
+    "native_sha256": "2f911bc2308f5f8e84597ca917c5bc6fbf680e88816ead6dfc8d08adb9b7e220",
+    "source_sha256": "e83115d0e0523b8667f6d73e664e536273acd29f331f89ff071affc36e325bd8",
+    "version": "0.3.46-coop.15-2.2.2",
+    "windows_gameplay_tested": false
+  },
+  "native_build_run": 41157142308,
+  "native_build_artifact": 13025264907,
+  "bridge_packaging_run": 41159417197,
+  "publication_run": 41159937109,
+  "published_installer_sha256": "686c4188c5d69d23deb0debf163f8fcf23020eb934623e37146022a8cbcd0123",
+  "code_changed_for_this_export": false,
+  "feature_patches_are_independent_prs": false,
+  "exact_source_files": 1994,
+  "patches": [
+    {
+      "group": "00-shared-integration",
+      "path": "00-shared-integration/changes.patch",
+      "sha256": "b1af87c843997fa2149f7156f1ae3b3c621c42671ac40072a8fe9d1ae2f91dac",
+      "size": 3712012,
+      "files": 164
+    },
+    {
+      "group": "01-bcs-events",
+      "path": "01-bcs-events/changes.patch",
+      "sha256": "ab8cccc88fae1cdc0b6a784dedf10b2bc63c9cb369d79ef604f99f7f806d66ca",
+      "size": 121399,
+      "files": 16
+    },
+    {
+      "group": "02-inspectors",
+      "path": "02-inspectors/changes.patch",
+      "sha256": "548ebdc9b30aa80178f4fc7455eddfa46d3bb534c6bd47b38084d3e1113d012b",
+      "size": 853912,
+      "files": 7
+    },
+    {
+      "group": "03-passengers",
+      "path": "03-passengers/changes.patch",
+      "sha256": "a053df3872a55db5b365024bb488a79f063a8e33855c2e22c01b0245959e9c7b",
+      "size": 255804,
+      "files": 29
+    },
+    {
+      "group": "04-traffic-improvements",
+      "path": "04-traffic-improvements/changes.patch",
+      "sha256": "4cbf3a5ee244393d0b54562ba1ab565315526019110f252bddb5cd9dad795ba8",
+      "size": 139860,
+      "files": 11
+    }
+  ],
+  "exclusions": [
+    "external BCS Bridge",
+    "Setup",
+    "HostAgent",
+    "CompanyHost",
+    "update/signing service",
+    "proprietary BCS JAR",
+    "original OMSI 2 game assets"
+  ]
+}
