@@ -139,4 +139,34 @@ apply("crates/omsi-app/src/lan_world.rs",
                             })
                             .unwrap_or_else(|| "no local waiting passenger".into());
                         log::info!("LAN: the host hands waiting passenger {id} over to our bus; {passenger}");""")
+
+# A passenger must have a real, open exit on a valid stop before departing.
+# Record the exact failed precondition once every eight seconds per rider;
+# never substitute a teleport or force departure at the wrong map stop.
+apply("crates/omsi-sim/src/people/pax_task.rs",
+    """            Task::InBusToExit => {
+                let bus = self.pax(i).unwrap().bus.or(self.pax(i).unwrap().inside);""",
+    """            Task::InBusToExit => {
+                self.pax_mut(i).unwrap().door_since = Some(self.time);
+                let bus = self.pax(i).unwrap().bus.or(self.pax(i).unwrap().inside);""")
+apply("crates/omsi-sim/src/people/pax_task.rs",
+    """        let may_leave = door_open && (reg.next.is_some() || p.complaint == 3);
+        self.pax_mut(i).unwrap().short = !may_leave;""",
+    """        let may_leave = door_open && (reg.next.is_some() || p.complaint == 3);
+        if bn.id == BusId::Player && bn.speed.abs() < 1.0
+            && p.door_since.is_some_and(|since| self.time - since >= 8.0)
+            && (!may_leave || p.st != 7) {
+            let reason = if reg.next.is_none() && p.complaint != 3 {
+                "stop_not_recognized"
+            } else if p.door.is_none() { "no_exit_selected" }
+              else if !door_open { "selected_exit_closed" }
+              else { "walking_or_path_blocked" };
+            log::info!(
+                "passenger exit blocked: id={} reason={} st={} door={:?} next={:?} served={:?} destination={:?} pt={:?} target={:?} entry_open={:?} exit_open={:?}",
+                self.people[i].id, reason, p.st, p.door, reg.next, bn.served,
+                p.dest, p.pt, p.pt_target, bn.entry_open, bn.exit_open);
+            self.pax_mut(i).unwrap().door_since = Some(self.time);
+        }
+        self.pax_mut(i).unwrap().short = !may_leave;""")
+
 print("OpenOMSI 2.2.3 post-patch fixes layered on the fully materialized native source")
