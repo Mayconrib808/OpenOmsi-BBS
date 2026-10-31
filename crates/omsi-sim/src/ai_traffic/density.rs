@@ -57,7 +57,8 @@ impl TrafficSim {
             return d;
         }
         if !self.group_curves {
-            return 1.0;
+            // Without a matching extended day rule, preserve global.cfg.
+            return omsi_map::global::curve_at(&self.density_curve, hour).clamp(0.0, 2.0);
         }
         let bit = match self.weekday {
             0..=4 => 1,
@@ -82,7 +83,11 @@ impl TrafficSim {
     }
 
     pub fn street_density_map(&self) -> f32 {
-        if !self.group_curves && self.extended_density.road.is_empty() {
+        let hour = (self.day_time.rem_euclid(86400.0) / 3600.0) as f32;
+        let extended_today = self.groups.iter().any(|g| {
+            self.extended_density.road_at(&g.name, self.weekday, self.is_public_holiday, hour).is_some()
+        });
+        if !self.group_curves && !extended_today {
             return omsi_map::global::curve_at(
                 &self.density_curve,
                 (self.day_time.rem_euclid(86400.0) / 3600.0) as f32,
