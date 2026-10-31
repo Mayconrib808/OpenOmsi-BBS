@@ -2,6 +2,7 @@
 //! The real traffic integration must supply collision-cleared placement and a valid
 //! hazard-light script before enabling it. No normal parked map objects are replaced.
 use super::horn::draw;
+use super::{LaneKind, TrafficSim};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HornReaction { Wait, Nudge, Leave }
@@ -98,10 +99,10 @@ impl TrafficSim {
             return None;
         }
         // Draw only once on this lane even when a prior test was ineligible.
-        let (seed, target_s, single_lane) = (car.seed, st.s + 25.0,
+        let (seed, target_s, speed, single_lane) = (car.seed, st.s + 25.0, st.speed,
             lane.left.is_none() && lane.right.is_none());
         self.cars[i].parking_sampled_lane = Some(lane_id);
-        if !may_consider_stop(true, false, lane.length() - target_s, 30.0, st.speed)
+        if !may_consider_stop(true, false, lane.length() - target_s, 30.0, speed)
             || !eligible_event(seed, lane_id as u64, self.illegal_parking_percent)
             || self.cars.iter().filter(|c| c.temporary_park.is_some()).count() >= 3
             || !self.lane_clear(i, lane_id, target_s, 10.0, 15.0, &ts.by_lane)
