@@ -42,7 +42,7 @@ jobs:
       - name: Build the actual Tauri Windows desktop launcher
         shell: pwsh
         run: |
-          cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+          cargo build --release --manifest-path launcher/src-tauri/Cargo.toml
           if ($LASTEXITCODE -ne 0) { throw 'Windows launcher build failed' }
       - name: Verify launcher and package with source SHA-256
         shell: pwsh
