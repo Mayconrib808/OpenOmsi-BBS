@@ -3,7 +3,7 @@
   "sequence": 2026103003,
   "candidate_run_id": 41159417197,
   "candidate_commit": "6c4985e9da76b99a052206629ebf234a53bdc3c0",
-  "installer_sha256": "PENDING_WINDOWS_BUILD",
-  "installer_size": 0,
-  "coop_archive_sha256": "PENDING_WINDOWS_BUILD"
+  "installer_sha256": "686c4188c5d69d23deb0debf163f8fcf23020eb934623e37146022a8cbcd0123",
+  "installer_size": 24607744,
+  "coop_archive_sha256": "11bf385380e4ef9e7de3f6de176edab1f17b8240299f09b4a644d15ba2b5f5ac"
 }
