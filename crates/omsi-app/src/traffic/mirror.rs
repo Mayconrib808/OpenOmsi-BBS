@@ -133,6 +133,8 @@ impl Traffic {
             horn: Default::default(),
             make_way: None,
             park: None,
+            temporary_park: None,
+            parking_sampled_lane: None,
             guard: Default::default(),
         });
         self.looks.forget(id);
