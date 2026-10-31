@@ -2,12 +2,16 @@
 use super::*;
 use glam::{Affine3A,Quat};
 use omsi_sim::human::{accessory_arm,accessory_head,accessory_hail_arm,grip_centres,hand_slot};
-use std::sync::atomic::{AtomicBool,Ordering};
+use std::sync::atomic::{AtomicBool,AtomicU32,Ordering};
 mod geometry;
 mod water;
 pub(super) const VISUAL_DISTANCE_SQ:f64=300.*300.;
 static RAIN:AtomicBool=AtomicBool::new(false);
+static WINTER_TEMP_BITS:AtomicU32=AtomicU32::new(22.0f32.to_bits());
+static WINTER_SNOW:AtomicBool=AtomicBool::new(false);
 pub(super) fn raining() -> bool { RAIN.load(Ordering::Relaxed) }
+pub(super) fn winter_temperature() -> f32 { f32::from_bits(WINTER_TEMP_BITS.load(Ordering::Relaxed)) }
+pub(super) fn winter_snow() -> bool { WINTER_SNOW.load(Ordering::Relaxed) }
 
 #[derive(Default)]
 struct Cover {
@@ -35,7 +39,12 @@ impl Cover {
     }
 }
 
-pub(crate) fn weather(w:&omsi_content::weather::Weather){RAIN.store(w.precip.first().copied().unwrap_or(0.).round() as i32==1&&w.precip.get(1).copied().unwrap_or(0.)>0.,Ordering::Relaxed);}
+pub(crate) fn weather(w:&omsi_content::weather::Weather){
+ RAIN.store(w.precip.first().copied().unwrap_or(0.).round() as i32==1&&w.precip.get(1).copied().unwrap_or(0.)>0.,Ordering::Relaxed);
+ let t=if w.temp.0.is_finite() {w.temp.0.clamp(-55.,55.)}else{22.};
+ WINTER_TEMP_BITS.store(t.to_bits(),Ordering::Relaxed);
+ WINTER_SNOW.store(w.snow,Ordering::Relaxed);
+}
 pub(crate) fn map_key(s:&str)->String{omsi_launcher_lib::passenger_defaults::map_key(s)}
 pub(crate) fn map_enabled(list:&str,map:&str)->bool{let key=map_key(map);list.split(';').any(|s|!s.trim().is_empty()&&map_key(s)==key)}
 #[derive(Clone,Default)]
