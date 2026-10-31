@@ -438,6 +438,42 @@ impl Traffic {
         let mut candidates = pick(true);
         if candidates.is_empty() {
             candidates = pick(false);
+        } else if kind == LaneKind::Street {
+            // Tile streaming can truncate the far end of one direction of a
+            // divided avenue. If only the reverse paths are labelled dead ends,
+            // excluding every one can leave that side permanently empty.
+            // Respect no_cars and trafficdensity (both checked by pick(false)).
+            let sector = |lane: usize| -> usize {
+                let l = &self.sim.net.lanes[lane];
+                ((l.at(l.length() * 0.5).1.rem_euclid(360.0) / 45.0).floor() as usize).min(7)
+            };
+            let mut through = [0usize; 8];
+            for &(lane, _) in &candidates {
+                through[sector(lane)] += 1;
+            }
+            let mut fallback = [0usize; 8];
+            // Do not scan a second set of lanes if there is no paired
+            // direction to repair: most minor streets need no fallback.
+            if (0..8).any(|d| through[d] == 0 && through[(d + 4) % 8] > 0) {
+                for (lane, weight) in pick(false) {
+                    let direction = sector(lane);
+                    let reach = self.sim.net.reach.get(lane).copied().unwrap_or(0.0);
+                    if through[direction] == 0
+                        && through[(direction + 4) % 8] > 0
+                        && directional_road_fallback(reach)
+                    {
+                        // Modest weight: do not crowd real long cul-de-sacs.
+                        candidates.push((lane, weight * 0.20));
+                        fallback[direction] += 1;
+                    }
+                }
+            }
+            if self.sim.debug_population && fallback.iter().any(|&n| n > 0) {
+                log::info!(
+                    "traffic directional fallback at ({:.0}, {:.0}): through {:?}, fallback {:?} (N,NE,E,SE,S,SW,W,NW)",
+                    center.x, center.y, through, fallback
+                );
+            }
         }
         if candidates.is_empty() {
             return;
@@ -448,10 +484,14 @@ impl Traffic {
                 ((l.at(l.length()*0.5).1.rem_euclid(360.0)/45.0).floor() as usize).min(7)
             };
             let mut demand=[0.0_f32;8];let mut present=[0_usize;8];
+            let mut available=[0_usize;8];
             let mut on_lane:HashMap<usize,usize>=HashMap::new();
-            for &(lane,weight) in &candidates {demand[sector(lane)]+=weight;}
+            for &(lane,weight) in &candidates {let dir=sector(lane);demand[dir]+=weight;available[dir]+=1;}
             for car in self.sim.cars.iter().filter(|c|!c.is_bus()&&(c.vehicle.position-center).length()<radius) {
                 if car.state.lane<self.sim.net.lanes.len(){present[sector(car.state.lane)]+=1;*on_lane.entry(car.state.lane).or_default()+=1;}
+            }
+            if self.sim.debug_population {
+                log::info!("traffic directions at ({:.0},{:.0}): eligible lanes {:?}, cars {:?}, weights {:?} (N,NE,E,SE,S,SW,W,NW)", center.x, center.y, available, present, demand);
             }
             let total_demand=demand.iter().sum::<f32>().max(1.0);
             let total_present=present.iter().sum::<usize>() as f32;
@@ -875,6 +915,26 @@ fn optional_road_scale(densities: &[f32], lane_metres: f32, enabled: bool) -> f3
     let original = road_scale(densities);
     if !enabled || !lane_metres.is_finite() { return original; }
     original.max((lane_metres / 6000.0).clamp(0.0, 4.0))
+}
+
+/// A path extending for at least 250 m can safely carry local traffic
+/// during streaming. Short true dead ends remain excluded.
+fn directional_road_fallback(reach: f32) -> bool {
+    reach.is_finite() && reach >= 250.0
+}
+
+#[cfg(test)]
+mod directional_fallback_tests {
+    use super::directional_road_fallback;
+
+    #[test]
+    fn only_long_drivable_stretches_are_eligible() {
+        assert!(!directional_road_fallback(50.0));
+        assert!(!directional_road_fallback(249.9));
+        assert!(directional_road_fallback(250.0));
+        assert!(directional_road_fallback(400.0));
+        assert!(!directional_road_fallback(f32::NAN));
+    }
 }
 
 #[cfg(test)]

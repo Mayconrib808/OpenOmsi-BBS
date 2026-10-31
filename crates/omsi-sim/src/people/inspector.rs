@@ -8,6 +8,37 @@ fn inspector_patrol_index(step:u8,count:usize)->usize {
 }
 
 
+/// Dedicated staff appearances from the *original* OMSI 2 installation. These
+/// models are loaded for the inspector only and are never added to the map's
+/// normal passenger pool (humans.txt must remain authoritative).
+fn inspector_staff_models(female: bool) -> &'static [&'static str] {
+    if female {
+        &["Humans/aXYZ/woman03.hum", "Humans/aXYZ/woman01.hum"]
+    } else {
+        &["Humans/aXYZ/man01.hum"]
+    }
+}
+
+impl PeopleSim {
+    fn bcs_staff_type(&mut self, world: &dyn World, female: bool) -> Option<usize> {
+        for model in inspector_staff_models(female) {
+            let normalized = model.to_ascii_lowercase();
+            if let Some(index) = self.types.iter().position(|t| {
+                t.def.path.to_string_lossy().replace('\\', "/")
+                    .to_ascii_lowercase().ends_with(&normalized)
+            }) {
+                return Some(index);
+            }
+            let loaded = map_human_types(world.root(), &[model.to_string()]);
+            if let Some(ty) = loaded.into_iter().next() {
+                self.types.push(ty);
+                return Some(self.types.len() - 1);
+            }
+        }
+        None
+    }
+}
+
 impl PeopleSim {
     pub fn spawn_bcs_inspector(&mut self, world: &dyn World, bus: &VehicleInstance,
         identity: u32, female: Option<bool>) -> Option<u32> {
@@ -17,7 +48,8 @@ impl PeopleSim {
         if let Some(existing) = self.people.iter().find(|person| !person.remote
             && person.inside(BusId::Player)
             && matches!(&person.state, State::Pax(pax) if pax.inspector)) {
-            log::info!("BCS inspector {identity}: duplicate event; reusing person {}", existing.id);
+            // Idempotent snapshot: no per-frame duplicate-event logs.
+            log::debug!("BCS inspector {identity}: reusing person {}", existing.id);
             return Some(existing.id);
         }
         if !self.pool_room() { return None; }
@@ -29,6 +61,9 @@ impl PeopleSim {
         let seat = cabin.seats.iter().enumerate()
             .filter(|(k,s)| s.seated && !occupied[*k] && !off.get(*k).copied().unwrap_or(false))
             .min_by(|(_,a),(_,b)| (a.pos-driver).length_squared().total_cmp(&(b.pos-driver).length_squared()))?.0;
+        // Prefer deliberately selected staff rather than choosing a random rider
+        // merely because the map includes that person's model.
+        let staff = self.bcs_staff_type(world, female.unwrap_or(false));
         let mut choices: Vec<(i32,u64,usize)> = self.types.iter().enumerate().filter_map(|(k,ty)| {
             if ty.def.age.is_some_and(|age| age < 18) || ty.def.height < 1.3 { return None; }
             let voice = ty.def.voice.to_uppercase();
@@ -48,9 +83,9 @@ impl PeopleSim {
             .filter(|person| person.inside(BusId::Player))
             .map(|person| person.ty.def.path.as_path())
             .collect();
-        let ty = choices.iter().rev()
+        let ty = staff.or_else(|| choices.iter().rev()
             .find(|(_,_,k)| !used.contains(self.types[*k].def.path.as_path()))
-            .or_else(|| choices.last()).map(|c|c.2)?;
+            .or_else(|| choices.last()).map(|c|c.2))?;
         self.seats.get_mut(&BusId::Player)?[seat] = true;
         let s = cabin.seats[seat].clone();
         let mut pax = Pax::new(0.9, 0.5);
@@ -203,7 +238,13 @@ impl PeopleSim {
 
 #[cfg(test)]
 mod patrol_tests {
-    use super::inspector_patrol_index;
+    use super::{inspector_patrol_index, inspector_staff_models};
+    #[test]
+    fn staff_uses_stock_omsi_models_instead_of_map_passenger_pool() {
+        assert_eq!(inspector_staff_models(false)[0], "Humans/aXYZ/man01.hum");
+        assert_eq!(inspector_staff_models(true)[0], "Humans/aXYZ/woman03.hum");
+        assert!(!inspector_staff_models(true).iter().any(|p| p.contains("Other/")));
+    }
     #[test]
     fn patrol_goes_aisle_front_to_back_and_back() {
         assert_eq!((0..8).map(|i|inspector_patrol_index(i,4)).collect::<Vec<_>>(),vec![0,1,2,3,3,2,1,0]);
