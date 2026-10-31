@@ -210,13 +210,12 @@ impl TrafficSim {
             let Some(j) = at_whom.and_then(|id| self.index_of.get(&id).copied()).filter(|&j| j < self.cars.len() && self.cars[j].id == at_whom.unwrap_or(0)) else { continue };
             let o = &self.cars[j];
             let blocked = o.state.speed < 0.3 && !o.why.0.is_empty() && !o.is_rail();
-            // An illegally parked driver really hears the AI's queued horn,
-            // instead of emitting an unrelated decorative response sound.
-            if let Some((parking, _)) = self.cars[j].temporary_park.as_mut() {
-                parking.hear_horn(now, self.cars[j].seed);
-            }
             let n = o.horn.honked_at as u64;
             let oseed = o.seed;
+            // An illegally parked driver hears the real AI horn event.
+            if let Some((parking, _)) = self.cars[j].temporary_park.as_mut() {
+                parking.hear_horn(now, oseed);
+            }
             let h = &mut self.cars[j].horn;
             h.honked_at += 1;
             if blocked && h.reply_at.is_none() && draw(oseed, 200 + n) < 0.4 {
