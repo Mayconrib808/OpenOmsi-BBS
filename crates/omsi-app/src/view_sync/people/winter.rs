@@ -145,7 +145,7 @@ fn part_transform(what: usize, rig: &Rig, bones:&[Affine3A;omsi_sim::human::SLOT
         }
         6=>{
             let p=head.transform_point3(Vec3::new(rig.head_pivot.x,rig.head_pivot.y+0.07*s,rig.head_top-0.17*s));
-            let rot=Quat::from_mat4(&Mat4::from(head));
+            let rot=Quat::from_rotation_arc(Vec3::Z,head.transform_vector3(Vec3::Z).normalize_or(Vec3::Z));
             (p,Mat4::from_quat(rot)*Mat4::from_scale(Vec3::new(0.14*s,0.15*s,0.20*s)))
         }
         7|8=>{
