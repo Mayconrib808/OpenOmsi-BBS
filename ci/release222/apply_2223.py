@@ -123,21 +123,8 @@ apply("crates/omsi-app/src/traffic/population.rs",
             }
             self.sim.count_near = Some((c, self.sim.spawn_radius));
             self.populate_kind(world, c, LaneKind::Street, local_target);""")
-apply("crates/omsi-app/src/traffic/population.rs",
-    """        if candidates.is_empty() {
-            return;
-        }
-        let mut acc = 0.0f32;""",
-    """        if candidates.is_empty() {
-            if self.sim.debug_population {
-                let forbidden = nearby.iter().filter(|&&i| self.sim.net.lanes[i].no_cars).count();
-                let zero = nearby.iter().filter(|&&i| self.sim.net.lanes[i].density <= 0.0).count();
-                log::info!("population no eligible lane at ({:.0},{:.0}) kind={kind:?}: {} nearby, {} forbidden, {} zero density",
-                    center.x, center.y, nearby.len(), forbidden, zero);
-            }
-            return;
-        }
-        let mut acc = 0.0f32;""")
+# The native population code already emits admission denials, retries, and
+# per-direction lane density when its traffic debug flag is enabled.
 
 # Make an ownership grant trace useful: whether a granted passenger became
 # local and which stop / bus / task it was trying to board.
