@@ -557,7 +557,12 @@ impl TrafficSim {
                 && bus.state.signal == (if self.net.left_hand { 2 } else { 1 })
         });
         if !(player_leaving || ai_leaving) { return false; }
-        self.try_change(i, target, dir, ChangeKind::Choice, ts, None)
+        let changed = self.try_change(i, target, dir, ChangeKind::Choice, ts, None);
+        if changed {
+            log::info!("FEATURE AUDIT cars_yield_to_buses performed car={} lane={} target={} player_bus_leaving={} ai_bus_leaving={}",
+                self.cars[i].id, st.lane, target, player_leaving, ai_leaving);
+        }
+        changed
     }
 
     /// A lane change of the driver's own choosing: past a slow car ahead into a free lane on
