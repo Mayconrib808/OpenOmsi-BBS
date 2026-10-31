@@ -33,7 +33,10 @@ impl Effects {
                 self.at=bus+match self.kind{30=>right*3.5-forward*3.0,32=>right*1.6-forward*8.0,_=>DVec3::ZERO};
                 let ground=world.data().walk_height_near(self.at.x,self.at.y,self.at.z);
                 if let Some(z)=ground{self.at.z=z;}else{self.kind=0;return;}
-                // The old event-30 green cylinder looked like a cardboard prop.\n                // Real responders come from bcs-assets; keep fire and smoke particles,\n                // but never create a placeholder cylinder at the incident site.\n                let mesh=match self.kind{32=>Some(oil()),_=>None};
+                // No cardboard-like emergency prop for event 30. Fire/smoke particles
+                // remain; actual responder vehicles come from bcs-assets.
+                // Event 32 still draws a genuine surface oil decal.
+                let mesh = match self.kind { 32 => Some(oil()), _ => None };
                 if let Some(mesh)=mesh {
                     let color=if self.kind==32{[0.018,0.022,0.014,0.87]}else{[0.15,0.22,0.12,1.0]};
                     let material=r.add_material(scene,None,if self.kind==32{AlphaMode::Blend}else{AlphaMode::Opaque},color,false);
