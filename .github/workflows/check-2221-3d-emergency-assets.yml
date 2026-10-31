@@ -1,0 +1,47 @@
+name: Validate original 3D emergency assets for 2.2.2.1 Hotfix 2
+on:
+  pull_request:
+    paths:
+      - scripts/build_bcs_real_vehicles.py
+      - docs/releases/2.2.2.1-hotfix2-3d-assets.md
+      - .github/workflows/check-2221-3d-emergency-assets.yml
+  push:
+    branches: [fix/2221-hotfix2-3d-emergency-assets]
+    paths:
+      - scripts/build_bcs_real_vehicles.py
+      - .github/workflows/check-2221-3d-emergency-assets.yml
+permissions:
+  contents: read
+jobs:
+  asset-format:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Build emergency meshes twice; assert 3D geometry and repeatable hashes
+        shell: bash
+        run: |
+          python -m py_compile scripts/build_bcs_real_vehicles.py
+          python scripts/build_bcs_real_vehicles.py --root /tmp/first/bcs-assets
+          python scripts/build_bcs_real_vehicles.py --root /tmp/second/bcs-assets
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          a=Path('/tmp/first/bcs-assets')
+          b=Path('/tmp/second/bcs-assets')
+          for kind,minimum in [('Police',900),('Fire',1500)]:
+              p=a/'Vehicles'/'OpenOMSI_BCS'/kind
+              obj=(p/'model'/f'{kind}.obj').read_text()
+              assert obj.count('\nf ')>=minimum,(kind,'mesh has too few 3D triangles')
+              assert 'mtllib ' in obj and '\nv ' in obj
+              assert f'[mesh]\n{kind}.obj' in (p/'model'/'model.cfg').read_text()
+              assert 'model\\model.cfg' in (p/f'{kind}.ovh').read_text()
+          for x in a.rglob('*'):
+              if x.is_file():
+                  y=b/x.relative_to(a)
+                  assert y.is_file()
+                  assert hashlib.sha256(x.read_bytes()).digest()==hashlib.sha256(y.read_bytes()).digest()
+          print('Deterministic 3D fallback meshes validated')
+          PY
