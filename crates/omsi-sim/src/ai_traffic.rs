@@ -17,6 +17,7 @@ pub mod fixed_step;
 pub mod horn;
 pub mod greetings;
 pub mod density;
+pub mod extended_density;
 pub mod dormant;
 pub mod emergency;
 pub mod response;
@@ -112,6 +113,11 @@ pub struct TrafficSim {
     pub groups: Vec<omsi_map::ailists::UnschedGroup>,
     /// The map has an `unsched_trafficdens.txt` (else the global.cfg curve applies).
     pub group_curves: bool,
+    /// Optional map-specific individual weekday/public-holiday road curves.
+    pub extended_density: extended_density::ExtendedDensity,
+    /// Map holidays; other calendar and Chrono rules retain their stock behavior.
+    pub holiday_calendar: omsi_map::Calendar,
+    pub is_public_holiday: bool,
     /// Each group's place in `unsched_vehgroups.txt`, the number a path's `[rule]
     /// trafficdensity` names it by (None: the map has no such file, and every group drives
     /// wherever the lane's density lets traffic).
