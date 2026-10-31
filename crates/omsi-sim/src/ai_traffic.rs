@@ -15,6 +15,7 @@ pub mod control;
 pub mod deadlock;
 pub mod fixed_step;
 pub mod horn;
+pub mod illegal_parking;
 pub mod greetings;
 pub mod density;
 pub mod extended_density;
