@@ -309,7 +309,8 @@ mod tests {
         let p = bus(BusId::Player(0), 40.0, 180.0, "205");
         let mut g = Greetings::default();
         g.update_with_signals(&mut sim, vec![p.clone()], 0.1, false);
-        g.update_with_signals(&mut sim, vec![p], 0.25, false);
+        g.update_with_signals(&mut sim, vec![p.clone()], 0.25, false);
+        g.update_with_signals(&mut sim, vec![p], 0.1, false);
         assert!(g.wave(sim.cars[0].id).0 > 0.0);
         assert!(sim.cars[0].vehicle.host.network_sound_triggers.is_empty());
         assert_eq!(sim.cars[0].vehicle.var("lights_fern"), Some(0.0));
