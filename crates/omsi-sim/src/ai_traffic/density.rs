@@ -52,6 +52,10 @@ impl TrafficSim {
         let Some(gr) = self.groups.get(g) else {
             return 0.0;
         };
+        let hour = (self.day_time.rem_euclid(86400.0) / 3600.0) as f32;
+        if let Some(d) = self.extended_density.road_at(&gr.name, self.weekday, self.is_public_holiday, hour) {
+            return d;
+        }
         if !self.group_curves {
             return 1.0;
         }
@@ -78,7 +82,7 @@ impl TrafficSim {
     }
 
     pub fn street_density_map(&self) -> f32 {
-        if !self.group_curves {
+        if !self.group_curves && self.extended_density.road.is_empty() {
             return omsi_map::global::curve_at(
                 &self.density_curve,
                 (self.day_time.rem_euclid(86400.0) / 3600.0) as f32,
