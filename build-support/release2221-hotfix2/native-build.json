@@ -1,0 +1,10 @@
+{
+  "commit": "6a0319374e28ac91fa5b32773f4b11129ca39d20",
+  "run_id": 41251297863,
+  "workflow": ".github/workflows/stage-2221-hotfix2-native.yml",
+  "version": "0.3.46-coop.15-2.2.2.1-hotfix.2",
+  "protocol": 15,
+  "windows_gameplay_tested": false,
+  "paired_gameplay_tested": false,
+  "emergency_assets": "Original 3D OBJ Fire + Police with real VehicleType loader test"
+}
