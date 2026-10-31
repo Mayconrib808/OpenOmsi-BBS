@@ -93,10 +93,10 @@ impl ExtendedDensity {
     }
 
     /// An exact day/holiday entry overrides this group only. Missing
-    /// combinations fall back to the original OMSI road density curves.
-    pub fn road_at(&self, name: &str, weekday: i32, holiday: bool, hour: f32) -> Option<f32> {
-        if !(0..=6).contains(&weekday) { return None }
-        let group = self.road.iter().rev().find(|g| g.name.trim().eq_ignore_ascii_case(name.trim()))?;
+    /// combinations fall back to the original OMSI map density curves.
+    fn density_at(groups: &[Group], name: &str, weekday: i32, holiday: bool, hour: f32) -> Option<f32> {
+        if !(0..=6).contains(&weekday) || !hour.is_finite() { return None }
+        let group = groups.iter().rev().find(|g| g.name.trim().eq_ignore_ascii_case(name.trim()))?;
         let rules = &group.days;
         let selection = if holiday {
             rules.iter().rev().find(|d| d.day == 8 && d.holiday && !d.points.is_empty())
@@ -104,7 +104,17 @@ impl ExtendedDensity {
             None
         };
         let choice = selection.or_else(|| rules.iter().rev().find(|d| d.day == weekday + 1 && d.holiday == holiday && !d.points.is_empty()))?;
-        Some(group.factor * omsi_map::global::curve_at(&choice.points, hour).max(0.0))
+        Some((group.factor * omsi_map::global::curve_at(&choice.points, hour).max(0.0)).clamp(0.0, 3.0))
+    }
+
+    pub fn road_at(&self, name: &str, weekday: i32, holiday: bool, hour: f32) -> Option<f32> {
+        Self::density_at(&self.road, name, weekday, holiday, hour)
+    }
+
+    /// Standard is the OMSI global passenger group. The caller multiplies the
+    /// selected map value by AIPassFactor and keeps stock global.cfg when absent.
+    pub fn passenger_at(&self, weekday: i32, holiday: bool, hour: f32) -> Option<f32> {
+        Self::density_at(&self.passenger, "Standard", weekday, holiday, hour)
     }
 }
 
@@ -124,6 +134,15 @@ mod tests {
     fn invalid_rules_cannot_inject_nan_or_negative_traffic() {
         let t = ExtendedDensity::parse("[group_road]\nCars\n1\n[set_day_of_week]\n9\n0\n[trafficdensity]\n0\n9\n[set_day_of_week]\n1\n0\n[trafficdensity]\n0\nNaN\n[trafficdensity]\n0\n0.75\n");
         assert_eq!(t.road_at("Cars",0,false,0.0),Some(0.75));
+    }
+    #[test]
+    fn passenger_density_changes_by_day_without_changing_road_rules() {
+        let t = ExtendedDensity::parse("[group_passenger]\nStandard\n1.0\n[set_day_of_week]\n1\n0\n[trafficdensity]\n0\n0.8\n[set_day_of_week]\n7\n0\n[trafficdensity]\n0\n0.2\n[set_day_of_week]\n8\n1\n[trafficdensity]\n0\n0.1\n");
+        assert_eq!(t.passenger_at(0, false, 0.0), Some(0.8));
+        assert_eq!(t.passenger_at(6, false, 0.0), Some(0.2));
+        assert_eq!(t.passenger_at(0, true, 0.0), Some(0.1));
+        assert_eq!(t.passenger_at(4, false, 0.0), None);
+        assert_eq!(t.road_at("Standard", 0, false, 0.0), None);
     }
     #[test]
     fn passenger_rules_are_parsed_but_do_not_change_road_traffic() {
