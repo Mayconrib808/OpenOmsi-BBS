@@ -225,4 +225,23 @@ apply("crates/omsi-sim/src/people/buses.rs",
         // Some addon buses declare one [entry] and one [exit] but animate
         // their actual exit using a later door leaf (door_2 through door_7).""")
 
+
+# Multi-leaf articulated buses can expose more visual door animations than
+# the cabin's exit count. Do not guess a door-to-exit correspondence when the
+# stale PAX_Exit table says all closed: only treat *all* exits as open if every
+# physical door leaf from 0 through n_exit is positively animated fully open.
+# One front door alone is never enough to open the rear exits.
+apply("crates/omsi-sim/src/people/buses.rs",
+    """        // Some addon buses declare one [entry] and one [exit] but animate
+        // their actual exit using a later door leaf (door_2 through door_7).""",
+    """        if n_exit > 1 && exit.iter().any(|open| !*open) {
+            let leaves = (n_exit + 1).min(8);
+            if (0..leaves).all(|k| v.door_anim(k)
+                .is_some_and(|value| value.is_finite() && value > 0.90)) {
+                exit.fill(true);
+            }
+        }
+        // Some addon buses declare one [entry] and one [exit] but animate
+        // their actual exit using a later door leaf (door_2 through door_7).""")
+
 print("OpenOMSI 2.2.3 post-patch fixes layered on the fully materialized native source")
