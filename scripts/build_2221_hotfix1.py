@@ -84,7 +84,7 @@ def main():
   assert rel in files and sha(path.read_bytes())==sha(files[rel]),'Native DLL differs from retained package: '+path.name
  host_manifest_name='docs/HOST-PESSOAL-2.2.0.3.json';host_manifest=json.loads(files[host_manifest_name]);host_manifest['version']=VERSION
  for entry in host_manifest['files']:
-  if entry['path']in(server,marker_name):entry['sha256']=sha(files[entry['path']])
+  if entry['path']in(server,marker_name,launcher_name):entry['sha256']=sha(files[entry['path']])
  files[host_manifest_name]=(json.dumps(host_manifest,indent=2)+'\n').encode()
  checksum=COOP+'/SHA256.json'
  files[checksum]=(json.dumps({name[len(COOP)+1:]:sha(data)for name,data in files.items()if name.startswith(COOP+'/')and name!=checksum},indent=2)+'\n').encode()
