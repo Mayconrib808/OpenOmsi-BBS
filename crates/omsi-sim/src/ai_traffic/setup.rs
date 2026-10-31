@@ -120,6 +120,7 @@ impl TrafficSim {
             timed_waits_only: false,
             no_timetable_buses: false,
             ai_bus_overtaking: false,
+            cars_yield_to_buses: false,
             viewer: None,
             occluders: None,
             walkers: Vec::new(),
