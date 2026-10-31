@@ -417,12 +417,20 @@ impl PeopleSim {
             }
         }
         match pose.aboard {
-            Some((bus, local, lheading, _)) => {
+            Some((bus, local, lheading, seat)) => {
                 p.place = Place::Bus(BusId::Ai(bus), local);
                 p.lheading = lheading;
                 p.vel = DVec2::ZERO;
+                // A remote person is State::Idle, not State::Pax. The packet's
+                // seat and activity must survive to both original and enhanced
+                // animation, otherwise the client draws a standing skeleton
+                // intersecting a seat despite correct bus-local coordinates.
+                p.remote_seat = if pose.activity == Activity::Sit { seat } else { None };
             }
-            None => p.place = Place::Ground,
+            None => {
+                p.place = Place::Ground;
+                p.remote_seat = None;
+            }
         }
     }
 
