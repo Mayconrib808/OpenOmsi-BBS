@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2-hotfix.1"
+const changelogSeenVersion = "2.2.2-hotfix.2"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -44,7 +44,7 @@ func logT(pt,en,de string) logString {return logString{pt,en,de}}
 func logL(lang string,t logString) string{return localText(lang,t.pt,t.en,t.de)}
 func logAccent(r,g,b byte)uintptr{return guiRGB(r,g,b)}
 
-func logSections() []logSection {
+func allLogSections() []logSection {
     return []logSection{
         {
             label:logT("🛠️ CORREÇÕES DO HOTFIX","🛠️ HOTFIX CORRECTIONS","🛠️ HOTFIX-KORREKTUREN"),
@@ -201,6 +201,90 @@ func logSections() []logSection {
     }
 }
 
+// Release notes are chosen from the version installed BEFORE updating. On
+// legacy packages that did not store this marker, we deliberately show the
+// whole known history rather than misidentify what the player already has.
+var shownLogSections []logSection
+
+func hotfix2LogSection() logSection {
+    return logSection{
+        label:logT("🛠️ HOTFIX 2 • DESEMBARQUE","🛠️ HOTFIX 2 • ALIGHTING","🛠️ HOTFIX 2 • AUSSTIEG"),
+        accent:logAccent(255,203,92),
+        entries:[]logEntry{
+            {logT("🚪 Portas de saída reconhecidas","🚪 Exit doors recognized","🚪 Ausstiegstüren erkannt"),
+             logT("Ônibus personalizados podem manter o indicador PAX_Exit como fechado mesmo com a porta fisicamente aberta. Agora a simulação também verifica a animação real da folha correspondente; abrir só a porta dianteira não libera uma saída traseira.",
+                  "Some custom buses report PAX_Exit closed even while the physical leaf is open. The simulator also checks the matching real door animation; opening only the front door does not unlock rear exits.",
+                  "Manche Zusatzbusse melden PAX_Exit geschlossen, obwohl die Tür tatsächlich offen ist. Das Spiel prüft nun auch die passende reale Türanimation; nur die Vordertür zu öffnen entriegelt keine Hintertür.")},
+            {logT("🚏 Parada certa e rota de saída","🚏 Correct stop and exit path","🚏 Richtige Haltestelle und Ausstiegsweg"),
+             logT("Em corredores com vários pontos próximos, a parada agendada tem prioridade sobre IDs arbitrários. Caminhos são recalculados quando o tempo chega a zero; passageiros que já alcançaram a saída aberta podem concluir a caminhada sem teleporte.",
+                  "In corridors with nearby stops, the scheduled stop takes precedence over arbitrary IDs. Exit paths retry when the timer reaches zero, and a rider already at an open exit may complete the walk without teleporting.",
+                  "Bei nahen Haltestellen hat die planmäßige Haltestelle Vorrang vor beliebigen IDs. Ausstiegswege werden bei Timer null neu berechnet; Fahrgäste an einer offenen Tür steigen ohne Teleport aus.")},
+            {logT("🚶 Embarque fora da marca exata","🚶 Boarding around the stop pole","🚶 Einstieg neben der Haltestellenmarke"),
+             logT("Tolerância controlada permite embarcar alguns metros antes ou depois da marca, no ponto certo e do lado correto da via. Quando falta o alvo da porta, o passageiro tenta outra entrada válida e continua caminhando normalmente.",
+                  "A bounded allowance lets riders board a few metres before or after the marker, at the correct stop and side of the road. If the door target is missing, riders reselect a valid entry and walk normally.",
+                  "Ein begrenzter Abstand vor oder hinter der Markierung ist erlaubt, nur an der richtigen Haltestelle und Straßenseite. Fehlt der Türeinstiegspunkt, wird ein gültiger Eingang neu gewählt.")},
+            {logT("👮 Fiscal sem ciclo de rota infinito","👮 No inspector pathfinding loop","👮 Keine Endlosschleife beim Kontrolleur"),
+             logT("Ao encontrar um corredor desconectado, o fiscal procura um ponto realmente alcançável e limita novas tentativas. Isso evita milhares de avisos por minuto e preserva os passageiros e o banco reservado.",
+                  "When the aisle graph is disconnected, the inspector looks for a reachable point and throttles retries instead of issuing thousands of warnings. Passenger and seat states are preserved.",
+                  "Bei unterbrochenen Innenwegen sucht der Kontrolleur einen erreichbaren Punkt und begrenzt neue Versuche. Tausende Warnungen werden vermieden; Fahrgäste und Sitzreservierung bleiben erhalten.")},
+            {logT("🚗 Tráfego para cada jogador","🚗 Traffic around each player","🚗 Verkehr um jeden Spieler"),
+             logT("O servidor calcula a meta de carros pelas ruas da região de cada participante, mesmo quando outro ônibus está quilômetros distante. O diagnóstico identifica casos sem faixas elegíveis; limites de densidade continuam valendo.",
+                  "The server calculates traffic targets from the roads around each participant, even when buses are kilometres apart. Diagnostics report missing eligible lanes; density caps remain in force.",
+                  "Der Server berechnet die Verkehrsdichte anhand der Straßen jedes Spielers, auch bei großer Entfernung. Diagnosen zeigen fehlende geeignete Spuren; Verkehrslimits gelten weiter.")},
+            {logT("🧭 COOPROUTE1 e diagnóstico LAN","🧭 COOPROUTE1 and LAN diagnostics","🧭 COOPROUTE1 und LAN-Diagnose"),
+             logT("Comandos de rota já processados deixam de aparecer falsamente como rejeitados. O registro de transferência de passageiros identifica ponto, ônibus, tarefa e posição; problemas de saída agora mostram o motivo individualmente.",
+                  "Already handled route commands no longer appear falsely rejected. Passenger ownership logs show stop, bus, task and position; stuck exits now identify the reason per rider.",
+                  "Bereits verarbeitete Routenbefehle erscheinen nicht mehr als abgewiesen. Fahrgast-Logs zeigen Haltestelle, Bus, Aufgabe und Position; blockierte Ausstiege erhalten Gründe.")},
+            {logT("🎫 Portas e avisos menos repetitivos","🎫 Door warnings with cooldowns","🎫 Türmeldungen mit Pausen"),
+             logT("Pedidos de abertura usam intervalos para evitar falas repetidas. Abrir a saída cancela reclamações pendentes; sair da parada com a saída fechada pode produzir uma reação mais irritada.",
+                  "Door requests are rate-limited. Opening an exit cancels pending complaints, and leaving the stop with the exit closed may trigger a stronger response.",
+                  "Türbitten werden begrenzt. Das Öffnen eines Ausstiegs beendet ausstehende Beschwerden; die Abfahrt mit geschlossener Tür kann eine stärkere Reaktion auslösen.")},
+        },
+    }
+}
+
+func earlierBridgeLogSection() logSection {
+    return logSection{
+        label:logT("📚 VERSÕES ANTERIORES","📚 EARLIER RELEASES","📚 FRÜHERE VERSIONEN"),
+        accent:logAccent(119,187,244),
+        entries:[]logEntry{
+            {logT("📦 2.2.0 • Base cooperativa","📦 2.2.0 • Coop foundation","📦 2.2.0 • Koop-Grundlage"),
+             logT("Integração multiplayer ampliada, início manual do ônibus, sincronização de combustível e melhorias de servidor, mapas e HostAgent.",
+             "Broader multiplayer integration, manual bus startup, fuel synchronization and improved server, map and HostAgent handling.",
+             "Erweiterter Mehrspielerbetrieb, manueller Busstart, Kraftstoff-Synchronisierung und Verbesserungen an Servern, Karten und HostAgent.")},
+            {logT("🤝 2.2.1 • Motorista e cobrador","🤝 2.2.1 • Driver and conductor","🤝 2.2.1 • Fahrer und Schaffner"),
+             logT("Painel cooperativo, troca de motorista e cobrador, compartilhamento das interações de bilhetes, acompanhamento de rota, ajustes de gestos e guarda-chuvas dos passageiros.",
+             "Coop panel, driver/conductor handover, shared ticket interactions, route progress, passenger gestures and umbrellas.",
+             "Koop-Anzeige, Fahrer-/Schaffnerwechsel, gemeinsame Ticketbedienung, Routenfortschritt, Fahrgastgesten und Regenschirme.")},
+            {logT("🔧 2.2.1.8–2.2.1.9 • Compatibilidade","🔧 2.2.1.8–2.2.1.9 • Compatibility","🔧 2.2.1.8–2.2.1.9 • Kompatibilität"),
+             logT("Correções de passageiro/cobrador e sincronização, BCS em idiomas diferentes, reparos de atualização e melhorias na integração PeDePe. O histórico técnico completo continua no repositório.",
+             "Passenger/conductor and synchronization fixes, localized BCS compatibility, update repairs and PeDePe integration. The complete technical history remains in the repository.",
+             "Fahrgast-/Schaffner- und Synchronisierungsfehler behoben, lokalisiertes BBS, Update-Reparaturen und PeDePe-Integration. Der vollständige technische Verlauf steht im Repository.")},
+        },
+    }
+}
+
+func logSections() []logSection {
+    if shownLogSections!=nil{return shownLogSections}
+    return allLogSections()
+}
+
+func selectLogSections(from string) []logSection {
+    current:=hotfix2LogSection()
+    old:=allLogSections()
+    switch strings.TrimSpace(from) {
+    case "2.2.2-hotfix.1":
+        return []logSection{current}
+    case "2.2.2":
+        // Hotfix 1 sections + the changes added by Hotfix 2.
+        return []logSection{current,old[0]}
+    default:
+        // First update, unsupported source marker or older installed version:
+        // show the full 2.2.x history and the current release.
+        return append([]logSection{current,earlierBridgeLogSection()},old...)
+    }
+}
+
 func logFill(dc uintptr,r guiRect,color uintptr){
     brush,_,_:=guiGDI.NewProc("CreateSolidBrush").Call(color)
     guiUser.NewProc("FillRect").Call(dc,uintptr(unsafe.Pointer(&r)),brush)
@@ -241,7 +325,7 @@ func logWindowPaint(window uintptr){
     logFill(dc,guiRect{0,0,w,113},guiRGB(21,37,61))
     logFill(dc,guiRect{0,109,w,113},guiRGB(255,202,84))
     logTextDraw(dc,"OpenOMSI  BCS BRIDGE",guiRect{26,15,w-22,44},state.heading,white,0x0000|0x0020)
-    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2  ·  HOTFIX 1","✨ UPDATE 2.2.2  ·  HOTFIX 1","✨ UPDATE 2.2.2  ·  HOTFIX 1")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
+    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2  ·  HOTFIX 2","✨ UPDATE 2.2.2  ·  HOTFIX 2","✨ UPDATE 2.2.2  ·  HOTFIX 1")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
     logTextDraw(dc,logL(g.config.Language,logT("Escolha um assunto à esquerda. Role para ler todas as mudanças.","Choose a category on the left. Scroll to read the complete notes.","Links ein Thema wählen und für alle Änderungen scrollen.")),guiRect{26,83,w-24,107},state.tiny,muted,0x0020)
     logFill(dc,guiRect{0,114,268,h-76},guiRGB(17,29,47))
     logFill(dc,guiRect{0,h-77,w,h},guiRGB(21,37,61))
@@ -339,12 +423,14 @@ func changelogWindowProc(window uintptr,message uint32,wparam,lparam uintptr)uin
     case guiWMClose:
         if err:=os.MkdirAll(appDir(g.dir),0755);err==nil&&!g.smoke{
             _=os.WriteFile(filepath.Join(appDir(g.dir),"changelog-seen.txt"),[]byte(changelogSeenVersion+"\n"),0644)
+            _=os.Remove(filepath.Join(appDir(g.dir),"changelog-from.txt"))
         }
         if changelogState!=nil {
             for _,font:=range []uintptr{changelogState.heading,changelogState.body,changelogState.subhead,changelogState.tiny}{
                 guiGDI.NewProc("DeleteObject").Call(font)
             }
             changelogState=nil
+            shownLogSections=nil
         }
         guiUser.NewProc("DestroyWindow").Call(window)
         changelogWindow=0
@@ -378,6 +464,13 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
         seen,_:=os.ReadFile(filepath.Join(appDir(g.dir),"changelog-seen.txt"))
         if strings.TrimSpace(string(seen))==changelogSeenVersion{return 0}
     }
+    from, _ := os.ReadFile(filepath.Join(appDir(g.dir),"changelog-from.txt"))
+    if len(from)==0 {
+        // Older updaters did not create changelog-from.txt: use the marker
+        // left by the last release window if available.
+        from,_=os.ReadFile(filepath.Join(appDir(g.dir),"changelog-seen.txt"))
+    }
+    shownLogSections=selectLogSections(string(from))
     instance,_,_:=setupKernel.NewProc("GetModuleHandleW").Call(0)
     cursor,_,_:=guiUser.NewProc("LoadCursorW").Call(0,32512)
     class:=guiWindowClass{Procedure:changelogProcedure,Instance:instance,Icon:g.icon,SmallIcon:g.smallIcon,Cursor:cursor,Background:g.background,Name:winPtr("OpenOMSIReleaseNotesTour")}
@@ -391,7 +484,7 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     width,height:=int(rect.Right-rect.Left),int(rect.Bottom-rect.Top)
     x,y:=int(parent.Left)+(int(parent.Right-parent.Left)-width)/2,int(parent.Top)
     if x<0{x=0};if y<0{y=0}
-    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  2.2.2 Hotfix 1"))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
+    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  2.2.2 Hotfix 2"))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
     if window==0{return 0}
     changelogWindow=window
     changelogState=&logWindowState{heading:guiFont(26,700),subhead:guiFont(19,700),body:guiFont(18,400),tiny:guiFont(16,400)}
