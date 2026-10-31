@@ -72,7 +72,10 @@ jobs:
           python3 - <<'PY'
           import json,subprocess,hashlib
           from pathlib import Path
-          data=json.loads(Path('artifact/REVISION.json').read_text())
+          records=list(Path('artifact').rglob('REVISION.json'))
+          assert len(records)==1,records
+          data=json.loads(records[0].read_text())
+          Path('artifact/REVISION.json').write_text(json.dumps(data,indent=2)+'\n')
           assert data['run_id']==41167747295
           assert data['commit']=='${{ steps.revision.outputs.sha }}'
           assert subprocess.check_output(['git','-C','native','rev-parse','HEAD^{tree}']).decode().strip()==data['source_tree']
