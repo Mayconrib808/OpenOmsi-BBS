@@ -1,0 +1,80 @@
+name: Build 2.2.2.1 hotfix desktop launcher with every optional setting
+on:
+  push:
+    branches: [fix/2221-lan-seated-people]
+    paths:
+      - .github/workflows/check-2221-desktop-launcher.yml
+      - launcher/**
+      - crates/omsi-launcher-core/**
+      - crates/omsi-cfg/**
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: fix-2221-desktop-launcher
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.1-hotfix.1
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      TAURI_CONFIG: '{"version":"0.2.33"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            launcher/src-tauri -> target
+          key: 2221-desktop-launcher
+      - name: Verify optional UI controls and 29-language translations
+        shell: pwsh
+        run: |
+          node --test launcher/tests/optional-features.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Optional controls missing from UI' }
+          cargo test --locked --release -p omsi-cfg optional_features::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Optional settings regression' }
+      - name: Build the actual Tauri Windows desktop launcher
+        shell: pwsh
+        run: |
+          cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw 'Windows launcher build failed' }
+      - name: Verify launcher and package with source SHA-256
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe='launcher/src-tauri/target/release/openomsi-launcher-app.exe'
+          if (-not (Test-Path $exe)) { throw 'Missing Windows launcher binary' }
+          $bytes=[IO.File]::ReadAllBytes($exe)
+          if ($bytes.Length -lt 1048576 -or [Text.Encoding]::ASCII.GetString($bytes,0,2) -ne 'MZ') { throw 'Invalid launcher executable' }
+          $controls=(Get-Content 'launcher/ui/js/pages/optional-features.js' -Raw)
+          foreach($key in @('bcs_inspectors','ai_driver_wave','passenger_ambient_talk','ai_bus_overtaking','cars_yield_to_buses','illegal_parking','independent_passenger_demand','weather_clothing')) {
+            if(-not $controls.Contains($key)) { throw "Launcher missing control: $key" }
+          }
+          New-Item -ItemType Directory -Force hotfix-launcher | Out-Null
+          Copy-Item $exe hotfix-launcher/openomsi-launcher-app.exe
+          $info=@{
+            version=$env:OPENOMSI_VERSION
+            source_commit='${{ github.sha }}'
+            path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe'
+            launcher_sha256=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            optional_ui_controls=14
+            signed_installer='NOT YET PUBLISHED'
+          }
+          $info | ConvertTo-Json | Set-Content -Encoding utf8 hotfix-launcher/BUILD-INFO.json
+          Compress-Archive -Path hotfix-launcher/* -DestinationPath OpenOMSI-2.2.2.1-hotfix1-launcher-candidate.zip
+          $zipSha=(Get-FileHash OpenOMSI-2.2.2.1-hotfix1-launcher-candidate.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Encoding ascii OpenOMSI-2.2.2.1-hotfix1-launcher-candidate.zip.sha256 "$zipSha  OpenOMSI-2.2.2.1-hotfix1-launcher-candidate.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.1-hotfix1-desktop-launcher-CANDIDATE
+          path: |
+            OpenOMSI-2.2.2.1-hotfix1-launcher-candidate.zip
+            OpenOMSI-2.2.2.1-hotfix1-launcher-candidate.zip.sha256
+          retention-days: 30
+          if-no-files-found: error
