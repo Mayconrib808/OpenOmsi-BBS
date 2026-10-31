@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2-hotfix.2"
+const changelogSeenVersion = "2.2.2-hotfix.3"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -243,6 +243,27 @@ func hotfix2LogSection() logSection {
     }
 }
 
+func hotfix3LogSection() logSection {
+    return logSection{
+        label:logT("🛠️ HOTFIX 3 • FISCAIS E TRÁFEGO","🛠️ HOTFIX 3 • INSPECTORS AND TRAFFIC","🛠️ HOTFIX 3 • KONTROLLEURE UND VERKEHR"),
+        accent:logAccent(255,203,92),
+        entries:[]logEntry{
+            {logT("👮 Fiscal com aparência profissional","👮 Inspector with staff appearance","👮 Kontrolleur mit Dienstkleidung"),
+             logT("O fiscal utiliza preferencialmente personagens uniformizados originais do OMSI, com opções masculina e feminina. A seleção não modifica as aparências dos passageiros comuns. Caso um modelo não esteja instalado, existe alternativa.",
+                  "Inspectors prefer stock OMSI staff characters, with male and female options. Ordinary passengers keep their own appearances. A fallback is used if the preferred model is unavailable.",
+                  "Kontrolleure verwenden bevorzugt originale OMSI-Dienstfiguren, mit männlicher und weiblicher Auswahl. Normale Fahrgäste bleiben unverändert; fehlende Modelle haben eine Alternative.")},
+            {logT("🚌 Fiscal não age como passageiro comum","🚌 Inspector no longer acts as a regular passenger","🚌 Kontrolleur verhält sich nicht wie ein normaler Fahrgast"),
+             logT("Durante a fiscalização, o personagem não reclama da direção, não pede parada nem tenta desembarcar no ponto final pela rotina normal dos passageiros. O assento fica reservado até o encerramento da inspeção.",
+                  "During inspection the character does not complain about driving, press the stop button or automatically get off at the terminus. The seat remains reserved until the inspection ends.",
+                  "Während der Kontrolle gibt es keine Fahrbeschwerden, Haltewünsche oder automatisches Aussteigen an der Endhaltestelle. Der Sitzplatz bleibt reserviert.")},
+            {logT("🚗 Tráfego por sentido da avenida","🚗 Traffic in both avenue directions","🚗 Verkehr in beiden Fahrtrichtungen"),
+             logT("O gerador reconsidera trechos longos que parecem sem saída enquanto o servidor carrega as ruas. O ajuste respeita faixas proibidas, densidade do mapa e espaço livre; diagnósticos por direção ficam disponíveis. A distribuição precisa ser conferida em viagem.",
+                  "The generator can reconsider long lanes appearing disconnected while map tiles stream. The change respects prohibited lanes, map density and free space, with directional diagnostics available. In-game traffic distribution still needs checking.",
+                  "Lange Spuren, die während des Karten-Nachladens als Sackgasse erscheinen, können erneut berücksichtigt werden. Sperren, Verkehrsdichte und Freiraum bleiben gültig; Richtungsdiagnosen helfen bei der Spielprüfung.")},
+        },
+    }
+}
+
 func earlierBridgeLogSection() logSection {
     return logSection{
         label:logT("📚 VERSÕES ANTERIORES","📚 EARLIER RELEASES","📚 FRÜHERE VERSIONEN"),
@@ -270,32 +291,31 @@ func logSections() []logSection {
 }
 
 func selectLogSections(from string) []logSection {
-    current:=hotfix2LogSection()
+    hotfix3:=hotfix3LogSection()
+    hotfix2:=hotfix2LogSection()
     old:=allLogSections()
     from=strings.TrimSpace(from)
     switch {
+    case from=="2.2.2-hotfix.3":
+        return []logSection{}
+    case from=="2.2.2-hotfix.2":
+        return []logSection{hotfix3}
     case from=="2.2.2-hotfix.1":
-        return []logSection{current}
+        return []logSection{hotfix3,hotfix2}
     case from=="2.2.2":
-        // Hotfix 1 plus the newly installed Hotfix 2.
-        return []logSection{current,old[0]}
+        return []logSection{hotfix3,hotfix2,old[0]}
     case strings.HasPrefix(from,"2.2.1.9"):
-        // This installation already received the extensive 2.2.1.9 rollout.
-        return append([]logSection{current},old...)
+        return append([]logSection{hotfix3,hotfix2},old...)
     case strings.HasPrefix(from,"2.2.1"):
-        // A previous 2.2.1 release: include the late 2.2.1 updates.
         earlier:=earlierBridgeLogSection()
         earlier.entries=earlier.entries[2:]
-        return append([]logSection{current,earlier},old...)
+        return append([]logSection{hotfix3,hotfix2,earlier},old...)
     case strings.HasPrefix(from,"2.2.0"):
-        // 2.2.0 users need subsequent 2.2.1 and 2.2.2 changes.
         earlier:=earlierBridgeLogSection()
         earlier.entries=earlier.entries[1:]
-        return append([]logSection{current,earlier},old...)
+        return append([]logSection{hotfix3,hotfix2,earlier},old...)
     default:
-        // First update, unsupported source marker or pre-2.2 install:
-        // prefer the complete known history rather than guess the version.
-        return append([]logSection{current,earlierBridgeLogSection()},old...)
+        return append([]logSection{hotfix3,hotfix2,earlierBridgeLogSection()},old...)
     }
 }
 
@@ -339,7 +359,7 @@ func logWindowPaint(window uintptr){
     logFill(dc,guiRect{0,0,w,113},guiRGB(21,37,61))
     logFill(dc,guiRect{0,109,w,113},guiRGB(255,202,84))
     logTextDraw(dc,"OpenOMSI  BCS BRIDGE",guiRect{26,15,w-22,44},state.heading,white,0x0000|0x0020)
-    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2  ·  HOTFIX 2","✨ UPDATE 2.2.2  ·  HOTFIX 2","✨ UPDATE 2.2.2  ·  HOTFIX 1")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
+    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2  ·  HOTFIX 3","✨ UPDATE 2.2.2  ·  HOTFIX 3","✨ UPDATE 2.2.2  ·  HOTFIX 3")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
     logTextDraw(dc,logL(g.config.Language,logT("Escolha um assunto à esquerda. Role para ler todas as mudanças.","Choose a category on the left. Scroll to read the complete notes.","Links ein Thema wählen und für alle Änderungen scrollen.")),guiRect{26,83,w-24,107},state.tiny,muted,0x0020)
     logFill(dc,guiRect{0,114,268,h-76},guiRGB(17,29,47))
     logFill(dc,guiRect{0,h-77,w,h},guiRGB(21,37,61))
@@ -498,7 +518,7 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     width,height:=int(rect.Right-rect.Left),int(rect.Bottom-rect.Top)
     x,y:=int(parent.Left)+(int(parent.Right-parent.Left)-width)/2,int(parent.Top)
     if x<0{x=0};if y<0{y=0}
-    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  2.2.2 Hotfix 2"))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
+    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  2.2.2 Hotfix 3"))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
     if window==0{return 0}
     changelogWindow=window
     changelogState=&logWindowState{heading:guiFont(26,700),subhead:guiFont(19,700),body:guiFont(18,400),tiny:guiFont(16,400)}
