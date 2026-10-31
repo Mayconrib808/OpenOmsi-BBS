@@ -206,6 +206,8 @@ pub struct TrafficSim {
     pub no_timetable_buses: bool,
     /// Optional #2973: a scheduled bus may pass another bus at a different stop only with clearance.
     pub ai_bus_overtaking: bool,
+    /// Opt-in #3436: try a safe adjacent-lane change before waiting for a bus leaving a bay.
+    pub cars_yield_to_buses: bool,
     /// Where the player looks from (set every frame).
     pub viewer: Option<Viewer>,
     /// Buildings that hide what is behind them (the player's collision world).
