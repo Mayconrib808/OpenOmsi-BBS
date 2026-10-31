@@ -45,14 +45,17 @@ pub(crate) fn traffic_tick(
         if let Some(greetings) = greetings.as_mut() { greetings.restore(&mut t.sim); }
         t.tick(dt, player.map(|p| player_outline(p)));
         if let Some(mut greetings) = greetings {
-            if !t.sim.mirror {
+            // Mirrors use the same geometry for cosmetic gestures, but are
+            // forbidden to emit another greeting horn/flash on top of the host.
+            if !t.sim.mirror || t.optional_features.ai_driver_wave {
                 use omsi_sim::ai_traffic::greetings::{Bus, BusId};
                 let mut buses: Vec<Bus> = remotes.remotes.iter()
                     .map(|(id,r)| { let mut b = Bus::from_vehicle(BusId::Player(*id), r.vehicle(), &r.last.line,
                         r.last.flags & omsi_net::FLAG_HORN != 0); b.high_beam = r.last.head == 3; b.speed = r.last.speed_kmh / 3.6; b }).collect();
                 if let Some(p) = player { buses.push(Bus::from_vehicle(BusId::Player(0), &p.vehicle, "", false)); }
                 let greeting_dt = if dt > 0.0 { dt } else { t.sim.last_dt };
-                greetings.update_with_signals(&mut t.sim, buses, greeting_dt, t.optional_features.ai_bus_greetings);
+                greetings.update_with_signals(&mut t.sim, buses, greeting_dt,
+                    t.optional_features.ai_bus_greetings && !t.sim.mirror);
             }
             t.greetings = greetings;
         }
