@@ -142,7 +142,7 @@ fn load(root: &Path, binding: Option<Binding>, default: &str, service: Service) 
     let relative = relative(&binding.model)?;
     let path = omsi_cfg::resolve_path(root, relative.to_str()?);
     if !path.is_file() {
-        log::info!(
+        log::warn!(
             "BCS {:?} visual model not installed: {}",
             service,
             relative.display()
