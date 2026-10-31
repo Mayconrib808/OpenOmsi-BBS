@@ -215,6 +215,26 @@ fn signals(binding: &Binding, service: Service) -> Option<Signals> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn bcs_fallback_real_assets_load() {
+        let Ok(root) = std::env::var("BCS_TEST_ASSETS") else {
+            eprintln!("Set BCS_TEST_ASSETS to run generated emergency-vehicle asset smoke test");
+            return;
+        };
+        let root = std::path::Path::new(&root);
+        for (name, relative) in [
+            ("Police", "Vehicles/OpenOMSI_BCS/Police/Police.ovh"),
+            ("Fire", "Vehicles/OpenOMSI_BCS/Fire/Fire.ovh"),
+        ] {
+            let file = root.join(relative);
+            assert!(file.is_file(), "{name}: missing {}", file.display());
+            let ty = omsi_sim::VehicleType::load_ai(root, &file)
+                .unwrap_or_else(|e| panic!("{name} 3D fallback cannot load: {e}"));
+            assert!(!ty.def.path.as_os_str().is_empty());
+            eprintln!("{name}: native vehicle model parsed and loaded");
+        }
+    }
+
     use super::*;
     #[test]
     fn model_must_be_a_relative_vehicle_definition() {
