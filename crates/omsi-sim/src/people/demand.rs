@@ -4,6 +4,35 @@
 //!
 //! The host sim owns this accumulator. LAN clients mirror real people only.
 
+/// Low-cost, once-per-minute diagnostics. These are counters of actual work,
+/// not merely option flags; no per-frame or per-passenger INFO log is emitted.
+#[derive(Clone, Debug)]
+pub struct DemandAudit {
+    pub last_report_at: f64,
+    pub seeded_stops: u64,
+    pub new_queue_units: f64,
+    pub materialized: u64,
+    pub spawn_refused: u64,
+    pub patience_left: u64,
+    pub last_stop: Option<i64>,
+    pub clothing_evaluated: u64,
+    pub clothing_tagged_selected: u64,
+    pub conversation_attempts: u64,
+    pub conversation_without_pairs: u64,
+    pub conversation_without_clips: u64,
+    pub conversation_lines: u64,
+}
+impl Default for DemandAudit {
+    fn default() -> Self {
+        Self { last_report_at: -60.0, seeded_stops: 0,
+            new_queue_units: 0.0, materialized: 0, spawn_refused: 0,
+            patience_left: 0, last_stop: None, clothing_evaluated: 0,
+            clothing_tagged_selected: 0, conversation_attempts: 0,
+            conversation_without_pairs: 0, conversation_without_clips: 0,
+            conversation_lines: 0 }
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct StopDemand {
     pub waiting: f32,
