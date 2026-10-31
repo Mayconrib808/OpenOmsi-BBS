@@ -141,6 +141,20 @@ impl TrafficSim {
         self.held_at_red = 0;
         self.player_turn = player_turn_of(self.player_turn, self.player, player, dt);
         self.player = player;
+        // One press of the player's horn gets one response. Holding the key
+        // never queues more reactions every frame.
+        if self.player_horn && !self.player_horn_prev {
+            if let Some((pos, _, _, _, _)) = player {
+                for car in &mut self.cars {
+                    if (car.vehicle.position - pos).length() <= 35.0 {
+                        if let Some((state, _)) = car.temporary_park.as_mut() {
+                            state.hear_horn(self.time, car.seed);
+                        }
+                    }
+                }
+            }
+        }
+        self.player_horn_prev = self.player_horn;
         // (refilled, not made anew: fifty times a second, for every car)
         self.geo_prev.clear();
         self.geo_prev.extend(self.cars.iter_mut().map(|c| c.geo_block.take()));
@@ -1028,6 +1042,12 @@ impl TrafficSim {
                 why = ("park", at);
             }
         }
+        if let Some(at) = self.plan_temporary_illegal_stop(i, ts) {
+            stop_at = Some(stop_at.map(|x| x.min(at)).unwrap_or(at));
+            if at < why.1 {
+                why = ("illegal_park", at);
+            }
+        }
         (stop_at, why)
     }
 
@@ -1266,6 +1286,11 @@ impl TrafficSim {
             self.first_turner = Some((car.id, self.time));
         }
         car.state.update_blinker(&self.net);
+        if car.temporary_park.is_some_and(|(_, at)|
+            car.state.s >= at - 2.0 && car.state.speed < 0.5) {
+            // AI_Blinker_L + AI_Blinker_R are both fed when blinker == 3.
+            car.state.blinker = 3;
+        }
         if matches!(car.bus.as_ref().map(|b| b.phase), Some(Phase::Boarding | Phase::Waiting)) {
             // waiting at a stop: dark until it is about to pull away
             car.state.blinker = 0;
