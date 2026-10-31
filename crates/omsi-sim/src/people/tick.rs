@@ -69,6 +69,11 @@ impl PeopleSim {
         }
         self.use_map_humans(world);
         self.time += dt as f64;
+        if self.mirror && self.optional_features.independent_passenger_demand
+            && self.time - self.demand_audit.last_report_at >= 60.0 {
+            self.demand_audit.last_report_at = self.time;
+            log::info!("FEATURE AUDIT demand local_mirror=true arrivals_not_authoritative=true: host owns the demand ledger; check host log for seeded_stops, generated_queue and arrivals_materialized");
+        }
         let net = traffic.map(|t| &t.net);
         if let Some(b) = bus {
             self.center = b.position;
