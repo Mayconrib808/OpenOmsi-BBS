@@ -478,6 +478,10 @@ impl PeopleSim {
             }
         }
         let (idx, variant) = choice.unwrap_or((0, 0));
+        // Stock staff clothing is the default skin: normal riders continue to
+        // vary clothes randomly, while a fiscal cannot appear in a casual CTI
+        // alternate outfit during a BCS inspection.
+        let variant = if matches!(&state, State::Pax(p) if p.inspector) { 0 } else { variant };
         let ty = self.types[idx].clone();
         // walking pace 1.1 m/s +- 0.2, as Omsi.exe draws it for everybody (0x625758:
         // sub_7f08b0(0.2, 1.1)); `[walk_param]` holds the stride, not a speed
