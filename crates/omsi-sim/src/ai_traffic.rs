@@ -17,6 +17,7 @@ pub mod fixed_step;
 pub mod horn;
 pub mod greetings;
 pub mod density;
+pub mod extended_density;
 pub mod dormant;
 pub mod emergency;
 pub mod response;
@@ -112,6 +113,14 @@ pub struct TrafficSim {
     pub groups: Vec<omsi_map::ailists::UnschedGroup>,
     /// The map has an `unsched_trafficdens.txt` (else the global.cfg curve applies).
     pub group_curves: bool,
+    /// Optional map-specific individual weekday/public-holiday road curves.
+    pub extended_density: extended_density::ExtendedDensity,
+    /// Files are re-resolved only when the calendar date changes (for Chrono).
+    pub extended_density_map_dir: std::path::PathBuf,
+    pub extended_density_date: i32,
+    /// Map holidays; other calendar and Chrono rules retain their stock behavior.
+    pub holiday_calendar: omsi_map::Calendar,
+    pub is_public_holiday: bool,
     /// Each group's place in `unsched_vehgroups.txt`, the number a path's `[rule]
     /// trafficdensity` names it by (None: the map has no such file, and every group drives
     /// wherever the lane's density lets traffic).
@@ -195,6 +204,8 @@ pub struct TrafficSim {
     /// `--no-timetable-buses`: the timetable runs for the player's duty, but puts no AI
     /// bus on the road (#1762).
     pub no_timetable_buses: bool,
+    /// Optional #2973: a scheduled bus may pass another bus at a different stop only with clearance.
+    pub ai_bus_overtaking: bool,
     /// Where the player looks from (set every frame).
     pub viewer: Option<Viewer>,
     /// Buildings that hide what is behind them (the player's collision world).

@@ -134,6 +134,7 @@ impl Traffic {
     /// `player`: (centre, heading in degrees, half length, half width, speed) of the
     /// player's vehicle.
     pub fn tick(&mut self, dt: f32, player: Option<PlayerBox>) {
+        self.sim.ai_bus_overtaking = self.optional_features.ai_bus_overtaking;
         self.sim.advance(dt, player);
         self.after_step();
     }

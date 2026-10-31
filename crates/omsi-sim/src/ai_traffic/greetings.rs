@@ -140,10 +140,23 @@ pub struct Greetings {
     last: HashMap<u64, f32>,
     pending: Vec<Pending>,
     flashes: HashMap<u64, Flash>,
+    /// Short visual gestures keyed by existing one-shot greetings, never a new random search.
+    waves: HashMap<u64, f32>,
     clock: f32,
 }
 
 impl Greetings {
+    /// Presentation-only wave for a near AI driver: blend weight and phase.
+    /// No allocations, physics, network packets or greeting replays.
+    pub fn wave(&self, id: u64) -> (f32, f32) {
+        let Some(&began) = self.waves.get(&id) else { return (0.0, 0.0) };
+        let elapsed = self.clock - began;
+        if !(0.0..=1.3).contains(&elapsed) { return (0.0, 0.0) }
+        let fade_in = (elapsed / 0.25).clamp(0.0, 1.0);
+        let fade_out = ((1.3 - elapsed) / 0.35).clamp(0.0, 1.0);
+        (fade_in.min(fade_out), elapsed)
+    }
+
     /// Restore before the next script frame, so a pulse cannot latch a switch or affect the driving code.
     pub fn restore(&self, sim: &mut super::TrafficSim) {
         for car in &mut sim.cars {
@@ -153,7 +166,13 @@ impl Greetings {
         }
     }
 
-    pub fn update(&mut self, sim: &mut super::TrafficSim, mut buses: Vec<Bus>, dt: f32) {
+    pub fn update(&mut self, sim: &mut super::TrafficSim, buses: Vec<Bus>, dt: f32) {
+        self.update_with_signals(sim, buses, dt, true);
+    }
+
+    /// Waving and horn/flash are independent opt-ins. The ordinary update
+    /// remains available for tests and existing greeting implementations.
+    pub fn update_with_signals(&mut self, sim: &mut super::TrafficSim, mut buses: Vec<Bus>, dt: f32, signals_enabled: bool) {
         if sim.mirror || !dt.is_finite() || dt <= 0.0 { return; }
         self.clock += dt;
         let now = self.clock;
@@ -209,6 +228,8 @@ impl Greetings {
             if !a.zip(b).is_some_and(|(a,b)| if response { nearby(a,b) } else { oncoming(a,b) }) { continue; }
             let Some(car) = sim.cars.iter_mut().find(|c| c.id == id) else { continue; };
             self.last.insert(id,now);
+            self.waves.insert(id, now);
+            if !signals_enabled { continue; }
             // Audio is emitted once by the model-aware presentation path below;
             // do not also fire a script trigger that could double the same horn.
             // A reserved sound event uses the existing protocol-14 event channel; clients
@@ -223,6 +244,7 @@ impl Greetings {
             self.flashes.insert(id,Flash { began:now,saved });
         }
         self.flashes.retain(|id,f| present.contains(&BusId::Ai(*id)) && now - f.began <= 0.7);
+        self.waves.retain(|id, began| present.contains(&BusId::Ai(*id)) && now - *began <= 1.3);
         for car in &mut sim.cars {
             if let Some(f) = self.flashes.get(&car.id) {
                 let elapsed = now - f.began;
@@ -281,6 +303,17 @@ mod tests {
         sim.cars[0].vehicle.position=DVec3::ZERO; sim.cars[0].vehicle.heading=0.0;
         sim.cars[0].vehicle.host.capture_sound_triggers=true;
         (f,sim)
+    }
+    #[test] fn waving_without_horn_toggle_does_not_emit_a_horn_or_flash() {
+        let (_f, mut sim) = scene();
+        let p = bus(BusId::Player(0), 40.0, 180.0, "205");
+        let mut g = Greetings::default();
+        g.update_with_signals(&mut sim, vec![p.clone()], 0.1, false);
+        g.update_with_signals(&mut sim, vec![p.clone()], 0.25, false);
+        g.update_with_signals(&mut sim, vec![p], 0.1, false);
+        assert!(g.wave(sim.cars[0].id).0 > 0.0);
+        assert!(sim.cars[0].vehicle.host.network_sound_triggers.is_empty());
+        assert_eq!(sim.cars[0].vehicle.var("lights_fern"), Some(0.0));
     }
     #[test] fn same_line_player_gets_one_greeting_and_lamps_restore() {
         let (_f,mut sim)=scene(); let p=bus(BusId::Player(0),40.0,180.0,"205"); let mut g=Greetings::default();
@@ -361,4 +394,19 @@ mod tests {
         assert_eq!(b.line,"205");assert!(b.horn && b.high_beam);
     }
 
+}
+
+#[cfg(test)]
+mod visual_wave_tests {
+    use super::*;
+    #[test]
+    fn wave_starts_and_ends_without_mutating_drive_state() {
+        let mut g = Greetings::default();
+        assert_eq!(g.wave(42).0, 0.0);
+        g.waves.insert(42, 0.0);
+        g.clock = 0.4;
+        assert!(g.wave(42).0 > 0.9);
+        g.clock = 1.4;
+        assert_eq!(g.wave(42).0, 0.0);
+    }
 }

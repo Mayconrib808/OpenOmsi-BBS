@@ -41,7 +41,7 @@ pub(crate) fn traffic_tick(
             let r = p.rail.as_ref()?;
             Some(omsi_sim::ai_traffic::model::PlayerRail { lane: r.lane, s: r.s, along: r.along, train: omsi_sim::ai_traffic::model::is_train(&p.vehicle.ty.def) })
         });
-        let mut greetings = t.optional_features.ai_bus_greetings.then(|| std::mem::take(&mut t.greetings));
+        let mut greetings = (t.optional_features.ai_bus_greetings || t.optional_features.ai_driver_wave).then(|| std::mem::take(&mut t.greetings));
         if let Some(greetings) = greetings.as_mut() { greetings.restore(&mut t.sim); }
         t.tick(dt, player.map(|p| player_outline(p)));
         if let Some(mut greetings) = greetings {
@@ -52,7 +52,7 @@ pub(crate) fn traffic_tick(
                         r.last.flags & omsi_net::FLAG_HORN != 0); b.high_beam = r.last.head == 3; b.speed = r.last.speed_kmh / 3.6; b }).collect();
                 if let Some(p) = player { buses.push(Bus::from_vehicle(BusId::Player(0), &p.vehicle, "", false)); }
                 let greeting_dt = if dt > 0.0 { dt } else { t.sim.last_dt };
-                greetings.update(&mut t.sim, buses, greeting_dt);
+                greetings.update_with_signals(&mut t.sim, buses, greeting_dt, t.optional_features.ai_bus_greetings);
             }
             t.greetings = greetings;
         }

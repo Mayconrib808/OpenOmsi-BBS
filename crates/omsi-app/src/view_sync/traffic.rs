@@ -234,6 +234,10 @@ impl Traffic {
                 }
             }
             if let (Some(f), Some(r)) = (view.drivers.get_mut(&bus.id), view.cars.get(&bus.id)) {
+                let (level, phase) = if self.optional_features.ai_driver_wave {
+                    self.greetings.wave(bus.id)
+                } else { (0.0, 0.0) };
+                f.set_greeting_wave(level, phase);
                 f.update(renderer, scene, &car, &r.body, dt, true, false);
             }
         }

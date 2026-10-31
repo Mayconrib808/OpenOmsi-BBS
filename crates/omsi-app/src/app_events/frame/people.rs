@@ -173,6 +173,17 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
         });
         // (OMSI's `AIPassFactor`, the passengers setting in per cent)
         steps::humans_by_hour(h, w, cx.clock.clock.time, cx.common.settings.pax_density, cx.duty.duty.as_ref());
+        // #2206: the map may opt into its own day-of-week/public-holiday
+        // passenger density. No override means the original global.cfg
+        // density remains intact. Authority stays with the local/host sim.
+        if let Some(t) = cx.traffic.traffic.as_ref() {
+            let weekday = cx.clock.clock.weekday();
+            let holiday = t.holiday_calendar.is_holiday(cx.clock.clock.date_code());
+            let hour = (cx.clock.clock.time.rem_euclid(86400.0) / 3600.0) as f32;
+            if let Some(density) = t.extended_density.passenger_at(weekday, holiday, hour) {
+                h.density = density * cx.common.settings.pax_density;
+            }
+        }
         // The periodic fillings of the map each get a frame of their own: the traffic's
         // (`traffic_heavy_frame`, set in its stage before this one), the strollers and
         // stops of the people's step (every second, in `tick_inner`) and this one (every

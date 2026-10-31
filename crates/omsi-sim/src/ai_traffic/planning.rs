@@ -3,6 +3,36 @@
 
 use super::*;
 
+/// A bus can cross the centre only when another timetable bus occupies a
+/// different stop, with a conservative buffer to finish the pass and regain
+/// its lane before its own next stop. Never permit one more bus to leapfrog
+/// the queue at the very same bus stop (#2973).
+pub fn safe_bus_stop_overtake(own_stop: i64, blocking_stop: i64, distance_to_own: f32, obstacle_gap: f32, obstacle_length: f32, own_length: f32) -> bool {
+    own_stop != blocking_stop
+        && [distance_to_own, obstacle_gap, obstacle_length, own_length].iter().all(|x| x.is_finite())
+        && obstacle_gap >= 0.0
+        && obstacle_length >= 0.0
+        && distance_to_own > obstacle_gap + obstacle_length + own_length + 24.0
+}
+
+impl TrafficSim {
+    /// Only the #2973 case. This explicitly does not authorize passing a
+    /// moving bus, a car queue or a bus at the same stop.
+    pub fn different_stopped_bus_ahead(&self, i: usize, who: Option<usize>, gap: f32, obstacle_len: f32) -> bool {
+        if !self.ai_bus_overtaking { return false }
+        let Some(car) = self.cars.get(i).filter(|c| c.is_bus() && !c.at_stop()) else { return false };
+        let Some(j) = who.filter(|&j| j != i) else { return false };
+        let Some(other) = self.cars.get(j).filter(|c| c.is_bus() && c.at_stop() && c.state.speed < 0.5) else { return false };
+        let Some((own_stop, other_stop)) = car.bus.as_ref().and_then(|b| b.stops.front()).zip(
+            other.bus.as_ref().and_then(|b| b.stops.front())) else { return false };
+        let Some((ri, ss)) = car.next_stop() else { return false };
+        let st = &car.state;
+        if ri < st.route_index { return false }
+        let ahead = st.route_distance(&self.net, ri, ss);
+        safe_bus_stop_overtake(own_stop.id, other_stop.id, ahead, gap, obstacle_len, st.front + st.rear)
+    }
+}
+
 /// Seconds a car at `st` needs to drive `dist` metres out on the other half of the road:
 /// the first `creep` metres edging out, the rest speeding up to `v_cap` (a driver standing
 /// still first reacts).
@@ -590,15 +620,19 @@ impl TrafficSim {
             return;
         }
         let st = &car.state;
+        // The opt-in #2973 case starts preparing earlier, but still runs
+        // every oncoming-traffic, clear-road and S-curve collision check below.
+        // Fixed-route buses never change to a neighbouring route lane here.
+        let bus_pass = lead.is_some_and(|(l, who)| self.different_stopped_bus_ahead(i, who, l.gap, obstacle_len));
         // (an emergency vehicle going round a car making way for it: after a second, or on
         // the move)
         let aside = lead.and_then(|l| l.1).is_some_and(|j| j < self.cars.len() && self.cars[j].make_way.is_some_and(|w| w.from == car.id));
         // a parked car is known from afar: the driver pulls out while still rolling up to
         // it; anything else is waited behind for a moment first
-        let rolling = (parked || aside) && st.speed > 0.5;
+        let rolling = (parked || aside || bus_pass) && st.speed > 0.5;
         if car.passing.is_some()
             || st.change.is_some()
-            || (car.stopped < if aside { 1.0 } else { 3.0 } && !rolling)
+            || (car.stopped < if aside || bus_pass { 1.0 } else { 3.0 } && !rolling)
             || !standing
             || car.yielding
             || car.at_stop()
@@ -621,10 +655,13 @@ impl TrafficSim {
                 log::info!("t={t_dbg:.1}: car {id_dbg} does not pass: {why}");
             }
         };
-        // a timetable bus does not pass what stands at its own next stop: it queues for it
+        // Normally timetable buses queue for their stop. When #2973 is opted
+        // in, permit only a DIFFERENT stationary bus at a different stop, with
+        // room to return before this bus reaches its own boarding area.
         if let Some((ri, ss)) = car.next_stop() {
             if ri >= st.route_index
                 && st.route_distance(&self.net, ri, ss) < gap + obstacle_len + st.front + 15.0
+                && !self.different_stopped_bus_ahead(i, who, gap, obstacle_len)
             {
                 return;
             }
@@ -637,9 +674,9 @@ impl TrafficSim {
             _ => gap,
         };
         let reach = if rolling {
-            (st.speed * st.speed / (2.0 * st.decel) + 12.0).clamp(15.0, 40.0)
+            (st.speed * st.speed / (2.0 * st.decel) + if bus_pass { 18.0 } else { 12.0 }).clamp(15.0, 40.0)
         } else {
-            22.0 + (car.pass_room - 4.0).max(0.0)
+            (if bus_pass { 30.0 } else { 22.0 }) + (car.pass_room - 4.0).max(0.0)
         };
         // (a car still half out from a pass it gave up may start again from there)
         // (lateral towards the oncoming side: a car still half out, or pulled the other way)
@@ -1284,4 +1321,17 @@ pub struct PullOut {
     pub side: f32,
     pub until: f32,
     pub back: f32,
+}
+
+#[cfg(test)]
+mod bus_stop_overtake_safety_tests {
+    use super::safe_bus_stop_overtake;
+    #[test]
+    fn cannot_pass_own_stop_or_with_insufficient_distance() {
+        assert!(!safe_bus_stop_overtake(10, 10, 100.0, 7.0, 12.0, 12.0));
+        assert!(!safe_bus_stop_overtake(10, 11, 45.0, 7.0, 12.0, 12.0));
+        assert!(safe_bus_stop_overtake(10, 11, 90.0, 7.0, 12.0, 12.0));
+        assert!(!safe_bus_stop_overtake(10, 11, f32::NAN, 7.0, 12.0, 12.0));
+        assert!(!safe_bus_stop_overtake(10, 11, 90.0, -1.0, 12.0, 12.0));
+    }
 }

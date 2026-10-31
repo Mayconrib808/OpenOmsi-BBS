@@ -333,6 +333,7 @@ impl PeopleSim {
             self.retire(&p);
         }
         self.give_ticket = false;
+        self.tick_ambient_talk();
         stage!("pedestrians");
         taken_ticket
     }
