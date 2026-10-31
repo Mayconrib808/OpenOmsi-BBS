@@ -9,6 +9,11 @@ impl PeopleSim {
         if self.pax(i).is_none_or(|p| p.task == t) {
             return;
         }
+        // Inspectors have their own BCS lifecycle. An ordinary alighting task
+        // would release their reserved seat and press the stop button.
+        if t == Task::InBusToExit && self.pax(i).is_some_and(|p| p.inspector) {
+            return;
+        }
         if debug_pax() {
             log::info!("t={:.1} pax {} {} -> {}", self.time, self.people[i].label(), self.pax(i).unwrap().task.name(), t.name());
         }
@@ -388,6 +393,9 @@ impl PeopleSim {
                 }
             }
             Task::SittingInBus => {
+                // BCS inspectors leave only through the inspection lifecycle, never
+                // at the route terminus, a random distance or an all-exit stop.
+                if p.inspector { return; }
                 let Some(b) = p.inside else { return };
                 let reg = at_stops.get(&b).cloned().unwrap_or_default();
                 let km = self.odometer.get(&b).copied().unwrap_or(0.0);
@@ -874,6 +882,33 @@ pub fn away_point(door: DVec3, out: DVec3, along: DVec3, id: u32) -> DVec3 {
 #[cfg(test)]
 mod connection_tests {
     use super::*;
+    #[test]
+    fn bcs_inspector_does_not_request_a_stop_or_leave_at_terminus() {
+        let (root, mut h, world, i) = fixture("inspector-no-exit");
+        let buses = vec![bus(&root, BusId::Player, "Destino", DVec3::new(40., 0., 0.))];
+        let ix = HashMap::from([(BusId::Player, 0)]);
+        let regs = HashMap::from([(BusId::Player, BusAtStops { all_exit: true, ..Default::default() })]);
+        let p = h.pax_mut(i).unwrap();
+        p.inspector = true;
+        p.inside = Some(BusId::Player);
+        p.bus = Some(BusId::Player);
+        p.task = Task::SittingInBus;
+        p.seat = Some(0);
+        p.pax_state = 2.0;
+        h.people[i].place = Place::Bus(BusId::Player, Vec3::ZERO);
+        h.set_task(i, Task::InBusToExit, &buses, &ix, &world);
+        assert_eq!(h.pax(i).unwrap().task, Task::SittingInBus);
+        assert_eq!(h.pax(i).unwrap().seat, Some(0));
+        assert!(!h.stop_request);
+        let mut ticket = false;
+        let mut removed = Vec::new();
+        h.pax_tick(i, 0.1, &world, &buses, &ix, &regs, None, &mut ticket, &mut removed);
+        assert_eq!(h.pax(i).unwrap().task, Task::SittingInBus);
+        assert_eq!(h.pax(i).unwrap().seat, Some(0));
+        assert!(!h.stop_request);
+        assert!(removed.is_empty());
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn medical_patient_keeps_the_seat_at_an_alighting_stop_and_releases_on_cancel() {
         let (root,mut h,world,i)=fixture("medical-seat-hold");
