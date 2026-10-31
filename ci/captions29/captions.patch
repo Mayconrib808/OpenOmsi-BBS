@@ -1,0 +1,387 @@
+diff --git a/crates/omsi-app/locales/app.yml b/crates/omsi-app/locales/app.yml
+index ac100485f8073687393c687f319cc151cf805e82..17501bb58891de3e22f65df0e36bb1e8edae3d37 100644
+--- a/crates/omsi-app/locales/app.yml
++++ b/crates/omsi-app/locales/app.yml
+@@ -97626,3 +97626,125 @@ _version: 2
+   it: "Torcia spenta"
+   cs: "Baterka vypnuta"
+   tr: "El feneri kapalı"
++
++# Additional passenger reactions: all native interface languages.
++"Could you open the door, please?":
++  be: "Адчыніце дзверы, калі ласка!"
++  ca: "Podeu obrir la porta, si us plau?"
++  cs: "Můžete prosím otevřít dveře?"
++  de: "Könnten Sie bitte die Tür öffnen?"
++  es: "¿Puede abrir la puerta, por favor?"
++  fr: "Pouvez-vous ouvrir la porte, s’il vous plaît ?"
++  hi: "कृपया दरवाज़ा खोल देंगे?"
++  hu: "Kinyitná az ajtót, kérem?"
++  id: "Bisa tolong buka pintunya?"
++  it: "Può aprire la porta, per favore?"
++  ja: "ドアを開けてもらえますか？"
++  ka: "კარს გამიღებთ, გთხოვთ?"
++  kk: "Есікті ашып жібересіз бе?"
++  ko: "문 좀 열어 주시겠어요?"
++  ms: "Boleh tolong buka pintu?"
++  nl: "Kunt u de deur openen, alstublieft?"
++  pl: "Czy można otworzyć drzwi?"
++  pt: "Pode abrir a porta, por favor?"
++  pt-pt: "Pode abrir a porta, por favor?"
++  ru: "Откройте дверь, пожалуйста!"
++  sr: "Možete li otvoriti vrata, molim vas?"
++  sv: "Kan du öppna dörren, tack?"
++  th: "ช่วยเปิดประตูให้หน่อยได้ไหม?"
++  tl: "Puwede po bang buksan ang pinto?"
++  tr: "Kapıyı açar mısınız, lütfen?"
++  uk: "Відчиніть двері, будь ласка!"
++  vi: "Bác tài mở cửa giúp tôi được không?"
++  zh: "请开一下车门，好吗？"
++  zh-tw: "請開一下車門，好嗎？"
++"Driver, you missed my stop!":
++  be: "Кіроўца, вы праехалі мой прыпынак!"
++  ca: "Conductor, us heu passat la meva parada!"
++  cs: "Řidiči, přejel jste moji zastávku!"
++  de: "Fahrer, Sie haben meine Haltestelle verpasst!"
++  es: "¡Conductor, se ha pasado mi parada!"
++  fr: "Chauffeur, vous avez raté mon arrêt !"
++  hi: "ड्राइवर, मेरा स्टॉप पीछे छूट गया!"
++  hu: "Sofőr, elhagyta a megállómat!"
++  id: "Sopir, halte saya terlewat!"
++  it: "Autista, ha saltato la mia fermata!"
++  ja: "運転手さん、私の降りるバス停を通り過ぎました！"
++  ka: "მძღოლო, ჩემი გაჩერება გამოტოვეთ!"
++  kk: "Жүргізуші, менің аялдамамнан өтіп кеттіңіз!"
++  ko: "기사님, 제 정류장을 지나쳤어요!"
++  ms: "Pemandu, perhentian saya sudah terlepas!"
++  nl: "Chauffeur, u bent mijn halte voorbijgereden!"
++  pl: "Kierowco, minąłeś mój przystanek!"
++  pt: "Motorista, você passou do meu ponto!"
++  pt-pt: "Motorista, passou a minha paragem!"
++  ru: "Водитель, вы проехали мою остановку!"
++  sr: "Vozaču, prošli ste moju stanicu!"
++  sv: "Chaufför, du körde förbi min hållplats!"
++  th: "คนขับ เลยป้ายที่ฉันจะลงแล้ว!"
++  tl: "Drayber, nalampasan ninyo ang bababaan ko!"
++  tr: "Şoför, durağımı geçtiniz!"
++  uk: "Водію, ви проїхали мою зупинку!"
++  vi: "Bác tài, bác chạy quá trạm của tôi rồi!"
++  zh: "司机，您开过我的站了！"
++  zh-tw: "司機，您開過我的站了！"
++"Please let me get off!":
++  be: "Дазвольце мне выйсці, калі ласка!"
++  ca: "Deixeu-me baixar, si us plau!"
++  cs: "Nechte mě prosím vystoupit!"
++  de: "Lassen Sie mich bitte aussteigen!"
++  es: "¡Déjeme bajar, por favor!"
++  fr: "Laissez-moi descendre, s’il vous plaît !"
++  hi: "कृपया मुझे उतरने दीजिए!"
++  hu: "Kérem, engedjen leszállni!"
++  id: "Tolong izinkan saya turun!"
++  it: "Mi faccia scendere, per favore!"
++  ja: "降ろしてください！"
++  ka: "გთხოვთ, ჩამიშვით!"
++  kk: "Түсуге рұқсат етіңізші!"
++  ko: "내리게 해 주세요!"
++  ms: "Tolong benarkan saya turun!"
++  nl: "Laat me uitstappen, alstublieft!"
++  pl: "Proszę pozwolić mi wysiąść!"
++  pt: "Deixe-me descer, por favor!"
++  pt-pt: "Deixe-me sair, por favor!"
++  ru: "Дайте мне выйти, пожалуйста!"
++  sr: "Pustite me da izađem, molim vas!"
++  sv: "Låt mig kliva av, tack!"
++  th: "ช่วยให้ฉันลงด้วย!"
++  tl: "Pababa po, pakiusap!"
++  tr: "Lütfen inmeme izin verin!"
++  uk: "Дайте мені вийти, будь ласка!"
++  vi: "Cho tôi xuống xe với!"
++  zh: "请让我下车！"
++  zh-tw: "請讓我下車！"
++"Thank you, driver!":
++  be: "Дзякуй, кіроўца!"
++  ca: "Gràcies, conductor!"
++  cs: "Děkuji, řidiči!"
++  de: "Danke für die Fahrt!"
++  es: "¡Gracias, conductor!"
++  fr: "Merci, chauffeur !"
++  hi: "धन्यवाद, ड्राइवर!"
++  hu: "Köszönöm, sofőr!"
++  id: "Terima kasih, sopir!"
++  it: "Grazie, autista!"
++  ja: "運転手さん、ありがとうございます！"
++  ka: "გმადლობთ, მძღოლო!"
++  kk: "Рақмет, жүргізуші!"
++  ko: "기사님, 감사합니다!"
++  ms: "Terima kasih, pemandu!"
++  nl: "Bedankt, chauffeur!"
++  pl: "Dziękuję, kierowco!"
++  pt: "Obrigado, motorista!"
++  pt-pt: "Obrigado, motorista!"
++  ru: "Спасибо, водитель!"
++  sr: "Hvala, vozaču!"
++  sv: "Tack, chauffören!"
++  th: "ขอบคุณคุณคนขับ!"
++  tl: "Salamat po, drayber!"
++  tr: "Teşekkürler, şoför!"
++  uk: "Дякую, водію!"
++  vi: "Cảm ơn bác tài!"
++  zh: "谢谢司机！"
++  zh-tw: "謝謝司機！"
+diff --git a/crates/omsi-app/src/app_events/frame/people.rs b/crates/omsi-app/src/app_events/frame/people.rs
+index 2645fcb68bb5c50fb3c53177957cc6daa9ee5bdf..50d7575b14ca31969360436f48551994000e1ff6 100644
+--- a/crates/omsi-app/src/app_events/frame/people.rs
++++ b/crates/omsi-app/src/app_events/frame/people.rs
+@@ -2,6 +2,8 @@
+ 
+ use super::*;
+ 
++mod dialog;
++
+ impl App {
+     /// The LAN session (a stage of its own: a joining player's bus is loaded here, and that
+     /// frame was counted as the people's).
+@@ -292,7 +294,9 @@ pub(super) fn on_foot(mut cx: crate::on_foot::OnFootCx, dt: f32) {
+ /// (`Languages/<LANG>_basic*.olf`, `RL_PassDlg_<name>`): Omsi.exe shows them as the riders
+ /// speak. None for what has no hint (a greeting).
+ fn passenger_dialog(name: &str) -> Option<String> {
+-    if name=="BridgeOpenDoor"{return Some(crate::coop::text("Pode abrir a porta, por favor?","Could you open the door, please?","Bitte die Tür öffnen!").into());}
++    if let Some(caption) = dialog::current(name) {
++        return Some(caption);
++    }
+     static TEXTS: std::sync::OnceLock<Option<omsi_content::language::Language>> = std::sync::OnceLock::new();
+     let texts = TEXTS.get_or_init(|| {
+         let lang = crate::settings::Settings::load().language;
+diff --git a/crates/omsi-app/src/app_events/frame/people/dialog.rs b/crates/omsi-app/src/app_events/frame/people/dialog.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..34a39e29a2d8ecf53272af469d2c1d1da29df199
+--- /dev/null
++++ b/crates/omsi-app/src/app_events/frame/people/dialog.rs
+@@ -0,0 +1,33 @@
++//! Additional passenger captions use the same compiled catalog and language selection
++//! as the rest of the native interface. No voice files or settings are read here.
++
++use omsi_sim::people::PassengerDialog;
++
++fn key(dialog: PassengerDialog) -> &'static str {
++    match dialog {
++        PassengerDialog::OpenDoor => "Could you open the door, please?",
++        PassengerDialog::MissedStop => "Driver, you missed my stop!",
++        PassengerDialog::LetMeOff => "Please let me get off!",
++        PassengerDialog::ExitThanks => "Thank you, driver!",
++    }
++}
++
++fn in_language(name: &str, language: &str) -> Option<String> {
++    let key = key(PassengerDialog::from_id(name)?);
++    let locale = omsi_cfg::lang::language_iso(language);
++    Some(if locale.is_empty() {
++        key.to_owned()
++    } else {
++        crate::_rust_i18n_try_translate(locale, key)
++            .map(|translated| translated.into_owned())
++            .unwrap_or_else(|| key.to_owned())
++    })
++}
++
++pub(super) fn current(name: &str) -> Option<String> {
++    in_language(name, &omsi_ui::i18n::language())
++}
++
++#[cfg(test)]
++#[path = "dialog_tests.rs"]
++mod tests;
+diff --git a/crates/omsi-app/src/app_events/frame/people/dialog_tests.rs b/crates/omsi-app/src/app_events/frame/people/dialog_tests.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..33d9ff85c7d0c77fc63df95d8b66264605b505c1
+--- /dev/null
++++ b/crates/omsi-app/src/app_events/frame/people/dialog_tests.rs
+@@ -0,0 +1,50 @@
++use super::{in_language, key};
++use omsi_sim::people::PassengerDialog;
++
++#[test]
++fn every_passenger_caption_uses_a_real_catalog_translation_for_every_supported_language() {
++    let mut translations = 0;
++    for &(code, _, locale, aliases, _) in omsi_cfg::lang::LANGUAGES {
++        let table = omsi_launcher_lib::i18n::table(crate::_LOCALES, locale);
++        for dialog in PassengerDialog::ALL {
++            let english = key(dialog);
++            let expected = if locale == "en" {
++                english.to_owned()
++            } else {
++                let translated = table.get(english)
++                    .unwrap_or_else(|| panic!("missing {locale}: {english}"));
++                assert!(!translated.trim().is_empty(), "empty {locale}: {english}");
++                assert_ne!(translated, english, "English placeholder for {locale}: {english}");
++                translations += 1;
++                translated.clone()
++            };
++            assert_eq!(in_language(dialog.id(), code).as_deref(), Some(expected.as_str()), "{code}: {dialog:?}");
++            for alias in aliases {
++                assert_eq!(in_language(dialog.id(), alias).as_deref(), Some(expected.as_str()), "{alias}: {dialog:?}");
++            }
++        }
++    }
++    assert_eq!(translations, 29 * PassengerDialog::ALL.len());
++}
++
++#[test]
++fn french_japanese_brazilian_and_european_portuguese_do_not_use_the_three_language_helper() {
++    assert_eq!(in_language("BridgeOpenDoor", "FRA").as_deref(), Some("Pouvez-vous ouvrir la porte, s’il vous plaît ?"));
++    assert_eq!(in_language("BridgeOpenDoor", "JPN").as_deref(), Some("ドアを開けてもらえますか？"));
++    assert_eq!(in_language("BridgeMissedStop", "PTB").as_deref(), Some("Motorista, você passou do meu ponto!"));
++    assert_eq!(in_language("BridgeMissedStop", "PTP").as_deref(), Some("Motorista, passou a minha paragem!"));
++}
++
++#[test]
++fn different_reactions_remain_distinct_and_stock_voice_captions_keep_their_existing_path() {
++    for &(_, _, locale, _, _) in omsi_cfg::lang::LANGUAGES {
++        let values: Vec<_> = PassengerDialog::ALL.iter()
++            .map(|d| in_language(d.id(), locale).unwrap()).collect();
++        for (index, value) in values.iter().enumerate() {
++            assert!(!values[..index].contains(value), "two reactions share the same caption in {locale}");
++        }
++    }
++    for stock in ["TooBad_A", "Thanks_1", "Pardon_1", "Hello_1", ""] {
++        assert_eq!(in_language(stock, "FRA"), None);
++    }
++}
+diff --git a/crates/omsi-sim/src/people.rs b/crates/omsi-sim/src/people.rs
+index ac9df1efd6d7a2ebddfbf0315a1faf3a4abe6954..699ff52420089553c6b0acaaf053f0f58b55187b 100644
+--- a/crates/omsi-sim/src/people.rs
++++ b/crates/omsi-sim/src/people.rs
+@@ -80,6 +80,8 @@ pub mod ticket_hook;
+ pub mod bodies;
+ pub mod inspector;
+ mod reactions;
++mod dialog;
++pub use dialog::PassengerDialog;
+ pub mod pose_facts;
+ pub mod money;
+ pub mod world;
+diff --git a/crates/omsi-sim/src/people/dialog.rs b/crates/omsi-sim/src/people/dialog.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..93140e67f8a7743a78a8fb09f94dc58c9723dcf7
+--- /dev/null
++++ b/crates/omsi-sim/src/people/dialog.rs
+@@ -0,0 +1,68 @@
++//! Stable identifiers for the additional passenger captions. The application owns
++//! their text and translations; the simulation only reports which reaction occurred.
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum PassengerDialog {
++    OpenDoor,
++    MissedStop,
++    LetMeOff,
++    ExitThanks,
++}
++
++impl PassengerDialog {
++    pub const ALL: [Self; 4] = [Self::OpenDoor, Self::MissedStop, Self::LetMeOff, Self::ExitThanks];
++
++    pub const fn id(self) -> &'static str {
++        match self {
++            Self::OpenDoor => "BridgeOpenDoor",
++            Self::MissedStop => "BridgeMissedStop",
++            Self::LetMeOff => "BridgeLetMeOff",
++            Self::ExitThanks => "BridgeExitThanks",
++        }
++    }
++
++    pub fn from_id(id: &str) -> Option<Self> {
++        match id {
++            "BridgeOpenDoor" => Some(Self::OpenDoor),
++            "BridgeMissedStop" => Some(Self::MissedStop),
++            "BridgeLetMeOff" => Some(Self::LetMeOff),
++            "BridgeExitThanks" => Some(Self::ExitThanks),
++            _ => None,
++        }
++    }
++
++    /// A missed stop takes precedence over a door closed on a departing rider.
++    pub const fn door_reaction(missed_stop: bool, closed_on_rider: bool) -> Self {
++        if missed_stop {
++            Self::MissedStop
++        } else if closed_on_rider {
++            Self::LetMeOff
++        } else {
++            Self::OpenDoor
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::PassengerDialog as Dialog;
++
++    #[test]
++    fn the_existing_door_identifier_remains_compatible_and_stock_lines_stay_separate() {
++        assert_eq!(Dialog::from_id("BridgeOpenDoor"), Some(Dialog::OpenDoor));
++        for line in ["Thanks_1", "TooBad_A", "Pardon_1", "Unknown", ""] {
++            assert_eq!(Dialog::from_id(line), None);
++        }
++        for dialog in Dialog::ALL {
++            assert_eq!(Dialog::from_id(dialog.id()), Some(dialog));
++        }
++    }
++
++    #[test]
++    fn missed_stop_and_closed_door_have_their_own_caption_with_stable_priority() {
++        assert_eq!(Dialog::door_reaction(true, true), Dialog::MissedStop);
++        assert_eq!(Dialog::door_reaction(true, false), Dialog::MissedStop);
++        assert_eq!(Dialog::door_reaction(false, true), Dialog::LetMeOff);
++        assert_eq!(Dialog::door_reaction(false, false), Dialog::OpenDoor);
++    }
++}
+diff --git a/crates/omsi-sim/src/people/reactions.rs b/crates/omsi-sim/src/people/reactions.rs
+index 56dc27423afcbe4225e72776a09f3c88b8dcfac4..e3c13532a83fcfcbabfa4ae16c60c36f5c13b46e 100644
+--- a/crates/omsi-sim/src/people/reactions.rs
++++ b/crates/omsi-sim/src/people/reactions.rs
+@@ -40,6 +40,7 @@ impl PeopleSim {
+             else if leaving {-(if p.door_reaction_wait<0.0 {p.door_reaction_wait.abs()+step} else {step})}
+             else {0.0};
+         let missed=leaving&&elapsed<=-2.5;
++        let caption=PassengerDialog::door_reaction(missed,shut_on_rider).id();
+         let cooldown=(p.door_reaction_cooldown-dt.max(0.0)).max(0.0);
+         if let Some(pax)=self.pax_mut(i) {
+             pax.door_reaction_wait=elapsed;
+@@ -59,20 +60,20 @@ impl PeopleSim {
+         if missed {
+             for line in ["Angry_1","Angry_2","Pardon_2","OpenDoor_2"] {
+                 if self.voice_file(i,line).is_some(){
+-                    self.say_ex(i,line,true);self.dialog=Some("BridgeOpenDoor".into());return;
++                    self.say_ex(i,line,true);self.dialog=Some(caption.into());return;
+                 }
+             }
+         }
+         // Voice packs may provide only one variant. Missing lines are skipped.
+         for line in ["OpenDoor_1","OpenDoor_2","OpenDoor_A","Door_1","DoorOpen_1"] {
+-            if self.voice_file(i,line).is_some(){self.say_ex(i,line,true);self.dialog=Some("BridgeOpenDoor".into());return;}
++            if self.voice_file(i,line).is_some(){self.say_ex(i,line,true);self.dialog=Some(caption.into());return;}
+         }
+         let directory=self.voice_file(i,"Thanks_1").or_else(||self.voice_file(i,"Hello_1")).and_then(|p|p.parent().map(Path::to_path_buf));
+         if let Some(directory)=directory {
+             for (file,is_dir) in omsi_cfg::vfs::list_dir(&directory).unwrap_or_default().into_iter().take(256) {
+                 let name=file.to_string_lossy();let lower=name.to_lowercase();
+                 if !is_dir&&lower.ends_with(".wav")&&["opendoor","dooropen","pleaseopen","tuerauf","türauf","tuer_","tür_","abrirporta","porta_"].iter().any(|s|lower.contains(s)) {
+-                    self.say_ex(i,&name[..name.len()-4],true);self.dialog=Some("BridgeOpenDoor".into());return;
++                    self.say_ex(i,&name[..name.len()-4],true);self.dialog=Some(caption.into());return;
+                 }
+             }
+         }
+@@ -80,9 +81,12 @@ impl PeopleSim {
+         // in their own voice. The localized hint supplies the actual request.
+         if self.voice_file(i,"Pardon_1").is_some(){self.say_ex(i,"Pardon_1",true);}
+         else{self.last_chat=self.time;}
+-        self.dialog=Some("BridgeOpenDoor".into());
++        self.dialog=Some(caption.into());
+     }
+     pub(super) fn thank_on_exit(&mut self,i:usize){
+-        if self.rand_f()<0.22 {self.say_ex(i,"Thanks_1",true);}
++        if self.rand_f()<0.22 {
++            self.say_ex(i,"Thanks_1",true);
++            self.dialog=Some(PassengerDialog::ExitThanks.id().into());
++        }
+     }
+ }

@@ -1,0 +1,117 @@
+name: Validate and publish passenger captions in every native language
+on:
+  push:
+    branches: [tools/passenger-captions-29-check]
+    paths: [ci/captions29/**, .github/workflows/passenger-captions-29.yml]
+permissions:
+  contents: write
+concurrency:
+  group: openomsi-passenger-captions-29
+  cancel-in-progress: false
+jobs:
+  native:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2-i18n29
+      OPENOMSI_BCS_EVENTS_BETA_DEFAULT: '1'
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - name: Preserve exact source bytes
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          path: control
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 0a495b5934de3f97400092afb7c9ff76d85a6d38
+          path: native
+          fetch-depth: 4
+          persist-credentials: true
+      - name: Apply only the passenger caption correction
+        shell: pwsh
+        working-directory: native
+        run: |
+          New-Item -ItemType Directory -Force ../evidence | Out-Null
+          python -c "import subprocess,pathlib; pathlib.Path('../evidence/app.before.yml').write_bytes(subprocess.check_output(['git','show','HEAD:crates/omsi-app/locales/app.yml']))"
+          git apply --index ../control/ci/captions29/captions.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Caption patch failed' }
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'Caption diff whitespace failed' }
+      - name: Run upstream translation validation
+        shell: pwsh
+        working-directory: native
+        run: |
+          python -m pip install --quiet pyyaml
+          if ($LASTEXITCODE -ne 0) { throw 'PyYAML unavailable' }
+          python .github/scripts/check_locales.py ../evidence/app.before.yml crates/omsi-app/locales/app.yml
+          if ($LASTEXITCODE -ne 0) { throw 'Upstream translation validation failed' }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Format only the new caption modules
+        shell: pwsh
+        working-directory: native
+        run: |
+          rustfmt --edition 2024 crates/omsi-sim/src/people/dialog.rs crates/omsi-app/src/app_events/frame/people/dialog.rs
+          if ($LASTEXITCODE -ne 0) { throw 'Caption module formatting failed' }
+          git add crates/omsi-sim/src/people/dialog.rs crates/omsi-app/src/app_events/frame/people/dialog.rs crates/omsi-app/src/app_events/frame/people/dialog_tests.rs
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: native-222-release
+          workspaces: native -> target
+      - name: Compile the real Windows game with the compiled translation catalog
+        shell: pwsh
+        working-directory: native
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Corrected Windows game did not compile' }
+          ./target/release/openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Corrected Windows game did not start' }
+      - name: Run passenger simulation regressions including caption identity and reaction priority
+        shell: pwsh
+        working-directory: native
+        run: |
+          cargo test --locked --release -p omsi-sim --lib people:: 2>&1 | Tee-Object -FilePath ../evidence/simulation-tests.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Passenger simulation regressions failed' }
+      - name: Exercise every actual language, alias and compiled passenger caption
+        shell: pwsh
+        working-directory: native
+        run: |
+          cargo test --locked --release -p omsi-app --lib app_events::frame::people::dialog::tests -- --nocapture 2>&1 | Tee-Object -FilePath ../evidence/caption-tests.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Compiled caption language regressions failed' }
+          $result=Get-Content ../evidence/caption-tests.txt -Raw
+          if ($result -notmatch '3 passed; 0 failed') { throw 'The three compiled catalog tests did not all run' }
+      - name: Publish the tested native code revision without temporary workflow files
+        shell: pwsh
+        working-directory: native
+        run: |
+          $existing=git ls-remote --heads origin refs/heads/fix/222-hotfix2-all-languages
+          if ($existing) { throw 'Corrected source branch already exists; refuse to overwrite it' }
+          git rm -r --cached REVIEW-2.2.2-HOTFIX2
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot isolate native source from old review manifests' }
+          $tree=git write-tree
+          $commit=git -c user.name=Codex -c user.email=codex@openai.com commit-tree $tree -p b6c22b1b993b0126ab799c7634105c2f1b9d0d87 -m 'fix: translate all passenger reaction captions in every supported native language'
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot create tested source commit' }
+          git push origin "${commit}:refs/heads/fix/222-hotfix2-all-languages"
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot publish corrected native sources' }
+          python ../control/ci/captions29/record.py $commit $tree
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot record corrected native build' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: OpenOMSI-2.2.2-Hotfix2-i18n29-Windows
+          path: |
+            evidence/*.txt
+            native/target/release/openomsi.exe
+            native/target/release/steam_api64.dll
+            native/REVISION.json
+            native/openomsi-i18n29-source.tar.gz
+          retention-days: 30
+          if-no-files-found: warn
