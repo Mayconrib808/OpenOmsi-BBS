@@ -386,6 +386,28 @@ impl PeopleSim {
                         pack,
                     )
                 }
+                _ if p.remote => {
+                    // A mirrored rider has State::Idle. Its pose arrives over LAN,
+                    // not from a locally simulated Pax task. Recover the seated
+                    // original OMSI joint angles from the transmitted seat/activity.
+                    // Keep moving remote people out of the sitting animation.
+                    let seat_height = p.mirrored_seat_height(buses);
+                    let v = p.vel.length() as f32;
+                    (
+                        AnimInput {
+                            kind: if seat_height.is_some() { 2 }
+                                else if p.activity == Activity::Walk { 1 } else { 0 },
+                            speed: v,
+                            moved: v * dt,
+                            room_height: if matches!(p.place, Place::Bus(..)) { 2.1 } else { pax::OUTSIDE_ROOM },
+                            seat_height: seat_height.unwrap_or(0.0),
+                            smooth: true,
+                            dt_ms,
+                            ..Default::default()
+                        },
+                        None,
+                    )
+                }
                 _ => {
                     let v = p.vel.length() as f32;
                     (
