@@ -1,0 +1,152 @@
+name: Build verified Bridge 2.2.2.1 cumulative updater candidate
+on:
+  push:
+    branches: [release/2.2.2.1]
+    paths:
+      - .github/workflows/release-2221-candidate.yml
+      - scripts/build_2221.py
+      - source/version.go
+      - docs/releases/2.2.2.1.md
+      - build-support/release2221/native-build.json
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: release-2221-candidate
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 4a2baf3271d15dbc0d313acd79a4b44102fa8e35
+          path: native-source
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify exact native branch CI and staging artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41229587365 | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect pinned native source CI' }
+          for ($i=0; $i -lt 280 -and $r.status -ne 'completed'; $i++) {
+            Start-Sleep -Seconds 15
+            $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41229587365 | ConvertFrom-Json
+          }
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '4a2baf3271d15dbc0d313acd79a4b44102fa8e35' -or $r.path -ne '.github/workflows/stage-2221-native-candidate.yml') { throw 'Unapproved or incomplete native candidate' }
+          $head=(git -C native-source rev-parse HEAD).Trim()
+          if ($head -ne $r.head_sha) { throw 'Native source archive mismatch' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.1-native-windows-candidate
+          run-id: 41229587365
+          github-token: ${{ github.token }}
+          path: tested-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2-native-Windows
+          run-id: 41157142308
+          github-token: ${{ github.token }}
+          path: prior-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix3-candidate
+          run-id: 40901236438
+          github-token: ${{ github.token }}
+          path: baseline
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-candidate
+          run-id: 40765546864
+          github-token: ${{ github.token }}
+          path: parts
+      - name: Unpack exact native executable and verify provenance
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip='tested-native/OpenOMSI-2.2.2.1-native-windows-candidate.zip'
+          $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expect=(Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
+          if ($digest -ne $expect) { throw 'Native ZIP checksum mismatch' }
+          New-Item -ItemType Directory -Force native | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath native -Force
+          $details=Get-Content native/BUILD-INFO.json -Raw | ConvertFrom-Json
+          if ($details.source_commit -ne '4a2baf3271d15dbc0d313acd79a4b44102fa8e35' -or $details.bridge_release_target -ne '2.2.2.1') { throw 'Wrong candidate source or version' }
+          $nativeDigest=(Get-FileHash native/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($nativeDigest -ne $details.exe_sha256) { throw 'Native executable checksum mismatch' }
+          Copy-Item prior-native/bcs-assets native/bcs-assets -Recurse
+          Get-ChildItem prior-native -Filter '*.dll' | Copy-Item -Destination native
+          git -C native-source archive --format=tar.gz --prefix=openomsi-2221/ -o ../native/openomsi-source.tar.gz HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to archive native source' }
+          & ./native/openomsi.exe --version | Out-File native/version.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native CLI failed' }
+          @'
+          import json,hashlib
+          from pathlib import Path
+          d=Path("native")
+          sha=lambda f:hashlib.sha256(f.read_bytes()).hexdigest()
+          commit="4a2baf3271d15dbc0d313acd79a4b44102fa8e35"
+          version="0.3.46-coop.15-2.2.2.1"
+          assert version in (d/"version.txt").read_text(encoding="utf-8-sig")
+          info=dict(commit=commit,build_commit=commit,run_id=41229587365,
+              upstream_commit="17be22987d7c01c813a1473e7696fc71fb3b1d89",
+              version=version,native_sha256=sha(d/"openomsi.exe"),
+              source_sha256=sha(d/"openomsi-source.tar.gz"),
+              windows_gameplay_tested=False)
+          (d/"SOURCE.json").write_text(json.dumps(info,indent=2)+"\n")
+          print("Verified source and native binary SHA:",info["native_sha256"])
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Native provenance invalid' }
+      - name: Build cumulative Bridge, Setup, client and P15 server
+        shell: pwsh
+        run: |
+          python scripts/build_2221.py --baseline baseline --parts parts --native native --output build/release2221
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge 2.2.2.1 packaging/regression failed' }
+      - name: Verify release and trust boundaries
+        shell: pwsh
+        run: |
+          @'
+          import json,hashlib
+          from pathlib import Path
+          p=Path("build/release2221")
+          r=json.loads((p/"build-report.json").read_text())
+          s=json.loads((p/"coop-spec.json").read_text())
+          exe=(p/"Atualizar-Bridge.exe").read_bytes()
+          assert r["version"]=="2.2.2.1" and r["sequence"]==2026103102
+          assert r["native_candidate_run"]==41229587365
+          assert r["native_build_commit"]=="4a2baf3271d15dbc0d313acd79a4b44102fa8e35"
+          assert r["complete_hosts_unchanged"] and r["p14_server_unchanged"]
+          assert r["bridge_regressions_tested"] and r["setup_changelog_ui_tested"]
+          assert r["updater_sha256"]==hashlib.sha256(exe).hexdigest()
+          assert r["coop_archive_sha256"]==s["sha256"]
+          assert all((p/"coop-assets"/(t["sha256"]+".bin")).is_file() for t in s["parts"])
+          print("Unsigned but verified 2.2.2.1 publish candidate:",r["updater_sha256"],r["installer_size"])
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Release inventory invalid' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.2.1-CANDIDATE
+          path: |
+            build/release2221/Atualizar-Bridge.exe
+            build/release2221/build-report.json
+            build/release2221/coop-spec.json
+            build/release2221/coop_bundle_manifest.go
+            build/release2221/coop-assets/*
+            build/release2221/native-help.txt
+            build/release2221/setup-previews/*
+          if-no-files-found: error
+          retention-days: 30
