@@ -209,6 +209,11 @@ pub struct TrafficSim {
     pub ai_bus_overtaking: bool,
     /// Opt-in #3436: try a safe adjacent-lane change before waiting for a bus leaving a bay.
     pub cars_yield_to_buses: bool,
+    /// 0 disables all temporary illegal stops; host makes all random decisions.
+    pub illegal_parking_percent: f32,
+    /// Edge-triggered player horn only, never a frame-by-frame response.
+    pub player_horn: bool,
+    pub player_horn_prev: bool,
     /// Where the player looks from (set every frame).
     pub viewer: Option<Viewer>,
     /// Buildings that hide what is behind them (the player's collision world).
