@@ -1,0 +1,69 @@
+name: Validate openOMSI 2.2.2 inspector and traffic fixes
+
+on:
+  push:
+    branches:
+      - fix/222-inspector-and-directional-traffic-20261031
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-222-inspector-traffic-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-native:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - name: Preserve checked-out Rust source formatting
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: verify-222-inspector-traffic
+      - name: Compile OpenOMSI Windows client and dedicated server mode
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw "OpenOMSI Windows build failed" }
+          & .\target\release\openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw "OpenOMSI failed --version" }
+      - name: Inspector and traffic regression tests
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim people::inspector::patrol_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw "Inspector model and patrol tests failed" }
+          cargo test --locked --release -p omsi-sim bcs_inspector_does_not_request_a_stop_or_leave_at_terminus -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw "Inspector no-stop tests failed" }
+          cargo test --locked --release -p omsi-app directional_fallback_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw "Directional traffic tests failed" }
+      - name: Stage candidate build only (not published through updater)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force candidate | Out-Null
+          Copy-Item target/release/openomsi.exe candidate/openomsi.exe
+          Get-ChildItem target/release/*.dll -ErrorAction SilentlyContinue | Copy-Item -Destination candidate/
+          git rev-parse HEAD | Out-File candidate/SOURCE_COMMIT.txt -Encoding utf8
+          (Get-FileHash candidate/openomsi.exe -Algorithm SHA256).Hash | Out-File candidate/SHA256.txt -Encoding utf8
+          'CANDIDATE ONLY: Not tested with OMSI 2 assets, not distributed via Buscar atualizações.' | Out-File candidate/READ_ME_FIRST.txt -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-222-inspector-traffic-Windows-CANDIDATE
+          path: candidate/*
+          retention-days: 14
