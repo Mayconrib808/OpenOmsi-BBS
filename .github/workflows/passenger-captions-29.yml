@@ -13,7 +13,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 90
     env:
-      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2-i18n-options.1
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2-i18n-options.2
       OPENOMSI_BCS_EVENTS_BETA_DEFAULT: '1'
       OPENOMSI_COOP_GAME_ONLY: '1'
       TAURI_CONFIG: '{"version":"0.3.46"}'
@@ -101,7 +101,7 @@ jobs:
           $tests = @(
             @('omsi-cfg','optional_features::'),
             @('omsi-launcher-core','passenger_'),
-            @('omsi-app','settings::optional_features_tests'),
+            @('omsi-app','settings::'),
             @('omsi-app','traffic::population::optional_density_tests'),
             @('omsi-app','bcs_events::')
           )
