@@ -7,7 +7,7 @@ const options = await import(`data:text/javascript;base64,${Buffer.from(source).
 const schemaSource = await readFile(new URL('../ui/js/pages/settings-schema.js', import.meta.url), 'utf8');
 const executableSchema = schemaSource
   .replace("import { t } from '../i18n.js';", 'const t = (text) => text;')
-  .replace("import { optionalRows } from './optional-features.js';", `const rows = ${JSON.stringify(options.OPTIONAL_FEATURE_ROWS)}; const optionalRows = (traffic) => rows.filter((r) => (['extra_traffic_density', 'ai_bus_greetings', 'ai_driver_wave', 'ai_bus_overtaking', 'cars_yield_to_buses'].includes(r.key)) === traffic);`);
+  .replace("import { optionalRows } from './optional-features.js';", `const rows = ${JSON.stringify(options.OPTIONAL_FEATURE_ROWS)}; const optionalRows = (traffic) => rows.filter((r) => (['extra_traffic_density', 'ai_bus_greetings', 'ai_driver_wave', 'ai_bus_overtaking', 'cars_yield_to_buses', 'illegal_parking'].includes(r.key)) === traffic);`);
 const schema = await import(`data:text/javascript;base64,${Buffer.from(executableSchema).toString('base64')}`);
 
 function rows(value) {
@@ -16,10 +16,10 @@ function rows(value) {
   return [...(value.type ? [value] : []), ...Object.values(value).flatMap(rows)];
 }
 
-test('all eleven optional settings are real, unique toggles in the launcher settings schema', () => {
+test('all twelve optional settings are real, unique toggles in the launcher settings schema', () => {
   const actual = rows(schema.SETTINGS_TABS);
-  assert.equal(options.OPTIONAL_FEATURE_ROWS.length, 11);
-  assert.equal(new Set(options.OPTIONAL_FEATURE_ROWS.map((r) => r.key)).size, 11);
+  assert.equal(options.OPTIONAL_FEATURE_ROWS.length, 12);
+  assert.equal(new Set(options.OPTIONAL_FEATURE_ROWS.map((r) => r.key)).size, 12);
   for (const option of options.OPTIONAL_FEATURE_ROWS) {
     const matches = actual.filter((r) => r.key === option.key);
     assert.equal(matches.length, 1, `missing or duplicated launcher switch ${option.key}`);
@@ -31,11 +31,19 @@ test('all eleven optional settings are real, unique toggles in the launcher sett
 });
 
 test('traffic options are kept separate and the transfer percentage retains its normal slider', () => {
-  assert.deepEqual(options.optionalRows(true).map((r) => r.key), ['extra_traffic_density', 'ai_bus_greetings', 'ai_driver_wave', 'ai_bus_overtaking', 'cars_yield_to_buses']);
+  assert.deepEqual(options.optionalRows(true).map((r) => r.key), ['extra_traffic_density', 'ai_bus_greetings', 'ai_driver_wave', 'ai_bus_overtaking', 'cars_yield_to_buses', 'illegal_parking']);
   assert.equal(options.optionalRows(false).length, 6);
   const actual = rows(schema.SETTINGS_TABS);
   const chance = actual.find((r) => r.key === 'passenger_transfer_percent');
   assert.equal(chance.type, 'slider');
   assert.equal(chance.label, 'Connection chance');
   assert.equal(chance.def, 20);
+  const frequency = actual.find((r) => r.key === 'illegal_parking_frequency');
+  assert.ok(frequency, 'optional parking needs an independent frequency control');
+  assert.equal(frequency.type, 'slider');
+  assert.equal(frequency.def, 0.8);
+  assert.equal(frequency.min, 0);
+  assert.equal(frequency.max, 5);
+  assert.equal(frequency.when({ illegal_parking: false }), false);
+  assert.equal(frequency.when({ illegal_parking: true }), true);
 });

@@ -634,6 +634,7 @@ impl App {
                     match traffic::Traffic::new(&self.args.root, &w, self.args.traffic) {
                         Ok(mut t) => {
                             t.optional_features = self.settings.optional_features;
+                            t.illegal_parking_frequency = self.settings.illegal_parking_frequency;
                             t.lights_only = !populated;
                             t.no_timetable_buses = self.args.no_timetable_buses;
                             if let Some(lan) = self.net.lan.as_ref() {

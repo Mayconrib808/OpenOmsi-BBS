@@ -151,6 +151,10 @@ pub struct AiCar {
     pub pull_out: f32,
     /// Parking: the free space it drives into (see `Traffic::park_in`).
     pub park: Option<ParkPlan>,
+    /// Physically stopped random car with a deterministic release deadline.
+    pub temporary_park: Option<(super::illegal_parking::TemporaryPark, f32)>,
+    /// Only one probability draw per car per visited lane, never per frame.
+    pub parking_sampled_lane: Option<usize>,
     /// A rail vehicle: the track it has come along, (odometer, point), oldest first -
     /// where its rear bogie and its coupled cars and sections run (see `rail_behind`).
     pub rail_trail: std::collections::VecDeque<(f64, DVec3)>,
@@ -765,6 +769,8 @@ impl TrafficSim {
             horn: Default::default(),
             make_way: None,
             park: None,
+            temporary_park: None,
+            parking_sampled_lane: None,
             seed,
             scheme,
             guard: Default::default(),
