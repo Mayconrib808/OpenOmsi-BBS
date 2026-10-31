@@ -548,6 +548,7 @@ impl PeopleSim {
             why: "",
             puppet: None,
             remote: false,
+            remote_seat: None,
         });
         Some(self.people.len() - 1)
     }
