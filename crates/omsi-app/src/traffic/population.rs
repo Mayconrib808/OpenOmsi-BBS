@@ -484,10 +484,14 @@ impl Traffic {
                 ((l.at(l.length()*0.5).1.rem_euclid(360.0)/45.0).floor() as usize).min(7)
             };
             let mut demand=[0.0_f32;8];let mut present=[0_usize;8];
+            let mut available=[0_usize;8];
             let mut on_lane:HashMap<usize,usize>=HashMap::new();
-            for &(lane,weight) in &candidates {demand[sector(lane)]+=weight;}
+            for &(lane,weight) in &candidates {let dir=sector(lane);demand[dir]+=weight;available[dir]+=1;}
             for car in self.sim.cars.iter().filter(|c|!c.is_bus()&&(c.vehicle.position-center).length()<radius) {
                 if car.state.lane<self.sim.net.lanes.len(){present[sector(car.state.lane)]+=1;*on_lane.entry(car.state.lane).or_default()+=1;}
+            }
+            if self.sim.debug_population {
+                log::info!("traffic directions at ({:.0},{:.0}): eligible lanes {:?}, cars {:?}, weights {:?} (N,NE,E,SE,S,SW,W,NW)", center.x, center.y, available, present, demand);
             }
             let total_demand=demand.iter().sum::<f32>().max(1.0);
             let total_present=present.iter().sum::<usize>() as f32;
