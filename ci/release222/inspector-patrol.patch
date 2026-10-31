@@ -1,7 +1,7 @@
 diff --git a/crates/omsi-sim/src/people/inspector.rs b/crates/omsi-sim/src/people/inspector.rs
 --- a/crates/omsi-sim/src/people/inspector.rs
 +++ b/crates/omsi-sim/src/people/inspector.rs
-@@ -1,88 +1,162 @@
+@@ -1,88 +1,170 @@
 -//! A fictional BCS companion uses the ordinary cabin, seat pool and path walker.
 -use super::*;
 -
@@ -104,6 +104,14 @@ diff --git a/crates/omsi-sim/src/people/inspector.rs b/crates/omsi-sim/src/peopl
 +    pub fn spawn_bcs_inspector(&mut self, world: &dyn World, bus: &VehicleInstance,
 +        identity: u32, female: Option<bool>) -> Option<u32> {
 +        self.use_map_humans(world);
++        // A delayed/repeated BCS snapshot must not create a second inspector
++        // while the first is already patrolling or seated in this vehicle.
++        if let Some(existing) = self.people.iter().find(|person| !person.remote
++            && person.inside(BusId::Player)
++            && matches!(&person.state, State::Pax(pax) if pax.inspector)) {
++            log::info!("BCS inspector {identity}: duplicate event; reusing person {}", existing.id);
++            return Some(existing.id);
++        }
 +        if !self.pool_room() { return None; }
 +        let cabin = self.cabin_for(bus)?;
 +        let driver = cabin.data.driver_positions.first().map(|d| Vec3::from(d.pos)).unwrap_or(Vec3::ZERO);
