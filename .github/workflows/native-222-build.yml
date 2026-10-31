@@ -1,8 +1,8 @@
 name: Build 2.2.2 native integration
 on:
   push:
-    branches: [work/native-222-build]
-    paths: [ci/release222/native.patch, ci/release222/inspector-patrol.patch, ci/release222/door-reaction.patch, ci/release222/lan-traffic.patch, ci/release222/police-response.patch, ci/release222/emergency-model-axis.patch, crates/omsi-sim/src/people/buses.rs, crates/omsi-sim/src/people/tests.rs, .github/workflows/native-222-build.yml]
+    branches: [work/native-222-build, fix/2223-boarding-traffic-diagnostics-20261030]
+    paths: [ci/release222/native.patch, ci/release222/inspector-patrol.patch, ci/release222/door-reaction.patch, ci/release222/lan-traffic.patch, ci/release222/police-response.patch, ci/release222/emergency-model-axis.patch, crates/omsi-sim/src/people/buses.rs, crates/omsi-sim/src/people/tests.rs, crates/omsi-sim/src/people/pax_stops.rs, crates/omsi-app/src/traffic/population.rs, crates/omsi-app/src/app_impl/lan_tick.rs, crates/omsi-app/src/lan_world.rs, .github/workflows/native-222-build.yml]
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -78,6 +78,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Responder regression failed' }
           cargo test --locked --release -p omsi-sim people::inspector::patrol_tests -- --nocapture
           if ($LASTEXITCODE -ne 0) { throw 'BCS inspector patrol regression failed' }
+          cargo test --locked --release -p omsi-sim tolerant_stop_box_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Passenger tolerance regression failed' }
           cargo test --locked --release -p omsi-sim one_entry_one_exit_with_separate_rear_leaf_can_open_for_alighting -- --nocapture
           if ($LASTEXITCODE -ne 0) { throw 'Physically-open rear door regression failed' }
           cargo test --locked --release -p omsi-app bcs_events:: -- --nocapture
