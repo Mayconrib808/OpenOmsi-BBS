@@ -241,6 +241,16 @@ impl TrafficSim {
                     .or_default()
                     .push((i, ch.s_to, 0.0, false));
             }
+            if let Some(p) = c.bus_lane_pass {
+                // While a bus is temporarily occupying a same-direction lane,
+                // reserve both its timetable route lane and the passing lane.
+                // The other vehicles see a real leader in their normal traffic
+                // occupancy, not an invisible visual-only sideways animation.
+                if c.state.lateral.abs() > 0.6 || c.state.lateral_target.abs() > 0.6 {
+                    let s_to = self.net.beside_s(c.state.lane,p.target_lane,c.state.s);
+                    by_lane.entry(p.target_lane).or_default().push((i,s_to,0.0,false));
+                }
+            }
             if let Some(p) = c.passing {
                 // Out on the oncoming lane: the traffic there stops short of the place where
                 // the car will be back out of their way (it is headed there, and that place
@@ -997,7 +1007,7 @@ impl TrafficSim {
                 dt,
                 id: car.id,
                 stopped: car.stopped,
-                passing: car.passing.is_some(),
+                passing: car.passing.is_some() || car.bus_lane_pass.is_some(),
                 kerb_swerve,
                 debug: debug || omsi_cfg::flags::OMSI_DEBUG_PAX.is_set(),
                 timed_waits_only: self.timed_waits_only,
