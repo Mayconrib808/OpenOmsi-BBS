@@ -57,6 +57,8 @@ pub mod model;
 pub mod cabin;
 pub mod pednet;
 pub mod spawn;
+pub mod demand;
+pub mod clothing;
 pub mod populate;
 pub mod buses;
 pub mod door_requests;
