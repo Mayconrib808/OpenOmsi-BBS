@@ -1,4 +1,7 @@
-name: Build complete Bridge 2.2.2 candidate (not published)
+name: Build complete Bridge 2.2.2 Hotfix 2 candidate (not published)
+concurrency:
+  group: hotfix2-bridge-${{ github.ref }}
+  cancel-in-progress: true
 on:
   push:
     branches: [release/2.2.2-hotfix.2-cumulative-notes]
@@ -71,6 +74,11 @@ jobs:
         run: |
           python scripts/build_222.py --baseline baseline --parts parts --native native --output build/release222
           if ($LASTEXITCODE -ne 0) { throw 'Cumulative 2.2.2 packaging or regression checks failed' }
+      - name: Record nonsecret installer hashes and size for publication signing
+        shell: pwsh
+        run: |
+          Get-Content build/release222/build-report.json
+          Get-Content build/release222/coop-spec.json | Select-Object -First 8
       - name: Publish candidate artifact to GitHub Actions only (no live update)
         uses: actions/upload-artifact@v4
         with:
