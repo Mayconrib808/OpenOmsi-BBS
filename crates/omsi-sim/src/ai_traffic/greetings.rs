@@ -166,7 +166,13 @@ impl Greetings {
         }
     }
 
-    pub fn update(&mut self, sim: &mut super::TrafficSim, mut buses: Vec<Bus>, dt: f32) {
+    pub fn update(&mut self, sim: &mut super::TrafficSim, buses: Vec<Bus>, dt: f32) {
+        self.update_with_signals(sim, buses, dt, true);
+    }
+
+    /// Waving and horn/flash are independent opt-ins. The ordinary update
+    /// remains available for tests and existing greeting implementations.
+    pub fn update_with_signals(&mut self, sim: &mut super::TrafficSim, mut buses: Vec<Bus>, dt: f32, signals_enabled: bool) {
         if sim.mirror || !dt.is_finite() || dt <= 0.0 { return; }
         self.clock += dt;
         let now = self.clock;
@@ -223,6 +229,7 @@ impl Greetings {
             let Some(car) = sim.cars.iter_mut().find(|c| c.id == id) else { continue; };
             self.last.insert(id,now);
             self.waves.insert(id, now);
+            if !signals_enabled { continue; }
             // Audio is emitted once by the model-aware presentation path below;
             // do not also fire a script trigger that could double the same horn.
             // A reserved sound event uses the existing protocol-14 event channel; clients
