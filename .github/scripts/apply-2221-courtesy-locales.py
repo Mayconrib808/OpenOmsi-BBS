@@ -39,9 +39,9 @@ translations = {
 }
 assert len(translations) == 29
 text = catalog.read_text(encoding="utf-8")
-if not re.search(r"^" + re.escape(json.dumps(label)) + r":\\s*$", text, re.M):
-    text += "\\n" + json.dumps(label) + ":\\n"
+if not re.search(r"^" + re.escape(json.dumps(label)) + r":\s*$", text, re.M):
+    text += "\n" + json.dumps(label) + ":\n"
     for lang, value in sorted(translations.items()):
-        text += f"  {lang}: {json.dumps(value, ensure_ascii=False)}\\n"
+        text += f"  {lang}: {json.dumps(value, ensure_ascii=False)}\n"
     catalog.write_text(text, encoding="utf-8")
 print("Courtesy label languages", len(translations))
