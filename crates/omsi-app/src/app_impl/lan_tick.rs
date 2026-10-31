@@ -129,9 +129,7 @@ impl App {
     /// (`omsi_lan::commands::Command`), carried out here.
     pub(crate) fn lan_command(&mut self, from: u32, text: &str) {
         use omsi_lan::commands::Command;
-        // COOPROUTE1 was successfully decoded, but the old call ignored its bool
-        // and forwarded it to the generic command parser, flooding every peer's log.
-        if self.drive_receive(from, text) { return; }
+        self.drive_receive(from, text);
         if let Some(lan)=self.net.lan.as_ref(){
             if lan::note_driver_authority(&mut self.net.remotes,lan,from,text){return;}
         }
