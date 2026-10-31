@@ -49,7 +49,7 @@ def main():
  marker=json.loads(files[marker_name])
  marker.update(bridge_line=VERSION,source_commit=evidence['commit'],native_version=NATIVE_VERSION,native_sha256=sha(native),protocol=15,version=NATIVE_VERSION,openomsi_version='0.3.46',upstream_commit=UPSTREAM)
  files[marker_name]=(json.dumps(marker,indent=2)+'\n').encode()
- notes=(ROOT/'docs/releases/2.2.2.md').read_bytes()
+ notes=(ROOT/'docs/releases/2.2.2-hotfix.2.md').read_bytes()
  info_name=COOP+'/source/BUILD-INFO.json';info=json.loads(files[info_name])
  info.update(version=NATIVE_VERSION,bridge_version=VERSION,game_sha256=sha(native),native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],dynamic_p15_sha256=sha(native),dynamic_p15_version=NATIVE_VERSION,upstream_commit=UPSTREAM)
  files[info_name]=(json.dumps(info,indent=2)+'\n').encode()
