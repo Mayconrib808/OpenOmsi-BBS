@@ -14,7 +14,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: release-2221-hotfix1-candidate
+  group: release-2221-hotfix2-candidate
   cancel-in-progress: true
 jobs:
   build:
@@ -144,7 +144,7 @@ jobs:
         shell: pwsh
         run: |
           python scripts/build_2221_hotfix2.py --baseline baseline --parts parts --native native --launcher launcher --output build/release2221hf2
-          if ($LASTEXITCODE -ne 0) { throw 'Bridge 2.2.2.1 Hotfix1 packaging/regression failed' }
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge 2.2.2.1 Hotfix2 packaging/regression failed' }
       - name: Verify release and trust boundaries
         shell: pwsh
         run: |
@@ -158,7 +158,7 @@ jobs:
           assert r["version"]=="2.2.2.1-hotfix.2" and r["sequence"]==2026103104
           assert r["native_candidate_run"]==41251297863
           assert r["native_build_commit"]=="6a0319374e28ac91fa5b32773f4b11129ca39d20"
-          assert r["desktop_launcher_unchanged"] is False
+          assert r["desktop_launcher_unchanged"] is True
           assert r["desktop_launcher_commit"]=="2063fd3c4b96db496102e8df6101e97a127b38bd"
           assert r["desktop_launcher_run"]==41233812376
           path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe'
