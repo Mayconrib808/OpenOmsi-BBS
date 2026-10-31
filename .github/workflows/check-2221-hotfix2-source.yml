@@ -1,0 +1,28 @@
+name: Test 2.2.2.1 Hotfix 2 launcher and BCS source fixes
+on:
+  push:
+    branches: [fix/2221-hotfix2-settings-bcs-pax]
+    paths:
+      - crates/omsi-launcher-core/**
+      - crates/omsi-app/src/bcs_events/**
+      - .github/workflows/check-2221-hotfix2-source.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: check-2221-hotfix2-source
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: hotfix2-slider-bcs
+      - name: Verify slider persists after writing and re-reading settings.cfg
+        run: cargo test --locked -p omsi-launcher-core hotfix_2221_illegal_parking_settings_tests -- --nocapture
+      - name: Run BCS visual message codec tests
+        run: cargo test --locked -p omsi-app bcs_events::network::tests -- --nocapture
