@@ -21,6 +21,30 @@ func notesSinceInstalledSequence(lang string, installed uint64, target bridgeRel
         return localReleaseNotes(lang,target)
     }
     var items []string
+    if installed < 2026102515 {
+        items = append(items,localText(lang,
+            "2.2.0.8 e anteriores: evolução dos servidores multiplayer, conexão da empresa, sincronização de viagens e correções do Setup e do atualizador.",
+            "2.2.0.8 and earlier: multiplayer server evolution, company connections, trip synchronization and Setup/updater repairs.",
+            "2.2.0.8 und früher: Weiterentwicklung der Mehrspieler-Server, Firmenverbindungen, Fahrtsynchronisierung und Setup-/Update-Reparaturen."))
+    }
+    if installed < 2026102602 {
+        items = append(items,localText(lang,
+            "2.2.1–2.2.1.5: painel cooperativo, cobrador, troca de motorista, gestos e guarda-chuvas dos passageiros; controles do host e correções de portas e interação.",
+            "2.2.1–2.2.1.5: coop panel, conductor, driver handover, passenger gestures and umbrellas; host controls and door/interaction fixes.",
+            "2.2.1–2.2.1.5: Koop-Anzeige, Schaffner, Fahrerwechsel, Fahrgastgesten und Regenschirme, Hoststeuerung sowie Tür-/Interaktionskorrekturen."))
+    }
+    if installed < 2026102702 {
+        items = append(items,localText(lang,
+            "2.2.1.6–2.2.1.8: melhorias na transferência de direção, posição/rota dos passageiros, cobranças de bilhetes, sincronização de veículos e servidor P15.",
+            "2.2.1.6–2.2.1.8: driver transfer, passenger position/route fixes, ticket collection, vehicle synchronization and P15 server improvements.",
+            "2.2.1.6–2.2.1.8: Fahrerübernahme, Fahrgastpositionen und Routen, Ticketzahlung, Fahrzeugsynchronisierung und P15-Server."))
+    }
+    if installed < 2026102901 {
+        items = append(items,localText(lang,
+            "2.2.1.9 e suas hotfixes: OpenOMSI modificado 0.3.45, atualização manual/automática, suporte a versões e idiomas diferentes do BCS, correções do PeDePe e ajustes em HostAgent/CompanyHost.",
+            "2.2.1.9 and hotfixes: modified openOMSI 0.3.45, manual/automatic updates, support for different BCS versions and languages, PeDePe fixes and HostAgent/CompanyHost refinements.",
+            "2.2.1.9 und Hotfixes: angepasstes openOMSI 0.3.45, manuelle/automatische Updates, verschiedene BBS-Versionen und Sprachen, PeDePe-Korrekturen sowie HostAgent-/CompanyHost-Anpassungen."))
+    }
     if installed < 2026103001 {
         items = append(items,localText(lang,
             "2.2.2: eventos visuais do BCS, fiscais no ônibus, veículos de emergência, tráfego multiplayer e embarque mais flexível; OpenOMSI 0.3.46/P15.",
