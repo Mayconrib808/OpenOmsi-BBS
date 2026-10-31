@@ -1,0 +1,7 @@
+{
+  "commit": "2063fd3c4b96db496102e8df6101e97a127b38bd",
+  "run_id": 41233812376,
+  "workflow": ".github/workflows/check-2221-desktop-launcher.yml",
+  "version": "0.3.46-coop.15-2.2.2.1-hotfix.1",
+  "controls": 14
+}
