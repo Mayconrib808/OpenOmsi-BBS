@@ -136,6 +136,8 @@ impl Traffic {
     pub fn tick(&mut self, dt: f32, player: Option<PlayerBox>) {
         self.sim.ai_bus_overtaking = self.optional_features.ai_bus_overtaking;
         self.sim.cars_yield_to_buses = self.optional_features.cars_yield_to_buses;
+        // A rare event is sampled once per eligible lane, not per rendered frame.
+        self.sim.illegal_parking_percent = if self.optional_features.illegal_parking { 0.8 } else { 0.0 };
         self.sim.advance(dt, player);
         self.after_step();
     }
