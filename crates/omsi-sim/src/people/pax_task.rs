@@ -257,7 +257,23 @@ impl PeopleSim {
         // returns the first slot, which might be None. Retry without the open mask
         // to keep ticket-sale restrictions and the nearest platform-facing target.
         let pt = bn.cabin.omsi_nearest(here, &list, p.ticket == TICKET_BUY, false, Some(&flags), Some(&open))
-            .or_else(|| bn.cabin.omsi_nearest(here, &list, p.ticket == TICKET_BUY, false, Some(&flags), None));
+            .or_else(|| bn.cabin.omsi_nearest(here, &list, p.ticket == TICKET_BUY, false, Some(&flags), None))
+            // Malformed or disconnected pathgraphs sometimes have no walkable
+            // nearest entry even though the door itself has a valid point.
+            // Retry using only physically present, platform-facing entry
+            // points. The existing movement walker still walks to the
+            // target: no teleport, no opposite-carriageway fallback.
+            .or_else(|| {
+                let nearest = list.iter().flatten().copied()
+                    .filter_map(|id| bn.cabin.graph.points.get(id).map(|pos| (id, (*pos - here).length_squared())))
+                    .min_by(|a,b| a.1.total_cmp(&b.1))
+                    .map(|(id,_)| id);
+                if nearest.is_some() && debug_pax() {
+                    log::info!("pax {} recovering entry target on same platform for bus {:?}",
+                        self.people[i].id, bn.id);
+                }
+                nearest
+            });
         let p = self.pax_mut(i).unwrap();
         if let Some(q) = pt.and_then(|k| bn.cabin.graph.points.get(k)) {
             p.target = q.as_dvec3();
@@ -498,6 +514,19 @@ impl PeopleSim {
                 pp.st = 1;
                 pp.pax_state = 1.0;
                 return;
+            }
+            // If a malformed entry/path lost its door target, re-evaluate
+            // before allowing boarding. A passenger must not vanish through a
+            // disconnected entrance or be silently teleported into the cabin.
+            if self.pax(i).is_some_and(|p| p.door.is_none()) {
+                self.choose_entry(i, buses, bus_ix);
+                if self.pax(i).is_some_and(|p| p.door.is_none()) {
+                    if debug_pax() {
+                        log::info!("pax {} cannot board bus {:?}: no reachable same-side entry",
+                            self.people[i].id, bn.id);
+                    }
+                    return;
+                }
             }
             // in the doorway, but the plugins have not had their say about the ticket yet
             // (`TICKET_HOLD` at most): they could still make it a pass, which decides the
