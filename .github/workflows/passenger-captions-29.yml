@@ -72,6 +72,12 @@ jobs:
           cache-on-failure: true
           key: native-222-release
           workspaces: native -> target
+      - name: Run passenger simulation regressions including caption identity and reaction priority
+        shell: pwsh
+        working-directory: native
+        run: |
+          cargo test --locked --release -p omsi-sim --lib people:: 2>&1 | Tee-Object -FilePath ../evidence/simulation-tests.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Passenger simulation regressions failed' }
       - name: Compile the real Windows game with the compiled translation catalog
         shell: pwsh
         working-directory: native
@@ -80,12 +86,6 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Corrected Windows game did not compile' }
           ./target/release/openomsi.exe --version
           if ($LASTEXITCODE -ne 0) { throw 'Corrected Windows game did not start' }
-      - name: Run passenger simulation regressions including caption identity and reaction priority
-        shell: pwsh
-        working-directory: native
-        run: |
-          cargo test --locked --release -p omsi-sim --lib people:: 2>&1 | Tee-Object -FilePath ../evidence/simulation-tests.txt
-          if ($LASTEXITCODE -ne 0) { throw 'Passenger simulation regressions failed' }
       - name: Exercise every actual language, alias and compiled passenger caption
         shell: pwsh
         working-directory: native

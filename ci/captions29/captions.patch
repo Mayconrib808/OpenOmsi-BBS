@@ -1647,7 +1647,7 @@ index fa00ebde87accd96b7cf919332eeddabd870a3dd..b340c5bdba292eb9d9123b7d423748b8
      pub people: Vec<Person>,
      pub rng: u64,
 diff --git a/crates/omsi-sim/src/people/pax/tests.rs b/crates/omsi-sim/src/people/pax/tests.rs
-index 1c0d82a480ee331e02a7740e9a3e3c1a2d3979f1..ec120bee1759a25d94bed222a431b02785330dac 100644
+index 1c0d82a480ee331e02a7740e9a3e3c1a2d3979f1..e428d3b408abee82f17a201cbbc229745111ccf8 100644
 --- a/crates/omsi-sim/src/people/pax/tests.rs
 +++ b/crates/omsi-sim/src/people/pax/tests.rs
 @@ -106,11 +106,18 @@ fn arriving_ai_uses_the_timetable_stop_not_a_neighbour() {
@@ -1670,6 +1670,36 @@ index 1c0d82a480ee331e02a7740e9a3e3c1a2d3979f1..ec120bee1759a25d94bed222a431b027
      bus.next_stop = Some(RequestStop {
          id: 42,
          name: "Scheduled".into(),
+@@ -118,10 +125,28 @@ fn arriving_ai_uses_the_timetable_stop_not_a_neighbour() {
+         pos: DVec3::ZERO,
+     });
+     bus.id = BusId::Player;
++    assert_eq!(
++        register(&mut humans, &bus).next,
++        Some(42),
++        "the player also prioritizes the selected route stop over a neighbouring platform"
++    );
++    humans.stops.get_mut(&42).unwrap().pos = DVec3::Y * 9.0;
++    assert_eq!(
++        register(&mut humans, &bus).next,
++        Some(42),
++        "a nearer neighbour does not replace the player's available selected route stop"
++    );
++    bus.next_stop.as_mut().unwrap().id = 123;
+     assert_eq!(
+         register(&mut humans, &bus).next,
+         Some(99),
+-        "preserve the player's OMSI-compatible geometric detection"
++        "an unavailable player route stop falls back to the nearest same-direction stop"
++    );
++    humans.stops.get_mut(&42).unwrap().pos = DVec3::ZERO;
++    assert_eq!(
++        register(&mut humans, &bus).next,
++        Some(42),
++        "the player's fallback follows distance rather than object-id order"
+     );
+ }
+ 
 diff --git a/crates/omsi-sim/src/people/pax_tick.rs b/crates/omsi-sim/src/people/pax_tick.rs
 index f091aba8a17de99a278ec1491be09ac5c93f7dfb..dadb0e011660f2c4331a895c72cc1bd515e4bf1b 100644
 --- a/crates/omsi-sim/src/people/pax_tick.rs
