@@ -1,0 +1,9 @@
+{
+  "version": "2.2.2-hotfix.2",
+  "sequence": 2026103003,
+  "candidate_run_id": 41159417197,
+  "candidate_commit": "6c4985e9da76b99a052206629ebf234a53bdc3c0",
+  "installer_sha256": "PENDING_WINDOWS_BUILD",
+  "installer_size": 0,
+  "coop_archive_sha256": "PENDING_WINDOWS_BUILD"
+}
