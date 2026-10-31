@@ -59,8 +59,8 @@ jobs:
           path: tested-native
       - uses: actions/download-artifact@v4
         with:
-          name: OpenOMSI-2.2.2.1-hotfix1-desktop-launcher-CANDIDATE
-          run-id: 41233812376
+          name: OpenOMSI-2.2.2.1-hotfix2-desktop-launcher-CANDIDATE
+          run-id: 41251825053
           github-token: ${{ github.token }}
           path: tested-launcher
       - uses: actions/download-artifact@v4
@@ -85,14 +85,14 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $zip='tested-launcher/OpenOMSI-2.2.2.1-hotfix1-launcher-candidate.zip'
+          $zip='tested-launcher/OpenOMSI-2.2.2.1-hotfix2-launcher-candidate.zip'
           $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           $expected=(Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
           if ($digest -ne $expected) { throw 'Launcher ZIP integrity mismatch' }
           New-Item -ItemType Directory -Force launcher | Out-Null
           Expand-Archive -LiteralPath $zip -DestinationPath launcher -Force
           $meta=Get-Content launcher/BUILD-INFO.json -Raw | ConvertFrom-Json
-          if ($meta.version -ne '0.3.46-coop.15-2.2.2.1-hotfix.1' -or $meta.source_commit -ne '2063fd3c4b96db496102e8df6101e97a127b38bd' -or $meta.optional_ui_controls -ne 14) { throw 'Incorrect launcher build or feature switches' }
+          if ($meta.version -ne '0.3.46-coop.15-2.2.2.1-hotfix.2' -or $meta.source_commit -ne '174474733605a70c4e8f09f22ee91cebbb23ece9' -or $meta.optional_ui_controls -ne 14) { throw 'Incorrect launcher build or feature switches' }
           if ((Get-FileHash launcher/openomsi-launcher-app.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $meta.launcher_sha256) { throw 'Launcher binary mismatch' }
       - name: Unpack exact native executable and verify provenance
         shell: pwsh
@@ -158,9 +158,9 @@ jobs:
           assert r["version"]=="2.2.2.1-hotfix.2" and r["sequence"]==2026103104
           assert r["native_candidate_run"]==41251297863
           assert r["native_build_commit"]=="6a0319374e28ac91fa5b32773f4b11129ca39d20"
-          assert r["desktop_launcher_unchanged"] is True
-          assert r["desktop_launcher_commit"]=="2063fd3c4b96db496102e8df6101e97a127b38bd"
-          assert r["desktop_launcher_run"]==41233812376
+          assert r["desktop_launcher_unchanged"] is False
+          assert r["desktop_launcher_commit"]=="174474733605a70c4e8f09f22ee91cebbb23ece9"
+          assert r["desktop_launcher_run"]==41251825053
           path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe'
           assert s['files'][path]==r['desktop_launcher_sha256']
           assert s['files']['OpenOmsi Coop 0.3.41/programa/openomsi.exe']==s['files']['app/server-dinamico-p15/openomsi.exe']
