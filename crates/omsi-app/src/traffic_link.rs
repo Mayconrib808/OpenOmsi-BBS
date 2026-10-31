@@ -141,6 +141,7 @@ pub(crate) fn traffic_inputs(
         );
     }
     t.weekday = clock.weekday();
+    t.is_public_holiday = t.holiday_calendar.is_holiday(clock.date_code());
     // (into the lists of the last frame: two new ones every frame otherwise)
     match humans {
         Some(h) => {
