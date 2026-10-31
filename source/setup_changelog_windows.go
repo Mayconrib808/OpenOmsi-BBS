@@ -272,15 +272,29 @@ func logSections() []logSection {
 func selectLogSections(from string) []logSection {
     current:=hotfix2LogSection()
     old:=allLogSections()
-    switch strings.TrimSpace(from) {
-    case "2.2.2-hotfix.1":
+    from=strings.TrimSpace(from)
+    switch {
+    case from=="2.2.2-hotfix.1":
         return []logSection{current}
-    case "2.2.2":
-        // Hotfix 1 sections + the changes added by Hotfix 2.
+    case from=="2.2.2":
+        // Hotfix 1 plus the newly installed Hotfix 2.
         return []logSection{current,old[0]}
+    case strings.HasPrefix(from,"2.2.1.9"):
+        // This installation already received the extensive 2.2.1.9 rollout.
+        return append([]logSection{current},old...)
+    case strings.HasPrefix(from,"2.2.1"):
+        // A previous 2.2.1 release: include the late 2.2.1 updates.
+        earlier:=earlierBridgeLogSection()
+        earlier.entries=earlier.entries[2:]
+        return append([]logSection{current,earlier},old...)
+    case strings.HasPrefix(from,"2.2.0"):
+        // 2.2.0 users need subsequent 2.2.1 and 2.2.2 changes.
+        earlier:=earlierBridgeLogSection()
+        earlier.entries=earlier.entries[1:]
+        return append([]logSection{current,earlier},old...)
     default:
-        // First update, unsupported source marker or older installed version:
-        // show the full 2.2.x history and the current release.
+        // First update, unsupported source marker or pre-2.2 install:
+        // prefer the complete known history rather than guess the version.
         return append([]logSection{current,earlierBridgeLogSection()},old...)
     }
 }
