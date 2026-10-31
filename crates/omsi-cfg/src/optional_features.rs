@@ -10,6 +10,9 @@ pub struct OptionalFeatures {
     pub extra_traffic_density: bool,
     pub ai_bus_greetings: bool,
     pub passenger_connections_enabled: bool,
+    pub ai_driver_wave: bool,
+    pub passenger_ambient_talk: bool,
+    pub ai_bus_overtaking: bool,
 }
 
 pub struct Feature {
@@ -22,7 +25,7 @@ pub const HOST_HELP: &str = "In multiplayer, shared AI vehicles are controlled b
 pub fn help(key: &str) -> &'static str {
     if matches!(
         key,
-        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings"
+        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings" | "ai_bus_overtaking"
     ) {
         HOST_HELP
     } else {
@@ -58,6 +61,18 @@ pub const FEATURES: &[Feature] = &[
         key: "passenger_connections_enabled",
         label: "Passenger connections between lines",
     },
+    Feature {
+        key: "ai_driver_wave",
+        label: "AI bus drivers wave when greeting",
+    },
+    Feature {
+        key: "passenger_ambient_talk",
+        label: "Optional passenger conversations inside buses",
+    },
+    Feature {
+        key: "ai_bus_overtaking",
+        label: "AI buses safely pass other stopped buses",
+    },
 ];
 
 pub fn is_key(key: &str) -> bool {
@@ -78,6 +93,9 @@ impl OptionalFeatures {
             "extra_traffic_density" => self.extra_traffic_density,
             "ai_bus_greetings" => self.ai_bus_greetings,
             "passenger_connections_enabled" => self.passenger_connections_enabled,
+            "ai_driver_wave" => self.ai_driver_wave,
+            "passenger_ambient_talk" => self.passenger_ambient_talk,
+            "ai_bus_overtaking" => self.ai_bus_overtaking,
             _ => return None,
         })
     }
@@ -92,6 +110,9 @@ impl OptionalFeatures {
             "extra_traffic_density" => self.extra_traffic_density = enabled,
             "ai_bus_greetings" => self.ai_bus_greetings = enabled,
             "passenger_connections_enabled" => self.passenger_connections_enabled = enabled,
+            "ai_driver_wave" => self.ai_driver_wave = enabled,
+            "passenger_ambient_talk" => self.passenger_ambient_talk = enabled,
+            "ai_bus_overtaking" => self.ai_bus_overtaking = enabled,
             _ => return None,
         }
         Some(feature.key)
