@@ -180,11 +180,14 @@ impl TrafficSim {
         self.pull_out_step(i, ts);
         self.guard_pass(i, &ts.by_lane);
         self.finish_pass(i);
+        self.advance_bus_lane_pass(i);
         let car = &self.cars[i];
         let mut why = if car.state.change.is_some() {
             "change"
         } else if car.passing.is_some() {
             "pass"
+        } else if car.bus_lane_pass.is_some() {
+            "bus_lane_pass"
         } else if car.park.is_some() {
             "park"
         } else if car.pull_out > 0.0 {
@@ -222,6 +225,8 @@ impl TrafficSim {
                 why = "own_stop";
             } else if self.courtesy_change(i, ts) {
                 why = "bus_courtesy";
+            } else if self.try_bus_lane_pass(i, sc, ts) {
+                why = "bus_lane_pass";
             } else if self.discretionary_change(i, ts) {
                 why = "choice";
             } else {
