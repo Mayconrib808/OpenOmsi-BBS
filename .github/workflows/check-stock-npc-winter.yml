@@ -1,0 +1,35 @@
+name: Check original winter garments on standard passengers
+on:
+  push:
+    branches: [feat/stock-npc-winter-garments]
+    paths:
+      - .github/workflows/check-stock-npc-winter.yml
+      - crates/omsi-app/src/view_sync/people.rs
+      - crates/omsi-app/src/view_sync/people/winter.rs
+      - crates/omsi-app/src/view_sync/people/extras.rs
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: stock-npc-winter
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: stock-winter-3d
+      - name: Test cold thresholds and original meshes
+        shell: pwsh
+        run: |
+          cargo test --locked -p omsi-app winter::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build/check native passenger rendering
+        shell: pwsh
+        run: |
+          cargo check --locked -p omsi-app
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
