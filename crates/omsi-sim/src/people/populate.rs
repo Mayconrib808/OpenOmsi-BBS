@@ -344,7 +344,7 @@ impl PeopleSim {
             let near = self.stops.values().filter(|s| s.near).count();
             let served = self.stops.iter().filter(|(id,s)| {
                 !s.spots.is_empty() && self.stop_targets.as_ref().is_none_or(|targets|
-                    targets.get(id).is_some_and(|routes| !routes.is_empty()))
+                    targets.get(*id).is_some_and(|routes| !routes.is_empty()))
             }).count();
             let backlog: f32 = self.stop_demand.values().map(|d| d.waiting).sum();
             let d = &mut self.demand_audit;
