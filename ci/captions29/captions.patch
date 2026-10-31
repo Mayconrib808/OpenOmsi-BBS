@@ -1,8 +1,44 @@
 diff --git a/crates/omsi-app/locales/app.yml b/crates/omsi-app/locales/app.yml
-index ac100485f8073687393c687f319cc151cf805e82..17501bb58891de3e22f65df0e36bb1e8edae3d37 100644
+index ac100485f8073687393c687f319cc151cf805e82..ab516251975678e2ce610050a54bef570305c765 100644
 --- a/crates/omsi-app/locales/app.yml
 +++ b/crates/omsi-app/locales/app.yml
-@@ -97626,3 +97626,125 @@ _version: 2
+@@ -15055,6 +15055,12 @@ _version: 2
+   sv: "Standard"
+   sr: "Podrazumevano"
+   ka: "ნაგულისხმევი"
++  id: "Bawaan"
++  ko: "기본값"
++  ms: "Lalai"
++  th: "ค่าเริ่มต้น"
++  tl: "Paunang itinakda"
++  vi: "Mặc định"
+ "Delete":
+   ca: "Suprimeix"
+   ru: "Удалить"
+@@ -31583,6 +31589,22 @@ _version: 2
+   ru: "Как пассажиры получают билеты"
+   de: "Wie die Fahrgäste ihre Fahrscheine bekommen"
+   ka: "როგორ იღებენ მგზავრები ბილეთებს"
++  be: "Як пасажыры атрымліваюць білеты"
++  cs: "Jak cestující získávají jízdenky"
++  hi: "यात्री टिकट कैसे प्राप्त करते हैं"
++  hu: "Hogyan jutnak jegyhez az utasok"
++  id: "Cara penumpang mendapatkan tiket"
++  it: "Come i passeggeri ottengono i biglietti"
++  ja: "乗客の切符の入手方法"
++  kk: "Жолаушылардың билетті алу тәсілі"
++  ko: "승객이 승차권을 받는 방식"
++  ms: "Cara penumpang mendapatkan tiket"
++  pl: "Jak pasażerowie otrzymują bilety"
++  th: "วิธีที่ผู้โดยสารรับตั๋ว"
++  tl: "Paraan ng pagkuha ng tiket ng mga pasahero"
++  tr: "Yolcuların biletlerini nasıl aldığı"
++  uk: "Як пасажири отримують квитки"
++  vi: "Cách hành khách nhận vé"
+ "Learn to drive the buses":
+   es: "Aprende a conducir los autobuses"
+   ca: "Aprèn a conduir els autobusos"
+@@ -97626,3 +97648,579 @@ _version: 2
    it: "Torcia spenta"
    cs: "Baterka vypnuta"
    tr: "El feneri kapalı"
@@ -128,6 +164,482 @@ index ac100485f8073687393c687f319cc151cf805e82..17501bb58891de3e22f65df0e36bb1e8
 +  vi: "Cảm ơn bác tài!"
 +  zh: "谢谢司机！"
 +  zh-tw: "謝謝司機！"
++
++# Optional passenger settings, using the reviewed upstream translations.
++"Passengers signal approaching buses":
++  be: "Пасажыры падаюць сігнал аўтобусам, што набліжаюцца"
++  ca: "Els passatgers fan senyals als autobusos que s'acosten"
++  cs: "Cestující dávají znamení přijíždějícím autobusům"
++  de: "Fahrgäste geben herannahenden Bussen ein Handzeichen"
++  es: "Los pasajeros hacen señas a los autobuses que se acercan"
++  fr: "Les passagers font signe aux bus qui approchent"
++  hi: "यात्री पास आती बसों को हाथ देकर रोकने का संकेत देते हैं"
++  hu: "Az utasok intenek a közeledő buszoknak"
++  id: "Penumpang memberi isyarat kepada bus yang mendekat"
++  it: "I passeggeri fanno segno agli autobus in arrivo"
++  ja: "乗客が近づくバスに手を挙げて合図する"
++  ka: "მგზავრები მოახლოებულ ავტობუსებს ხელს უქნევენ"
++  kk: "Жолаушылар жақындап келе жатқан автобустарға қол бұлғайды"
++  ko: "승객이 다가오는 버스에 손을 들어 신호함"
++  ms: "Penumpang memberi isyarat kepada bas yang menghampiri"
++  nl: "Passagiers wenken naderende bussen"
++  pl: "Pasażerowie dają znak nadjeżdżającym autobusom"
++  pt: "Passageiros fazem sinal aos ônibus"
++  pt-pt: "Passageiros fazem sinal aos autocarros"
++  ru: "Пассажиры подают сигнал приближающимся автобусам"
++  sr: "Putnici daju znak autobusima koji prilaze"
++  sv: "Passagerare vinkar till bussar som närmar sig"
++  th: "ผู้โดยสารส่งสัญญาณเรียกรถบัสที่กำลังเข้ามา"
++  tl: "Sumesenyas ang mga pasahero sa mga paparating na bus"
++  tr: "Yolcular yaklaşan otobüslere el işareti yapar"
++  uk: "Пасажири подають сигнал автобусам, що наближаються"
++  vi: "Hành khách vẫy tay ra hiệu cho xe buýt đang đến"
++  zh: "乘客向驶近的公交车招手示意"
++  zh-tw: "乘客向接近的公車招手示意"
++"Connection chance":
++  be: "Імавернасць перасадкі"
++  ca: "Probabilitat de transbordament"
++  cs: "Pravděpodobnost přestupu"
++  de: "Umsteigewahrscheinlichkeit"
++  es: "Probabilidad de transbordo"
++  fr: "Probabilité de correspondance"
++  hi: "स्थानांतरण की संभावना"
++  hu: "Átszállási esély"
++  id: "Peluang transit"
++  it: "Probabilità di coincidenza"
++  ja: "乗り継ぎ確率"
++  ka: "გადაჯდომის ალბათობა"
++  kk: "Ауысу ықтималдығы"
++  ko: "환승 확률"
++  ms: "Kebarangkalian pertukaran laluan"
++  nl: "Overstapkans"
++  pl: "Szansa na przesiadkę"
++  pt: "Probabilidade de conexão"
++  pt-pt: "Probabilidade de ligação"
++  ru: "Вероятность пересадки"
++  sr: "Verovatnoća presedanja"
++  sv: "Byteschans"
++  th: "โอกาสเปลี่ยนสาย"
++  tl: "Tsansa ng paglipat"
++  tr: "Aktarma olasılığı"
++  uk: "Імовірність пересадки"
++  vi: "Xác suất chuyển tuyến"
++  zh: "换乘概率"
++  zh-tw: "轉乘機率"
++"Passenger connections between lines":
++  be: "Перасадкі пасажыраў паміж маршрутамі"
++  ca: "Transbordaments de passatgers entre línies"
++  cs: "Přestupy cestujících mezi linkami"
++  de: "Fahrgastumstiege zwischen Linien"
++  es: "Transbordos de pasajeros entre líneas"
++  fr: "Correspondances des passagers entre lignes"
++  hi: "यात्रियों का लाइनों के बीच स्थानांतरण"
++  hu: "Utasok átszállása a járatok között"
++  id: "Transit penumpang antarjalur"
++  it: "Coincidenze dei passeggeri tra linee"
++  ja: "乗客の路線間乗り継ぎ"
++  ka: "მგზავრების გადაჯდომა ხაზებს შორის"
++  kk: "Жолаушылардың бағыттар арасында ауысып мінуі"
++  ko: "노선 간 승객 환승"
++  ms: "Pertukaran penumpang antara laluan"
++  nl: "Overstappen van passagiers tussen lijnen"
++  pl: "Przesiadki pasażerów między liniami"
++  pt: "Conexões de passageiros entre linhas"
++  pt-pt: "Ligações de passageiros entre linhas"
++  ru: "Пересадки пассажиров между маршрутами"
++  sr: "Presedanja putnika između linija"
++  sv: "Passagerarbyten mellan linjer"
++  th: "การเปลี่ยนสายของผู้โดยสารระหว่างเส้นทาง"
++  tl: "Paglipat ng mga pasahero sa pagitan ng mga linya"
++  tr: "Yolcuların hatlar arasında aktarma yapması"
++  uk: "Пересадки пасажирів між маршрутами"
++  vi: "Hành khách chuyển giữa các tuyến"
++  zh: "乘客在不同线路之间换乘"
++  zh-tw: "乘客在不同路線之間轉乘"
++"Probability for eligible transfers; default 20%":
++  be: "Імавернасць магчымых перасадак; стандартна 20 %"
++  ca: "Probabilitat dels transbordaments possibles; valor predeterminat: 20 %"
++  cs: "Pravděpodobnost možných přestupů; výchozí hodnota 20 %"
++  de: "Wahrscheinlichkeit für mögliche Umstiege; Standard: 20 %"
++  es: "Probabilidad de transbordos válidos; valor predeterminado: 20 %"
++  fr: "Probabilité des correspondances possibles ; valeur par défaut : 20 %"
++  hi: "योग्य स्थानांतरण की संभावना; डिफ़ॉल्ट 20%"
++  hu: "A lehetséges átszállások valószínűsége; alapérték: 20%"
++  id: "Peluang transit yang memenuhi syarat; bawaan 20%"
++  it: "Probabilità di coincidenze possibili; valore predefinito: 20%"
++  ja: "条件を満たす乗り継ぎの確率。既定値は20%"
++  ka: "შესაძლო გადაჯდომების ალბათობა; ნაგულისხმევად 20%"
++  kk: "Мүмкін ауысулардың ықтималдығы; әдепкісі 20 %"
++  ko: "조건에 맞는 환승 확률. 기본값 20%"
++  ms: "Kebarangkalian pertukaran yang layak; lalai 20%"
++  nl: "Kans op mogelijke overstappen; standaard 20%"
++  pl: "Prawdopodobieństwo dostępnych przesiadek; domyślnie 20%"
++  pt: "Probabilidade para conexões elegíveis; padrão de 20%"
++  pt-pt: "Probabilidade para ligações elegíveis; predefinição de 20%"
++  ru: "Вероятность допустимых пересадок; по умолчанию 20 %"
++  sr: "Verovatnoća mogućih presedanja; podrazumevano 20 %"
++  sv: "Sannolikhet för möjliga byten; standardvärde 20 %"
++  th: "โอกาสเปลี่ยนสายเมื่อเข้าเงื่อนไข ค่าเริ่มต้น 20%"
++  tl: "Tsansa para sa mga puwedeng paglipat; default na 20%"
++  tr: "Uygun aktarmaların olasılığı; varsayılan %20"
++  uk: "Імовірність доступних пересадок; типово 20 %"
++  vi: "Xác suất chuyển tuyến hợp lệ; mặc định 20%"
++  zh: "符合条件的换乘概率；默认 20%"
++  zh-tw: "符合條件的轉乘機率；預設為 20%"
++
++# Optional native feature controls: all supported translated interface locales.
++"BCS event scenes":
++  be: "Сцэны падзей BCS"
++  ca: "Escenes d’esdeveniments del BCS"
++  cs: "Scény událostí BCS"
++  de: "BCS-Ereignisszenen"
++  es: "Escenas de eventos del BCS"
++  fr: "Scènes d’événements BCS"
++  hi: "BCS घटनाओं के दृश्य"
++  hu: "BCS-eseményjelenetek"
++  id: "Adegan peristiwa BCS"
++  it: "Scene degli eventi BCS"
++  ja: "BCSイベントのシーン"
++  ka: "BCS-ის მოვლენების სცენები"
++  kk: "BCS оқиғаларының көріністері"
++  ko: "BCS 이벤트 장면"
++  ms: "Adegan peristiwa BCS"
++  nl: "BCS-gebeurtenisscènes"
++  pl: "Sceny wydarzeń BCS"
++  pt: "Cenas dos eventos do BCS"
++  pt-pt: "Cenas dos eventos do BCS"
++  ru: "Сцены событий BCS"
++  sr: "Scene BCS događaja"
++  sv: "Scener för BCS-händelser"
++  th: "ฉากเหตุการณ์ BCS"
++  tl: "Mga eksena ng kaganapan sa BCS"
++  tr: "BCS olay sahneleri"
++  uk: "Сцени подій BCS"
++  vi: "Cảnh sự kiện BCS"
++  zh: "BCS事件场景"
++  zh-tw: "BCS事件場景"
++"BCS ticket inspectors":
++  be: "Білетныя кантралёры BCS"
++  ca: "Revisors de bitllets del BCS"
++  cs: "Revizoři BCS"
++  de: "BCS-Fahrkartenkontrolleure"
++  es: "Inspectores de billetes del BCS"
++  fr: "Contrôleurs de billets BCS"
++  hi: "BCS टिकट निरीक्षक"
++  hu: "BCS-jegyellenőrök"
++  id: "Pemeriksa tiket BCS"
++  it: "Controllori dei biglietti BCS"
++  ja: "BCSの検札員"
++  ka: "BCS-ის ბილეთების კონტროლიორები"
++  kk: "BCS билет тексерушілері"
++  ko: "BCS 검표원"
++  ms: "Pemeriksa tiket BCS"
++  nl: "BCS-kaartcontroleurs"
++  pl: "Kontrolerzy biletów BCS"
++  pt: "Fiscais de passagem do BCS"
++  pt-pt: "Revisores de bilhetes do BCS"
++  ru: "Билетные контролёры BCS"
++  sr: "BCS kontrolori karata"
++  sv: "BCS-biljettkontrollanter"
++  th: "พนักงานตรวจตั๋ว BCS"
++  tl: "Mga inspektor ng tiket ng BCS"
++  tr: "BCS bilet kontrolörleri"
++  uk: "Квиткові контролери BCS"
++  vi: "Nhân viên kiểm tra vé BCS"
++  zh: "BCS查票员"
++  zh-tw: "BCS查票員"
++"Passenger door and missed-stop comments":
++  be: "Просьбы пасажыраў пра дзверы і прапушчаныя прыпынкі"
++  ca: "Comentaris dels passatgers sobre portes i parades saltades"
++  cs: "Připomínky cestujících ke dveřím a přejetým zastávkám"
++  de: "Fahrgastkommentare zu Türen und verpassten Haltestellen"
++  es: "Comentarios de pasajeros sobre puertas y paradas omitidas"
++  fr: "Remarques des passagers sur les portes et les arrêts manqués"
++  hi: "दरवाज़ों और छूटे स्टॉप पर यात्रियों की टिप्पणियाँ"
++  hu: "Utasok megjegyzései az ajtókról és a kihagyott megállókról"
++  id: "Komentar penumpang tentang pintu dan halte yang terlewat"
++  it: "Commenti dei passeggeri su porte e fermate saltate"
++  ja: "ドアや通過した停留所に関する乗客の声"
++  ka: "მგზავრების კომენტარები კარებსა და გამოტოვებულ გაჩერებებზე"
++  kk: "Жолаушылардың есіктер мен өтіп кеткен аялдамалар туралы пікірлері"
++  ko: "문과 지나친 정류장에 대한 승객의 말"
++  ms: "Komen penumpang tentang pintu dan perhentian terlepas"
++  nl: "Opmerkingen van passagiers over deuren en gemiste haltes"
++  pl: "Komentarze pasażerów o drzwiach i pominiętych przystankach"
++  pt: "Comentários dos passageiros sobre portas e pontos perdidos"
++  pt-pt: "Comentários dos passageiros sobre portas e paragens perdidas"
++  ru: "Комментарии пассажиров о дверях и пропущенных остановках"
++  sr: "Komentari putnika o vratima i propuštenim stanicama"
++  sv: "Passagerarkommentarer om dörrar och missade hållplatser"
++  th: "คำพูดของผู้โดยสารเรื่องประตูและป้ายที่เลยมา"
++  tl: "Mga komento ng pasahero tungkol sa pinto at nalampasang bababaan"
++  tr: "Yolcuların kapılar ve geçilen duraklar hakkındaki yorumları"
++  uk: "Коментарі пасажирів про двері й пропущені зупинки"
++  vi: "Lời nhắc của hành khách về cửa và trạm bị bỏ lỡ"
++  zh: "乘客关于车门和错过站点的提醒"
++  zh-tw: "乘客對車門和錯過站點的提醒"
++"Passengers thank the driver when alighting":
++  be: "Пасажыры дзякуюць кіроўцу пры выхадзе"
++  ca: "Els passatgers donen les gràcies al conductor en baixar"
++  cs: "Cestující při vystupování děkují řidiči"
++  de: "Fahrgäste bedanken sich beim Aussteigen"
++  es: "Los pasajeros dan las gracias al bajar"
++  fr: "Les passagers remercient le conducteur en descendant"
++  hi: "उतरते समय यात्री ड्राइवर को धन्यवाद देते हैं"
++  hu: "Az utasok leszálláskor megköszönik az utat"
++  id: "Penumpang berterima kasih kepada sopir saat turun"
++  it: "I passeggeri ringraziano l’autista scendendo"
++  ja: "降車時に乗客が運転手にお礼を言う"
++  ka: "ჩამოსვლისას მგზავრები მძღოლს მადლობას უხდიან"
++  kk: "Жолаушылар түскенде жүргізушіге алғыс айтады"
++  ko: "승객이 내릴 때 기사에게 감사 인사"
++  ms: "Penumpang berterima kasih kepada pemandu semasa turun"
++  nl: "Passagiers bedanken de chauffeur bij het uitstappen"
++  pl: "Pasażerowie dziękują kierowcy przy wysiadaniu"
++  pt: "Passageiros agradecem ao motorista ao descer"
++  pt-pt: "Os passageiros agradecem ao motorista ao sair"
++  ru: "Пассажиры благодарят водителя при выходе"
++  sr: "Putnici zahvaljuju vozaču pri izlasku"
++  sv: "Passagerare tackar föraren när de kliver av"
++  th: "ผู้โดยสารขอบคุณคนขับเมื่อลงรถ"
++  tl: "Nagpapasalamat sa drayber ang mga pasahero kapag bumababa"
++  tr: "Yolcular inerken şoföre teşekkür eder"
++  uk: "Пасажири дякують водію під час виходу"
++  vi: "Hành khách cảm ơn tài xế khi xuống xe"
++  zh: "乘客下车时感谢司机"
++  zh-tw: "乘客下車時感謝司機"
++"Extra traffic on wide roads":
++  be: "Больш транспарту на шырокіх дарогах"
++  ca: "Més trànsit a les vies amples"
++  cs: "Více provozu na širokých silnicích"
++  de: "Mehr Verkehr auf breiten Straßen"
++  es: "Más tráfico en vías anchas"
++  fr: "Plus de circulation sur les voies larges"
++  hi: "चौड़ी सड़कों पर अधिक यातायात"
++  hu: "Nagyobb forgalom a széles utakon"
++  id: "Lalu lintas lebih padat di jalan lebar"
++  it: "Più traffico sulle strade ampie"
++  ja: "広い道路の交通量を増やす"
++  ka: "მეტი მოძრაობა ფართო გზებზე"
++  kk: "Кең жолдардағы көлік санын арттыру"
++  ko: "넓은 도로의 교통량 증가"
++  ms: "Lebih banyak trafik di jalan lebar"
++  nl: "Meer verkeer op brede wegen"
++  pl: "Większy ruch na szerokich drogach"
++  pt: "Mais trânsito em vias largas"
++  pt-pt: "Mais trânsito em vias largas"
++  ru: "Больше транспорта на широких дорогах"
++  sr: "Više saobraćaja na širokim putevima"
++  sv: "Mer trafik på breda vägar"
++  th: "เพิ่มการจราจรบนถนนกว้าง"
++  tl: "Mas maraming sasakyan sa malalawak na kalsada"
++  tr: "Geniş yollarda daha fazla trafik"
++  uk: "Більше транспорту на широких дорогах"
++  vi: "Tăng lưu lượng xe trên đường rộng"
++  zh: "增加宽阔道路上的交通量"
++  zh-tw: "增加寬闊道路上的交通量"
++"AI bus greetings":
++  be: "Вітанні аўтобусаў ШІ"
++  ca: "Salutacions dels autobusos de la IA"
++  cs: "Zdravení autobusů řízených AI"
++  de: "Begrüßungen durch KI-Busse"
++  es: "Saludos de autobuses de la IA"
++  fr: "Salutations des bus de l’IA"
++  hi: "AI बसों के अभिवादन"
++  hu: "MI-buszok üdvözlései"
++  id: "Sapaan bus AI"
++  it: "Saluti degli autobus IA"
++  ja: "AIバスのあいさつ"
++  ka: "ხელოვნური ინტელექტის ავტობუსების მისალმებები"
++  kk: "ЖИ автобустарының сәлемдесуі"
++  ko: "AI 버스의 인사"
++  ms: "Sapaan bas AI"
++  nl: "Begroetingen van AI-bussen"
++  pl: "Powitania autobusów AI"
++  pt: "Cumprimentos dos ônibus da IA"
++  pt-pt: "Cumprimentos dos autocarros da IA"
++  ru: "Приветствия автобусов ИИ"
++  sr: "Pozdravi AI autobusa"
++  sv: "Hälsningar från AI-bussar"
++  th: "การทักทายของรถบัส AI"
++  tl: "Pagbati ng mga AI na bus"
++  tr: "Yapay zekâ otobüslerinin selamlaşması"
++  uk: "Привітання автобусів ШІ"
++  vi: "Lời chào của xe buýt AI"
++  zh: "AI公交车互相打招呼"
++  zh-tw: "AI公車互相打招呼"
++"Passenger umbrellas":
++  be: "Парасоны пасажыраў"
++  ca: "Paraigües dels passatgers"
++  cs: "Deštníky cestujících"
++  de: "Regenschirme der Fahrgäste"
++  es: "Paraguas de los pasajeros"
++  fr: "Parapluies des passagers"
++  hi: "यात्रियों की छतरियाँ"
++  hu: "Utasok esernyői"
++  id: "Payung penumpang"
++  it: "Ombrelli dei passeggeri"
++  ja: "乗客の傘"
++  ka: "მგზავრების ქოლგები"
++  kk: "Жолаушылардың қолшатырлары"
++  ko: "승객의 우산"
++  ms: "Payung penumpang"
++  nl: "Paraplu’s van passagiers"
++  pl: "Parasole pasażerów"
++  pt: "Guarda-chuvas dos passageiros"
++  pt-pt: "Guarda-chuvas dos passageiros"
++  ru: "Зонты пассажиров"
++  sr: "Kišobrani putnika"
++  sv: "Passagerarnas paraplyer"
++  th: "ร่มของผู้โดยสาร"
++  tl: "Mga payong ng pasahero"
++  tr: "Yolcuların şemsiyeleri"
++  uk: "Парасольки пасажирів"
++  vi: "Ô của hành khách"
++  zh: "乘客的雨伞"
++  zh-tw: "乘客的雨傘"
++"Signal buses on this map":
++  be: "Сігналіць аўтобусам на гэтай карце"
++  ca: "Fer senyals als autobusos en aquest mapa"
++  cs: "Dávat znamení autobusům na této mapě"
++  de: "Bussen auf dieser Karte ein Zeichen geben"
++  es: "Hacer señales a los autobuses en este mapa"
++  fr: "Faire signe aux bus sur cette carte"
++  hi: "इस मानचित्र पर बसों को रुकने का संकेत दें"
++  hu: "Jelzés a buszoknak ezen a pályán"
++  id: "Beri isyarat kepada bus di peta ini"
++  it: "Fare cenno agli autobus in questa mappa"
++  ja: "このマップでバスに合図する"
++  ka: "ამ რუკაზე ავტობუსისთვის ხელით მინიშნება"
++  kk: "Осы картада автобустарға белгі беру"
++  ko: "이 지도에서 버스에 손짓하기"
++  ms: "Beri isyarat kepada bas pada peta ini"
++  nl: "Bussen een teken geven op deze kaart"
++  pl: "Dawanie znaku autobusom na tej mapie"
++  pt: "Dar sinal para ônibus neste mapa"
++  pt-pt: "Fazer sinal aos autocarros neste mapa"
++  ru: "Подавать сигнал автобусам на этой карте"
++  sr: "Davati znak autobusima na ovoj mapi"
++  sv: "Vinka till bussar på den här kartan"
++  th: "โบกเรียกรถบัสบนแผนที่นี้"
++  tl: "Pumara ng bus sa mapang ito"
++  tr: "Bu haritada otobüslere işaret ver"
++  uk: "Подавати знак автобусам на цій карті"
++  vi: "Vẫy xe buýt trên bản đồ này"
++  zh: "在此地图上招手示意公交车停车"
++  zh-tw: "在此地圖上招手示意公車停車"
++"Override ticket purchase chance":
++  be: "Змяніць імавернасць куплі білета"
++  ca: "Modificar la probabilitat de comprar bitllet"
++  cs: "Změnit pravděpodobnost nákupu jízdenky"
++  de: "Wahrscheinlichkeit des Fahrkartenkaufs ändern"
++  es: "Modificar la probabilidad de comprar billete"
++  fr: "Modifier la probabilité d’achat d’un billet"
++  hi: "टिकट खरीदने की संभावना बदलें"
++  hu: "A jegyvásárlás valószínűségének módosítása"
++  id: "Ubah peluang pembelian tiket"
++  it: "Modifica la probabilità di acquisto del biglietto"
++  ja: "切符を購入する確率を変更"
++  ka: "ბილეთის ყიდვის ალბათობის შეცვლა"
++  kk: "Билет сатып алу ықтималдығын өзгерту"
++  ko: "승차권 구매 확률 변경"
++  ms: "Ubah kebarangkalian membeli tiket"
++  nl: "Kans op het kopen van een kaartje aanpassen"
++  pl: "Zmień prawdopodobieństwo zakupu biletu"
++  pt: "Alterar a chance de comprar passagem"
++  pt-pt: "Alterar a probabilidade de comprar bilhete"
++  ru: "Изменить вероятность покупки билета"
++  sr: "Promeni verovatnoću kupovine karte"
++  sv: "Ändra sannolikheten för biljettköp"
++  th: "ปรับโอกาสในการซื้อตั๋ว"
++  tl: "Baguhin ang tsansang bumili ng tiket"
++  tr: "Bilet satın alma olasılığını değiştir"
++  uk: "Змінити ймовірність купівлі квитка"
++  vi: "Thay đổi xác suất mua vé"
++  zh: "调整购票概率"
++  zh-tw: "調整購票機率"
++"Ticket purchase chance":
++  be: "Імавернасць куплі білета"
++  ca: "Probabilitat de comprar bitllet"
++  cs: "Pravděpodobnost nákupu jízdenky"
++  de: "Wahrscheinlichkeit des Fahrkartenkaufs"
++  es: "Probabilidad de comprar billete"
++  fr: "Probabilité d’achat d’un billet"
++  hi: "टिकट खरीदने की संभावना"
++  hu: "A jegyvásárlás valószínűsége"
++  id: "Peluang pembelian tiket"
++  it: "Probabilità di acquisto del biglietto"
++  ja: "切符を購入する確率"
++  ka: "ბილეთის ყიდვის ალბათობა"
++  kk: "Билет сатып алу ықтималдығы"
++  ko: "승차권 구매 확률"
++  ms: "Kebarangkalian membeli tiket"
++  nl: "Kans op het kopen van een kaartje"
++  pl: "Prawdopodobieństwo zakupu biletu"
++  pt: "Chance de comprar passagem"
++  pt-pt: "Probabilidade de comprar bilhete"
++  ru: "Вероятность покупки билета"
++  sr: "Verovatnoća kupovine karte"
++  sv: "Sannolikhet för biljettköp"
++  th: "โอกาสในการซื้อตั๋ว"
++  tl: "Tsansang bumili ng tiket"
++  tr: "Bilet satın alma olasılığı"
++  uk: "Імовірність купівлі квитка"
++  vi: "Xác suất mua vé"
++  zh: "购票概率"
++  zh-tw: "購票機率"
++"In multiplayer, shared AI vehicles are controlled by the host. Restart the game after changing this option.":
++  be: "У сеткавай гульні агульным транспартам ШІ кіруе хост. Пасля змены гэтай налады перазапусціце гульню."
++  ca: "En multijugador, l’amfitrió controla els vehicles compartits de la IA. Reinicieu el joc després de canviar aquesta opció."
++  cs: "Ve hře více hráčů řídí sdílená vozidla AI hostitel. Po změně této možnosti hru restartujte."
++  de: "Im Mehrspielerbetrieb steuert der Host die gemeinsamen KI-Fahrzeuge. Nach dem Ändern dieser Option das Spiel neu starten."
++  es: "En multijugador, el anfitrión controla los vehículos compartidos de la IA. Reinicia el juego después de cambiar esta opción."
++  fr: "En multijoueur, l’hôte contrôle les véhicules partagés de l’IA. Redémarrez le jeu après avoir modifié cette option."
++  hi: "मल्टीप्लेयर में साझा AI वाहनों को होस्ट नियंत्रित करता है। यह विकल्प बदलने के बाद खेल पुनः शुरू करें।"
++  hu: "Többjátékos módban a házigazda vezérli a közös MI-járműveket. Az opció módosítása után indítsa újra a játékot."
++  id: "Dalam multipemain, kendaraan AI bersama dikendalikan oleh host. Mulai ulang gim setelah mengubah opsi ini."
++  it: "In multigiocatore, l’host controlla i veicoli IA condivisi. Riavvia il gioco dopo aver modificato questa opzione."
++  ja: "マルチプレイでは、共有のAI車両はホストが制御します。この設定を変更したらゲームを再起動してください。"
++  ka: "მრავალმოთამაშიან რეჟიმში საერთო ხელოვნური ინტელექტის მანქანებს ჰოსტი მართავს. ამ პარამეტრის შეცვლის შემდეგ თამაში თავიდან გაუშვით."
++  kk: "Көп ойыншы режимінде ортақ ЖИ көліктерін хост басқарады. Бұл параметрді өзгерткеннен кейін ойынды қайта іске қосыңыз."
++  ko: "멀티플레이에서는 호스트가 공유 AI 차량을 제어합니다. 이 옵션을 변경한 뒤 게임을 다시 시작하세요."
++  ms: "Dalam berbilang pemain, kenderaan AI yang dikongsi dikawal oleh hos. Mulakan semula permainan selepas mengubah pilihan ini."
++  nl: "In multiplayer bestuurt de host de gedeelde AI-voertuigen. Start het spel opnieuw nadat je deze optie hebt gewijzigd."
++  pl: "W grze wieloosobowej wspólnymi pojazdami AI steruje gospodarz. Po zmianie tej opcji uruchom grę ponownie."
++  pt: "No multiplayer, os veículos compartilhados da IA são controlados pelo host. Reinicie o jogo após alterar esta opção."
++  pt-pt: "No multijogador, os veículos partilhados da IA são controlados pelo anfitrião. Reinicie o jogo depois de alterar esta opção."
++  ru: "В сетевой игре общими машинами ИИ управляет хост. После изменения этой настройки перезапустите игру."
++  sr: "U igri za više igrača domaćin upravlja zajedničkim AI vozilima. Ponovo pokrenite igru nakon promene ove opcije."
++  sv: "I flerspelarläget styr värden de gemensamma AI-fordonen. Starta om spelet efter att ha ändrat detta alternativ."
++  th: "ในโหมดหลายผู้เล่น โฮสต์จะควบคุมรถ AI ที่ใช้ร่วมกัน โปรดเริ่มเกมใหม่หลังเปลี่ยนตัวเลือกนี้"
++  tl: "Sa multiplayer, ang host ang kumokontrol sa mga pinagsasaluhang AI na sasakyan. I-restart ang laro pagkatapos baguhin ang opsyong ito."
++  tr: "Çok oyunculu modda ortak yapay zekâ araçlarını sunucu sahibi kontrol eder. Bu seçeneği değiştirdikten sonra oyunu yeniden başlatın."
++  uk: "У мережевій грі спільними автомобілями ШІ керує хост. Після зміни цього параметра перезапустіть гру."
++  vi: "Trong chế độ nhiều người chơi, máy chủ điều khiển các xe AI dùng chung. Khởi động lại trò chơi sau khi thay đổi tùy chọn này."
++  zh: "多人游戏中，共享的AI车辆由主机控制。更改此选项后请重新启动游戏。"
++  zh-tw: "多人遊戲中，共用的AI車輛由主機控制。更改此選項後請重新啟動遊戲。"
+diff --git a/crates/omsi-app/src/app.rs b/crates/omsi-app/src/app.rs
+index f0a4dd3be93f59c15a9a698dd61b8c799eccaa6d..c5be963935a56972e132f2b3a1ee9bc8a6ce5cb6 100644
+--- a/crates/omsi-app/src/app.rs
++++ b/crates/omsi-app/src/app.rs
+@@ -596,7 +596,8 @@ impl App {
+                         h.set_lan_seed(lan::population_seed(lan));
+                     }
+                     h.exact_fare = self.settings.exact_fare;
+-        h.transfer_percent = self.settings.passenger_transfer_percent;
++        h.optional_features = self.settings.optional_features;
++        h.transfer_percent = h.optional_features.connection_percent(self.settings.passenger_transfer_percent);
+                     h.bad_driving = self.settings.pax_bad_driving;
+                     h.boarding = self.settings.boarding.clone();
+                     h.stand_chance = self.settings.standing_chance;
+@@ -632,6 +633,7 @@ impl App {
+                 {
+                     match traffic::Traffic::new(&self.args.root, &w, self.args.traffic) {
+                         Ok(mut t) => {
++                            t.optional_features = self.settings.optional_features;
+                             t.lights_only = !populated;
+                             t.no_timetable_buses = self.args.no_timetable_buses;
+                             if let Some(lan) = self.net.lan.as_ref() {
 diff --git a/crates/omsi-app/src/app_events/frame/people.rs b/crates/omsi-app/src/app_events/frame/people.rs
 index 2645fcb68bb5c50fb3c53177957cc6daa9ee5bdf..50d7575b14ca31969360436f48551994000e1ff6 100644
 --- a/crates/omsi-app/src/app_events/frame/people.rs
@@ -247,6 +759,741 @@ index 0000000000000000000000000000000000000000..33d9ff85c7d0c77fc63df95d8b662646
 +        assert_eq!(in_language(stock, "FRA"), None);
 +    }
 +}
+diff --git a/crates/omsi-app/src/app_events/frame/steps.rs b/crates/omsi-app/src/app_events/frame/steps.rs
+index 7288e39143d605fd1ad99ca5685b5e5ab7488440..3bbd2f93c6fc1691958cf8b2858ac34109e14552 100644
+--- a/crates/omsi-app/src/app_events/frame/steps.rs
++++ b/crates/omsi-app/src/app_events/frame/steps.rs
+@@ -41,19 +41,21 @@ pub(crate) fn traffic_tick(
+             let r = p.rail.as_ref()?;
+             Some(omsi_sim::ai_traffic::model::PlayerRail { lane: r.lane, s: r.s, along: r.along, train: omsi_sim::ai_traffic::model::is_train(&p.vehicle.ty.def) })
+         });
+-        let mut greetings = std::mem::take(&mut t.greetings);
+-        greetings.restore(&mut t.sim);
++        let mut greetings = t.optional_features.ai_bus_greetings.then(|| std::mem::take(&mut t.greetings));
++        if let Some(greetings) = greetings.as_mut() { greetings.restore(&mut t.sim); }
+         t.tick(dt, player.map(|p| player_outline(p)));
+-        if !t.sim.mirror {
+-            use omsi_sim::ai_traffic::greetings::{Bus, BusId};
+-            let mut buses: Vec<Bus> = remotes.remotes.iter()
+-                .map(|(id,r)| { let mut b = Bus::from_vehicle(BusId::Player(*id), r.vehicle(), &r.last.line,
+-                    r.last.flags & omsi_net::FLAG_HORN != 0); b.high_beam = r.last.head == 3; b.speed = r.last.speed_kmh / 3.6; b }).collect();
+-            if let Some(p) = player { buses.push(Bus::from_vehicle(BusId::Player(0), &p.vehicle, "", false)); }
+-            let greeting_dt = if dt > 0.0 { dt } else { t.sim.last_dt };
+-            greetings.update(&mut t.sim, buses, greeting_dt);
++        if let Some(mut greetings) = greetings {
++            if !t.sim.mirror {
++                use omsi_sim::ai_traffic::greetings::{Bus, BusId};
++                let mut buses: Vec<Bus> = remotes.remotes.iter()
++                    .map(|(id,r)| { let mut b = Bus::from_vehicle(BusId::Player(*id), r.vehicle(), &r.last.line,
++                        r.last.flags & omsi_net::FLAG_HORN != 0); b.high_beam = r.last.head == 3; b.speed = r.last.speed_kmh / 3.6; b }).collect();
++                if let Some(p) = player { buses.push(Bus::from_vehicle(BusId::Player(0), &p.vehicle, "", false)); }
++                let greeting_dt = if dt > 0.0 { dt } else { t.sim.last_dt };
++                greetings.update(&mut t.sim, buses, greeting_dt);
++            }
++            t.greetings = greetings;
+         }
+-        t.greetings = greetings;
+         let t0 = Instant::now();
+         // the signals first: the switches that a clear signal locks read them
+         let aspects = t.signal_aspects(&world.signal_routes, player_rail);
+diff --git a/crates/omsi-app/src/bcs_events/mod.rs b/crates/omsi-app/src/bcs_events/mod.rs
+index e815213f22134a46225271865e6b71b9b355d707..25fffc2b72ead5ea311fb9159b2403fb90c3e511 100644
+--- a/crates/omsi-app/src/bcs_events/mod.rs
++++ b/crates/omsi-app/src/bcs_events/mod.rs
+@@ -56,6 +56,7 @@ fn publish(patient: Option<u32>, blend: f32) {
+ #[derive(Default)]
+ pub(crate) struct Incidents {
+     configured: bool,
++    options: omsi_cfg::optional_features::OptionalFeatures,
+     actor_key: Option<(String,lifecycle::Key)>,
+     actor_person: Option<u32>, actor_blend:f32, actor_time:f32,
+ 
+@@ -83,13 +84,15 @@ impl crate::App {
+         let incidents = &mut self.integrations.bcs_events;
+         if !incidents.configured {
+             incidents.configured = true;
+-            let enabled = std::env::var("OPENOMSI_BCS_EVENTS_BETA")
+-                .map(|v| v == "1")
+-                .unwrap_or(option_env!("OPENOMSI_BCS_EVENTS_BETA_DEFAULT") == Some("1"));
+-            if enabled {
++            // These options are captured for this session. Both settings interfaces
++            // explicitly say a game restart is required to change them.
++            incidents.options = self.settings.optional_features;
++            incidents.network.host = HostResponses::new(incidents.options.bcs_event_scenes);
++            if incidents.options.needs_bcs_capture() {
+                 incidents.source = feed::Feed::start();
+-                incidents.models.start(self.args.root.clone());
+-                log::info!("BCS incident beta: local capture and response controller enabled");
++                if incidents.options.bcs_event_scenes && incidents.source.is_some() {
++                    incidents.models.start(self.args.root.clone());
++                }
+             }
+         }
+         if incidents.source.is_none() {
+@@ -105,6 +108,17 @@ impl crate::App {
+         } else {
+             None
+         };
++        let latest = incidents.source.as_ref().and_then(|feed| feed.latest());
++        if incidents.options.bcs_inspectors && !self.paused {
++            if let (Some(humans), Some(player), Some(world)) =
++                (self.session.humans.as_mut(), self.player.as_ref(), self.world.as_ref()) {
++                incidents.inspector.update(context.as_deref(), latest.as_ref().and_then(|s| s.inspector.as_ref()),
++                    humans, &player.vehicle, world);
++            }
++        }
++        // The ordinary people synchronization draws inspector changes on the next
++        // frame; do not perform a second whole-population synchronization here.
++        if !incidents.options.bcs_event_scenes { return; }
+         let riders: Vec<u32> = self
+             .session
+             .humans
+@@ -117,7 +131,6 @@ impl crate::App {
+                     .collect()
+             })
+             .unwrap_or_default();
+-        let latest = incidents.source.as_ref().and_then(|f| f.latest());
+         let actor_source=latest.as_ref().filter(|s|matches!(s.event,6|7)&&!s.completed);
+         let actor_key=context.as_ref().zip(actor_source).map(|(c,s)|(c.clone(),lifecycle::Key{pid:s.pid,instance:s.instance}));
+         if incidents.actor_key!=actor_key {
+@@ -135,14 +148,6 @@ impl crate::App {
+         });
+         ACTOR_POSE.store(actor,Ordering::Relaxed);
+ 
+-        if !self.paused {
+-            if let (Some(humans),Some(player),Some(world))=(self.session.humans.as_mut(),self.player.as_ref(),self.world.as_ref()) {
+-                incidents.inspector.update(context.as_deref(),latest.as_ref().and_then(|s|s.inspector.as_ref()),humans,&player.vehicle,world);
+-                if let (Some(renderer),Some(scene))=(self.renderer.as_ref(),self.scene.as_mut()) {
+-                    crate::view_sync::apply_people(humans,&mut self.gfx.sim_view.people,world,renderer,scene);
+-                }
+-            }
+-        }
+         if let (Some(world),Some(renderer),Some(scene),Some(player))=(self.world.as_ref(),self.renderer.as_ref(),self.scene.as_mut(),self.player.as_ref()) {
+             incidents.effects.update(context.as_deref(),latest.as_ref(),player.vehicle.position,player.vehicle.heading,
+                 if self.paused{0.0}else{dt},world,renderer,scene);
+@@ -291,6 +296,9 @@ impl crate::App {
+         if let Ok(mut p)=REMOTE_POSES.lock(){*p=remote_poses;}
+     }
+     pub(crate) fn receive_bcs_event(&mut self,from:u32,text:&str)->bool{
++        if !self.integrations.bcs_events.options.bcs_event_scenes {
++            return text.starts_with("bcs222_req ") || text.starts_with("bcs222_view ") || text.starts_with("bcs222_done ");
++        }
+         let Some(lan)=self.net.lan.as_ref()else{return false};
+         self.integrations.bcs_events.network.receive(lan,from,text)
+     }
+diff --git a/crates/omsi-app/src/bcs_events/network.rs b/crates/omsi-app/src/bcs_events/network.rs
+index 3928e18c39b0cf2e77f3af569ae2a86b2c44901d..86e9209b2fc612258d96b413ab1d4c34ee13e5d3 100644
+--- a/crates/omsi-app/src/bcs_events/network.rs
++++ b/crates/omsi-app/src/bcs_events/network.rs
+@@ -40,10 +40,12 @@ struct Response {
+     returned:Option<(Key,u32)>,reply:f32,
+ }
+ #[derive(Default)]
+-pub(crate) struct HostResponses {entries:HashMap<u32,Response>,models:Loader,relay:f32}
++pub(crate) struct HostResponses {entries:HashMap<u32,Response>,models:Loader,relay:f32,enabled:bool}
+ impl HostResponses {
++    pub fn new(enabled: bool) -> Self { Self { enabled, ..Default::default() } }
+     pub fn receive(&mut self,lan:&omsi_net::LanSession,from:u32,text:&str)->bool{
+         let Some(rest)=text.strip_prefix(REQUEST)else{return false};
++        if !self.enabled { return true; }
+         if lan.role!=omsi_net::Role::Host||from==lan.my_id||!lan.peers().any(|p|p.pose.id==from){return true;}
+         let Some((patient,rest))=rest.split_once(' ')else{return true};let Ok(patient)=patient.parse::<u32>()else{return true};
+         let Some(visual)=Visual::decode(rest)else{return true};
+@@ -57,7 +59,7 @@ impl HostResponses {
+     }
+     pub fn tick(&mut self,lan:&mut omsi_net::LanSession,traffic:&mut crate::traffic::Traffic,
+         world:&crate::scene::World,dt:f32){
+-        if lan.role!=omsi_net::Role::Host{return;}
++        if !self.enabled || lan.role!=omsi_net::Role::Host{return;}
+         if !self.entries.is_empty(){self.models.start(world.root.clone());}
+         let peers=lan.peers().map(|p|p.pose.id).collect::<Vec<_>>();
+         self.entries.retain(|id,entry|{
+diff --git a/crates/omsi-app/src/game_lists/dropdowns.rs b/crates/omsi-app/src/game_lists/dropdowns.rs
+index 8e2c480257edf3b034da213fb4709daae629d053..a64ef5d49302019194e7e46a5bbe334927f4aeac 100644
+--- a/crates/omsi-app/src/game_lists/dropdowns.rs
++++ b/crates/omsi-app/src/game_lists/dropdowns.rs
+@@ -473,7 +473,7 @@ pub(super) fn sync_live(app: &mut App) {
+     }
+     if let Some(h) = app.session.humans.as_mut() {
+         h.exact_fare = s.exact_fare;
+-        h.transfer_percent = s.passenger_transfer_percent;
++        h.transfer_percent = h.optional_features.connection_percent(s.passenger_transfer_percent);
+         h.bad_driving = s.pax_bad_driving;
+         h.boarding = s.boarding.clone();
+         h.stand_chance = s.standing_chance;
+diff --git a/crates/omsi-app/src/game_lists/menu_pages.rs b/crates/omsi-app/src/game_lists/menu_pages.rs
+index 06a53cfaa4d9368c3858e06cf1d067f2e8dc1db1..2793eb579443452aded570b86db1aa6e50eb985a 100644
+--- a/crates/omsi-app/src/game_lists/menu_pages.rs
++++ b/crates/omsi-app/src/game_lists/menu_pages.rs
+@@ -11,7 +11,7 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
+     let later = "Takes effect when the game starts the next time";
+     let mode = session_mode(app);
+     let shown = |key: &str| shown_in_mode(mode, key);
+-    let game: Vec<(String, String)> = vec![
++    let mut game: Vec<(String, String)> = vec![
+         switch_row(app, "navigator", "Navigator", "Enables/Disables the Minimap"),
+         switch_row(app, "nav_ai", "AI vehicles on the map", "Shows/hides the other (AI) vehicles on the Minimap and the city map"),
+         switch_row(app, "nav_surface", "Map surface under the roads", "Shows the map's ground, water, woods, houses and paved surfaces on the Minimap and the city map (and the map's package, when it has one)"),
+@@ -33,12 +33,12 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
+         switch_row(app, "pax_bad_driving", "Passengers react to bad driving", "They complain about rough driving and may get off at the next stop"),
+         switch_row(app, "auto_announce", "Arrival announcements at the stop", "On depot files that keep two recordings per stop (the Chinese maps), the arrival one is played as the bus reaches the stop: the IBIS's next stop key, pressed as the driver would"),
+         pick("boarding", "Boarding", "How passengers get their tickets"),
+-        switch_row(app,"ticket_chance_enabled","Mudar chance dos passageiros comprarem ticket","Desativado mantém a probabilidade normal do mapa; o ônibus precisa ter caixa para venda"),
+-        slider_row(app,"ticket_chance_percent","Chance de comprar ticket","Padrão do mapa ou 0–100%; vale para os próximos embarques",&|v|if v<0.0{"Padrão do mapa".into()}else{format!("{v:.0}%")}).filter(|_|s.ticket_chance_enabled),
+-        slider_row(app,"pax_transfer_percent","Chance de fazer conexão","Caminham até outro ponto próximo; não voltam ao mesmo ônibus. Padrão: 20%",&|v|format!("{v:.0}%")),
+-        switch_row(app,"pax_umbrellas","Guarda-chuvas na chuva","Abertura, fechamento e gotas; modo Natural escolhido no lobby"),
+-        switch_row(app,"pax_hailing","Passageiros dão sinal ao ônibus","Começam na aproximação e mantêm o braço até o ônibus parar"),
+-        switch_row(app,"pax_hailing_map","Dar sinal neste mapa",&format!("Escolha salva para {}",app.args.map)),
++        switch_row(app,"ticket_chance_enabled","Override ticket purchase chance","How passengers get their tickets"),
++        slider_row(app,"ticket_chance_percent","Ticket purchase chance","How passengers get their tickets",&|v|if v<0.0{omsi_ui::tr("Default").into_owned()}else{format!("{v:.0}%")}).filter(|_|s.ticket_chance_enabled),
++        slider_row(app,"pax_transfer_percent","Connection chance","Probability for eligible transfers; default 20%",&|v|format!("{v:.0}%")),
++        switch_row(app,"pax_umbrellas","Passenger umbrellas","Takes effect when the game starts the next time").filter(|_| s.passenger_animation == "enhanced"),
++        switch_row(app,"pax_hailing","Passengers signal approaching buses","Takes effect when the game starts the next time").filter(|_| s.passenger_animation == "enhanced"),
++        switch_row(app,"pax_hailing_map","Signal buses on this map",omsi_cfg::optional_features::HELP).filter(|_| s.passenger_animation == "enhanced" && s.passenger_hailing),
+         pick("standing_chance", "Standing passengers", "The chance a passenger stands although a seat is free"),
+         pick("maintenance", "Maintenance", later),
+         pick("ai_unsched_factor", "Random traffic", later),
+@@ -49,6 +49,8 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
+         .into_iter()
+         .flatten()
+         .collect();
++    game.extend(omsi_cfg::optional_features::FEATURES.iter().filter_map(|feature|
++        switch_row(app, feature.key, feature.label, omsi_cfg::optional_features::help(feature.key))));
+     let mut graphics: Vec<(String, String)> = vec![
+         pick("graphics", "Graphics", later),
+         preset_row(&file, "Quality preset", "Sets the graphics mode and most of the options at once, from Low (Vanilla) to Ultra (Enhanced with everything on)"),
+diff --git a/crates/omsi-app/src/game_lists/options.rs b/crates/omsi-app/src/game_lists/options.rs
+index 332fbaf528400e7259ae3b4dc98d33a63a98b85e..3038d337ee8aefd9bf617e1a7f6cc8316c32cdf9 100644
+--- a/crates/omsi-app/src/game_lists/options.rs
++++ b/crates/omsi-app/src/game_lists/options.rs
+@@ -110,7 +110,7 @@ pub(super) fn option_set(app: &mut App, verb: &str, arg: &str, v: f32) -> Option
+             app.settings.pax_density = v;
+             Some(("pax_density", v.to_string()))
+         }
+-        "pax_transfer_percent" => {app.settings.passenger_transfer_percent=v.round().clamp(0.0,100.0);if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=app.settings.passenger_transfer_percent;}Some(("passenger_transfer_percent",app.settings.passenger_transfer_percent.to_string()))}
++        "pax_transfer_percent" => {app.settings.passenger_transfer_percent=v.round().clamp(0.0,100.0);if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=h.optional_features.connection_percent(app.settings.passenger_transfer_percent);}Some(("passenger_transfer_percent",app.settings.passenger_transfer_percent.to_string()))}
+         "ticket_chance_percent" => {app.settings.ticket_chance_percent=v.round().clamp(-1.0,100.0);Some(("ticket_chance_percent",app.settings.ticket_chance_percent.to_string()))}
+         "volume" => {
+             app.settings.volume = v;
+@@ -399,6 +399,7 @@ fn set_cab_wheel_rotation(app: &mut App, v: f32) -> (&'static str, String) {
+ /// Whether the switch `id` is on (None: `id` is no switch).
+ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
+     let s = &app.settings;
++    if let Some(on) = s.optional_features.get(id) { return Some(on); }
+     Some(match id {
+         "pax_natural"=>s.passenger_animation=="enhanced",
+         "ticket_chance_enabled"=>s.ticket_chance_enabled,
+@@ -505,6 +506,7 @@ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
+ /// Switch `id` on or off; the key and value to keep for the next game.
+ pub(super) fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String)> {
+     let bit = (on as u8).to_string();
++    if let Some(key) = app.settings.optional_features.set(id, on) { return Some((key, bit)); }
+     match id {
+         "pax_natural"=>{app.settings.passenger_animation=if on{"enhanced"}else{"original"}.into();Some(("passenger_animation",app.settings.passenger_animation.clone()))},
+         "ticket_chance_enabled"=>{app.settings.ticket_chance_enabled=on;Some(("ticket_chance_enabled",bit))},
+diff --git a/crates/omsi-app/src/offscreen/setup.rs b/crates/omsi-app/src/offscreen/setup.rs
+index 37bb6139154c76b3965d747878c690d06a8ebf8c..5dc8c05f629aa70f3604c9b7338700d908dfa903 100644
+--- a/crates/omsi-app/src/offscreen/setup.rs
++++ b/crates/omsi-app/src/offscreen/setup.rs
+@@ -279,7 +279,7 @@ impl<'a> Offscreen<'a> {
+         let recorder = record::Recorder::new(out, player.as_mut(), &args.root, settings.doppler);
+         Ok(Offscreen {
+             coop_ai: Default::default(),
+-            bcs_responses:Default::default(),
++            bcs_responses:crate::bcs_events::HostResponses::new(settings.optional_features.bcs_event_scenes),
+             args,
+             out,
+             w,
+@@ -352,6 +352,7 @@ fn new_traffic(
+     lan_seed: Option<u64>,
+ ) -> Result<Option<traffic::Traffic>> {
+     let mut t = traffic::Traffic::new(&args.root, world, args.traffic)?;
++    t.optional_features = settings::Settings::load().optional_features;
+     t.lights_only = !(args.traffic > 0 || args.schedule || crate::rail_drive::args_rail(args) || args.lan_join.is_some());
+     t.no_timetable_buses = args.no_timetable_buses;
+     if let Some(seed) = lan_seed {
+@@ -460,7 +461,8 @@ fn new_humans(
+         // the map's camera they filled the whole pool, and the players met nobody)
+         h.players_only = args.server.is_some() && player.is_none();
+         h.exact_fare = settings.exact_fare;
+-        h.transfer_percent = settings.passenger_transfer_percent;
++        h.optional_features = settings.optional_features;
++        h.transfer_percent = h.optional_features.connection_percent(settings.passenger_transfer_percent);
+         h.bad_driving = settings.pax_bad_driving;
+         h.boarding = settings.boarding.clone();
+         h.stand_chance = settings.standing_chance;
+diff --git a/crates/omsi-app/src/settings.rs b/crates/omsi-app/src/settings.rs
+index 51c5c69f2d126cc99a23d1ad96a1928cc16fb3e1..5eb4aafdbdc938f58dbe9894db9bb4be44f8c196 100644
+--- a/crates/omsi-app/src/settings.rs
++++ b/crates/omsi-app/src/settings.rs
+@@ -10,6 +10,7 @@ pub const SETTINGS_VERSION: u32 = 4;
+ 
+ #[derive(Debug, Clone, PartialEq)]
+ pub struct Settings {
++    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
+     /// Samples per pixel: 1, 2, 4 or 8.
+     pub msaa: u32,
+     /// Anisotropic filtering 1..16.
+@@ -558,7 +559,7 @@ impl Settings {
+     }
+     /// The defaults of a computer.
+     fn desktop() -> Self {
+-        Self { road_snow: true, ui_theme: "dark".into(), msaa: 4, anisotropy: 8, ssao: true, shadows: true, shadow_size: 2048, shadow_blobs: true, lamp_shadows: true, navigator: true, ui_opacity: 0.85, notes: true, ui_scale: 1.0, pause_quick_actions: "default".into(), ui_scale_window: true, navigator_corner: "bottom-left".into(), boarding: "auto".into(), passenger_animation: "enhanced".into(), passenger_transfer_percent: 20.0, passenger_umbrellas: true, ticket_chance_enabled: false, ticket_chance_percent: -1.0, passenger_hailing: true, passenger_hailing_maps: omsi_launcher_lib::passenger_defaults::MAPS.into(), units: "metric".into(), photo_mode: "simple".into(), character_models: "original".into(), standing_chance: 0.05, ambient: true, vol_ambient: 0.8, radio_fx: Default::default(), detail_textures: true, exact_fare: true, pax_bad_driving: true, auto_announce: false, enhanced: false, graphics: "vanilla_plus".into(), triple: Default::default(), triple_span: true, triple_hud_center: true, vr: false, vr_scale: 0.65, vr_head_smoothing_ms: 0.0, vr_mirror_rate: 16.0, vr_desktop_mirror: true, fullscreen: false, vsync: true, volume: 0.6, drive_keys: "simple".into(), touch_door_mode: "standard".into(), touch_pedal_length: 1.0, touch_pedal_deadzone: 0.15, post_aa: "fxaa".into(), render_scale: 0.0, upscaler: "default".into(), fsr_quality: "quality".into(), fsr_sharpness: 0.8, language: "ENG".into(), pax_voices: "all".into(), nav_arrows: false, nav_ai: true, nav_surface: true, nav_light: false, nav_3d: true, nav_classic_2d: false, nav_widget: true, milezero: false, nav_size: 1.0, get_up: false, trip_summary: true, full_tank: true, sim_thread: false, texture_compression: true, gpu_texture_compression: true, video_memory: 0, auto_clutch: true, momentary_gears: false, auto_shift: false, min_obj_size: 0.013, max_obj_dist: -1.0, max_fps: 0, chat: true, chat_size: 1.0, tooltips: true, name_tags: true, show_fps: false, perf_overlay: "off".into(), clouds: true, cloud_quality: "high".into(), street_light: "off".into(), ray_tracing_on: false, light_shadows: "street".into(), cloud_shadows: false, light_glow: false, rain_quality: "high".into(), vehicle_smoke: "all".into(), puddles: "high".into(), windy_trees: true, pax_density: 1.0, vol_ai: 1.0, vol_scenery: 1.0, mirror_size: 256, mirror_hud: 0, mirror_hud_every_frame: false, mirror_refresh: "full".into(), mirror_quality: "standard".into(), mirror_shadows: false, mirror_particles: false, doppler: true, driver: true, maintenance: 0, ai_unsched_factor: 1.0, ai_max_scheduled: 0, ai_max_parked: 0, ai_max_humans: 200, ai_wait_timed_stops_only: false, collision_vehicles: true, collision_objects: true, collision_pedestrians: true, realistic_road_physics: false, head_movement: true, driverview_smooth: true, hands_in_cab: false, alt_view: true, precision_zoom: false, time_speed: 1.0, time_sync: false, metar_sync: false, metar_station: String::new(), machine_translation: false, shadow_casters: "all".into(), ctrl_deadzone: 0.0, right_stick_look: true, ctrl_background: false, pad_steer_smooth: 120.0, pad_steer_linear: false, pad_steer_speed: 2.0, pad_deadzone: 0.08, pad_type: "auto".into(), pad_buttons: true, arrows_switch_cams: true, ctrl_off: String::new(), steering_linear: false, old_steering: false, red_steer_spd: false, reflections: 1.0, led_glow: 6, led_mips: 1.3, night_brightness: 0.0, mouse_sens: 1.0, mouse_pedal_strength: 1.0, graphics_api: "auto".into(), ff_invert: false, ff_enabled: true, ff_road_vib: 1.0, ff_engine_vib: 1.0, ff_fade: 0.28, brake_hold: true, mouse_steering: false, mouse_right_off: false, mouse_smooth: true, mouse_hold: true, mouse_pedals: true, key_pedal_speed: 1.0, look_sens: 1.0, look_smoothing_ms: 0.0, blinker_cancel: true, wheel_range: 900.0, wheel_lock: 0.0, cab_wheel_rotation: 0, fov: 0.0, camera_collision: true, steer_look: false, steer_look_angle: 30.0, steer_look_response: 0.25, head_idle: 0.0, head_idle_pace: 1.0, pedal_throttle: 1.0, pedal_brake: 1.0, seat: [0.0; 3], seat_pitch_deg: 0.0, head_tracking: false, head_tracking_port: 4242, head_tracking_invert: String::new(), head_tracking_yaw_sens: 100.0, head_tracking_pitch_sens: 100.0, head_tracking_roll_sens: 100.0, head_tracking_x_sens: 100.0, head_tracking_y_sens: 100.0, head_tracking_z_sens: 100.0, head_tracking_invert_yaw: false, head_tracking_invert_pitch: false, head_tracking_invert_roll: false, head_tracking_invert_x: false, head_tracking_invert_y: false, head_tracking_invert_z: false, head_tracking_source: "auto".into(), tobii_edges: false, head_tracking_smoothing: 0.5, head_tracking_dead_zone: 0.1, discord_status: true, discord_app_id: String::new(), voice_enabled: false, voice_mode: "ptt".into(), voice_mic_gain: 1.0, voice_threshold_db: -45.0, voice_input_device: String::new(), voice_volume: 1.0, voice_volume_nearby: 1.0, voice_volume_radio: 1.0, voice_range: 75.0, voice_talker_list: true, voice_all_off: false, info_bar: false, hud_sizes: [1.0; 3] }
++        Self { optional_features: Default::default(), road_snow: true, ui_theme: "dark".into(), msaa: 4, anisotropy: 8, ssao: true, shadows: true, shadow_size: 2048, shadow_blobs: true, lamp_shadows: true, navigator: true, ui_opacity: 0.85, notes: true, ui_scale: 1.0, pause_quick_actions: "default".into(), ui_scale_window: true, navigator_corner: "bottom-left".into(), boarding: "auto".into(), passenger_animation: "enhanced".into(), passenger_transfer_percent: 20.0, passenger_umbrellas: false, ticket_chance_enabled: false, ticket_chance_percent: -1.0, passenger_hailing: false, passenger_hailing_maps: omsi_launcher_lib::passenger_defaults::MAPS.into(), units: "metric".into(), photo_mode: "simple".into(), character_models: "original".into(), standing_chance: 0.05, ambient: true, vol_ambient: 0.8, radio_fx: Default::default(), detail_textures: true, exact_fare: true, pax_bad_driving: true, auto_announce: false, enhanced: false, graphics: "vanilla_plus".into(), triple: Default::default(), triple_span: true, triple_hud_center: true, vr: false, vr_scale: 0.65, vr_head_smoothing_ms: 0.0, vr_mirror_rate: 16.0, vr_desktop_mirror: true, fullscreen: false, vsync: true, volume: 0.6, drive_keys: "simple".into(), touch_door_mode: "standard".into(), touch_pedal_length: 1.0, touch_pedal_deadzone: 0.15, post_aa: "fxaa".into(), render_scale: 0.0, upscaler: "default".into(), fsr_quality: "quality".into(), fsr_sharpness: 0.8, language: "ENG".into(), pax_voices: "all".into(), nav_arrows: false, nav_ai: true, nav_surface: true, nav_light: false, nav_3d: true, nav_classic_2d: false, nav_widget: true, milezero: false, nav_size: 1.0, get_up: false, trip_summary: true, full_tank: true, sim_thread: false, texture_compression: true, gpu_texture_compression: true, video_memory: 0, auto_clutch: true, momentary_gears: false, auto_shift: false, min_obj_size: 0.013, max_obj_dist: -1.0, max_fps: 0, chat: true, chat_size: 1.0, tooltips: true, name_tags: true, show_fps: false, perf_overlay: "off".into(), clouds: true, cloud_quality: "high".into(), street_light: "off".into(), ray_tracing_on: false, light_shadows: "street".into(), cloud_shadows: false, light_glow: false, rain_quality: "high".into(), vehicle_smoke: "all".into(), puddles: "high".into(), windy_trees: true, pax_density: 1.0, vol_ai: 1.0, vol_scenery: 1.0, mirror_size: 256, mirror_hud: 0, mirror_hud_every_frame: false, mirror_refresh: "full".into(), mirror_quality: "standard".into(), mirror_shadows: false, mirror_particles: false, doppler: true, driver: true, maintenance: 0, ai_unsched_factor: 1.0, ai_max_scheduled: 0, ai_max_parked: 0, ai_max_humans: 200, ai_wait_timed_stops_only: false, collision_vehicles: true, collision_objects: true, collision_pedestrians: true, realistic_road_physics: false, head_movement: true, driverview_smooth: true, hands_in_cab: false, alt_view: true, precision_zoom: false, time_speed: 1.0, time_sync: false, metar_sync: false, metar_station: String::new(), machine_translation: false, shadow_casters: "all".into(), ctrl_deadzone: 0.0, right_stick_look: true, ctrl_background: false, pad_steer_smooth: 120.0, pad_steer_linear: false, pad_steer_speed: 2.0, pad_deadzone: 0.08, pad_type: "auto".into(), pad_buttons: true, arrows_switch_cams: true, ctrl_off: String::new(), steering_linear: false, old_steering: false, red_steer_spd: false, reflections: 1.0, led_glow: 6, led_mips: 1.3, night_brightness: 0.0, mouse_sens: 1.0, mouse_pedal_strength: 1.0, graphics_api: "auto".into(), ff_invert: false, ff_enabled: true, ff_road_vib: 1.0, ff_engine_vib: 1.0, ff_fade: 0.28, brake_hold: true, mouse_steering: false, mouse_right_off: false, mouse_smooth: true, mouse_hold: true, mouse_pedals: true, key_pedal_speed: 1.0, look_sens: 1.0, look_smoothing_ms: 0.0, blinker_cancel: true, wheel_range: 900.0, wheel_lock: 0.0, cab_wheel_rotation: 0, fov: 0.0, camera_collision: true, steer_look: false, steer_look_angle: 30.0, steer_look_response: 0.25, head_idle: 0.0, head_idle_pace: 1.0, pedal_throttle: 1.0, pedal_brake: 1.0, seat: [0.0; 3], seat_pitch_deg: 0.0, head_tracking: false, head_tracking_port: 4242, head_tracking_invert: String::new(), head_tracking_yaw_sens: 100.0, head_tracking_pitch_sens: 100.0, head_tracking_roll_sens: 100.0, head_tracking_x_sens: 100.0, head_tracking_y_sens: 100.0, head_tracking_z_sens: 100.0, head_tracking_invert_yaw: false, head_tracking_invert_pitch: false, head_tracking_invert_roll: false, head_tracking_invert_x: false, head_tracking_invert_y: false, head_tracking_invert_z: false, head_tracking_source: "auto".into(), tobii_edges: false, head_tracking_smoothing: 0.5, head_tracking_dead_zone: 0.1, discord_status: true, discord_app_id: String::new(), voice_enabled: false, voice_mode: "ptt".into(), voice_mic_gain: 1.0, voice_threshold_db: -45.0, voice_input_device: String::new(), voice_volume: 1.0, voice_volume_nearby: 1.0, voice_volume_radio: 1.0, voice_range: 75.0, voice_talker_list: true, voice_all_off: false, info_bar: false, hud_sizes: [1.0; 3] }
+     }
+ }
+ 
+@@ -649,6 +650,7 @@ impl Settings {
+             let Some((k, v)) = line.split_once('=') else { continue };
+             let (k, v) = (k.trim().to_ascii_lowercase(), v.trim());
+             let b = |v: &str| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes");
++            if s.optional_features.set(&k, b(v)).is_some() { continue; }
+             match k.as_str() {
+                 "version" => version = v.parse().unwrap_or(0),
+                 "msaa" => s.msaa = v.parse().unwrap_or(s.msaa),
+@@ -938,7 +940,6 @@ impl Settings {
+         if !theme.0 && theme.1 == Some(true) { s.ui_theme = "light".into(); }
+         s.settle_after_reading(graphics, version);
+         if !effects_migrated{
+-            s.passenger_animation="enhanced".into();s.passenger_umbrellas=true;s.passenger_hailing=true;
+             s.passenger_hailing_maps=omsi_launcher_lib::passenger_defaults::migrate_maps(&s.passenger_hailing_maps);
+         }
+         s
+@@ -1054,6 +1055,7 @@ impl Settings {
+         text.push_str(&format!("gpu_texture_compression={}\n", self.gpu_texture_compression as u8));
+         text.push_str(&format!("ticket_chance_enabled={}\nticket_chance_percent={}\n",self.ticket_chance_enabled as u8,self.ticket_chance_percent));
+         text.push_str(&format!("passenger_transfer_percent={}\n",self.passenger_transfer_percent));
++        self.optional_features.write_text(&mut text);
+         text.push_str(&format!("passenger_effects_221=1\npassenger_animation={}\npassenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n", self.passenger_animation,self.passenger_umbrellas as u8,self.passenger_hailing as u8,self.passenger_hailing_maps));
+         text.push_str(&format!("photo_mode={}\n", self.photo_mode));
+         text.push_str(&format!("character_models={}\n", self.character_models));
+@@ -1237,6 +1239,9 @@ pub fn view_distance() -> Option<f64> {
+ 
+ #[cfg(test)]
+ mod tests;
++#[cfg(test)]
++#[path = "settings/optional_features_tests.rs"]
++mod optional_features_tests;
+ 
+ impl Settings {
+     /// The player's bus's `wearlifespan` for the maintenance condition (OMSI's table).
+diff --git a/crates/omsi-app/src/settings/optional_features_tests.rs b/crates/omsi-app/src/settings/optional_features_tests.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..4eec5dc0c00a8b7708b0ede0970ab8bcb35b5382
+--- /dev/null
++++ b/crates/omsi-app/src/settings/optional_features_tests.rs
+@@ -0,0 +1,70 @@
++use super::Settings;
++use omsi_cfg::optional_features::{FEATURES, HELP, HOST_HELP};
++
++#[test]
++fn both_settings_writers_preserve_every_independent_switch_and_explicit_false() {
++    for bits in 0..(1usize << FEATURES.len()) {
++        let mut text = String::from("version=4\npassenger_effects_221=1\nboarding=walk\n");
++        for (index, feature) in FEATURES.iter().enumerate() {
++            text.push_str(&format!("{}={}\n", feature.key, usize::from(bits & (1 << index) != 0)));
++        }
++        let native = Settings::from_text(&text);
++        let launcher = omsi_launcher_lib::settings_from_text_on(Some(&text), false);
++        let native_saved = native.to_text();
++        let launcher_saved = omsi_launcher_lib::settings_to_text(&launcher, Some(&text));
++        let back_native = Settings::from_text(&launcher_saved);
++        let back_launcher = omsi_launcher_lib::settings_from_text_on(Some(&native_saved), false);
++        assert_eq!(back_native.boarding, "walk");
++        for (index, feature) in FEATURES.iter().enumerate() {
++            let enabled = bits & (1 << index) != 0;
++            assert_eq!(native.optional_features.get(feature.key), Some(enabled), "native {}", feature.key);
++            assert_eq!(launcher[feature.key].as_bool(), Some(enabled), "launcher {}", feature.key);
++            assert_eq!(back_native.optional_features.get(feature.key), Some(enabled), "native restart {}", feature.key);
++            assert_eq!(back_launcher[feature.key].as_bool(), Some(enabled), "launcher restart {}", feature.key);
++            for saved in [&native_saved, &launcher_saved] {
++                assert_eq!(saved.lines().filter(|line| line.starts_with(&format!("{}=", feature.key))).count(), 1);
++                assert!(saved.contains(&format!("{}={}\n", feature.key, u8::from(enabled))));
++            }
++        }
++    }
++}
++
++#[test]
++fn fresh_and_legacy_settings_do_not_silently_enable_optional_additions() {
++    for text in ["", "version=2\n", "version=4\npassenger_umbrellas=0\npassenger_hailing=0\n"] {
++        let native = Settings::from_text(text);
++        let launcher = omsi_launcher_lib::settings_from_text_on(Some(text), false);
++        for feature in FEATURES {
++            assert_eq!(native.optional_features.get(feature.key), Some(false));
++            assert_eq!(launcher[feature.key], false);
++        }
++        assert!(!native.passenger_umbrellas && !native.passenger_hailing);
++        assert_eq!(launcher["passenger_umbrellas"], false);
++        assert_eq!(launcher["passenger_hailing"], false);
++    }
++    let legacy = "version=4\npassenger_animation=original\npassenger_umbrellas=1\npassenger_hailing=1\n";
++    let native = Settings::from_text(legacy);
++    assert_eq!(native.passenger_animation, "original");
++    assert!(native.passenger_umbrellas && native.passenger_hailing);
++}
++
++#[test]
++fn every_optional_control_and_help_has_catalog_text_in_all_supported_languages() {
++    let keys = FEATURES.iter().map(|feature| feature.label).chain([
++        HELP, HOST_HELP, "Passenger umbrellas", "Signal buses on this map",
++        "Passengers signal approaching buses", "Connection chance",
++        "Probability for eligible transfers; default 20%", "Override ticket purchase chance",
++        "Ticket purchase chance", "Default", "How passengers get their tickets", "No maps found.",
++    ]);
++    for key in keys {
++        for &(_, _, locale, _, _) in omsi_cfg::lang::LANGUAGES {
++            if locale == "en" { continue; }
++            let native = crate::_rust_i18n_try_translate(locale, key)
++                .unwrap_or_else(|| panic!("missing {locale}: {key}"));
++            assert!(!native.trim().is_empty());
++            assert_ne!(native.as_ref(), key, "English placeholder for {locale}: {key}");
++            let table = omsi_launcher_lib::i18n::table(crate::_LOCALES, locale);
++            assert_eq!(table.get(key).map(String::as_str), Some(native.as_ref()), "different settings interfaces {locale}: {key}");
++        }
++    }
++}
+diff --git a/crates/omsi-app/src/traffic.rs b/crates/omsi-app/src/traffic.rs
+index 89aa59af0e50287c76190e980b03bf4bbe750532..cad464ed85ca421d673d14ae922ac1bad108c3b5 100644
+--- a/crates/omsi-app/src/traffic.rs
++++ b/crates/omsi-app/src/traffic.rs
+@@ -46,6 +46,7 @@ pub(crate) use omsi_sim::ai_traffic::viewer::Viewer;
+ /// car on the road or take it off write down what the pictures have to follow (`events`),
+ /// replayed by `view_sync::apply_traffic`.
+ pub struct Traffic {
++    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
+     pub sim: TrafficSim,
+     pub greetings: omsi_sim::ai_traffic::greetings::Greetings,
+     /// What the renders have to follow since the view last caught up, oldest first (see
+@@ -108,6 +109,7 @@ impl Traffic {
+         Traffic {
+             sim,
+             greetings: Default::default(),
++            optional_features: Default::default(),
+             events: Vec::new(),
+             snapshot: Default::default(),
+             looks: Default::default(),
+diff --git a/crates/omsi-app/src/traffic/population.rs b/crates/omsi-app/src/traffic/population.rs
+index 686f71e120954570b02918e8c1f40483056b8f23..c0415f94812b4821824078c865b794e73bdac463 100644
+--- a/crates/omsi-app/src/traffic/population.rs
++++ b/crates/omsi-app/src/traffic/population.rs
+@@ -336,33 +336,9 @@ impl Traffic {
+         }
+         // aircraft: a few on the flight paths, independent of the street target
+         let has_air = self.sim.types.iter().any(|t| t.2 == LaneKind::Air);
+-        // the map's traffic density by hour (and group) scales the street traffic ...
+-        let density = self.street_density();
+-        // ... and so does how much road there is around: the same number of cars looks
+-        // empty on a six-lane Berlin junction and crowded on a village lane, so the count
+-        // asked for is per a neighbourhood of about 250 lanes; and as Omsi spawns on each
+-        // path at a rate of its [rule] trafficdensity, paths of low density bring fewer cars
+-        // and those of density 0 (or kept clear of cars) none
+-        let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
+-            .into_iter()
+-            .map(|i| &self.sim.net.lanes[i])
+-            .filter(|l| {
+-                l.kind == LaneKind::Street
+-                    && l.points
+-                        .first()
+-                        .map(|p| (*p - center).length() < self.sim.spawn_radius)
+-                        .unwrap_or(false)
+-            })
+-            .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
+-            .collect();
+-        // Physical lane length matters on avenues: a few long parallel paths can
+-        // carry more cars than dozens of very short junction segments.
+-        let lane_metres:f32=self.sim.net.lanes_starting_near(center,self.sim.spawn_radius).into_iter()
+-            .filter_map(|i|self.sim.net.lanes.get(i)).filter(|l|l.kind==LaneKind::Street&&!l.no_cars&&l.density>0.0)
+-            .filter(|l|(l.start()-center).truncate().length()<self.sim.spawn_radius)
+-            .map(|l|l.length().clamp(0.0,300.0)*l.density.clamp(0.0,2.0)).sum();
+-        let scale=road_scale(&near_density).max((lane_metres/6000.0).clamp(1.0,4.0));
+-        let street_target = (self.sim.target as f32 * density * scale).round() as usize;
++        // The same local-road calculation is used for the host and each LAN bubble.
++        // With the extra-density option off it is the original road_scale target.
++        let street_target = self.street_target_near(center);
+         // the cars that come into range again, where they have got to
+         self.wake_dormant(world, center, street_target);
+         // the whole map's population: as dense as around the player, on every street the
+@@ -394,14 +370,24 @@ impl Traffic {
+ 
+     /// Road population near the receiving LAN player, not near the host.
+     fn street_target_near(&self, center: DVec3) -> usize {
+-        let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
+-            .into_iter()
+-            .map(|i| &self.sim.net.lanes[i])
+-            .filter(|l| l.kind == LaneKind::Street
+-                && l.points.first().is_some_and(|p| (*p - center).length() < self.sim.spawn_radius))
+-            .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
+-            .collect();
+-        (self.sim.target as f32 * self.street_density() * road_scale(&near_density)).round() as usize
++        let extra = self.optional_features.extra_traffic_density;
++        let lanes = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius);
++        let mut densities = Vec::with_capacity(lanes.len());
++        let mut lane_metres = 0.0;
++        for index in lanes {
++            let lane = &self.sim.net.lanes[index];
++            if lane.kind != LaneKind::Street
++                || !lane.points.first().is_some_and(|p| (*p - center).length() < self.sim.spawn_radius) {
++                continue;
++            }
++            densities.push(if lane.no_cars { 0.0 } else { lane.density.clamp(0.0, 4.0) });
++            // No length summation is performed for a disabled optional feature.
++            if extra && !lane.no_cars && lane.density.is_finite() && lane.density > 0.0 {
++                lane_metres += lane.length().clamp(0.0, 300.0) * lane.density.clamp(0.0, 2.0);
++            }
++        }
++        let scale = optional_road_scale(&densities, lane_metres, extra);
++        (self.sim.target as f32 * self.street_density() * scale).round() as usize
+     }
+ 
+     #[allow(clippy::too_many_arguments)]
+@@ -882,3 +868,30 @@ mod missing_tile_tests {
+         assert!(!ground_missing_for_good(None, (4, 9), map_has, |_| true));
+     }
+ }
++
++/// The off path is exactly the existing road-density scale. Sparse/closed roads
++/// are not forced to a minimum scale of one by the optional length correction.
++fn optional_road_scale(densities: &[f32], lane_metres: f32, enabled: bool) -> f32 {
++    let original = road_scale(densities);
++    if !enabled || !lane_metres.is_finite() { return original; }
++    original.max((lane_metres / 6000.0).clamp(0.0, 4.0))
++}
++
++#[cfg(test)]
++mod optional_density_tests {
++    use super::{optional_road_scale, road_scale};
++    #[test]
++    fn disabled_extra_density_keeps_the_original_target_and_zero_roads_stay_zero() {
++        for densities in [vec![], vec![0.0], vec![0.1, 0.2], vec![1.0; 300]] {
++            assert_eq!(optional_road_scale(&densities, 50000.0, false), road_scale(&densities));
++            assert_eq!(optional_road_scale(&densities, 0.0, true), road_scale(&densities));
++        }
++        assert_eq!(optional_road_scale(&[0.0], 0.0, true), 0.0);
++    }
++    #[test]
++    fn long_avenues_can_increase_the_shared_local_target_with_a_bounded_extra_scale() {
++        let original = road_scale(&[1.0, 1.0]);
++        assert!(optional_road_scale(&[1.0, 1.0], 12000.0, true) > original);
++        assert_eq!(optional_road_scale(&[1.0, 1.0], 100000.0, true), 4.0);
++    }
++}
+diff --git a/crates/omsi-cfg/src/lib.rs b/crates/omsi-cfg/src/lib.rs
+index 4fed6059a2af13cf3d359c806685b5fa7f5e9c14..2a059879a7e30c615804f7802b1195dbc80bd9ea 100644
+--- a/crates/omsi-cfg/src/lib.rs
++++ b/crates/omsi-cfg/src/lib.rs
+@@ -27,6 +27,7 @@ pub mod codepage;
+ pub mod collate;
+ pub mod flags;
+ pub mod lang;
++pub mod optional_features;
+ mod keywords;
+ pub mod number;
+ pub mod par;
+diff --git a/crates/omsi-cfg/src/optional_features.rs b/crates/omsi-cfg/src/optional_features.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..9725c3cb4b19181f1d2293adda38f90ef9fe4311
+--- /dev/null
++++ b/crates/omsi-cfg/src/optional_features.rs
+@@ -0,0 +1,130 @@
++//! Optional native additions share setting keys in the game and launcher. Missing
++//! keys stay off, including legacy files. Enabling one never enables another.
++
++#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
++pub struct OptionalFeatures {
++    pub bcs_event_scenes: bool,
++    pub bcs_inspectors: bool,
++    pub passenger_door_comments: bool,
++    pub passenger_exit_thanks: bool,
++    pub extra_traffic_density: bool,
++    pub ai_bus_greetings: bool,
++    pub passenger_connections_enabled: bool,
++}
++
++pub struct Feature {
++    pub key: &'static str,
++    pub label: &'static str,
++}
++
++pub const HELP: &str = "Takes effect when the game starts the next time";
++pub const HOST_HELP: &str = "In multiplayer, shared AI vehicles are controlled by the host. Restart the game after changing this option.";
++pub fn help(key: &str) -> &'static str {
++    if matches!(key, "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings") { HOST_HELP } else { HELP }
++}
++pub const FEATURES: &[Feature] = &[
++    Feature { key: "bcs_event_scenes", label: "BCS event scenes" },
++    Feature { key: "bcs_inspectors", label: "BCS ticket inspectors" },
++    Feature { key: "passenger_door_comments", label: "Passenger door and missed-stop comments" },
++    Feature { key: "passenger_exit_thanks", label: "Passengers thank the driver when alighting" },
++    Feature { key: "extra_traffic_density", label: "Extra traffic on wide roads" },
++    Feature { key: "ai_bus_greetings", label: "AI bus greetings" },
++    Feature { key: "passenger_connections_enabled", label: "Passenger connections between lines" },
++];
++
++pub fn is_key(key: &str) -> bool {
++    FEATURES.iter().any(|feature| feature.key == key)
++}
++
++impl OptionalFeatures {
++    pub fn needs_bcs_capture(self) -> bool {
++        self.bcs_event_scenes || self.bcs_inspectors
++    }
++
++    pub fn get(self, key: &str) -> Option<bool> {
++        Some(match key {
++            "bcs_event_scenes" => self.bcs_event_scenes,
++            "bcs_inspectors" => self.bcs_inspectors,
++            "passenger_door_comments" => self.passenger_door_comments,
++            "passenger_exit_thanks" => self.passenger_exit_thanks,
++            "extra_traffic_density" => self.extra_traffic_density,
++            "ai_bus_greetings" => self.ai_bus_greetings,
++            "passenger_connections_enabled" => self.passenger_connections_enabled,
++            _ => return None,
++        })
++    }
++
++    pub fn set(&mut self, key: &str, enabled: bool) -> Option<&'static str> {
++        let feature = FEATURES.iter().find(|feature| feature.key == key)?;
++        match key {
++            "bcs_event_scenes" => self.bcs_event_scenes = enabled,
++            "bcs_inspectors" => self.bcs_inspectors = enabled,
++            "passenger_door_comments" => self.passenger_door_comments = enabled,
++            "passenger_exit_thanks" => self.passenger_exit_thanks = enabled,
++            "extra_traffic_density" => self.extra_traffic_density = enabled,
++            "ai_bus_greetings" => self.ai_bus_greetings = enabled,
++            "passenger_connections_enabled" => self.passenger_connections_enabled = enabled,
++            _ => return None,
++        }
++        Some(feature.key)
++    }
++
++    pub fn write_text(self, text: &mut String) {
++        use std::fmt::Write;
++        for feature in FEATURES {
++            let _ = writeln!(text, "{}={}", feature.key, u8::from(self.get(feature.key).unwrap_or(false)));
++        }
++    }
++
++    /// Returning before any random draw is the simulation's existing 0% path.
++    pub fn connection_percent(self, requested: f32) -> f32 {
++        if !self.passenger_connections_enabled { return 0.0; }
++        if requested.is_finite() { requested.clamp(0.0, 100.0) } else { 20.0 }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn options_start_off_are_independent_and_keep_explicit_false() {
++        let mut value = OptionalFeatures::default();
++        for feature in FEATURES {
++            assert_eq!(value.get(feature.key), Some(false));
++            value.set(feature.key, true).unwrap();
++            for other in FEATURES {
++                assert_eq!(value.get(other.key), Some(other.key == feature.key));
++            }
++            value.set(feature.key, false).unwrap();
++            assert_eq!(value, OptionalFeatures::default());
++        }
++        assert_eq!(value.set("unknown_feature", true), None);
++        let mut saved = String::new();
++        value.write_text(&mut saved);
++        for feature in FEATURES { assert!(saved.contains(&format!("{}=0\n", feature.key))); }
++    }
++
++    #[test]
++    fn disabled_connections_are_zero_even_if_the_saved_percentage_is_one_hundred() {
++        let mut value = OptionalFeatures::default();
++        assert_eq!(value.connection_percent(100.0), 0.0);
++        value.passenger_connections_enabled = true;
++        assert_eq!(value.connection_percent(100.0), 100.0);
++        assert_eq!(value.connection_percent(f32::NAN), 20.0);
++        value.passenger_connections_enabled = false;
++        assert_eq!(value.connection_percent(20.0), 0.0);
++    }
++
++    #[test]
++    fn comments_and_traffic_do_not_start_bcs_capture_and_inspectors_do_not_enable_scenes() {
++        let mut value = OptionalFeatures::default();
++        for feature in FEATURES {
++            value.set(feature.key, true);
++            assert_eq!(value.needs_bcs_capture(), matches!(feature.key, "bcs_event_scenes" | "bcs_inspectors"));
++            if feature.key == "bcs_inspectors" { assert!(!value.bcs_event_scenes); }
++            value.set(feature.key, false);
++        }
++        assert!(!value.needs_bcs_capture());
++    }
++}
+diff --git a/crates/omsi-launcher-core/src/lib.rs b/crates/omsi-launcher-core/src/lib.rs
+index 4cff2bb02f10daca1583ab0988099fdcd5ba5e76..8fd2107674623b61434664482c866a8dbb09ea0f 100644
+--- a/crates/omsi-launcher-core/src/lib.rs
++++ b/crates/omsi-launcher-core/src/lib.rs
+@@ -25,11 +25,11 @@ mod ticket_chance_2211_tests{
+ #[cfg(test)]
+ mod passenger_221_tests {
+     #[test]
+-    fn direct_bcs_start_migrates_old_config_and_preserves_later_opt_out() {
++    fn direct_bcs_start_preserves_explicit_legacy_opt_out() {
+         let old="version=4\npassenger_animation=original\npassenger_umbrellas=0\npassenger_hailing=0\nboarding=walk\n";
+         let settings=super::settings_from_text_on(Some(old),false);
+-        assert_eq!(settings["passenger_animation"],"enhanced");
+-        assert_eq!(settings["passenger_umbrellas"],true);assert_eq!(settings["passenger_hailing"],true);
++        assert_eq!(settings["passenger_animation"],"original");
++        assert_eq!(settings["passenger_umbrellas"],false);assert_eq!(settings["passenger_hailing"],false);
+         assert_eq!(settings["boarding"],"walk");
+         let off="version=4\npassenger_effects_221=1\npassenger_animation=original\npassenger_umbrellas=0\npassenger_hailing=0\npassenger_hailing_maps=\n";
+         let settings=super::settings_from_text_on(Some(off),false);
+@@ -2322,8 +2322,9 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
+     v["ticket_chance_enabled"]=json!(false);
+     v["ticket_chance_percent"]=json!(-1.0);
+     v["passenger_transfer_percent"]=json!(20.0);
+-    v["passenger_umbrellas"]=json!(true);
+-    v["passenger_hailing"]=json!(true);
++    for feature in omsi_cfg::optional_features::FEATURES { v[feature.key] = json!(false); }
++    v["passenger_umbrellas"]=json!(false);
++    v["passenger_hailing"]=json!(false);
+     v["passenger_hailing_maps"]=json!(passenger_defaults::MAPS);
+     v["passenger_effects_221"]=json!(true);
+     v["photo_mode"] = json!("simple");
+@@ -2385,6 +2386,7 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
+         let Some((k, val)) = line.split_once('=') else { continue };
+         let (k, val) = (setting_key(k), val.trim());
+         let b = |x: &str| matches!(x.to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes");
++        if omsi_cfg::optional_features::is_key(&k) { v[&k] = json!(b(val)); continue; }
+         match k.as_str() {
+             "pause_quick_actions" => v[&k] = json!(val),
+             "anisotropy" => v[&k] = json!(val.parse::<i64>().unwrap_or(8).clamp(1, 16)),
+@@ -2551,7 +2553,6 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
+         v["passenger_animation"] = json!("original");
+     }
+     if !effects_migrated{
+-        v["passenger_animation"]=json!("enhanced");v["passenger_umbrellas"]=json!(true);v["passenger_hailing"]=json!(true);
+         v["passenger_hailing_maps"]=json!(passenger_defaults::migrate_maps(v["passenger_hailing_maps"].as_str().unwrap_or("")));
+     }
+     v
+@@ -2931,6 +2932,7 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
+     text.push_str(&format!("passenger_animation={}\n", if v.get("passenger_animation").and_then(|x| x.as_str()) == Some("enhanced") { "enhanced" } else { "original" }));
+     text.push_str(&format!("ticket_chance_enabled={}\nticket_chance_percent={}\n",b("ticket_chance_enabled",false),v.get("ticket_chance_percent").and_then(|x|x.as_f64()).filter(|x|x.is_finite()).unwrap_or(-1.0).clamp(-1.0,100.0)));
+     text.push_str(&format!("passenger_transfer_percent={}\n",f("passenger_transfer_percent",20.0).clamp(0.0,100.0)));
++    for feature in omsi_cfg::optional_features::FEATURES { text.push_str(&format!("{}={}\n", feature.key, b(feature.key, false))); }
+     text.push_str(&format!("passenger_effects_221=1\npassenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n",b("passenger_umbrellas",true),b("passenger_hailing",true),v.get("passenger_hailing_maps").and_then(|x|x.as_str()).unwrap_or(passenger_defaults::MAPS).replace(['\r','\n'],"")));
+     text.push_str(&format!("character_models={}\n", if v.get("character_models").and_then(|x| x.as_str()) == Some("improved") { "improved" } else { "original" }));
+     text.push_str(&format!("units={}\n", units_setting(v.get("units").and_then(|x| x.as_str()).unwrap_or("metric"))));
+diff --git a/crates/omsi-launcher-core/src/passenger_animation_tests.rs b/crates/omsi-launcher-core/src/passenger_animation_tests.rs
+index 352d57c5ae98650ddcc3ef7aa3aaa6b253ed3e17..d97f100c615f65ebf8a1ed2d20256184588375f3 100644
+--- a/crates/omsi-launcher-core/src/passenger_animation_tests.rs
++++ b/crates/omsi-launcher-core/src/passenger_animation_tests.rs
+@@ -1,7 +1,7 @@
+ #[test]
+     fn passenger_animation_is_saved_and_restored() {
+         assert_eq!(settings_from_text(None)["passenger_animation"], "enhanced");
+-        assert_eq!(settings_from_text(Some("version=2\npassenger_animation=original\n"))["passenger_animation"], "enhanced");
++        assert_eq!(settings_from_text(Some("version=2\npassenger_animation=original\n"))["passenger_animation"], "original");
+         assert_eq!(settings_from_text(Some("version=2\npassenger_animation=enhanced\n"))["passenger_animation"], "enhanced");
+         assert_eq!(settings_from_text(Some("version=3\npassenger_animation=enhanced\n"))["passenger_animation"], "enhanced");
+         assert_eq!(settings_from_text(Some("version=4\npassenger_animation=enhanced\n"))["passenger_animation"], "enhanced");
 diff --git a/crates/omsi-sim/src/people.rs b/crates/omsi-sim/src/people.rs
 index ac9df1efd6d7a2ebddfbf0315a1faf3a4abe6954..699ff52420089553c6b0acaaf053f0f58b55187b 100644
 --- a/crates/omsi-sim/src/people.rs
@@ -334,11 +1581,168 @@ index 0000000000000000000000000000000000000000..93140e67f8a7743a78a8fb09f94dc58c
 +        assert_eq!(Dialog::door_reaction(false, false), Dialog::OpenDoor);
 +    }
 +}
+diff --git a/crates/omsi-sim/src/people/inspector.rs b/crates/omsi-sim/src/people/inspector.rs
+index 60ec1653a2ce883a93a05763a85291d2044043e1..4a232e463f47af9ec9453c70c71af079a0a816ca 100644
+--- a/crates/omsi-sim/src/people/inspector.rs
++++ b/crates/omsi-sim/src/people/inspector.rs
+@@ -75,9 +75,15 @@ impl PeopleSim {
+     /// A disconnected cabin path leaves the character standing rather than teleporting.
+     pub fn step_bcs_inspector(&mut self, id:u32, checked:Option<u32>, paused:bool) -> bool {
+         let Some(i)=self.people.iter().position(|p|p.id==id&&!p.remote) else{return false;};
+-        let Some(bn)=self.last_buses.iter().find(|b|b.id==BusId::Player).cloned() else{return true;};
+-        let Some(p)=self.pax(i).cloned().filter(|p|p.inspector) else{return false;};
+-        let Some(seat)=p.seat.and_then(|k|bn.cabin.seats.get(k)).cloned() else{return false;};
++        let Some(bn)=self.last_buses.iter().find(|b|b.id==BusId::Player) else{return true;};
++        let Some(p)=self.pax(i).filter(|p|p.inspector) else{return false;};
++        let Some(seat)=p.seat.and_then(|k|bn.cabin.seats.get(k)) else{return false;};
++        // A walking patrol already has its route. Keep the original validity checks,
++        // then return before cloning the bus/Pax or rebuilding all cabin waypoints.
++        if !paused && checked.is_some() && p.st==5 { return true; }
++        let seat=seat.clone();
++        let p=p.clone();
++        let bn=bn.clone();
+         if checked.is_none() && p.task==Task::SittingInBus {return true;}
+         if paused {
+             if let Some(p)=self.pax_mut(i){p.st=0;p.speed=0.0;p.pax_state=0.0;}
+diff --git a/crates/omsi-sim/src/people/model.rs b/crates/omsi-sim/src/people/model.rs
+index fa00ebde87accd96b7cf919332eeddabd870a3dd..b340c5bdba292eb9d9123b7d423748b803fa0a8e 100644
+--- a/crates/omsi-sim/src/people/model.rs
++++ b/crates/omsi-sim/src/people/model.rs
+@@ -247,6 +247,7 @@ pub const CHAT_PAUSE: f64 = 12.0;
+ pub type WallCell = (f64, Vec<(Block, f64, f64)>);
+ 
+ pub struct PeopleSim {
++    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
+     pub types: Vec<Arc<HumanType>>,
+     pub people: Vec<Person>,
+     pub rng: u64,
+diff --git a/crates/omsi-sim/src/people/pax/tests.rs b/crates/omsi-sim/src/people/pax/tests.rs
+index 1c0d82a480ee331e02a7740e9a3e3c1a2d3979f1..ec120bee1759a25d94bed222a431b02785330dac 100644
+--- a/crates/omsi-sim/src/people/pax/tests.rs
++++ b/crates/omsi-sim/src/people/pax/tests.rs
+@@ -106,11 +106,18 @@ fn arriving_ai_uses_the_timetable_stop_not_a_neighbour() {
+     );
+     bus.served = None;
+     bus.next_stop = None;
++    assert_eq!(
++        register(&mut humans, &bus).next,
++        Some(42),
++        "unknown routes choose the nearest same-direction stop rather than the last object id"
++    );
++    humans.stops.get_mut(&42).unwrap().pos = DVec3::Y * 9.0;
+     assert_eq!(
+         register(&mut humans, &bus).next,
+         Some(99),
+-        "unknown routes retain the geometric fallback"
++        "the geometric fallback follows distance when the other stop becomes nearer"
+     );
++    humans.stops.get_mut(&42).unwrap().pos = DVec3::ZERO;
+     bus.next_stop = Some(RequestStop {
+         id: 42,
+         name: "Scheduled".into(),
+diff --git a/crates/omsi-sim/src/people/pax_tick.rs b/crates/omsi-sim/src/people/pax_tick.rs
+index f091aba8a17de99a278ec1491be09ac5c93f7dfb..dadb0e011660f2c4331a895c72cc1bd515e4bf1b 100644
+--- a/crates/omsi-sim/src/people/pax_tick.rs
++++ b/crates/omsi-sim/src/people/pax_tick.rs
+@@ -201,10 +201,12 @@ impl PeopleSim {
+                 None => p.discomfort = 0.0,
+             }
+         }
+-        if let Some(bn)=self.pax(i).and_then(|p|p.bus.or((p.task==Task::WaitingForBus).then_some(BusId::Player))).and_then(|b|bus_ix.get(&b)).map(|k|&buses[*k]) {
+-            let near=at_stops.get(&bn.id).is_some_and(|r|r.near.iter().any(|id|
+-                self.stops.get(id).is_some_and(|s|(s.pos-bn.pos).truncate().length()<22.0)));
+-            self.door_reaction(i,bn,near,dt);
++        if self.optional_features.passenger_door_comments {
++            if let Some(bn)=self.pax(i).and_then(|p|p.bus.or((p.task==Task::WaitingForBus).then_some(BusId::Player))).and_then(|b|bus_ix.get(&b)).map(|k|&buses[*k]) {
++                let near=at_stops.get(&bn.id).is_some_and(|r|r.near.iter().any(|id|
++                    self.stops.get(id).is_some_and(|s|(s.pos-bn.pos).truncate().length()<22.0)));
++                self.door_reaction(i,bn,near,dt);
++            }
+         }
+         let held = !self.people[i].remote && self.pax(i).is_some_and(|p|
+             (p.responder_hold || p.inspector) && p.inside == Some(BusId::Player)
+diff --git a/crates/omsi-sim/src/people/reaction_options_tests.rs b/crates/omsi-sim/src/people/reaction_options_tests.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..bc4eb49e4acf1630a9ccb313202d9b13cfd04c94
+--- /dev/null
++++ b/crates/omsi-sim/src/people/reaction_options_tests.rs
+@@ -0,0 +1,53 @@
++use super::*;
++
++#[test]
++fn disabled_reactions_do_not_change_waits_or_rng_and_enabled_thanks_are_cosmetic() {
++    let root = std::env::temp_dir().join(format!("omsi-optional-reactions-{}", std::process::id()));
++    let humans = root.join("Humans/Test");
++    std::fs::create_dir_all(&humans).unwrap();
++    std::fs::write(humans.join("person.hum"), "[model]\nmodel.cfg\n").unwrap();
++    std::fs::write(humans.join("model.cfg"), "").unwrap();
++    std::fs::write(root.join("test.bus"), "[boundingbox]\n2.5\n12\n3\n0\n0\n1.5\n[passengercabin]\ncabin.cfg\n[paths]\npaths.cfg\n").unwrap();
++    std::fs::write(root.join("paths.cfg"), "[pathpnt]\n0\n0\n0.4\n[pathpnt]\n0\n1\n0.4\n[pathlink]\n0\n1\n").unwrap();
++    std::fs::write(root.join("cabin.cfg"), "[entry]\n0\n[exit]\n0\n[passpos]\n-0.5\n0\n0.9\n0.45\n0\n").unwrap();
++    let def = omsi_vehicle::Vehicle::load(&root.join("test.bus")).unwrap();
++    let cabin = Arc::new(Cabin::load_train(&[(&def, Vec3::ZERO, f32::INFINITY)]).unwrap());
++    let bus = BusNow {
++        id: BusId::Player, cabin, pos: DVec3::ZERO, rot: Mat4::IDENTITY, heading: 0.0,
++        speed: 0.0, entry_open: vec![true], exit_open: vec![false], walk_open: None,
++        interior: 0.0, air: CabinAir::default(), half: DVec2::new(1.25, 6.0),
++        centre: DVec2::ZERO, accel: DVec2::ZERO, trailers: vec![], terminus: Some("Town".into()),
++        takes: Takes::Terminus, next_stop: None, places_off: vec![], served: None, route: None,
++    };
++    let world = crate::world_data::WorldData::default();
++    let mut people = PeopleSim::new(&root, 20);
++    let i = people.spawn(&world, DVec3::ZERO, 0.0, State::Pax(Box::new(Pax::new(1.0, 0.5)))).unwrap();
++    let p = people.pax_mut(i).unwrap();
++    p.bus = Some(BusId::Player); p.inside = Some(BusId::Player);
++    p.task = Task::InBusToExit; p.door = Some(0); p.pos = DVec3::ZERO;
++    p.door_reaction_wait = 4.9;
++    people.time = 100.0;
++    let rng = people.rng;
++
++    people.door_reaction(i, &bus, true, 0.25);
++    people.thank_on_exit(usize::MAX);
++    assert_eq!(people.pax(i).unwrap().door_reaction_wait, 4.9);
++    assert_eq!(people.rng, rng);
++    assert!(people.dialog.is_none());
++
++    let selected = (1..1000).find(|&id| exit_thanks_selected(id, 0)).unwrap();
++    people.people[i].id = selected;
++    people.optional_features.passenger_exit_thanks = true;
++    people.thank_on_exit(i);
++    assert_eq!(people.dialog.as_deref(), Some(PassengerDialog::ExitThanks.id()));
++    assert_eq!(people.rng, rng, "cosmetic thanks must not alter boarding/ticket RNG");
++
++    people.dialog = None;
++    people.last_chat = -100.0;
++    people.optional_features.passenger_door_comments = true;
++    people.door_reaction(i, &bus, true, 0.25);
++    assert!(people.pax(i).unwrap().door_reaction_wait > 4.9);
++    assert_eq!(people.dialog.as_deref(), Some(PassengerDialog::OpenDoor.id()));
++    assert_eq!(people.rng, rng);
++    std::fs::remove_dir_all(root).unwrap();
++}
 diff --git a/crates/omsi-sim/src/people/reactions.rs b/crates/omsi-sim/src/people/reactions.rs
-index 56dc27423afcbe4225e72776a09f3c88b8dcfac4..e3c13532a83fcfcbabfa4ae16c60c36f5c13b46e 100644
+index 56dc27423afcbe4225e72776a09f3c88b8dcfac4..76b1b1a1b79fc7990eb203d91f6a84fba26e12c2 100644
 --- a/crates/omsi-sim/src/people/reactions.rs
 +++ b/crates/omsi-sim/src/people/reactions.rs
-@@ -40,6 +40,7 @@ impl PeopleSim {
+@@ -1,7 +1,17 @@
+ //! Reactions use each installed ticket pack's own voice, with bus-wide and rider cooldowns.
+ use super::*;
++
++// Cosmetic selection must never advance the RNG that controls passenger tasks,
++// destinations or ticket choices, even when the optional thanks are enabled.
++fn exit_thanks_selected(person: u32, transfer: u64) -> bool {
++    let mut value = u64::from(person) ^ transfer.wrapping_mul(0x9e3779b97f4a7c15);
++    value = (value ^ (value >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
++    value = (value ^ (value >> 27)).wrapping_mul(0x94d049bb133111eb);
++    (value ^ (value >> 31)) % 100 < 22
++}
+ impl PeopleSim {
+     pub(super) fn door_reaction(&mut self,i:usize,bn:&BusNow,near_platform:bool,dt:f32) {
++        if !self.optional_features.passenger_door_comments { return; }
+         let Some(p)=self.pax(i).cloned() else{return;};
+         if p.inspector || self.people[i].remote || bn.id!=BusId::Player{return;}
+         let exiting=p.task==Task::InBusToExit;
+@@ -40,6 +50,7 @@ impl PeopleSim {
              else if leaving {-(if p.door_reaction_wait<0.0 {p.door_reaction_wait.abs()+step} else {step})}
              else {0.0};
          let missed=leaving&&elapsed<=-2.5;
@@ -346,7 +1750,7 @@ index 56dc27423afcbe4225e72776a09f3c88b8dcfac4..e3c13532a83fcfcbabfa4ae16c60c36f
          let cooldown=(p.door_reaction_cooldown-dt.max(0.0)).max(0.0);
          if let Some(pax)=self.pax_mut(i) {
              pax.door_reaction_wait=elapsed;
-@@ -59,20 +60,20 @@ impl PeopleSim {
+@@ -59,20 +70,20 @@ impl PeopleSim {
          if missed {
              for line in ["Angry_1","Angry_2","Pardon_2","OpenDoor_2"] {
                  if self.voice_file(i,line).is_some(){
@@ -370,7 +1774,7 @@ index 56dc27423afcbe4225e72776a09f3c88b8dcfac4..e3c13532a83fcfcbabfa4ae16c60c36f
                  }
              }
          }
-@@ -80,9 +81,12 @@ impl PeopleSim {
+@@ -80,9 +91,19 @@ impl PeopleSim {
          // in their own voice. The localized hint supplies the actual request.
          if self.voice_file(i,"Pardon_1").is_some(){self.say_ex(i,"Pardon_1",true);}
          else{self.last_chat=self.time;}
@@ -379,9 +1783,158 @@ index 56dc27423afcbe4225e72776a09f3c88b8dcfac4..e3c13532a83fcfcbabfa4ae16c60c36f
      }
      pub(super) fn thank_on_exit(&mut self,i:usize){
 -        if self.rand_f()<0.22 {self.say_ex(i,"Thanks_1",true);}
-+        if self.rand_f()<0.22 {
++        if !self.optional_features.passenger_exit_thanks { return; }
++        let Some(person) = self.people.get(i) else { return; };
++        let transfer = self.pax(i).map_or(0, |p| p.transfer_count as u64);
++        if exit_thanks_selected(person.id, transfer) {
 +            self.say_ex(i,"Thanks_1",true);
 +            self.dialog=Some(PassengerDialog::ExitThanks.id().into());
 +        }
      }
  }
++
++#[cfg(test)]
++#[path = "reaction_options_tests.rs"]
++mod optional_tests;
+diff --git a/crates/omsi-sim/src/people/spawn.rs b/crates/omsi-sim/src/people/spawn.rs
+index 7f12c5b538cbb876742b000d0c6442c560564b84..f34ced4aacf6455dda585b9433978f86e94a91d9 100644
+--- a/crates/omsi-sim/src/people/spawn.rs
++++ b/crates/omsi-sim/src/people/spawn.rs
+@@ -73,6 +73,7 @@ impl PeopleSim {
+             log::warn!("human pool limit {configured_people} adjusted to {people_limit} for safe spawning");
+         }
+         PeopleSim {
++            optional_features: Default::default(),
+             pool_types: types.len(),
+             types,
+             people: Vec::new(),
+diff --git a/launcher/tests/optional-features.test.mjs b/launcher/tests/optional-features.test.mjs
+new file mode 100644
+index 0000000000000000000000000000000000000000..a9603357b708dec70b2c4d9f1fa03fe6afaf0a04
+--- /dev/null
++++ b/launcher/tests/optional-features.test.mjs
+@@ -0,0 +1,41 @@
++import assert from 'node:assert/strict';
++import { readFile } from 'node:fs/promises';
++import test from 'node:test';
++
++const source = await readFile(new URL('../ui/js/pages/optional-features.js', import.meta.url), 'utf8');
++const options = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
++const schemaSource = await readFile(new URL('../ui/js/pages/settings-schema.js', import.meta.url), 'utf8');
++const executableSchema = schemaSource
++  .replace("import { t } from '../i18n.js';", 'const t = (text) => text;')
++  .replace("import { optionalRows } from './optional-features.js';", `const rows = ${JSON.stringify(options.OPTIONAL_FEATURE_ROWS)}; const optionalRows = (traffic) => rows.filter((r) => (r.key === 'extra_traffic_density' || r.key === 'ai_bus_greetings') === traffic);`);
++const schema = await import(`data:text/javascript;base64,${Buffer.from(executableSchema).toString('base64')}`);
++
++function rows(value) {
++  if (Array.isArray(value)) return value.flatMap(rows);
++  if (!value || typeof value !== 'object') return [];
++  return [...(value.type ? [value] : []), ...Object.values(value).flatMap(rows)];
++}
++
++test('all seven optional settings are real, unique toggles in the launcher settings schema', () => {
++  const actual = rows(schema.SETTINGS_TABS);
++  assert.equal(options.OPTIONAL_FEATURE_ROWS.length, 7);
++  assert.equal(new Set(options.OPTIONAL_FEATURE_ROWS.map((r) => r.key)).size, 7);
++  for (const option of options.OPTIONAL_FEATURE_ROWS) {
++    const matches = actual.filter((r) => r.key === option.key);
++    assert.equal(matches.length, 1, `missing or duplicated launcher switch ${option.key}`);
++    assert.equal(matches[0].type, 'toggle');
++    assert.equal(matches[0].label, option.label);
++    assert.equal(matches[0].help, option.help);
++    assert.ok(option.help.includes('Restart') || option.help.includes('next time'));
++  }
++});
++
++test('traffic options are kept separate and the transfer percentage retains its normal slider', () => {
++  assert.deepEqual(options.optionalRows(true).map((r) => r.key), ['extra_traffic_density', 'ai_bus_greetings']);
++  assert.equal(options.optionalRows(false).length, 5);
++  const actual = rows(schema.SETTINGS_TABS);
++  const chance = actual.find((r) => r.key === 'passenger_transfer_percent');
++  assert.equal(chance.type, 'slider');
++  assert.equal(chance.label, 'Connection chance');
++  assert.equal(chance.def, 20);
++});
+diff --git a/launcher/ui/js/pages/optional-features.js b/launcher/ui/js/pages/optional-features.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..6bd44e00451baa349822f1ee80e032a6c5b72a64
+--- /dev/null
++++ b/launcher/ui/js/pages/optional-features.js
+@@ -0,0 +1,15 @@
++// The saved switches take effect on the next game start, in both settings interfaces.
++const restart = 'Takes effect when the game starts the next time';
++const host = 'In multiplayer, shared AI vehicles are controlled by the host. Restart the game after changing this option.';
++export const OPTIONAL_FEATURE_ROWS = [
++  { type: 'toggle', key: 'bcs_event_scenes', label: 'BCS event scenes', help: host },
++  { type: 'toggle', key: 'bcs_inspectors', label: 'BCS ticket inspectors', help: restart },
++  { type: 'toggle', key: 'passenger_door_comments', label: 'Passenger door and missed-stop comments', help: restart },
++  { type: 'toggle', key: 'passenger_exit_thanks', label: 'Passengers thank the driver when alighting', help: restart },
++  { type: 'toggle', key: 'extra_traffic_density', label: 'Extra traffic on wide roads', help: host },
++  { type: 'toggle', key: 'ai_bus_greetings', label: 'AI bus greetings', help: host },
++  { type: 'toggle', key: 'passenger_connections_enabled', label: 'Passenger connections between lines', help: restart },
++];
++
++export const optionalRows = (traffic) => OPTIONAL_FEATURE_ROWS.filter((row) =>
++  (row.key === 'extra_traffic_density' || row.key === 'ai_bus_greetings') === traffic);
+diff --git a/launcher/ui/js/pages/settings-schema.js b/launcher/ui/js/pages/settings-schema.js
+index 5307bf0f77b64ccf5c196d6484722821003d276b..7079a85358bcb8b77b72d153a69a3e50c6da5ee6 100644
+--- a/launcher/ui/js/pages/settings-schema.js
++++ b/launcher/ui/js/pages/settings-schema.js
+@@ -14,6 +14,7 @@
+ // expects it; `also` is saved alongside.
+ 
+ import { t } from '../i18n.js';
++import { optionalRows } from './optional-features.js';
+ 
+ // --- value formats ---------------------------------------------------------------------
+ 
+@@ -363,13 +364,14 @@ const gameplay = {
+       title: 'Passengers',
+       rows: [
+         { type: 'select', key: 'boarding', label: 'Boarding', options: [['auto', 'Pay and take the ticket'], ['pay', 'The driver sells the ticket'], ['walk', 'Just walk in']] },
+-        { type: 'toggle', key: 'ticket_chance_enabled', label: 'Mudar chance dos passageiros comprarem ticket', help: 'Desativado mantém a chance normal do mapa. O ônibus precisa ter caixa para venda.' },
+-        { type: 'slider', key: 'ticket_chance_percent', label: 'Chance de comprar ticket', min: -1, max: 100, step: 1, def: -1, format: (v) => v < 0 ? 'Padrão do mapa' : `${Math.round(v)}%`, store: round, when: (s) => s.ticket_chance_enabled },
++        ...optionalRows(false),
++        { type: 'toggle', key: 'ticket_chance_enabled', label: 'Override ticket purchase chance', help: 'How passengers get their tickets' },
++        { type: 'slider', key: 'ticket_chance_percent', label: 'Ticket purchase chance', min: -1, max: 100, step: 1, def: -1, format: (v) => v < 0 ? t('Default') : `${Math.round(v)}%`, store: round, when: (s) => s.ticket_chance_enabled },
+         { type: 'select', key: 'standing_chance' , label: 'Standing passengers', options: [['0', 'Never'], ['5', '5%'], ['10', '10%'], ['25', '25%'], ['50', '50%'], ['100', 'Always']] },
+         { type: 'select', key: 'passenger_animation', label: 'Passenger animations', options: [['original', 'Original OMSI'], ['enhanced', 'Natural (procedural)']] },
+-        { type: 'slider', key: 'passenger_transfer_percent', label: 'Chance de fazer conexão', min: 0, max: 100, step: 1, def: 20, store: round, format: (v) => Math.round(v)+'%', help: 'Ao desembarcar, caminham até outro ponto próximo e podem embarcar em outra linha. Nunca voltam ao mesmo ônibus. Padrão: 20%.' },
+-        { type: 'toggle', key: 'passenger_umbrellas', label: 'Guarda-chuvas na chuva (beta)', help: 'Abertura, fechamento e gotas de água. Funciona com a animação Natural.', when: (s) => s.passenger_animation === 'enhanced' },
+-        { type: 'toggle', key: 'passenger_hailing', label: 'Passageiros dão sinal ao ônibus (beta)', help: 'Usam a mão livre quando seguram o guarda-chuva.', when: (s) => s.passenger_animation === 'enhanced' },
++        { type: 'slider', key: 'passenger_transfer_percent', label: 'Connection chance', min: 0, max: 100, step: 1, def: 20, store: round, format: (v) => Math.round(v)+'%', help: 'Probability for eligible transfers; default 20%' },
++        { type: 'toggle', key: 'passenger_umbrellas', label: 'Passenger umbrellas', help: 'Takes effect when the game starts the next time', when: (s) => s.passenger_animation === 'enhanced' },
++        { type: 'toggle', key: 'passenger_hailing', label: 'Passengers signal approaching buses', help: 'Takes effect when the game starts the next time', when: (s) => s.passenger_animation === 'enhanced' },
+         { type: 'custom', id: 'passenger-maps', when: (s) => s.passenger_animation === 'enhanced' && s.passenger_hailing },
+         // (drawn on this computer only; the avatars are downloaded once, about 310 MB)
+         { type: 'select', key: 'character_models', label: 'Character models', options: [['original', 'Original'], ['improved', 'High quality (improved)']], help: 'High quality draws the people with the Microsoft Rocketbox avatars and their living faces, on this computer only: servers and other players keep their own. They are downloaded once (about 310 MB).' },
+@@ -381,6 +383,7 @@ const gameplay = {
+         { type: 'toggle', key: 'full_tank', label: 'Start with a full tank' },
+         { type: 'toggle', key: 'trip_summary', label: 'Trip summary' },
+         { type: 'section', title: 'Traffic' },
++        ...optionalRows(true),
+         { type: 'select', key: 'ai_unsched_factor', label: 'Random traffic', options: [['25', '25%'], ['50', '50%'], ['75', '75%'], ['100', '100%'], ['150', '150%'], ['200', '200%']] },
+         { type: 'select', key: 'ai_max_scheduled', label: 'Timetable vehicles', options: [['0', 'All'], ['10', 'At most 10'], ['25', 'At most 25'], ['50', 'At most 50']] },
+         { type: 'select', key: 'ai_max_parked', label: 'Parked cars', options: [['-1', 'None'], ['0', 'Every space'], ['35', 'At most 35'], ['100', 'At most 100'], ['250', 'At most 250']] },
+diff --git a/launcher/ui/js/pages/settings.js b/launcher/ui/js/pages/settings.js
+index 2f6ddb49ba7dac3ba70c7d03b3d53177f76e14a6..adbaaab6e9fce855852ae0f3e9947adf180694d1 100644
+--- a/launcher/ui/js/pages/settings.js
++++ b/launcher/ui/js/pages/settings.js
+@@ -141,14 +141,14 @@ function PassengerMaps() {
+   const maps = S.maps || [];
+   const enabled = enabledMaps(S.settings.passenger_hailing_maps);
+   return html`<div class="full">
+-    <div class="section-title">Mapas em que os passageiros dão sinal</div>
+-    <p class="muted small">Ative separadamente nos mapas desejados. A escolha fica salva para a próxima sessão.</p>
++    <div class="section-title">${t('Signal buses on this map')}</div>
++    <p class="muted small">${t('Takes effect when the game starts the next time')}</p>
+     ${maps.length ? maps.map((m) => html`<div class="setting-row" key=${m.file}>
+       <${Name} label=${m.name || m.file} />
+       <${Toggle} checked=${enabled.has(passengerMapKey(m.file))} onChange=${(on) => saveSettings({
+         passenger_hailing_maps: withMap(S.settings.passenger_hailing_maps, m.file, on),
+       })} />
+-    </div>`) : html`<p class="muted small">A lista aparece após carregar os mapas instalados.</p>`}
++    </div>`) : html`<p class="muted small">${t('No maps found.')}</p>`}
+   </div>`;
+ }
+ 
