@@ -44,6 +44,17 @@ jobs:
         run: |
           cargo test --locked --release -p omsi-sim extended_density::tests -- --nocapture
           if ($LASTEXITCODE -ne 0) { throw 'Extended traffic density tests failed' }
+      - name: Optional feature defaults and AI wave, talking and passing regressions
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-cfg optional_features::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Optional feature config round-trip failed' }
+          cargo test --locked --release -p omsi-sim visual_wave_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'AI visual wave tests failed' }
+          cargo test --locked --release -p omsi-sim ambient_talk::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Passenger conversations tests failed' }
+          cargo test --locked --release -p omsi-sim bus_stop_overtake_safety_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'AI bus overtake safety tests failed' }
       - name: HOF strict selection and compatibility tests
         shell: pwsh
         run: |
