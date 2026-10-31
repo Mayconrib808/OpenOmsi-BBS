@@ -45,3 +45,44 @@ if not re.search(r"^" + re.escape(json.dumps(label)) + r":\s*$", text, re.M):
         text += f"  {lang}: {json.dumps(value, ensure_ascii=False)}\n"
     catalog.write_text(text, encoding="utf-8")
 print("Illegal parking label languages", len(translations))
+
+frequency_label = "Temporary illegal parking frequency"
+frequency_translations = {
+    "be": "Частата часовых парушэнняў правілаў паркоўкі",
+    "ca": "Freqüència d'aparcament irregular temporal",
+    "cs": "Četnost dočasného nesprávného parkování",
+    "de": "Häufigkeit vorübergehender Falschparker",
+    "es": "Frecuencia del estacionamiento irregular temporal",
+    "fr": "Fréquence du stationnement irrégulier temporaire",
+    "hi": "अस्थायी अवैध पार्किंग की आवृत्ति",
+    "hu": "Ideiglenes szabálytalan parkolás gyakorisága",
+    "id": "Frekuensi parkir liar sementara",
+    "it": "Frequenza di parcheggio irregolare temporaneo",
+    "ja": "一時的な違法駐車の発生頻度",
+    "ka": "დროებითი არასწორი პარკირების სიხშირე",
+    "kk": "Уақытша заңсыз тұрақ жиілігі",
+    "ko": "일시적 불법 주차 빈도",
+    "ms": "Kekerapan parkir tidak sah sementara",
+    "nl": "Frequentie van tijdelijk foutparkeren",
+    "pl": "Częstotliwość tymczasowego nielegalnego parkowania",
+    "pt": "Frequência de estacionamento irregular temporário",
+    "pt-pt": "Frequência de estacionamento irregular temporário",
+    "ru": "Частота временной неправильной парковки",
+    "sr": "Učestalost privremenog nepropisnog parkiranja",
+    "sv": "Frekvens för tillfällig felparkering",
+    "th": "ความถี่ของการจอดผิดกฎชั่วคราว",
+    "tl": "Dalas ng pansamantalang ilegal na pagparada",
+    "tr": "Geçici usulsüz park sıklığı",
+    "uk": "Частота тимчасового неправильного паркування",
+    "vi": "Tần suất đỗ xe trái quy định tạm thời",
+    "zh": "临时违规停车频率",
+    "zh-tw": "暫時違規停車頻率"
+}
+assert len(frequency_translations) == 29
+text = catalog.read_text(encoding="utf-8")
+if not re.search(r"^" + re.escape(json.dumps(frequency_label)) + r":\s*$", text, re.M):
+    text += "\n" + json.dumps(frequency_label) + ":\n"
+    for lang, value in sorted(frequency_translations.items()):
+        text += f"  {lang}: {json.dumps(value, ensure_ascii=False)}\n"
+    catalog.write_text(text, encoding="utf-8")
+print("Illegal parking frequency languages", len(frequency_translations))
