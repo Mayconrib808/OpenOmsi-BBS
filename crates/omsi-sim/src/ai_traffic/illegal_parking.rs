@@ -60,6 +60,63 @@ impl TemporaryPark {
     }
 }
 
+/// A physical random-traffic stop. The car stays in the normal traffic list,
+/// so following vehicles and LAN clients see the obstruction and its hazards.
+/// Chance is sampled once on entry to an eligible lane, never every frame.
+impl TrafficSim {
+    pub fn plan_temporary_illegal_stop(&mut self, i: usize, ts: &super::tick::TickScene) -> Option<f32> {
+        if !self.illegal_parking_percent.is_finite() || self.illegal_parking_percent <= 0.0 {
+            self.cars[i].temporary_park = None;
+            return None;
+        }
+        let now = self.time;
+        if let Some((mut parking, mut at)) = self.cars[i].temporary_park {
+            match parking.reaction(now, self.cars[i].seed) {
+                HornReaction::Leave => {
+                    self.cars[i].temporary_park = None;
+                    return None;
+                }
+                HornReaction::Nudge => { at += 1.4; }
+                HornReaction::Wait => {}
+            }
+            let car = &mut self.cars[i];
+            car.temporary_park = Some((parking, at));
+            // The parked car is held with normal brakes; no teleportation or
+            // removed collision body, even while it nudges forward after a horn.
+            return Some((at - car.state.s + car.state.front + 0.4).max(car.state.front));
+        }
+        let car = &self.cars[i];
+        let st = &car.state;
+        let lane_id = st.lane;
+        if car.parking_sampled_lane == Some(lane_id) || car.is_bus() || car.is_rail()
+            || car.response.is_some() || car.park.is_some() || car.passing.is_some()
+            || car.bus_lane_pass.is_some() || st.change.is_some() || !st.route.is_empty()
+            || st.s < 3.0 || st.s > 12.0 || st.speed < 2.0
+        { return None; }
+        let lane = &self.net.lanes[lane_id];
+        if lane.kind != LaneKind::Street || !self.net.crossings[lane_id].is_empty() {
+            return None;
+        }
+        // Draw only once on this lane even when a prior test was ineligible.
+        let (seed, target_s, single_lane) = (car.seed, st.s + 25.0,
+            lane.left.is_none() && lane.right.is_none());
+        self.cars[i].parking_sampled_lane = Some(lane_id);
+        if !may_consider_stop(true, false, lane.length() - target_s, 30.0, st.speed)
+            || !eligible_event(seed, lane_id as u64, self.illegal_parking_percent)
+            || self.cars.iter().filter(|c| c.temporary_park.is_some()).count() >= 3
+            || !self.lane_clear(i, lane_id, target_s, 10.0, 15.0, &ts.by_lane)
+            // Real bus stops are never deliberate double-park targets.
+            || self.cars.iter().any(|c| c.bus.as_ref().is_some_and(|b|
+                b.stops.iter().any(|stop| c.state.route.get(stop.ri) == Some(&lane_id)
+                    && (stop.s-target_s).abs() < 35.0)))
+        { return None; }
+        let state = TemporaryPark::new(now, seed, lane_id as u64, single_lane)?;
+        self.cars[i].temporary_park = Some((state, target_s));
+        log::info!("t={now:.1}: traffic AI car {} schedules short temporary obstruction on lane {} at {:.1} m", self.cars[i].id, lane_id, target_s);
+        Some(25.0 + self.cars[i].state.front + 0.4)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
