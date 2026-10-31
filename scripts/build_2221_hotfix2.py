@@ -53,7 +53,7 @@ def main():
  launcher_meta=readjson(a.launcher/'BUILD-INFO.json')
  launcher_binary=(a.launcher/'openomsi-launcher-app.exe').read_bytes()
  launcher_pin=readjson(ROOT/'build-support/release2221-hotfix2/launcher-build.json')
- assert launcher_meta['version']=='0.3.46-coop.15-2.2.2.1-hotfix.1', 'Expected known-good Hotfix 1 launcher reused without changes'
+ assert launcher_meta['version']==NATIVE_VERSION, 'Native game and offline launcher versions differ'
  assert launcher_meta['source_commit']==launcher_pin['commit'], 'Unexpected launcher source'
  assert launcher_pin['run_id']>0 and launcher_meta['optional_ui_controls']==14
  assert launcher_meta['path']==launcher_name
@@ -150,10 +150,10 @@ def main():
   previous_installer_sha256=BASE_UPDATER,previous_coop_sha256=BASE_COOP,retained_host_hashes={n:sha(payload[n])for n in('HostAgent.exe','CompanyHost.exe')},
   complete_hosts_unchanged=True,complete_hosts_rebuilt=False,p14_server_unchanged=True,dynamic_p15_sha256=sha(native),dynamic_p15_version=NATIVE_VERSION,
   native_version=NATIVE_VERSION,native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],upstream_commit=UPSTREAM,
-  native_client_sha256={'openomsi.exe':sha(native)},native_source_sha256=sha(source),coop_protocol=15,custom_sounds_unchanged=True,desktop_launcher_unchanged=True,desktop_launcher_sha256=sha(launcher_binary),desktop_launcher_commit=launcher_pin['commit'],desktop_launcher_run=launcher_pin['run_id'],
+  native_client_sha256={'openomsi.exe':sha(native)},native_source_sha256=sha(source),coop_protocol=15,custom_sounds_unchanged=True,desktop_launcher_unchanged=False,desktop_launcher_sha256=sha(launcher_binary),desktop_launcher_commit=launcher_pin['commit'],desktop_launcher_run=launcher_pin['run_id'],
   bcs_capture_normal_launch_tested=True,bcs_single_and_company_event_fixture_tested=True,setup_changelog_languages=['pt','en','de'],setup_changelog_ui_tested=True,
   setup_live_update_ui_tested=True,bridge_regressions_tested=True,windows_gameplay_tested=False,paired_gameplay_tested=False)
  (out/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
- print('2.2.2.1 Hotfix 1 cumulative update built with desktop launcher:',report['updater_sha256'])
+ print('2.2.2.1 Hotfix 2 cumulative update built with matching desktop launcher:',report['updater_sha256'])
 
 if __name__=='__main__':main()
