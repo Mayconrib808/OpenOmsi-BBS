@@ -1,7 +1,7 @@
 diff --git a/crates/omsi-sim/src/people/inspector.rs b/crates/omsi-sim/src/people/inspector.rs
 --- a/crates/omsi-sim/src/people/inspector.rs
 +++ b/crates/omsi-sim/src/people/inspector.rs
-@@ -1,88 +1,179 @@
+@@ -1,88 +1,205 @@
 -//! A fictional BCS companion uses the ordinary cabin, seat pool and path walker.
 -use super::*;
 -
@@ -237,6 +237,10 @@ diff --git a/crates/omsi-sim/src/people/inspector.rs b/crates/omsi-sim/src/peopl
 +            if targets.is_empty(){return true;}
 +            targets[inspector_patrol_index(p.sub,targets.len())]
 +        };
++        // If the cabin topology is disconnected, wait before retrying.
++        // Without this guard the completed inspection logged a warning EVERY
++        // simulation frame (over 11,000 in one captured session).
++        if checked.is_none() && p.task==Task::Nothing && p.st==0 && p.timer>0.0 {return true;}
 +        if checked.is_none() && p.st==5 && p.pt_target==Some(home){return true;}
 +        if start==goal {
 +            if checked.is_some() {
@@ -245,10 +249,32 @@ diff --git a/crates/omsi-sim/src/people/inspector.rs b/crates/omsi-sim/src/peopl
 +            return true;
 +        }
 +        if bn.cabin.route_next(start,goal).is_none(){
-+            log::warn!("BCS inspector {id}: no cabin route between {start} and {goal}");
-+            if checked.is_some(){
-+                let p=self.pax_mut(i).unwrap();p.sub=p.sub.wrapping_add(1);p.timer=0.75;
++            // The last path index may be stale after the character moved into
++            // a different cabin section. Find a physically NEAR waypoint that
++            // really connects to the target, and walk to it -- no teleport.
++            let here=p.pos.as_vec3();
++            let rescue=bn.cabin.graph.points.iter().enumerate()
++                .filter(|(k,point)| *k!=start && (**point-here).length()<=1.6
++                    && bn.cabin.route_next(*k,goal).is_some())
++                .min_by(|a,b| (*a.1-here).length_squared()
++                    .total_cmp(&(*b.1-here).length_squared()))
++                .map(|(k,point)|(k,*point));
++            if let Some((k,point))=rescue {
++                let pp=self.pax_mut(i).unwrap();
++                pp.task=Task::Nothing;pp.pax_state=1.0;pp.target_bus=true;
++                pp.pt=Some(k);pp.pt_target=Some(goal);pp.target=point.as_dvec3();
++                pp.st=5;pp.timer=0.0;
++                log::info!("BCS inspector {id}: recovered cabin route {start} -> {k} -> {goal} without teleport");
++                return true;
 +            }
++            // A truly disconnected cabin must never trigger a hot-loop,
++            // repeatedly recalculate hundreds of times per second or block
++            // passengers by pretending this idle inspector is still walking.
++            log::warn!("BCS inspector {id}: no cabin route between {start} and {goal}; retry after cooldown");
++            let pp=self.pax_mut(i).unwrap();
++            pp.st=0;pp.speed=0.0;pp.speed_des=0.0;
++            if checked.is_some(){pp.sub=pp.sub.wrapping_add(1);pp.timer=0.75;}
++            else{pp.timer=5.0;}
 +            return true;
 +        }
 +        let p=self.pax_mut(i).unwrap();
