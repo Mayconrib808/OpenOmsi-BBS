@@ -5,7 +5,7 @@ import build,build_bridge_update,setup_resources
 from build_runtime_2203 import embedded_payload,EXPECTED
 
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='2.2.2';SEQUENCE=2026103003
+VERSION='2.2.2';SEQUENCE=2026103101
 COOP='OpenOmsi Coop 0.3.41'  # Existing installation path; actual runtime is 0.3.46.
 ORIGIN='https://openomsi-bbs-updates.maycongamesmaximo.workers.dev'
 BASE_UPDATER='cd055e9a00c2b0459128c088f93b05b7cfd8668bdd42616e582673cf338f4f6b'
@@ -49,7 +49,7 @@ def main():
  marker=json.loads(files[marker_name])
  marker.update(bridge_line=VERSION,source_commit=evidence['commit'],native_version=NATIVE_VERSION,native_sha256=sha(native),protocol=15,version=NATIVE_VERSION,openomsi_version='0.3.46',upstream_commit=UPSTREAM)
  files[marker_name]=(json.dumps(marker,indent=2)+'\n').encode()
- notes=(ROOT/'docs/releases/2.2.2-hotfix.2.md').read_bytes()
+ notes=(ROOT/'docs/releases/2.2.2-hotfix.3.md').read_bytes()
  info_name=COOP+'/source/BUILD-INFO.json';info=json.loads(files[info_name])
  info.update(version=NATIVE_VERSION,bridge_version=VERSION,game_sha256=sha(native),native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],dynamic_p15_sha256=sha(native),dynamic_p15_version=NATIVE_VERSION,upstream_commit=UPSTREAM)
  files[info_name]=(json.dumps(info,indent=2)+'\n').encode()
@@ -84,7 +84,7 @@ def main():
  bundle=io.BytesIO()
  with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED,compresslevel=6)as z:
   for name,data in sorted(files.items()):
-   item=zipfile.ZipInfo(prefix+name,(2026,10,30,0,0,0));item.compress_type=zipfile.ZIP_DEFLATED;z.writestr(item,data,compresslevel=6)
+   item=zipfile.ZipInfo(prefix+name,(2026,10,31,0,0,0));item.compress_type=zipfile.ZIP_DEFLATED;z.writestr(item,data,compresslevel=6)
  packed=bundle.getvalue();assert max(map(len,files.values()))<=128<<20 and len(packed)<=256<<20 and sum(map(len,files.values()))<=512<<20
  partdir=out/'coop-assets';partdir.mkdir();parts=[]
  for start in range(0,len(packed),16<<20):
