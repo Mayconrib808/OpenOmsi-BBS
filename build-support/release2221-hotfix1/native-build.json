@@ -1,0 +1,9 @@
+{
+  "commit": "c09ea41f9867e986bc96aab89b3ea5936fc36905",
+  "run_id": 41235625660,
+  "workflow": ".github/workflows/stage-2221-hotfix1-native.yml",
+  "version": "0.3.46-coop.15-2.2.2.1-hotfix.1",
+  "protocol": 15,
+  "windows_gameplay_tested": false,
+  "paired_gameplay_tested": false
+}
