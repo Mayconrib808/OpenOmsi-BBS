@@ -233,6 +233,8 @@ impl Greetings {
             let Some(car) = sim.cars.iter_mut().find(|c| c.id == id) else { continue; };
             self.last.insert(id,now);
             self.waves.insert(id, now);
+            // A real visual gesture was scheduled, not merely enabled in settings.
+            log::info!("FEATURE AUDIT ai_driver_wave performed ai_bus={} other={:?} response_to_signal={} traffic_mirror={}",id,other,response,sim.mirror);
             if !signals_enabled { continue; }
             // Audio is emitted once by the model-aware presentation path below;
             // do not also fire a script trigger that could double the same horn.
