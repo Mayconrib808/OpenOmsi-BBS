@@ -20,7 +20,7 @@ jobs:
         id: revision
         env:
           GH_TOKEN: ${{ github.token }}
-          NATIVE_RUN: '41168914081'
+          NATIVE_RUN: '41169027280'
         run: |
           set -euo pipefail
           complete=0
@@ -53,7 +53,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: OpenOMSI-2.2.2-Hotfix2-localized-options-Windows
-          run-id: 41168914081
+          run-id: 41169027280
           github-token: ${{ github.token }}
           path: artifact
       - name: Verify the exact tested revision and protect the previous source head
@@ -61,7 +61,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api repos/${{ github.repository }}/actions/runs/41168914081 --jq '.conclusion' > native-conclusion.txt
+          gh api repos/${{ github.repository }}/actions/runs/41169027280 --jq '.conclusion' > native-conclusion.txt
           test "$(cat native-conclusion.txt)" = success
           branch=source/openomsi-0.3.46-coop15-2.2.2-hotfix2
           expected=0a495b5934de3f97400092afb7c9ff76d85a6d38
@@ -76,7 +76,7 @@ jobs:
           assert len(records)==1,records
           data=json.loads(records[0].read_text())
           Path('artifact/REVISION.json').write_text(json.dumps(data,indent=2)+'\n')
-          assert data['run_id']==41168914081
+          assert data['run_id']==41169027280
           assert data['commit']=='${{ steps.revision.outputs.sha }}'
           assert subprocess.check_output(['git','-C','native','rev-parse','HEAD^{tree}']).decode().strip()==data['source_tree']
           for key in ['windows_build_passed','compiled_caption_tests_passed','settings_roundtrip_tests_passed','launcher_schema_tests_passed','traffic_tests_passed','bcs_tests_passed']:
