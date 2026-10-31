@@ -80,9 +80,7 @@ apply("crates/omsi-sim/src/people/pax_task.rs",
                 nearest
             });""")
 apply("crates/omsi-sim/src/people/pax_task.rs",
-    """            // in the doorway, but the plugins have not had their say about the ticket yet
-            // ('TICKET_HOLD' at most): they could still make it a pass, which decides the
-            // way in""",
+    "            // in the doorway, but the plugins have not had their say about the ticket yet",
     """            if self.pax(i).is_some_and(|p| p.door.is_none()) {
                 self.choose_entry(i, buses, bus_ix);
                 if self.pax(i).is_some_and(|p| p.door.is_none()) {
@@ -93,9 +91,7 @@ apply("crates/omsi-sim/src/people/pax_task.rs",
                     return;
                 }
             }
-            // in the doorway, but the plugins have not had their say about the ticket yet
-            // ('TICKET_HOLD' at most): they could still make it a pass, which decides the
-            // way in""")
+            // in the doorway, but the plugins have not had their say about the ticket yet""")
 
 # The server already supports a traffic bubble for each LAN peer; its target
 # erroneously reused the host's local road density even kilometres away.
