@@ -17,7 +17,7 @@ import (
 // milestones newer than that sequence; do not show the same Hotfix 1 notes to
 // someone who is already running Hotfix 1.
 func notesSinceInstalledSequence(lang string, installed uint64, target bridgeRelease) string {
-    if target.Sequence < 2026103003 || (target.Version != "2.2.2-hotfix.2" && target.Version != "2.2.2-hotfix.3") {
+    if target.Sequence < 2026103003 || (target.Version != "2.2.2-hotfix.2" && target.Version != "2.2.2-hotfix.3" && target.Version != "2.2.2.1" && target.Version != "2.2.2.1-hotfix.1") {
         return localReleaseNotes(lang,target)
     }
     var items []string
@@ -68,6 +68,18 @@ func notesSinceInstalledSequence(lang string, installed uint64, target bridgeRel
             "Hotfix 3: fiscais com modelos próprios masculino e feminino, sem solicitações de parada nem reclamações de passageiros; proteção do banco reservado e ajuste de geração de tráfego por sentido em avenidas com carregamento dinâmico.",
             "Hotfix 3: dedicated male and female inspector models, without passenger stop requests or complaints; reserved-seat protection and improved traffic spawning by direction on streamed divided avenues.",
             "Hotfix 3: eigene männliche und weibliche Kontrolleurmodelle ohne Haltewünsche oder Fahrgastbeschwerden; Sitzplatzreservierung und bessere richtungsabhängige Verkehrserzeugung auf nachgeladenen Straßen."))
+    }
+    if target.Sequence >= 2026103102 && installed < 2026103102 {
+        items=append(items,localText(lang,
+            "2.2.2.1: motoristas IA acenam, conversas ocasionais, ultrapassagens experimentais, carros cedendo passagem, baias longas, estacionamento irregular, demanda independente dos passageiros e roupas CTI conforme o clima; opções desligadas por padrão.",
+            "2.2.2.1: AI driver waving, occasional passenger conversations, experimental overtaking, safe bus pull-out courtesy, longer bus bays, temporary illegal parking, independent passenger demand and CTI weather clothing; optional switches off by default.",
+            "2.2.2.1: KI-Fahrer winken, gelegentliche Gespräche, experimentelles Überholen, Vorfahrt beim Ausfahren, lange Buchten, kurzzeitiges Falschparken, eigenständige Fahrgastnachfrage und wetterabhängige CTI-Kleidung; Optionen standardmäßig aus."))
+    }
+    if target.Sequence >= 2026103103 && installed < 2026103103 {
+        items=append(items,localText(lang,
+            "2.2.2.1 Hotfix 1: lobby Windows recompilado com todos os controles, passageiros sentados corretamente na visão multiplayer e changelog visual novamente automático e acumulado desde a última versão vista.",
+            "2.2.2.1 Hotfix 1: rebuilt Windows launcher with all settings, correctly seated riders for remote players, and restored automatic cumulative release tour.",
+            "2.2.2.1 Hotfix 1: neuer Windows-Launcher mit allen Optionen, korrekte Sitzanimation für andere Spieler und wieder automatisch geöffneter, kumulativer Änderungsverlauf."))
     }
     if len(items)==0 {return localReleaseNotes(lang,target)}
     return strings.Join(items,"\r\n\r\n")
