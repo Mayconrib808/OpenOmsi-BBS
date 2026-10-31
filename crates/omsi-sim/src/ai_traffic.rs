@@ -204,6 +204,8 @@ pub struct TrafficSim {
     /// `--no-timetable-buses`: the timetable runs for the player's duty, but puts no AI
     /// bus on the road (#1762).
     pub no_timetable_buses: bool,
+    /// Optional #2973: a scheduled bus may pass another bus at a different stop only with clearance.
+    pub ai_bus_overtaking: bool,
     /// Where the player looks from (set every frame).
     pub viewer: Option<Viewer>,
     /// Buildings that hide what is behind them (the player's collision world).
