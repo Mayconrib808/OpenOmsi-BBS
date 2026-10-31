@@ -11,6 +11,7 @@ on:
       - source/setup_changelog_windows.go
       - source/setup_gui_windows.go
       - docs/releases/2.2.2.md
+      - docs/releases/2.2.2-hotfix.2.md
       - build-support/release222/native-build.json
   workflow_dispatch: {}
 permissions:
