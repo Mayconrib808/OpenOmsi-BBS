@@ -14,7 +14,7 @@ The tested native code commit is `@CODE@`, tree `@TREE@`. [Windows build and reg
 | `omsi-app traffic::population::optional_density_tests` | Baseline while disabled, zero/sparse roads and bounded extra scale |
 | `omsi-app bcs_events::` | Existing capture, event/controller, lifecycle, names and visual-model regressions |
 
-Commands, individual test names and counts are retained in the Actions job log and test evidence artifact. This table identifies the selections actually run; it does not imply every workspace test or real gameplay was run. The older caption-only trial run failed an obsolete AI-stop expectation; the final run includes the corrected distance-based counterexample and must pass before publication.
+Commands, individual test names and counts are retained in the Actions job log and test evidence artifact. This table identifies the selections actually run; it does not imply every workspace test or real gameplay was run. Earlier trial runs exposed stale object-ID-based stop assertions. The final tests challenge selected-route priority for AI/player buses and nearest-stop fallback in both distance orderings; no production selection code was changed to satisfy those tests. The final Windows run must pass before publication.
 
 ## Delivery integrity
 
