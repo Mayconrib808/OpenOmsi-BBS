@@ -201,7 +201,10 @@ impl PeopleSim {
                 None => p.discomfort = 0.0,
             }
         }
-        if self.optional_features.passenger_door_comments {
+        // The ticket inspector must not ask the driver to open a door or deliver
+        // ordinary passenger comments while working inside the bus.
+        if self.optional_features.passenger_door_comments
+            && !self.pax(i).is_some_and(|p| p.inspector) {
             if let Some(bn)=self.pax(i).and_then(|p|p.bus.or((p.task==Task::WaitingForBus).then_some(BusId::Player))).and_then(|b|bus_ix.get(&b)).map(|k|&buses[*k]) {
                 let near=at_stops.get(&bn.id).is_some_and(|r|r.near.iter().any(|id|
                     self.stops.get(id).is_some_and(|s|(s.pos-bn.pos).truncate().length()<22.0)));
