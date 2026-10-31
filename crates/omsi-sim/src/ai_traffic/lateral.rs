@@ -557,10 +557,12 @@ impl TrafficSim {
                 && bus.state.signal == (if self.net.left_hand { 2 } else { 1 })
         });
         if !(player_leaving || ai_leaving) { return false; }
+        let source_lane = st.lane;
+        let car_id = car.id;
         let changed = self.try_change(i, target, dir, ChangeKind::Choice, ts, None);
         if changed {
             log::info!("FEATURE AUDIT cars_yield_to_buses performed car={} lane={} target={} player_bus_leaving={} ai_bus_leaving={}",
-                self.cars[i].id, st.lane, target, player_leaving, ai_leaving);
+                car_id, source_lane, target, player_leaving, ai_leaving);
         }
         changed
     }
