@@ -13,6 +13,8 @@ pub struct OptionalFeatures {
     pub ai_driver_wave: bool,
     pub passenger_ambient_talk: bool,
     pub ai_bus_overtaking: bool,
+    /// Additional lane courtesy for buses leaving a bay (opt-in, host controlled).
+    pub cars_yield_to_buses: bool,
 }
 
 pub struct Feature {
@@ -25,7 +27,7 @@ pub const HOST_HELP: &str = "In multiplayer, shared AI vehicles are controlled b
 pub fn help(key: &str) -> &'static str {
     if matches!(
         key,
-        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings" | "ai_bus_overtaking" | "ai_driver_wave"
+        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings" | "ai_bus_overtaking" | "ai_driver_wave" | "cars_yield_to_buses"
     ) {
         HOST_HELP
     } else {
@@ -73,6 +75,10 @@ pub const FEATURES: &[Feature] = &[
         key: "ai_bus_overtaking",
         label: "AI buses safely pass other stopped buses",
     },
+    Feature {
+        key: "cars_yield_to_buses",
+        label: "Cars change lanes for buses leaving stops",
+    },
 ];
 
 pub fn is_key(key: &str) -> bool {
@@ -96,6 +102,7 @@ impl OptionalFeatures {
             "ai_driver_wave" => self.ai_driver_wave,
             "passenger_ambient_talk" => self.passenger_ambient_talk,
             "ai_bus_overtaking" => self.ai_bus_overtaking,
+            "cars_yield_to_buses" => self.cars_yield_to_buses,
             _ => return None,
         })
     }
@@ -113,6 +120,7 @@ impl OptionalFeatures {
             "ai_driver_wave" => self.ai_driver_wave = enabled,
             "passenger_ambient_talk" => self.passenger_ambient_talk = enabled,
             "ai_bus_overtaking" => self.ai_bus_overtaking = enabled,
+            "cars_yield_to_buses" => self.cars_yield_to_buses = enabled,
             _ => return None,
         }
         Some(feature.key)
