@@ -108,9 +108,16 @@ fn arriving_ai_uses_the_timetable_stop_not_a_neighbour() {
     bus.next_stop = None;
     assert_eq!(
         register(&mut humans, &bus).next,
-        Some(99),
-        "unknown routes retain the geometric fallback"
+        Some(42),
+        "unknown routes choose the nearest same-direction stop rather than the last object id"
     );
+    humans.stops.get_mut(&42).unwrap().pos = DVec3::Y * 9.0;
+    assert_eq!(
+        register(&mut humans, &bus).next,
+        Some(99),
+        "the geometric fallback follows distance when the other stop becomes nearer"
+    );
+    humans.stops.get_mut(&42).unwrap().pos = DVec3::ZERO;
     bus.next_stop = Some(RequestStop {
         id: 42,
         name: "Scheduled".into(),
@@ -120,8 +127,26 @@ fn arriving_ai_uses_the_timetable_stop_not_a_neighbour() {
     bus.id = BusId::Player;
     assert_eq!(
         register(&mut humans, &bus).next,
+        Some(42),
+        "the player also prioritizes the selected route stop over a neighbouring platform"
+    );
+    humans.stops.get_mut(&42).unwrap().pos = DVec3::Y * 9.0;
+    assert_eq!(
+        register(&mut humans, &bus).next,
+        Some(42),
+        "a nearer neighbour does not replace the player's available selected route stop"
+    );
+    bus.next_stop.as_mut().unwrap().id = 123;
+    assert_eq!(
+        register(&mut humans, &bus).next,
         Some(99),
-        "preserve the player's OMSI-compatible geometric detection"
+        "an unavailable player route stop falls back to the nearest same-direction stop"
+    );
+    humans.stops.get_mut(&42).unwrap().pos = DVec3::ZERO;
+    assert_eq!(
+        register(&mut humans, &bus).next,
+        Some(42),
+        "the player's fallback follows distance rather than object-id order"
     );
 }
 

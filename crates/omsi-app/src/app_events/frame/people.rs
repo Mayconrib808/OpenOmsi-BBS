@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod dialog;
+
 impl App {
     /// The LAN session (a stage of its own: a joining player's bus is loaded here, and that
     /// frame was counted as the people's).
@@ -292,7 +294,9 @@ pub(super) fn on_foot(mut cx: crate::on_foot::OnFootCx, dt: f32) {
 /// (`Languages/<LANG>_basic*.olf`, `RL_PassDlg_<name>`): Omsi.exe shows them as the riders
 /// speak. None for what has no hint (a greeting).
 fn passenger_dialog(name: &str) -> Option<String> {
-    if name=="BridgeOpenDoor"{return Some(crate::coop::text("Pode abrir a porta, por favor?","Could you open the door, please?","Bitte die Tür öffnen!").into());}
+    if let Some(caption) = dialog::current(name) {
+        return Some(caption);
+    }
     static TEXTS: std::sync::OnceLock<Option<omsi_content::language::Language>> = std::sync::OnceLock::new();
     let texts = TEXTS.get_or_init(|| {
         let lang = crate::settings::Settings::load().language;

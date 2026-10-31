@@ -40,10 +40,12 @@ struct Response {
     returned:Option<(Key,u32)>,reply:f32,
 }
 #[derive(Default)]
-pub(crate) struct HostResponses {entries:HashMap<u32,Response>,models:Loader,relay:f32}
+pub(crate) struct HostResponses {entries:HashMap<u32,Response>,models:Loader,relay:f32,enabled:bool}
 impl HostResponses {
+    pub fn new(enabled: bool) -> Self { Self { enabled, ..Default::default() } }
     pub fn receive(&mut self,lan:&omsi_net::LanSession,from:u32,text:&str)->bool{
         let Some(rest)=text.strip_prefix(REQUEST)else{return false};
+        if !self.enabled { return true; }
         if lan.role!=omsi_net::Role::Host||from==lan.my_id||!lan.peers().any(|p|p.pose.id==from){return true;}
         let Some((patient,rest))=rest.split_once(' ')else{return true};let Ok(patient)=patient.parse::<u32>()else{return true};
         let Some(visual)=Visual::decode(rest)else{return true};
@@ -57,7 +59,7 @@ impl HostResponses {
     }
     pub fn tick(&mut self,lan:&mut omsi_net::LanSession,traffic:&mut crate::traffic::Traffic,
         world:&crate::scene::World,dt:f32){
-        if lan.role!=omsi_net::Role::Host{return;}
+        if !self.enabled || lan.role!=omsi_net::Role::Host{return;}
         if !self.entries.is_empty(){self.models.start(world.root.clone());}
         let peers=lan.peers().map(|p|p.pose.id).collect::<Vec<_>>();
         self.entries.retain(|id,entry|{

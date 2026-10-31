@@ -596,7 +596,8 @@ impl App {
                         h.set_lan_seed(lan::population_seed(lan));
                     }
                     h.exact_fare = self.settings.exact_fare;
-        h.transfer_percent = self.settings.passenger_transfer_percent;
+        h.optional_features = self.settings.optional_features;
+        h.transfer_percent = h.optional_features.connection_percent(self.settings.passenger_transfer_percent);
                     h.bad_driving = self.settings.pax_bad_driving;
                     h.boarding = self.settings.boarding.clone();
                     h.stand_chance = self.settings.standing_chance;
@@ -632,6 +633,7 @@ impl App {
                 {
                     match traffic::Traffic::new(&self.args.root, &w, self.args.traffic) {
                         Ok(mut t) => {
+                            t.optional_features = self.settings.optional_features;
                             t.lights_only = !populated;
                             t.no_timetable_buses = self.args.no_timetable_buses;
                             if let Some(lan) = self.net.lan.as_ref() {

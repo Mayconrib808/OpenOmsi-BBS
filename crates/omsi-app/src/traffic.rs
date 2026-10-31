@@ -46,6 +46,7 @@ pub(crate) use omsi_sim::ai_traffic::viewer::Viewer;
 /// car on the road or take it off write down what the pictures have to follow (`events`),
 /// replayed by `view_sync::apply_traffic`.
 pub struct Traffic {
+    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
     pub sim: TrafficSim,
     pub greetings: omsi_sim::ai_traffic::greetings::Greetings,
     /// What the renders have to follow since the view last caught up, oldest first (see
@@ -108,6 +109,7 @@ impl Traffic {
         Traffic {
             sim,
             greetings: Default::default(),
+            optional_features: Default::default(),
             events: Vec::new(),
             snapshot: Default::default(),
             looks: Default::default(),

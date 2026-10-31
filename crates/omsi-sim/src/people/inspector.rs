@@ -75,9 +75,15 @@ impl PeopleSim {
     /// A disconnected cabin path leaves the character standing rather than teleporting.
     pub fn step_bcs_inspector(&mut self, id:u32, checked:Option<u32>, paused:bool) -> bool {
         let Some(i)=self.people.iter().position(|p|p.id==id&&!p.remote) else{return false;};
-        let Some(bn)=self.last_buses.iter().find(|b|b.id==BusId::Player).cloned() else{return true;};
-        let Some(p)=self.pax(i).cloned().filter(|p|p.inspector) else{return false;};
-        let Some(seat)=p.seat.and_then(|k|bn.cabin.seats.get(k)).cloned() else{return false;};
+        let Some(bn)=self.last_buses.iter().find(|b|b.id==BusId::Player) else{return true;};
+        let Some(p)=self.pax(i).filter(|p|p.inspector) else{return false;};
+        let Some(seat)=p.seat.and_then(|k|bn.cabin.seats.get(k)) else{return false;};
+        // A walking patrol already has its route. Keep the original validity checks,
+        // then return before cloning the bus/Pax or rebuilding all cabin waypoints.
+        if !paused && checked.is_some() && p.st==5 { return true; }
+        let seat=seat.clone();
+        let p=p.clone();
+        let bn=bn.clone();
         if checked.is_none() && p.task==Task::SittingInBus {return true;}
         if paused {
             if let Some(p)=self.pax_mut(i){p.st=0;p.speed=0.0;p.pax_state=0.0;}

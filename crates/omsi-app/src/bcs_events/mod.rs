@@ -56,6 +56,7 @@ fn publish(patient: Option<u32>, blend: f32) {
 #[derive(Default)]
 pub(crate) struct Incidents {
     configured: bool,
+    options: omsi_cfg::optional_features::OptionalFeatures,
     actor_key: Option<(String,lifecycle::Key)>,
     actor_person: Option<u32>, actor_blend:f32, actor_time:f32,
 
@@ -83,13 +84,15 @@ impl crate::App {
         let incidents = &mut self.integrations.bcs_events;
         if !incidents.configured {
             incidents.configured = true;
-            let enabled = std::env::var("OPENOMSI_BCS_EVENTS_BETA")
-                .map(|v| v == "1")
-                .unwrap_or(option_env!("OPENOMSI_BCS_EVENTS_BETA_DEFAULT") == Some("1"));
-            if enabled {
+            // These options are captured for this session. Both settings interfaces
+            // explicitly say a game restart is required to change them.
+            incidents.options = self.settings.optional_features;
+            incidents.network.host = HostResponses::new(incidents.options.bcs_event_scenes);
+            if incidents.options.needs_bcs_capture() {
                 incidents.source = feed::Feed::start();
-                incidents.models.start(self.args.root.clone());
-                log::info!("BCS incident beta: local capture and response controller enabled");
+                if incidents.options.bcs_event_scenes && incidents.source.is_some() {
+                    incidents.models.start(self.args.root.clone());
+                }
             }
         }
         if incidents.source.is_none() {
@@ -105,6 +108,17 @@ impl crate::App {
         } else {
             None
         };
+        let latest = incidents.source.as_ref().and_then(|feed| feed.latest());
+        if incidents.options.bcs_inspectors && !self.paused {
+            if let (Some(humans), Some(player), Some(world)) =
+                (self.session.humans.as_mut(), self.player.as_ref(), self.world.as_ref()) {
+                incidents.inspector.update(context.as_deref(), latest.as_ref().and_then(|s| s.inspector.as_ref()),
+                    humans, &player.vehicle, world);
+            }
+        }
+        // The ordinary people synchronization draws inspector changes on the next
+        // frame; do not perform a second whole-population synchronization here.
+        if !incidents.options.bcs_event_scenes { return; }
         let riders: Vec<u32> = self
             .session
             .humans
@@ -117,7 +131,6 @@ impl crate::App {
                     .collect()
             })
             .unwrap_or_default();
-        let latest = incidents.source.as_ref().and_then(|f| f.latest());
         let actor_source=latest.as_ref().filter(|s|matches!(s.event,6|7)&&!s.completed);
         let actor_key=context.as_ref().zip(actor_source).map(|(c,s)|(c.clone(),lifecycle::Key{pid:s.pid,instance:s.instance}));
         if incidents.actor_key!=actor_key {
@@ -135,14 +148,6 @@ impl crate::App {
         });
         ACTOR_POSE.store(actor,Ordering::Relaxed);
 
-        if !self.paused {
-            if let (Some(humans),Some(player),Some(world))=(self.session.humans.as_mut(),self.player.as_ref(),self.world.as_ref()) {
-                incidents.inspector.update(context.as_deref(),latest.as_ref().and_then(|s|s.inspector.as_ref()),humans,&player.vehicle,world);
-                if let (Some(renderer),Some(scene))=(self.renderer.as_ref(),self.scene.as_mut()) {
-                    crate::view_sync::apply_people(humans,&mut self.gfx.sim_view.people,world,renderer,scene);
-                }
-            }
-        }
         if let (Some(world),Some(renderer),Some(scene),Some(player))=(self.world.as_ref(),self.renderer.as_ref(),self.scene.as_mut(),self.player.as_ref()) {
             incidents.effects.update(context.as_deref(),latest.as_ref(),player.vehicle.position,player.vehicle.heading,
                 if self.paused{0.0}else{dt},world,renderer,scene);
@@ -291,6 +296,9 @@ impl crate::App {
         if let Ok(mut p)=REMOTE_POSES.lock(){*p=remote_poses;}
     }
     pub(crate) fn receive_bcs_event(&mut self,from:u32,text:&str)->bool{
+        if !self.integrations.bcs_events.options.bcs_event_scenes {
+            return text.starts_with("bcs222_req ") || text.starts_with("bcs222_view ") || text.starts_with("bcs222_done ");
+        }
         let Some(lan)=self.net.lan.as_ref()else{return false};
         self.integrations.bcs_events.network.receive(lan,from,text)
     }

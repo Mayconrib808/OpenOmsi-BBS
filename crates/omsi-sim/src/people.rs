@@ -80,6 +80,8 @@ pub mod ticket_hook;
 pub mod bodies;
 pub mod inspector;
 mod reactions;
+mod dialog;
+pub use dialog::PassengerDialog;
 pub mod pose_facts;
 pub mod money;
 pub mod world;

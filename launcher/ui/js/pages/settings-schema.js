@@ -14,6 +14,7 @@
 // expects it; `also` is saved alongside.
 
 import { t } from '../i18n.js';
+import { optionalRows } from './optional-features.js';
 
 // --- value formats ---------------------------------------------------------------------
 
@@ -363,13 +364,14 @@ const gameplay = {
       title: 'Passengers',
       rows: [
         { type: 'select', key: 'boarding', label: 'Boarding', options: [['auto', 'Pay and take the ticket'], ['pay', 'The driver sells the ticket'], ['walk', 'Just walk in']] },
-        { type: 'toggle', key: 'ticket_chance_enabled', label: 'Mudar chance dos passageiros comprarem ticket', help: 'Desativado mantém a chance normal do mapa. O ônibus precisa ter caixa para venda.' },
-        { type: 'slider', key: 'ticket_chance_percent', label: 'Chance de comprar ticket', min: -1, max: 100, step: 1, def: -1, format: (v) => v < 0 ? 'Padrão do mapa' : `${Math.round(v)}%`, store: round, when: (s) => s.ticket_chance_enabled },
+        ...optionalRows(false),
+        { type: 'toggle', key: 'ticket_chance_enabled', label: 'Override ticket purchase chance', help: 'How passengers get their tickets' },
+        { type: 'slider', key: 'ticket_chance_percent', label: 'Ticket purchase chance', min: -1, max: 100, step: 1, def: -1, format: (v) => v < 0 ? t('Default') : `${Math.round(v)}%`, store: round, when: (s) => s.ticket_chance_enabled },
         { type: 'select', key: 'standing_chance' , label: 'Standing passengers', options: [['0', 'Never'], ['5', '5%'], ['10', '10%'], ['25', '25%'], ['50', '50%'], ['100', 'Always']] },
         { type: 'select', key: 'passenger_animation', label: 'Passenger animations', options: [['original', 'Original OMSI'], ['enhanced', 'Natural (procedural)']] },
-        { type: 'slider', key: 'passenger_transfer_percent', label: 'Chance de fazer conexão', min: 0, max: 100, step: 1, def: 20, store: round, format: (v) => Math.round(v)+'%', help: 'Ao desembarcar, caminham até outro ponto próximo e podem embarcar em outra linha. Nunca voltam ao mesmo ônibus. Padrão: 20%.' },
-        { type: 'toggle', key: 'passenger_umbrellas', label: 'Guarda-chuvas na chuva (beta)', help: 'Abertura, fechamento e gotas de água. Funciona com a animação Natural.', when: (s) => s.passenger_animation === 'enhanced' },
-        { type: 'toggle', key: 'passenger_hailing', label: 'Passageiros dão sinal ao ônibus (beta)', help: 'Usam a mão livre quando seguram o guarda-chuva.', when: (s) => s.passenger_animation === 'enhanced' },
+        { type: 'slider', key: 'passenger_transfer_percent', label: 'Connection chance', min: 0, max: 100, step: 1, def: 20, store: round, format: (v) => Math.round(v)+'%', help: 'Probability for eligible transfers; default 20%' },
+        { type: 'toggle', key: 'passenger_umbrellas', label: 'Passenger umbrellas', help: 'Takes effect when the game starts the next time', when: (s) => s.passenger_animation === 'enhanced' },
+        { type: 'toggle', key: 'passenger_hailing', label: 'Passengers signal approaching buses', help: 'Takes effect when the game starts the next time', when: (s) => s.passenger_animation === 'enhanced' },
         { type: 'custom', id: 'passenger-maps', when: (s) => s.passenger_animation === 'enhanced' && s.passenger_hailing },
         // (drawn on this computer only; the avatars are downloaded once, about 310 MB)
         { type: 'select', key: 'character_models', label: 'Character models', options: [['original', 'Original'], ['improved', 'High quality (improved)']], help: 'High quality draws the people with the Microsoft Rocketbox avatars and their living faces, on this computer only: servers and other players keep their own. They are downloaded once (about 310 MB).' },
@@ -381,6 +383,7 @@ const gameplay = {
         { type: 'toggle', key: 'full_tank', label: 'Start with a full tank' },
         { type: 'toggle', key: 'trip_summary', label: 'Trip summary' },
         { type: 'section', title: 'Traffic' },
+        ...optionalRows(true),
         { type: 'select', key: 'ai_unsched_factor', label: 'Random traffic', options: [['25', '25%'], ['50', '50%'], ['75', '75%'], ['100', '100%'], ['150', '150%'], ['200', '200%']] },
         { type: 'select', key: 'ai_max_scheduled', label: 'Timetable vehicles', options: [['0', 'All'], ['10', 'At most 10'], ['25', 'At most 25'], ['50', 'At most 50']] },
         { type: 'select', key: 'ai_max_parked', label: 'Parked cars', options: [['-1', 'None'], ['0', 'Every space'], ['35', 'At most 35'], ['100', 'At most 100'], ['250', 'At most 250']] },

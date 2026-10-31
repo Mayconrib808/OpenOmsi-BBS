@@ -11,7 +11,7 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
     let later = "Takes effect when the game starts the next time";
     let mode = session_mode(app);
     let shown = |key: &str| shown_in_mode(mode, key);
-    let game: Vec<(String, String)> = vec![
+    let mut game: Vec<(String, String)> = vec![
         switch_row(app, "navigator", "Navigator", "Enables/Disables the Minimap"),
         switch_row(app, "nav_ai", "AI vehicles on the map", "Shows/hides the other (AI) vehicles on the Minimap and the city map"),
         switch_row(app, "nav_surface", "Map surface under the roads", "Shows the map's ground, water, woods, houses and paved surfaces on the Minimap and the city map (and the map's package, when it has one)"),
@@ -33,12 +33,12 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "pax_bad_driving", "Passengers react to bad driving", "They complain about rough driving and may get off at the next stop"),
         switch_row(app, "auto_announce", "Arrival announcements at the stop", "On depot files that keep two recordings per stop (the Chinese maps), the arrival one is played as the bus reaches the stop: the IBIS's next stop key, pressed as the driver would"),
         pick("boarding", "Boarding", "How passengers get their tickets"),
-        switch_row(app,"ticket_chance_enabled","Mudar chance dos passageiros comprarem ticket","Desativado mantém a probabilidade normal do mapa; o ônibus precisa ter caixa para venda"),
-        slider_row(app,"ticket_chance_percent","Chance de comprar ticket","Padrão do mapa ou 0–100%; vale para os próximos embarques",&|v|if v<0.0{"Padrão do mapa".into()}else{format!("{v:.0}%")}).filter(|_|s.ticket_chance_enabled),
-        slider_row(app,"pax_transfer_percent","Chance de fazer conexão","Caminham até outro ponto próximo; não voltam ao mesmo ônibus. Padrão: 20%",&|v|format!("{v:.0}%")),
-        switch_row(app,"pax_umbrellas","Guarda-chuvas na chuva","Abertura, fechamento e gotas; modo Natural escolhido no lobby"),
-        switch_row(app,"pax_hailing","Passageiros dão sinal ao ônibus","Começam na aproximação e mantêm o braço até o ônibus parar"),
-        switch_row(app,"pax_hailing_map","Dar sinal neste mapa",&format!("Escolha salva para {}",app.args.map)),
+        switch_row(app,"ticket_chance_enabled","Override ticket purchase chance","How passengers get their tickets"),
+        slider_row(app,"ticket_chance_percent","Ticket purchase chance","How passengers get their tickets",&|v|if v<0.0{omsi_ui::tr("Default").into_owned()}else{format!("{v:.0}%")}).filter(|_|s.ticket_chance_enabled),
+        slider_row(app,"pax_transfer_percent","Connection chance","Probability for eligible transfers; default 20%",&|v|format!("{v:.0}%")),
+        switch_row(app,"pax_umbrellas","Passenger umbrellas","Takes effect when the game starts the next time").filter(|_| s.passenger_animation == "enhanced"),
+        switch_row(app,"pax_hailing","Passengers signal approaching buses","Takes effect when the game starts the next time").filter(|_| s.passenger_animation == "enhanced"),
+        switch_row(app,"pax_hailing_map","Signal buses on this map",omsi_cfg::optional_features::HELP).filter(|_| s.passenger_animation == "enhanced" && s.passenger_hailing),
         pick("standing_chance", "Standing passengers", "The chance a passenger stands although a seat is free"),
         pick("maintenance", "Maintenance", later),
         pick("ai_unsched_factor", "Random traffic", later),
@@ -49,6 +49,8 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
         .into_iter()
         .flatten()
         .collect();
+    game.extend(omsi_cfg::optional_features::FEATURES.iter().filter_map(|feature|
+        switch_row(app, feature.key, feature.label, omsi_cfg::optional_features::help(feature.key))));
     let mut graphics: Vec<(String, String)> = vec![
         pick("graphics", "Graphics", later),
         preset_row(&file, "Quality preset", "Sets the graphics mode and most of the options at once, from Low (Vanilla) to Ultra (Enhanced with everything on)"),
