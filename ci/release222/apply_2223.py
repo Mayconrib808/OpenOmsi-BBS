@@ -244,4 +244,16 @@ apply("crates/omsi-sim/src/people/buses.rs",
         // Some addon buses declare one [entry] and one [exit] but animate
         // their actual exit using a later door leaf (door_2 through door_7).""")
 
+
+# Crossing a door should not require the path walker to enter its final state
+# when the passenger's feet are already at the real interior threshold.
+# This handles addon cabin graphs whose final waypoint is slightly displaced
+# from the physical exit. No teleport or bypass: the actual exit must be open,
+# the bus stopped at a recognized stop, and the rider <=0.45 m from the door.
+apply("crates/omsi-sim/src/people/pax_task.rs",
+    """        let out = p.st == 7 && bn.speed.abs() < 1.0 && may_leave;""",
+    """        let at_exit_threshold = p.door.and_then(|door| bn.cabin.exits.get(door))
+            .is_some_and(|door| (p.pos - door.inside.as_dvec3()).length() <= 0.45);
+        let out = (p.st == 7 || at_exit_threshold) && bn.speed.abs() < 1.0 && may_leave;""")
+
 print("OpenOMSI 2.2.3 post-patch fixes layered on the fully materialized native source")
