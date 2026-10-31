@@ -185,6 +185,7 @@ impl PeopleSim {
                         && p.demand_arrived_at.is_some_and(|at|
                             self.time - at >= super::demand::patience_seconds(self.people[i].id)));
                 if leaving {
+                    self.demand_audit.patience_left += 1;
                     self.release(i);
                     let gone = self.people.swap_remove(i);
                     self.retire(&gone);
@@ -223,8 +224,13 @@ impl PeopleSim {
                 let places = st.spots.len();
                 let served = self.stop_targets.as_ref().is_none_or(|targets|
                     targets.get(&id).is_some_and(|routes| !routes.is_empty()));
+                let first = self.stop_demand.get(&id).is_none_or(|d| d.minute == i64::MIN);
+                let before = self.stop_demand.get(&id).map_or(0.0, |d| d.waiting);
                 self.stop_demand.entry(id).or_default().advance(
                     id, self.time, dt, mean, if served { self.density } else { 0.0 }, places);
+                let after = self.stop_demand[&id].waiting;
+                if first { self.demand_audit.seeded_stops += 1; }
+                else { self.demand_audit.new_queue_units += (after-before).max(0.0) as f64; }
             }
             let near = {
                 let s = &self.stops[&id];
@@ -289,6 +295,10 @@ impl PeopleSim {
                     if self.spawn_waiting(world, id).is_some() {
                         self.stop_demand.get_mut(&id).unwrap().admitted();
                         self.stops.get_mut(&id).unwrap().clock_ms = 0.0;
+                        self.demand_audit.materialized += 1;
+                        self.demand_audit.last_stop = Some(id);
+                    } else {
+                        self.demand_audit.spawn_refused += 1;
                     }
                 }
                 self.stops.get_mut(&id).unwrap().clock_ms += dt.max(0.0) * 1000.0;
@@ -327,6 +337,35 @@ impl PeopleSim {
             if count >= want {
                 self.stops.get_mut(&id).unwrap().clock_ms = 0.0;
             }
+        }
+        // At most two lines every simulated minute. This records *actual*
+        // enqueues and materialized arrivals, not an enabled=true claim.
+        if independent && self.time - self.demand_audit.last_report_at >= 60.0 {
+            let near = self.stops.values().filter(|s| s.near).count();
+            let served = self.stops.iter().filter(|(id,s)| {
+                !s.spots.is_empty() && self.stop_targets.as_ref().is_none_or(|targets|
+                    targets.get(id).is_some_and(|routes| !routes.is_empty()))
+            }).count();
+            let backlog: f32 = self.stop_demand.values().map(|d| d.waiting).sum();
+            let d = &mut self.demand_audit;
+            log::info!(
+                "FEATURE AUDIT demand independent=active local_sim=true simulated_seconds={:.0} loaded_stops={} near_stops={} served_stops={} seeded_stops={} new_queue_units={:.2} arrivals_materialized={} spawn_refused={} patience_departures={} backlog={:.2} last_arrival_stop={:?} density={:.2}",
+                self.time, self.stops.len(), near, served, d.seeded_stops, d.new_queue_units,
+                d.materialized, d.spawn_refused, d.patience_left, backlog, d.last_stop, self.density
+            );
+            log::info!(
+                "FEATURE AUDIT extras weather_clothing={} model_spawns_examined={} suitable_tagged_outfits={} climate_c={:.1} rain={} snow={} ambient_talk={} talk_opportunities={} missing_pairs={} missing_clips={} audible_lines={}",
+                self.optional_features.weather_clothing, d.clothing_evaluated, d.clothing_tagged_selected,
+                self.climate_temp_c, self.climate_rain, self.climate_snow,
+                self.optional_features.passenger_ambient_talk, d.conversation_attempts,
+                d.conversation_without_pairs, d.conversation_without_clips, d.conversation_lines
+            );
+            d.seeded_stops=0; d.new_queue_units=0.0; d.materialized=0;
+            d.spawn_refused=0; d.patience_left=0; d.last_stop=None;
+            d.clothing_evaluated=0; d.clothing_tagged_selected=0;
+            d.conversation_attempts=0; d.conversation_without_pairs=0;
+            d.conversation_without_clips=0; d.conversation_lines=0;
+            d.last_report_at=self.time;
         }
     }
 
