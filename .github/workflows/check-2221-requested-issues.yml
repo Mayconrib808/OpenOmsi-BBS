@@ -1,0 +1,71 @@
+name: Validate 2.2.2.1 requested AI and map enhancements
+on:
+  push:
+    branches: [feature/openomsi-2.2.2.1-requested-issues]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: verify-openomsi-2221-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-native:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.1-dev
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - shell: pwsh
+        name: Disable automatic CRLF changes
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: 2221-feature-ci
+      - name: Compile Windows OpenOMSI + P15 server mode
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Native client/server build failed' }
+          & .\target\release\openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Native executable failed startup' }
+      - name: Road density by weekday and holiday parser
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim extended_density::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Extended traffic density tests failed' }
+      - name: HOF strict selection and compatibility tests
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-vehicle hof::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'HOF regression tests failed' }
+      - name: Previous inspector and traffic regressions
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim people::inspector::patrol_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Inspector regression failed' }
+          cargo test --locked --release -p omsi-app directional_fallback_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Opposite-direction traffic regression failed' }
+      - name: Upload development binary only; do not publish through updater
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force development | Out-Null
+          Copy-Item target/release/openomsi.exe development/openomsi.exe
+          Get-ChildItem target/release -Filter '*.dll' | Copy-Item -Destination development
+          git rev-parse HEAD | Out-File -FilePath development/SOURCE_COMMIT.txt -Encoding utf8
+          'INCOMPLETE DEV BUILD: new 2.2.2.1 requested features are not all implemented. Not for Buscar atualizacoes.' | Out-File development/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.1-PARTIAL-DEVELOPMENT
+          path: development/*
+          retention-days: 14
