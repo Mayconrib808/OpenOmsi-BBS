@@ -173,6 +173,23 @@ impl PeopleSim {
         let mut ids: Vec<i64> = self.stops.keys().copied().collect();
         ids.sort_unstable();
         let forced = omsi_cfg::flags::OMSI_PAX_WAITING.parse::<usize>();
+        let independent = self.optional_features.independent_passenger_demand;
+        // Passengers who have waited too long can leave. Never remove people
+        // already boarding or aboard, and never age them while the game pauses.
+        if independent {
+            for i in (0..self.people.len()).rev() {
+                let leaving = matches!(&self.people[i].state, State::Pax(p)
+                    if p.inside.is_none()
+                        && matches!(p.task, Task::WaitingForBus | Task::WalkingToBusstop)
+                        && p.demand_arrived_at.is_some_and(|at|
+                            self.time - at >= super::demand::patience_seconds(self.people[i].id)));
+                if leaving {
+                    self.release(i);
+                    let gone = self.people.swap_remove(i);
+                    self.retire(&gone);
+                }
+            }
+        }
         // the people handed over to another player's bus stop counting once it has left
         // their stop (or the session)
         if !self.handed.is_empty() {
@@ -197,6 +214,17 @@ impl PeopleSim {
             *counts.entry(h.0).or_default() += 1;
         }
         for id in ids {
+            if independent {
+                // Accumulate even if nobody can see this stop. Only the ledger
+                // is updated offscreen; meshes are created near players only.
+                let st = &self.stops[&id];
+                let mean = (st.enter_max + st.enter_min) * 0.5;
+                let places = st.spots.len();
+                let served = self.stop_targets.as_ref().is_none_or(|targets|
+                    targets.get(&id).is_some_and(|routes| !routes.is_empty()));
+                self.stop_demand.entry(id).or_default().advance(
+                    id, self.time, dt, mean, if served { self.density } else { 0.0 }, places);
+            }
             let near = {
                 let s = &self.stops[&id];
                 self.anchors().any(|c| (s.pos - c).length() < STOP_RANGE)
@@ -209,6 +237,16 @@ impl PeopleSim {
             };
             if !near {
                 if changed {
+                    if independent {
+                        // Return people who only disappeared because the tile was
+                        // unloaded to the queue, instead of losing their demand.
+                        let returning = self.people.iter().filter(|person| matches!(&person.state,
+                            State::Pax(p) if p.stop == Some(id) && p.inside.is_none()
+                                && matches!(p.task, Task::WaitingForBus | Task::WalkingToBusstop))).count();
+                        let capacity = self.stops[&id].spots.len() as f32;
+                        let pending = self.stop_demand.entry(id).or_default();
+                        pending.waiting = (pending.waiting + returning as f32).min(capacity);
+                    }
                     // (sub_61be80) the people waiting there go
                     for i in (0..self.people.len()).rev() {
                         let here = matches!(&self.people[i].state, State::Pax(p) if p.stop == Some(id) && p.inside.is_none() && matches!(p.task, Task::WaitingForBus | Task::WalkingToBusstop));
@@ -238,6 +276,23 @@ impl PeopleSim {
                 s.factor = (r * 2.0 - 1.0) * k + 1.0;
             }
             let count = counts.get(&id).copied().unwrap_or(0);
+            if independent {
+                // One real arrival at most per update: boarding never triggers
+                // replenishment. The stock per-stop limit still applies.
+                let queued = self.stop_demand.get(&id).map(|d| d.waiting).unwrap_or(0.0);
+                let capacity = self.stops[&id].spots.len();
+                self.stops.get_mut(&id).unwrap().want =
+                    (count + queued.floor() as usize).min(capacity);
+                let can_arrive = changed || self.stops[&id].clock_ms >= 2500.0;
+                if queued >= 1.0 && count < capacity && can_arrive {
+                    if self.spawn_waiting(world, id).is_some() {
+                        self.stop_demand.get_mut(&id).unwrap().admitted();
+                        self.stops.get_mut(&id).unwrap().clock_ms = 0.0;
+                    }
+                }
+                self.stops.get_mut(&id).unwrap().clock_ms += dt.max(0.0) * 1000.0;
+                continue;
+            }
             debug_assert_eq!(count, self.people.iter().filter(|p| matches!(&p.state, State::Pax(x) if x.stop == Some(id))).count() + self.handed.iter().filter(|h| h.0 == id).count());
             let want = {
                 let s = &self.stops[&id];
@@ -281,7 +336,13 @@ impl PeopleSim {
         let mut dest: Option<String> = None;
         let Some(stop) = self.stops.get(&id) else { return (None, None) };
         // (of the trips due here soon, `due_dests`; their weights made a whole again)
-        let due = self.due_dests.as_ref().map(|d| d.get(&id));
+        // Independent demand is matched to *destinations*, not the next due
+        // trip. The first compatible route on this corridor may collect them.
+        let due = if self.optional_features.independent_passenger_demand {
+            None
+        } else {
+            self.due_dests.as_ref().map(|d| d.get(&id))
+        };
         let dests: Vec<(&String, f32)> = match due {
             Some(set) => {
                 let kept: Vec<(&String, f32)> = stop.dests.iter().filter(|(n, _)| set.is_some_and(|s| s.contains(n.trim()))).map(|(n, w)| (n, *w)).collect();
@@ -321,6 +382,9 @@ impl PeopleSim {
         let walk = 1.1 + (self.rand_f() as f32 * 2.0 - 1.0) * 0.2;
         let mut pax = Pax::new(walk, self.rand_f());
         pax.stop = Some(id);
+        if self.optional_features.independent_passenger_demand {
+            pax.demand_arrived_at = Some(self.time);
+        }
         pax.spot = Some(k);
         pax.pos = sp.pos;
         pax.yaw = sp.face.to_radians();
