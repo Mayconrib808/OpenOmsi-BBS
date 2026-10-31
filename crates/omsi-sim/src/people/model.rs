@@ -365,6 +365,10 @@ pub struct PeopleSim {
     pub voices: u8,
     /// When anybody last greeted or complained (seconds of `time`).
     pub last_chat: f64,
+    /// Optional, intentionally sparse cabin exchanges; zero work when disabled.
+    pub ambient_talk_at: f64,
+    /// Person id and earliest reply time; ids remain valid across swap_remove.
+    pub ambient_talk_reply: Option<(u32, f64)>,
     /// Avatars (the player on foot, other players' walkers): key → person id, and what
     /// the game wants of each this frame.
     pub avatars: HashMap<u32, u32>,
