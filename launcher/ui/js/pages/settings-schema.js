@@ -384,6 +384,7 @@ const gameplay = {
         { type: 'toggle', key: 'trip_summary', label: 'Trip summary' },
         { type: 'section', title: 'Traffic' },
         ...optionalRows(true),
+        { type: 'slider', key: 'illegal_parking_frequency', label: 'Temporary illegal parking frequency', min: 0, max: 5, step: 0.1, def: 0.8, format: (v) => v.toFixed(1)+'%', store: snap(0.1), when: (s) => !!s.illegal_parking, help: 'Probability per eligible AI car/lane; 0% disables events even when the switch is on' },
         { type: 'select', key: 'ai_unsched_factor', label: 'Random traffic', options: [['25', '25%'], ['50', '50%'], ['75', '75%'], ['100', '100%'], ['150', '150%'], ['200', '200%']] },
         { type: 'select', key: 'ai_max_scheduled', label: 'Timetable vehicles', options: [['0', 'All'], ['10', 'At most 10'], ['25', 'At most 25'], ['50', 'At most 50']] },
         { type: 'select', key: 'ai_max_parked', label: 'Parked cars', options: [['-1', 'None'], ['0', 'Every space'], ['35', 'At most 35'], ['100', 'At most 100'], ['250', 'At most 250']] },
