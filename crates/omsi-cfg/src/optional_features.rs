@@ -25,7 +25,7 @@ pub const HOST_HELP: &str = "In multiplayer, shared AI vehicles are controlled b
 pub fn help(key: &str) -> &'static str {
     if matches!(
         key,
-        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings" | "ai_bus_overtaking"
+        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings" | "ai_bus_overtaking" | "ai_driver_wave"
     ) {
         HOST_HELP
     } else {
