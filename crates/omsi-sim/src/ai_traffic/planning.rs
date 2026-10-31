@@ -118,12 +118,13 @@ impl TrafficSim {
         let at = st.odometer + leave;
         let current = st.lateral;
         let odo = st.odometer;
+        let source_lane = st.lane;
         let car = &mut self.cars[i];
         car.bus_lane_pass = Some(super::model::BusLanePass { target_lane:target,offset,return_at:at });
         car.state.lateral_target = offset;
         car.state.lateral_ramp = (current,offset,odo,first);
         car.stopped = 0.0;
-        if ts.debug { log::info!("t={:.1}: timetable bus {} temporarily overtakes bus {} on same-direction lane {}, keeps own route lane {}",self.time,car.id,who.unwrap_or(usize::MAX),target,st.lane); }
+        if ts.debug { log::info!("t={:.1}: timetable bus {} temporarily overtakes bus {} on same-direction lane {}, keeps own route lane {}",self.time,car.id,who.unwrap_or(usize::MAX),target,source_lane); }
         true
     }
 }
