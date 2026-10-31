@@ -1083,7 +1083,13 @@ impl BusService {
             return None;
         }
         // (right behind a bus at the berth it serves the stop together with it)
-        let reach = super::berths::length_aware_queue_reach(st.front, st.rear);
+        // Extend shared-bay boarding reach only for an actual lateral bay.
+        // Ordinary curb stops keep their old radius and unchanged boarding flow.
+        let reach = if stop.bay.abs() > 0.5 {
+            super::berths::length_aware_queue_reach(st.front, st.rear)
+        } else {
+            SERVE_QUEUED_REACH
+        };
         let queued = berths.holder(key).is_some_and(|h| h != ctx.id) && d < reach;
         if self.rest_t >= SERVE_HERE_AFTER && (0.0..SERVE_BEHIND_REACH.max(reach)).contains(&d) && (queued || berths.held_long(key, ctx.time)) {
             if ctx.debug || omsi_cfg::flags::OMSI_DEBUG_STOPS.is_set() {
