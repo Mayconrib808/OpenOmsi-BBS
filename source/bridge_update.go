@@ -142,13 +142,18 @@ func previousBridgeChangelogVersion(dir string) string {
     if marker, err := os.ReadFile(filepath.Join(appDir(dir), "changelog-seen.txt")); err == nil {
         seen := strings.TrimSpace(string(marker))
         switch seen {
-        case "2.2.2", "2.2.2-hotfix.1", "2.2.2-hotfix.2", "2.2.2-hotfix.3":
+        case "2.2.2", "2.2.2-hotfix.1", "2.2.2-hotfix.2", "2.2.2-hotfix.3", "2.2.2.1", "2.2.2.1-hotfix.1":
             return seen
         }
     }
     if raw, err := os.ReadFile(filepath.Join(dir,"docs","HOST-PESSOAL-2.2.0.3.json")); err == nil {
         var m struct { Version string `json:"version"` }
         if json.Unmarshal(raw,&m)==nil && len(m.Version)>0 && len(m.Version)<70 {
+            // 2.2.2.1 shipped with the previous launcher and never displayed
+            // its changelog. If no acknowledged marker exists, treat that
+            // release as unseen so users still receive BOTH its notes and
+            // the new Hotfix 1 when they update.
+            if strings.TrimSpace(m.Version)=="2.2.2.1" {return "2.2.2-hotfix.3"}
             return strings.TrimSpace(m.Version)
         }
     }
