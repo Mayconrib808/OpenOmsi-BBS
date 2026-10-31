@@ -546,10 +546,10 @@ impl TrafficSim {
             courtesy_window(gap, st.speed)
                 && bus.state.speed < 0.5
                 && bus.bus.as_ref().is_some_and(|b| {
-                    b.phase == Phase::Closing && !b.pulling_up
+                    b.phase == Phase::Closing
                         && b.stops.front().is_some_and(|stop| stop.bay.abs() > 0.5)
                 })
-                && bus.state.signal == if self.net.left_hand { 2 } else { 1 }
+                && bus.state.signal == (if self.net.left_hand { 2 } else { 1 })
         });
         if !(player_leaving || ai_leaving) { return false; }
         self.try_change(i, target, dir, ChangeKind::Choice, ts, None)
