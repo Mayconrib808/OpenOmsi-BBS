@@ -4,9 +4,9 @@
     "source": {
       "path": "crates/omsi-app/src/traffic.rs",
       "mode": "100644",
-      "blob_sha1": "89aa59af0e50287c76190e980b03bf4bbe750532",
-      "sha256": "f8416534a916403991a8a4ab3b573f2a87d1fd80bda3acf61a464171f8b3da54",
-      "size": 7359
+      "blob_sha1": "cad464ed85ca421d673d14ae922ac1bad108c3b5",
+      "sha256": "d7064b8f8b5f57fd32c2a4082d2408702211d69c3fa37b97e5d6a29b626c6b63",
+      "size": 7484
     }
   },
   {
@@ -24,9 +24,9 @@
     "source": {
       "path": "crates/omsi-app/src/traffic/population.rs",
       "mode": "100644",
-      "blob_sha1": "686f71e120954570b02918e8c1f40483056b8f23",
-      "sha256": "39912cd1659017f05b4fd6e1c3eda9d9aa5dce9e410500b11a7e0b38767e13e3",
-      "size": 47498
+      "blob_sha1": "c0415f94812b4821824078c865b794e73bdac463",
+      "sha256": "f6d867fa4998c3703251ed5e8406939413c262e16e47079cd50b45c70582698e",
+      "size": 47707
     }
   },
   {

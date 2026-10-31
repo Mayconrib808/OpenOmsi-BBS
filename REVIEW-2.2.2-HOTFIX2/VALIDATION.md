@@ -1,36 +1,27 @@
-# Validation and limits
+# Validation of the corrected developer-source revision
 
-## Exact released build (existing evidence, re-read for this audit)
+The tested native code commit is `44d2e919b505133be401869552c108b03ec48a70`, tree `43b7d5ffa5b2e3d4c7901399011f21658b6790c0`. [Windows build and regression run](https://github.com/Mayconrib808/OpenOmsi-BBS/actions/runs/41169027280) builds the real `omsi-app` executable with the compiled translation catalog, invokes its `--version`, then runs the checks below before publishing the code branch. The source archive and executable SHA-256 are recorded in [revision-build.json](revision-build.json).
 
-Native Windows run [41157142308](https://github.com/Mayconrib808/OpenOmsi-BBS/actions/runs/41157142308), job `native`, completed successfully. Its source archive SHA-256 and source tree are recorded in `provenance.json`.
-
-| Check actually executed | Result |
+| Check | Scope |
 | --- | --- |
-| Windows release build of `omsi-app` and native `--version` | Passed |
-| `ai_traffic::response::tests` | 8 passed |
-| `people::inspector::patrol_tests` | 1 passed |
-| `tolerant_stop_box_tests` | 2 passed |
-| `one_entry_one_exit_with_separate_rear_leaf_can_open_for_alighting` | 1 passed |
-| `omsi-app bcs_events::` | 14 passed |
-| Standalone international inspector name test (also present in the 14 app tests) | 1 passed |
-| Generated police/fire geometry axis and actual model loading | Passed |
+| Official upstream locale validator | 19 new keys, 573 added translations, zero errors/warnings; no existing translations changed |
+| Launcher executable schema tests | Seven real, unique toggles, names/help, restart notice and preserved transfer slider |
+| `omsi-cfg optional_features::` | Independent off defaults, explicit false, disabled connections and BCS capture requirements |
+| `omsi-sim people::` | Full passenger selection, including existing doors/AI-stop/inspector tests and new reaction identity/disabled RNG behavior |
+| `omsi-launcher-core passenger_` | Passenger settings migration and persistence regressions |
+| `omsi-app app_events::frame::people::dialog::tests` | Actual compiled native and launcher tables, every supported language/alias, 116 caption translations, distinct reactions |
+| `omsi-app settings::` | Settings suite, 128 toggle combinations across both writers, old/partial configurations and all translated controls/help |
+| `omsi-app traffic::population::optional_density_tests` | Baseline while disabled, zero/sparse roads and bounded extra scale |
+| `omsi-app bcs_events::` | Existing capture, event/controller, lifecycle, names and visual-model regressions |
 
-There were 27 test executions here, including the repeated name test, not a fresh run of every workspace regression. The simulation commands filtered out hundreds of other tests. These focused tests do not cover all dialogue timers, every cabin topology, visual appearance or guest traffic density.
+Commands, individual test names and counts are retained in the Actions job log and test evidence artifact. This table identifies the selections actually run; it does not imply every workspace test or real gameplay was run. Earlier trial runs exposed stale object-ID-based stop assertions. The final tests challenge selected-route priority for AI/player buses and nearest-stop fallback in both distance orderings; no production selection code was changed to satisfy those tests. The final Windows run must pass before publication.
 
-The Bridge packaging run 41159417197 also reported passing Bridge regressions, update/changelog Windows UI checks and unchanged complete hosts/P14. Those are packaging evidence, not additional native gameplay tests.
+## Delivery integrity
 
-## Checks newly performed for this source delivery
+`verify.py` checks every source file against its SHA-256 and Git blob, checks patch hashes and file-disjoint coverage, applies all five patches to a temporary Git index at official 0.3.46, and compares the resulting tree to the **tested revised native tree**. [verification.json](verification.json) records the reconstruction. This protects against omitted files or inconsistent patches; compilation evidence is the separate Windows CI run.
 
-- Downloaded the exact native artifact; verified `openomsi-source.tar.gz` against its recorded SHA-256.
-- Reproduced the published source tree byte-for-byte, including Windows line endings in six files written by the layering script.
-- Exposed that exact tree in a normal Git commit; the materialized CI-only commit is no longer the only reference to these sources.
-- Partitioned the complete official-base delta into five file-disjoint patches, retaining binary patch records and licenses.
-- Applied every patch in order to a temporary Git index at the official base and compared the final Git tree with the artifact tree.
-- Verified every source file SHA-256 and blob identity; verified no file is omitted or assigned to two parts.
-- Read the initial and follow-up reviews of upstream PRs #3427, #3428 and #3429. Findings and remaining work are in `REVIEW.md`.
+The original released Hotfix 2 code/archive metadata remains in [provenance.json](provenance.json), including native run 41157142308, its tree/hash and original publication sequence 2026103003. This revision is not represented as the identical shipped tree and has not been published into Buscar atualizações. Bridge/HostAgent/CompanyHost/P14 were outside this native-source change.
 
-Run `python3 REVIEW-2.2.2-HOTFIX2/verify.py` to repeat the extraction/integrity checks. `verification.json` records their result; it does not certify gameplay or performance.
+## Gameplay and performance still pending
 
-## Still not established
-
-No new Rust compilation was run locally for this documentation-only export; the recorded successful Windows build belongs to the exact code tree included here. No zero-bug, zero-allocation or zero-FPS-impact claim is made. Real-map busy stops, articulated/addon buses, long avenues with separated LAN peers, disabled-option RNG equivalence, VR/mobile visuals, GPU/VRAM growth, p95/p99 frame time and a complete two-PC BCS journey remain to be validated.
+No interactive Windows trip, two-PC BCS journey, articulated/addon door matrix, full-bus caption stress test, FPS/p95/p99 measurement, VR/mobile appearance or GPU/VRAM profiling is claimed. The disabled fast paths and bounded calculations are implemented and covered where described; allocation-free active operation or zero performance impact is not established. See [REVIEW.md](REVIEW.md) for the remaining findings.

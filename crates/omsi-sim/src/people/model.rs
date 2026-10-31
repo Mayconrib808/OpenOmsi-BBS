@@ -247,6 +247,7 @@ pub const CHAT_PAUSE: f64 = 12.0;
 pub type WallCell = (f64, Vec<(Block, f64, f64)>);
 
 pub struct PeopleSim {
+    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
     pub types: Vec<Arc<HumanType>>,
     pub people: Vec<Person>,
     pub rng: u64,

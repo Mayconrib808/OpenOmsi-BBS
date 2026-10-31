@@ -1,5 +1,5 @@
 diff --git a/crates/omsi-app/src/traffic.rs b/crates/omsi-app/src/traffic.rs
-index 0939dbef734dbff4f4ea925fa1be3bf4fadccd25..89aa59af0e50287c76190e980b03bf4bbe750532 100644
+index 0939dbef734dbff4f4ea925fa1be3bf4fadccd25..cad464ed85ca421d673d14ae922ac1bad108c3b5 100644
 --- a/crates/omsi-app/src/traffic.rs
 +++ b/crates/omsi-app/src/traffic.rs
 @@ -10,6 +10,7 @@ mod control;
@@ -10,19 +10,22 @@ index 0939dbef734dbff4f4ea925fa1be3bf4fadccd25..89aa59af0e50287c76190e980b03bf4b
  mod setup;
  mod table;
  mod trains;
-@@ -46,6 +47,7 @@ pub(crate) use omsi_sim::ai_traffic::viewer::Viewer;
+@@ -45,7 +46,9 @@ pub(crate) use omsi_sim::ai_traffic::viewer::Viewer;
+ /// car on the road or take it off write down what the pictures have to follow (`events`),
  /// replayed by `view_sync::apply_traffic`.
  pub struct Traffic {
++    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
      pub sim: TrafficSim,
 +    pub greetings: omsi_sim::ai_traffic::greetings::Greetings,
      /// What the renders have to follow since the view last caught up, oldest first (see
      /// `TrafficEvent`).
      pub(crate) events: Vec<TrafficEvent>,
-@@ -105,6 +107,7 @@ impl Traffic {
+@@ -105,6 +108,8 @@ impl Traffic {
      fn with_sim(sim: TrafficSim, root: &Path) -> Traffic {
          Traffic {
              sim,
 +            greetings: Default::default(),
++            optional_features: Default::default(),
              events: Vec::new(),
              snapshot: Default::default(),
              looks: Default::default(),
@@ -39,10 +42,10 @@ index 2911386b82b5b67f3be2d8f2085c60309edde7fe..1ae5d92f9d616b9d62fdc3d835bb239a
              state,
              vehicle,
 diff --git a/crates/omsi-app/src/traffic/population.rs b/crates/omsi-app/src/traffic/population.rs
-index 002d1066b5dac46f875f32cafab11f01348ec754..686f71e120954570b02918e8c1f40483056b8f23 100644
+index 002d1066b5dac46f875f32cafab11f01348ec754..c0415f94812b4821824078c865b794e73bdac463 100644
 --- a/crates/omsi-app/src/traffic/population.rs
 +++ b/crates/omsi-app/src/traffic/population.rs
-@@ -1,835 +1,884 @@
+@@ -1,835 +1,897 @@
 -//! The population around the player: where cars may appear and vanish unseen, putting
 -//! new ones on the road and taking far ones off.
 -
@@ -1216,33 +1219,9 @@ index 002d1066b5dac46f875f32cafab11f01348ec754..686f71e120954570b02918e8c1f40483
 +        }
 +        // aircraft: a few on the flight paths, independent of the street target
 +        let has_air = self.sim.types.iter().any(|t| t.2 == LaneKind::Air);
-+        // the map's traffic density by hour (and group) scales the street traffic ...
-+        let density = self.street_density();
-+        // ... and so does how much road there is around: the same number of cars looks
-+        // empty on a six-lane Berlin junction and crowded on a village lane, so the count
-+        // asked for is per a neighbourhood of about 250 lanes; and as Omsi spawns on each
-+        // path at a rate of its [rule] trafficdensity, paths of low density bring fewer cars
-+        // and those of density 0 (or kept clear of cars) none
-+        let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
-+            .into_iter()
-+            .map(|i| &self.sim.net.lanes[i])
-+            .filter(|l| {
-+                l.kind == LaneKind::Street
-+                    && l.points
-+                        .first()
-+                        .map(|p| (*p - center).length() < self.sim.spawn_radius)
-+                        .unwrap_or(false)
-+            })
-+            .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
-+            .collect();
-+        // Physical lane length matters on avenues: a few long parallel paths can
-+        // carry more cars than dozens of very short junction segments.
-+        let lane_metres:f32=self.sim.net.lanes_starting_near(center,self.sim.spawn_radius).into_iter()
-+            .filter_map(|i|self.sim.net.lanes.get(i)).filter(|l|l.kind==LaneKind::Street&&!l.no_cars&&l.density>0.0)
-+            .filter(|l|(l.start()-center).truncate().length()<self.sim.spawn_radius)
-+            .map(|l|l.length().clamp(0.0,300.0)*l.density.clamp(0.0,2.0)).sum();
-+        let scale=road_scale(&near_density).max((lane_metres/6000.0).clamp(1.0,4.0));
-+        let street_target = (self.sim.target as f32 * density * scale).round() as usize;
++        // The same local-road calculation is used for the host and each LAN bubble.
++        // With the extra-density option off it is the original road_scale target.
++        let street_target = self.street_target_near(center);
 +        // the cars that come into range again, where they have got to
 +        self.wake_dormant(world, center, street_target);
 +        // the whole map's population: as dense as around the player, on every street the
@@ -1274,14 +1253,24 @@ index 002d1066b5dac46f875f32cafab11f01348ec754..686f71e120954570b02918e8c1f40483
 +
 +    /// Road population near the receiving LAN player, not near the host.
 +    fn street_target_near(&self, center: DVec3) -> usize {
-+        let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
-+            .into_iter()
-+            .map(|i| &self.sim.net.lanes[i])
-+            .filter(|l| l.kind == LaneKind::Street
-+                && l.points.first().is_some_and(|p| (*p - center).length() < self.sim.spawn_radius))
-+            .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
-+            .collect();
-+        (self.sim.target as f32 * self.street_density() * road_scale(&near_density)).round() as usize
++        let extra = self.optional_features.extra_traffic_density;
++        let lanes = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius);
++        let mut densities = Vec::with_capacity(lanes.len());
++        let mut lane_metres = 0.0;
++        for index in lanes {
++            let lane = &self.sim.net.lanes[index];
++            if lane.kind != LaneKind::Street
++                || !lane.points.first().is_some_and(|p| (*p - center).length() < self.sim.spawn_radius) {
++                continue;
++            }
++            densities.push(if lane.no_cars { 0.0 } else { lane.density.clamp(0.0, 4.0) });
++            // No length summation is performed for a disabled optional feature.
++            if extra && !lane.no_cars && lane.density.is_finite() && lane.density > 0.0 {
++                lane_metres += lane.length().clamp(0.0, 300.0) * lane.density.clamp(0.0, 2.0);
++            }
++        }
++        let scale = optional_road_scale(&densities, lane_metres, extra);
++        (self.sim.target as f32 * self.street_density() * scale).round() as usize
 +    }
 +
 +    #[allow(clippy::too_many_arguments)]
@@ -1760,6 +1749,33 @@ index 002d1066b5dac46f875f32cafab11f01348ec754..686f71e120954570b02918e8c1f40483
 +        assert!(!ground_missing_for_good(Some((4, 7)), (5, 7), map_has, |_| true));
 +        // no tile of its own known
 +        assert!(!ground_missing_for_good(None, (4, 9), map_has, |_| true));
++    }
++}
++
++/// The off path is exactly the existing road-density scale. Sparse/closed roads
++/// are not forced to a minimum scale of one by the optional length correction.
++fn optional_road_scale(densities: &[f32], lane_metres: f32, enabled: bool) -> f32 {
++    let original = road_scale(densities);
++    if !enabled || !lane_metres.is_finite() { return original; }
++    original.max((lane_metres / 6000.0).clamp(0.0, 4.0))
++}
++
++#[cfg(test)]
++mod optional_density_tests {
++    use super::{optional_road_scale, road_scale};
++    #[test]
++    fn disabled_extra_density_keeps_the_original_target_and_zero_roads_stay_zero() {
++        for densities in [vec![], vec![0.0], vec![0.1, 0.2], vec![1.0; 300]] {
++            assert_eq!(optional_road_scale(&densities, 50000.0, false), road_scale(&densities));
++            assert_eq!(optional_road_scale(&densities, 0.0, true), road_scale(&densities));
++        }
++        assert_eq!(optional_road_scale(&[0.0], 0.0, true), 0.0);
++    }
++    #[test]
++    fn long_avenues_can_increase_the_shared_local_target_with_a_bounded_extra_scale() {
++        let original = road_scale(&[1.0, 1.0]);
++        assert!(optional_road_scale(&[1.0, 1.0], 12000.0, true) > original);
++        assert_eq!(optional_road_scale(&[1.0, 1.0], 100000.0, true), 4.0);
 +    }
 +}
 diff --git a/crates/omsi-app/src/view_sync/traffic.rs b/crates/omsi-app/src/view_sync/traffic.rs

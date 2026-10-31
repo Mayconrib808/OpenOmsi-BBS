@@ -2,7 +2,7 @@
 
 Previous cooperative/weather contributions, settings, menu integration, packet hooks and other native dependencies. This is native OpenOMSI code; external Bridge/Setup/hosts are not present.
 
-This part contains **complete file-level diffs** from official openOMSI 0.3.46, not illustrative snippets. Every link below opens the full source as shipped in 2.2.2 Hotfix 2. The complete native workspace is at the repository root.
+This part contains **complete file-level diffs** from official openOMSI 0.3.46, not illustrative snippets. Every link below opens the full corrected developer-review source based on 2.2.2 Hotfix 2; this revision is later than the automatic-update installer. The complete native workspace is at the repository root.
 
 - [Complete changes.patch](changes.patch)
 - [File identities and SHA-256](files.json)
@@ -66,6 +66,7 @@ These are **review partitions**, not independently buildable upstream pull reque
 - [crates/omsi-admin/panel/panel.js](../../crates/omsi-admin/panel/panel.js)
 - [crates/omsi-admin/src/op.rs](../../crates/omsi-admin/src/op.rs)
 - [crates/omsi-app/build.rs](../../crates/omsi-app/build.rs)
+- [crates/omsi-app/locales/app.yml](../../crates/omsi-app/locales/app.yml)
 - [crates/omsi-app/src/admin.rs](../../crates/omsi-app/src/admin.rs)
 - [crates/omsi-app/src/app.rs](../../crates/omsi-app/src/app.rs)
 - [crates/omsi-app/src/app/groups.rs](../../crates/omsi-app/src/app/groups.rs)
@@ -119,12 +120,15 @@ These are **review partitions**, not independently buildable upstream pull reque
 - [crates/omsi-app/src/player_list.rs](../../crates/omsi-app/src/player_list.rs)
 - [crates/omsi-app/src/schedule/fleet.rs](../../crates/omsi-app/src/schedule/fleet.rs)
 - [crates/omsi-app/src/settings.rs](../../crates/omsi-app/src/settings.rs)
+- [crates/omsi-app/src/settings/optional_features_tests.rs](../../crates/omsi-app/src/settings/optional_features_tests.rs)
 - [crates/omsi-app/src/spawn.rs](../../crates/omsi-app/src/spawn.rs)
 - [crates/omsi-app/src/spawn/cabin_input_tests.rs](../../crates/omsi-app/src/spawn/cabin_input_tests.rs)
 - [crates/omsi-app/src/view_sync/lan.rs](../../crates/omsi-app/src/view_sync/lan.rs)
 - [crates/omsi-app/src/weather_setup.rs](../../crates/omsi-app/src/weather_setup.rs)
 - [crates/omsi-audio/src/lib.rs](../../crates/omsi-audio/src/lib.rs)
 - [crates/omsi-audio/src/mixer.rs](../../crates/omsi-audio/src/mixer.rs)
+- [crates/omsi-cfg/src/lib.rs](../../crates/omsi-cfg/src/lib.rs)
+- [crates/omsi-cfg/src/optional_features.rs](../../crates/omsi-cfg/src/optional_features.rs)
 - [crates/omsi-lan/Cargo.toml](../../crates/omsi-lan/Cargo.toml)
 - [crates/omsi-lan/src/admin/action.rs](../../crates/omsi-lan/src/admin/action.rs)
 - [crates/omsi-lan/src/admin/panel.rs](../../crates/omsi-lan/src/admin/panel.rs)
@@ -169,6 +173,8 @@ These are **review partitions**, not independently buildable upstream pull reque
 - [crates/omsi-sim/src/vehicle/visuals.rs](../../crates/omsi-sim/src/vehicle/visuals.rs)
 - [crates/omsi-sim/src/view_events/sounds.rs](../../crates/omsi-sim/src/view_events/sounds.rs)
 - [docs/beta/coop-handover-cash-fix.md](../../docs/beta/coop-handover-cash-fix.md)
+- [launcher/tests/optional-features.test.mjs](../../launcher/tests/optional-features.test.mjs)
+- [launcher/ui/js/pages/optional-features.js](../../launcher/ui/js/pages/optional-features.js)
 - [launcher/ui/js/pages/settings-schema.js](../../launcher/ui/js/pages/settings-schema.js)
 - [launcher/ui/js/pages/settings.js](../../launcher/ui/js/pages/settings.js)
 - [scripts/build-coop-msvc-cross.sh](../../scripts/build-coop-msvc-cross.sh)

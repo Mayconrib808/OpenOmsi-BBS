@@ -110,7 +110,7 @@ pub(super) fn option_set(app: &mut App, verb: &str, arg: &str, v: f32) -> Option
             app.settings.pax_density = v;
             Some(("pax_density", v.to_string()))
         }
-        "pax_transfer_percent" => {app.settings.passenger_transfer_percent=v.round().clamp(0.0,100.0);if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=app.settings.passenger_transfer_percent;}Some(("passenger_transfer_percent",app.settings.passenger_transfer_percent.to_string()))}
+        "pax_transfer_percent" => {app.settings.passenger_transfer_percent=v.round().clamp(0.0,100.0);if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=h.optional_features.connection_percent(app.settings.passenger_transfer_percent);}Some(("passenger_transfer_percent",app.settings.passenger_transfer_percent.to_string()))}
         "ticket_chance_percent" => {app.settings.ticket_chance_percent=v.round().clamp(-1.0,100.0);Some(("ticket_chance_percent",app.settings.ticket_chance_percent.to_string()))}
         "volume" => {
             app.settings.volume = v;
@@ -399,6 +399,7 @@ fn set_cab_wheel_rotation(app: &mut App, v: f32) -> (&'static str, String) {
 /// Whether the switch `id` is on (None: `id` is no switch).
 pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
     let s = &app.settings;
+    if let Some(on) = s.optional_features.get(id) { return Some(on); }
     Some(match id {
         "pax_natural"=>s.passenger_animation=="enhanced",
         "ticket_chance_enabled"=>s.ticket_chance_enabled,
@@ -505,6 +506,7 @@ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
 /// Switch `id` on or off; the key and value to keep for the next game.
 pub(super) fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String)> {
     let bit = (on as u8).to_string();
+    if let Some(key) = app.settings.optional_features.set(id, on) { return Some((key, bit)); }
     match id {
         "pax_natural"=>{app.settings.passenger_animation=if on{"enhanced"}else{"original"}.into();Some(("passenger_animation",app.settings.passenger_animation.clone()))},
         "ticket_chance_enabled"=>{app.settings.ticket_chance_enabled=on;Some(("ticket_chance_enabled",bit))},

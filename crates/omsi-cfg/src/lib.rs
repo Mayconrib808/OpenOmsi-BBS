@@ -27,6 +27,7 @@ pub mod codepage;
 pub mod collate;
 pub mod flags;
 pub mod lang;
+pub mod optional_features;
 mod keywords;
 pub mod number;
 pub mod par;

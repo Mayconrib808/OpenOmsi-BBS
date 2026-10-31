@@ -1,8 +1,8 @@
 # Passengers and speech / Passageiros e falas
 
-Closed-door requests, missed-stop reactions, 22% exit thanks, real exit detection, stop tolerance and path recovery. Cumulative hailing, umbrella render support and onward connections are included where they share these complete source files; they are not all new Hotfix 2 features.
+Closed-door requests, missed-stop reactions, optional cosmetic 22% exit thanks, real exit detection, stop tolerance and path recovery. Cumulative hailing, umbrella render support and onward connections are included where they share these complete source files; they are not all new Hotfix 2 features.
 
-This part contains **complete file-level diffs** from official openOMSI 0.3.46, not illustrative snippets. Every link below opens the full source as shipped in 2.2.2 Hotfix 2. The complete native workspace is at the repository root.
+This part contains **complete file-level diffs** from official openOMSI 0.3.46, not illustrative snippets. Every link below opens the full corrected developer-review source based on 2.2.2 Hotfix 2; this revision is later than the automatic-update installer. The complete native workspace is at the repository root.
 
 - [Complete changes.patch](changes.patch)
 - [File identities and SHA-256](files.json)
@@ -15,6 +15,8 @@ These are **review partitions**, not independently buildable upstream pull reque
 ## Complete source files
 
 - [crates/omsi-app/src/app_events/frame/people.rs](../../crates/omsi-app/src/app_events/frame/people.rs)
+- [crates/omsi-app/src/app_events/frame/people/dialog.rs](../../crates/omsi-app/src/app_events/frame/people/dialog.rs)
+- [crates/omsi-app/src/app_events/frame/people/dialog_tests.rs](../../crates/omsi-app/src/app_events/frame/people/dialog_tests.rs)
 - [crates/omsi-app/src/view_sync/people.rs](../../crates/omsi-app/src/view_sync/people.rs)
 - [crates/omsi-app/src/view_sync/people/animation.rs](../../crates/omsi-app/src/view_sync/people/animation.rs)
 - [crates/omsi-app/src/view_sync/people/extras.rs](../../crates/omsi-app/src/view_sync/people/extras.rs)
@@ -31,26 +33,18 @@ These are **review partitions**, not independently buildable upstream pull reque
 - [crates/omsi-sim/src/people/avatar.rs](../../crates/omsi-sim/src/people/avatar.rs)
 - [crates/omsi-sim/src/people/bodies.rs](../../crates/omsi-sim/src/people/bodies.rs)
 - [crates/omsi-sim/src/people/buses.rs](../../crates/omsi-sim/src/people/buses.rs)
+- [crates/omsi-sim/src/people/dialog.rs](../../crates/omsi-sim/src/people/dialog.rs)
 - [crates/omsi-sim/src/people/mirror.rs](../../crates/omsi-sim/src/people/mirror.rs)
 - [crates/omsi-sim/src/people/model.rs](../../crates/omsi-sim/src/people/model.rs)
 - [crates/omsi-sim/src/people/money.rs](../../crates/omsi-sim/src/people/money.rs)
 - [crates/omsi-sim/src/people/pax.rs](../../crates/omsi-sim/src/people/pax.rs)
+- [crates/omsi-sim/src/people/pax/tests.rs](../../crates/omsi-sim/src/people/pax/tests.rs)
 - [crates/omsi-sim/src/people/pax_stops.rs](../../crates/omsi-sim/src/people/pax_stops.rs)
 - [crates/omsi-sim/src/people/pax_task.rs](../../crates/omsi-sim/src/people/pax_task.rs)
 - [crates/omsi-sim/src/people/pax_tick.rs](../../crates/omsi-sim/src/people/pax_tick.rs)
+- [crates/omsi-sim/src/people/reaction_options_tests.rs](../../crates/omsi-sim/src/people/reaction_options_tests.rs)
 - [crates/omsi-sim/src/people/reactions.rs](../../crates/omsi-sim/src/people/reactions.rs)
 - [crates/omsi-sim/src/people/spawn.rs](../../crates/omsi-sim/src/people/spawn.rs)
 - [crates/omsi-sim/src/people/tests.rs](../../crates/omsi-sim/src/people/tests.rs)
 - [crates/omsi-sim/src/view_events.rs](../../crates/omsi-sim/src/view_events.rs)
 - [launcher/ui/js/pages/passenger-settings.js](../../launcher/ui/js/pages/passenger-settings.js)
-
-## Speech and other retained support files
-
-The ordinary bad-driving complaint logic is unchanged upstream code, so it is present in the full workspace but does not appear as a new diff in this part. These links include that complete code and the exact subtitle integration:
-
-- [Original complaints and ordinary payment thanks: pax_driver.rs](../../crates/omsi-sim/src/people/pax_driver.rs)
-- [Bad-driving behavior tests](../../crates/omsi-sim/src/people/bad_driving_tests.rs)
-- [Installed-voice lookup and shared cooldown: spawn.rs](../../crates/omsi-sim/src/people/spawn.rs)
-- [Door-request caption integration](../../crates/omsi-app/src/app_events/frame/people.rs)
-
-Door requests, exit thanks and missed-stop additions are in reactions.rs and the part's patch above. Use the shared integration part as well when reconstructing the full native tree.

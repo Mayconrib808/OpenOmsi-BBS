@@ -336,33 +336,9 @@ impl Traffic {
         }
         // aircraft: a few on the flight paths, independent of the street target
         let has_air = self.sim.types.iter().any(|t| t.2 == LaneKind::Air);
-        // the map's traffic density by hour (and group) scales the street traffic ...
-        let density = self.street_density();
-        // ... and so does how much road there is around: the same number of cars looks
-        // empty on a six-lane Berlin junction and crowded on a village lane, so the count
-        // asked for is per a neighbourhood of about 250 lanes; and as Omsi spawns on each
-        // path at a rate of its [rule] trafficdensity, paths of low density bring fewer cars
-        // and those of density 0 (or kept clear of cars) none
-        let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
-            .into_iter()
-            .map(|i| &self.sim.net.lanes[i])
-            .filter(|l| {
-                l.kind == LaneKind::Street
-                    && l.points
-                        .first()
-                        .map(|p| (*p - center).length() < self.sim.spawn_radius)
-                        .unwrap_or(false)
-            })
-            .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
-            .collect();
-        // Physical lane length matters on avenues: a few long parallel paths can
-        // carry more cars than dozens of very short junction segments.
-        let lane_metres:f32=self.sim.net.lanes_starting_near(center,self.sim.spawn_radius).into_iter()
-            .filter_map(|i|self.sim.net.lanes.get(i)).filter(|l|l.kind==LaneKind::Street&&!l.no_cars&&l.density>0.0)
-            .filter(|l|(l.start()-center).truncate().length()<self.sim.spawn_radius)
-            .map(|l|l.length().clamp(0.0,300.0)*l.density.clamp(0.0,2.0)).sum();
-        let scale=road_scale(&near_density).max((lane_metres/6000.0).clamp(1.0,4.0));
-        let street_target = (self.sim.target as f32 * density * scale).round() as usize;
+        // The same local-road calculation is used for the host and each LAN bubble.
+        // With the extra-density option off it is the original road_scale target.
+        let street_target = self.street_target_near(center);
         // the cars that come into range again, where they have got to
         self.wake_dormant(world, center, street_target);
         // the whole map's population: as dense as around the player, on every street the
@@ -394,14 +370,24 @@ impl Traffic {
 
     /// Road population near the receiving LAN player, not near the host.
     fn street_target_near(&self, center: DVec3) -> usize {
-        let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
-            .into_iter()
-            .map(|i| &self.sim.net.lanes[i])
-            .filter(|l| l.kind == LaneKind::Street
-                && l.points.first().is_some_and(|p| (*p - center).length() < self.sim.spawn_radius))
-            .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
-            .collect();
-        (self.sim.target as f32 * self.street_density() * road_scale(&near_density)).round() as usize
+        let extra = self.optional_features.extra_traffic_density;
+        let lanes = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius);
+        let mut densities = Vec::with_capacity(lanes.len());
+        let mut lane_metres = 0.0;
+        for index in lanes {
+            let lane = &self.sim.net.lanes[index];
+            if lane.kind != LaneKind::Street
+                || !lane.points.first().is_some_and(|p| (*p - center).length() < self.sim.spawn_radius) {
+                continue;
+            }
+            densities.push(if lane.no_cars { 0.0 } else { lane.density.clamp(0.0, 4.0) });
+            // No length summation is performed for a disabled optional feature.
+            if extra && !lane.no_cars && lane.density.is_finite() && lane.density > 0.0 {
+                lane_metres += lane.length().clamp(0.0, 300.0) * lane.density.clamp(0.0, 2.0);
+            }
+        }
+        let scale = optional_road_scale(&densities, lane_metres, extra);
+        (self.sim.target as f32 * self.street_density() * scale).round() as usize
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -880,5 +866,32 @@ mod missing_tile_tests {
         assert!(!ground_missing_for_good(Some((4, 7)), (5, 7), map_has, |_| true));
         // no tile of its own known
         assert!(!ground_missing_for_good(None, (4, 9), map_has, |_| true));
+    }
+}
+
+/// The off path is exactly the existing road-density scale. Sparse/closed roads
+/// are not forced to a minimum scale of one by the optional length correction.
+fn optional_road_scale(densities: &[f32], lane_metres: f32, enabled: bool) -> f32 {
+    let original = road_scale(densities);
+    if !enabled || !lane_metres.is_finite() { return original; }
+    original.max((lane_metres / 6000.0).clamp(0.0, 4.0))
+}
+
+#[cfg(test)]
+mod optional_density_tests {
+    use super::{optional_road_scale, road_scale};
+    #[test]
+    fn disabled_extra_density_keeps_the_original_target_and_zero_roads_stay_zero() {
+        for densities in [vec![], vec![0.0], vec![0.1, 0.2], vec![1.0; 300]] {
+            assert_eq!(optional_road_scale(&densities, 50000.0, false), road_scale(&densities));
+            assert_eq!(optional_road_scale(&densities, 0.0, true), road_scale(&densities));
+        }
+        assert_eq!(optional_road_scale(&[0.0], 0.0, true), 0.0);
+    }
+    #[test]
+    fn long_avenues_can_increase_the_shared_local_target_with_a_bounded_extra_scale() {
+        let original = road_scale(&[1.0, 1.0]);
+        assert!(optional_road_scale(&[1.0, 1.0], 12000.0, true) > original);
+        assert_eq!(optional_road_scale(&[1.0, 1.0], 100000.0, true), 4.0);
     }
 }

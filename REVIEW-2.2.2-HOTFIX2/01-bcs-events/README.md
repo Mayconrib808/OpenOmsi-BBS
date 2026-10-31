@@ -2,7 +2,7 @@
 
 Capture reader, event controller, fainting and drunk/aggressive actor poses, oil/fire/bin visuals, ambulance/police/fire dispatch, host-authoritative response messages and original fallback asset generator.
 
-This part contains **complete file-level diffs** from official openOMSI 0.3.46, not illustrative snippets. Every link below opens the full source as shipped in 2.2.2 Hotfix 2. The complete native workspace is at the repository root.
+This part contains **complete file-level diffs** from official openOMSI 0.3.46, not illustrative snippets. Every link below opens the full corrected developer-review source based on 2.2.2 Hotfix 2; this revision is later than the automatic-update installer. The complete native workspace is at the repository root.
 
 - [Complete changes.patch](changes.patch)
 - [File identities and SHA-256](files.json)

@@ -279,7 +279,7 @@ impl<'a> Offscreen<'a> {
         let recorder = record::Recorder::new(out, player.as_mut(), &args.root, settings.doppler);
         Ok(Offscreen {
             coop_ai: Default::default(),
-            bcs_responses:Default::default(),
+            bcs_responses:crate::bcs_events::HostResponses::new(settings.optional_features.bcs_event_scenes),
             args,
             out,
             w,
@@ -352,6 +352,7 @@ fn new_traffic(
     lan_seed: Option<u64>,
 ) -> Result<Option<traffic::Traffic>> {
     let mut t = traffic::Traffic::new(&args.root, world, args.traffic)?;
+    t.optional_features = settings::Settings::load().optional_features;
     t.lights_only = !(args.traffic > 0 || args.schedule || crate::rail_drive::args_rail(args) || args.lan_join.is_some());
     t.no_timetable_buses = args.no_timetable_buses;
     if let Some(seed) = lan_seed {
@@ -460,7 +461,8 @@ fn new_humans(
         // the map's camera they filled the whole pool, and the players met nobody)
         h.players_only = args.server.is_some() && player.is_none();
         h.exact_fare = settings.exact_fare;
-        h.transfer_percent = settings.passenger_transfer_percent;
+        h.optional_features = settings.optional_features;
+        h.transfer_percent = h.optional_features.connection_percent(settings.passenger_transfer_percent);
         h.bad_driving = settings.pax_bad_driving;
         h.boarding = settings.boarding.clone();
         h.stand_chance = settings.standing_chance;

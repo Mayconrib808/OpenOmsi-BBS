@@ -442,6 +442,16 @@
     }
   },
   {
+    "path": "crates/omsi-app/locales/app.yml",
+    "source": {
+      "path": "crates/omsi-app/locales/app.yml",
+      "mode": "100644",
+      "blob_sha1": "ab516251975678e2ce610050a54bef570305c765",
+      "sha256": "ce140b53e771894140bad8ab2116be1db8ae040cad96cb8f43a28bd619421477",
+      "size": 5006626
+    }
+  },
+  {
     "path": "crates/omsi-app/src/admin.rs",
     "source": {
       "path": "crates/omsi-app/src/admin.rs",
@@ -456,9 +466,9 @@
     "source": {
       "path": "crates/omsi-app/src/app.rs",
       "mode": "100644",
-      "blob_sha1": "f0a4dd3be93f59c15a9a698dd61b8c799eccaa6d",
-      "sha256": "962541e09c2d9c6b547f70e1bd6ee78493723fdbb7b789054a83269ed1004814",
-      "size": 58850
+      "blob_sha1": "c5be963935a56972e132f2b3a1ee9bc8a6ce5cb6",
+      "sha256": "8a10f9713b34057a64abaf93bc947ab4cfa30ff14c6c312c3540eb5bac6a921d",
+      "size": 59036
     }
   },
   {
@@ -526,9 +536,9 @@
     "source": {
       "path": "crates/omsi-app/src/app_events/frame/steps.rs",
       "mode": "100644",
-      "blob_sha1": "7288e39143d605fd1ad99ca5685b5e5ab7488440",
-      "sha256": "6fdc5ad81a6357cd74f9fb0a8d006e18dba388d60ab8cdbdcf838b6759f00f84",
-      "size": 27462
+      "blob_sha1": "3bbd2f93c6fc1691958cf8b2858ac34109e14552",
+      "sha256": "d1398c058ab40826b626b9fb9f14b241d0465c77f272cb04ae4636f9e5a78189",
+      "size": 27655
     }
   },
   {
@@ -726,9 +736,9 @@
     "source": {
       "path": "crates/omsi-app/src/game_lists/dropdowns.rs",
       "mode": "100644",
-      "blob_sha1": "8e2c480257edf3b034da213fb4709daae629d053",
-      "sha256": "e3b32db544226f711bec55c71709dd2579165a705f7803d4ff0c97e0c1e278d1",
-      "size": 24567
+      "blob_sha1": "a64ef5d49302019194e7e46a5bbe334927f4aeac",
+      "sha256": "03824a5ae0467986131943a53b619ae055c041a1d1743bc226cca1d8f1f686b9",
+      "size": 24607
     }
   },
   {
@@ -736,9 +746,9 @@
     "source": {
       "path": "crates/omsi-app/src/game_lists/menu_pages.rs",
       "mode": "100644",
-      "blob_sha1": "06a53cfaa4d9368c3858e06cf1d067f2e8dc1db1",
-      "sha256": "09859a985fbeca73cbba976376d51a78c48334575e9ca7c7d82ba8cfb045c1a4",
-      "size": 55695
+      "blob_sha1": "2793eb579443452aded570b86db1aa6e50eb985a",
+      "sha256": "c6e1f189e5c7e46b053243349361c4a2dcafdaedc9abc5bb4952689add31e832",
+      "size": 55880
     }
   },
   {
@@ -746,9 +756,9 @@
     "source": {
       "path": "crates/omsi-app/src/game_lists/options.rs",
       "mode": "100644",
-      "blob_sha1": "332fbaf528400e7259ae3b4dc98d33a63a98b85e",
-      "sha256": "8f12fa5aed949e2bb3012a003327609bde8d8cd4dea605b9a3ff03aba574418f",
-      "size": 40741
+      "blob_sha1": "3038d337ee8aefd9bf617e1a7f6cc8316c32cdf9",
+      "sha256": "f5ba7b82d372b33ec725ff2334868f76611732dfad08f3b76d22b2531bd00672",
+      "size": 40947
     }
   },
   {
@@ -886,9 +896,9 @@
     "source": {
       "path": "crates/omsi-app/src/offscreen/setup.rs",
       "mode": "100644",
-      "blob_sha1": "37bb6139154c76b3965d747878c690d06a8ebf8c",
-      "sha256": "1dd1dfc407658d08b8de4945893c4099be2fa1ce4b5f9f454043b049e5fcf9ae",
-      "size": 27932
+      "blob_sha1": "5dc8c05f629aa70f3604c9b7338700d908dfa903",
+      "sha256": "5f9a1da0cf296695ec22c60416e3f13ab1032ee12f1f195f307914421e78c463",
+      "size": 28166
     }
   },
   {
@@ -966,9 +976,19 @@
     "source": {
       "path": "crates/omsi-app/src/settings.rs",
       "mode": "100644",
-      "blob_sha1": "51c5c69f2d126cc99a23d1ad96a1928cc16fb3e1",
-      "sha256": "d78e5475265f9f5c54356df936bb9e8731d22fc55a8e114c9950f7253497bfba",
-      "size": 96802
+      "blob_sha1": "ac8ce683a5c70729a34a1ce2478cb6bd1cbef526",
+      "sha256": "ba4b9ab8d856bcf7ee520fc810935bca8554d827813f9aaa4183772985094541",
+      "size": 97029
+    }
+  },
+  {
+    "path": "crates/omsi-app/src/settings/optional_features_tests.rs",
+    "source": {
+      "path": "crates/omsi-app/src/settings/optional_features_tests.rs",
+      "mode": "100644",
+      "blob_sha1": "7f742253bc7295af9c3a8d6e0946e37bd98fb4f9",
+      "sha256": "4c63612d4a98296fdfa6e510a04cec03eb54aff019d82ce56b155876891b99b7",
+      "size": 5062
     }
   },
   {
@@ -1029,6 +1049,26 @@
       "blob_sha1": "64ff5f26dd0af80499b81015ed60b1704cd24c0c",
       "sha256": "8b096315d50b9fd699ee27d29c0bab32fec280c00e8997060fbd84482882fd54",
       "size": 43723
+    }
+  },
+  {
+    "path": "crates/omsi-cfg/src/lib.rs",
+    "source": {
+      "path": "crates/omsi-cfg/src/lib.rs",
+      "mode": "100644",
+      "blob_sha1": "2a059879a7e30c615804f7802b1195dbc80bd9ea",
+      "sha256": "f86c43e6cbf17a36d118db6de43d4992d9df0191fca34d1071f4d0e78ef65585",
+      "size": 51358
+    }
+  },
+  {
+    "path": "crates/omsi-cfg/src/optional_features.rs",
+    "source": {
+      "path": "crates/omsi-cfg/src/optional_features.rs",
+      "mode": "100644",
+      "blob_sha1": "c3022582a2bb29ee3bbb7dbebb40deb7a7c5f638",
+      "sha256": "e2b75b2c88edec92a37d42bd5a08f504dd9357cd27fcc3e74987f69d94b2c30e",
+      "size": 5960
     }
   },
   {
@@ -1156,9 +1196,9 @@
     "source": {
       "path": "crates/omsi-launcher-core/src/lib.rs",
       "mode": "100644",
-      "blob_sha1": "4cff2bb02f10daca1583ab0988099fdcd5ba5e76",
-      "sha256": "621078ea66d4e609bfbd8cf93edb4007304a8b0a078fdbed74d4e76617508a5e",
-      "size": 189610
+      "blob_sha1": "34b243db218e62b02949320fdca8d07d9f371e7b",
+      "sha256": "0ed1a3077cc71d5d8d6e1aba33f6a3d7acf4925a6abef98d9782ed6a71927a4d",
+      "size": 189791
     }
   },
   {
@@ -1472,13 +1512,33 @@
     }
   },
   {
+    "path": "launcher/tests/optional-features.test.mjs",
+    "source": {
+      "path": "launcher/tests/optional-features.test.mjs",
+      "mode": "100644",
+      "blob_sha1": "a9603357b708dec70b2c4d9f1fa03fe6afaf0a04",
+      "sha256": "2c06becd8f86051779fdf5ba9e72e615f85277bf2eb4786b1537bff6ec0bd7c2",
+      "size": 2401
+    }
+  },
+  {
+    "path": "launcher/ui/js/pages/optional-features.js",
+    "source": {
+      "path": "launcher/ui/js/pages/optional-features.js",
+      "mode": "100644",
+      "blob_sha1": "6bd44e00451baa349822f1ee80e032a6c5b72a64",
+      "sha256": "e6dd57696c5b7df4d19d9dbd7e1419631c6fb7e7c350502cbd9489a38cc36bda",
+      "size": 1214
+    }
+  },
+  {
     "path": "launcher/ui/js/pages/settings-schema.js",
     "source": {
       "path": "launcher/ui/js/pages/settings-schema.js",
       "mode": "100644",
-      "blob_sha1": "5307bf0f77b64ccf5c196d6484722821003d276b",
-      "sha256": "2a55c889252f4c07206be76b48135fe4043771e2c47b7f60b8802c7417beb17f",
-      "size": 45313
+      "blob_sha1": "7079a85358bcb8b77b72d153a69a3e50c6da5ee6",
+      "sha256": "538ec5ef4e8c7384076e455e4ad0a29582e964e146ff50ff7582a96d017c5b38",
+      "size": 45229
     }
   },
   {
@@ -1486,9 +1546,9 @@
     "source": {
       "path": "launcher/ui/js/pages/settings.js",
       "mode": "100644",
-      "blob_sha1": "2f6ddb49ba7dac3ba70c7d03b3d53177f76e14a6",
-      "sha256": "f7645a310562a619be45c916efb48735765d14dd256090442cbcb0e4e5a5867b",
-      "size": 17380
+      "blob_sha1": "adbaaab6e9fce855852ae0f3e9947adf180694d1",
+      "sha256": "b9c942353a377029d7280dd6b716dd68dae69f2646aeb1ff5e60675ad4c1760c",
+      "size": 17314
     }
   },
   {

@@ -64,9 +64,9 @@
     "source": {
       "path": "crates/omsi-sim/src/people/inspector.rs",
       "mode": "100644",
-      "blob_sha1": "60ec1653a2ce883a93a05763a85291d2044043e1",
-      "sha256": "172c45afdeaccf48a2acc26c5c43f6494ab61479edb8713283a93f17ccf7c98f",
-      "size": 11920
+      "blob_sha1": "4a232e463f47af9ec9453c70c71af079a0a816ca",
+      "sha256": "2913a43d9d87d29acca839d7401c308e3293cfda53ce95d36db03b704f864fa2",
+      "size": 12215
     }
   }
 ]

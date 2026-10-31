@@ -141,14 +141,14 @@ function PassengerMaps() {
   const maps = S.maps || [];
   const enabled = enabledMaps(S.settings.passenger_hailing_maps);
   return html`<div class="full">
-    <div class="section-title">Mapas em que os passageiros dão sinal</div>
-    <p class="muted small">Ative separadamente nos mapas desejados. A escolha fica salva para a próxima sessão.</p>
+    <div class="section-title">${t('Signal buses on this map')}</div>
+    <p class="muted small">${t('Takes effect when the game starts the next time')}</p>
     ${maps.length ? maps.map((m) => html`<div class="setting-row" key=${m.file}>
       <${Name} label=${m.name || m.file} />
       <${Toggle} checked=${enabled.has(passengerMapKey(m.file))} onChange=${(on) => saveSettings({
         passenger_hailing_maps: withMap(S.settings.passenger_hailing_maps, m.file, on),
       })} />
-    </div>`) : html`<p class="muted small">A lista aparece após carregar os mapas instalados.</p>`}
+    </div>`) : html`<p class="muted small">${t('No maps found.')}</p>`}
   </div>`;
 }
 

@@ -73,6 +73,7 @@ impl PeopleSim {
             log::warn!("human pool limit {configured_people} adjusted to {people_limit} for safe spawning");
         }
         PeopleSim {
+            optional_features: Default::default(),
             pool_types: types.len(),
             types,
             people: Vec::new(),

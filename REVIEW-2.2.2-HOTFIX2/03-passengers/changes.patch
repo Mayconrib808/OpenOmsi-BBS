@@ -1,8 +1,17 @@
 diff --git a/crates/omsi-app/src/app_events/frame/people.rs b/crates/omsi-app/src/app_events/frame/people.rs
-index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6daa9ee5bdf 100644
+index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..50d7575b14ca31969360436f48551994000e1ff6 100644
 --- a/crates/omsi-app/src/app_events/frame/people.rs
 +++ b/crates/omsi-app/src/app_events/frame/people.rs
-@@ -12,6 +12,25 @@ impl App {
+@@ -2,6 +2,8 @@
+ 
+ use super::*;
+ 
++mod dialog;
++
+ impl App {
+     /// The LAN session (a stage of its own: a joining player's bus is loaded here, and that
+     /// frame was counted as the people's).
+@@ -12,6 +14,25 @@ impl App {
      /// The player's duty, the personnel file's step, the placing of vehicles, the host's map
      /// edits and `--on-foot`.
      pub(super) fn frame_duty(&mut self, dt: f32) {
@@ -28,7 +37,7 @@ index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6da
          if self.session.duty.is_none() {
              self.session.career.no_trip();
          }
-@@ -84,7 +103,7 @@ impl App {
+@@ -84,7 +105,7 @@ impl App {
  
  crate::app::stage_ctx!(
      /// The stage after the people's part of the game.
@@ -37,7 +46,7 @@ index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6da
  );
  
  /// After the people: the walker aboard a bus where the bus is this frame, and the fuel pump
-@@ -146,7 +165,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
+@@ -146,7 +167,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
          // (whom the player's bus takes on: by the duty, or in free drive by its terminus)
          h.set_duty(cx.duty.duty.as_ref());
          // (the riders leave a bus the driver has walked away from)
@@ -46,7 +55,7 @@ index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6da
              let own = Some(crate::humans::BusId::Player);
              f.seat.map(|s| s.0) != own && f.inside.map(|i| i.0) != own
          });
-@@ -182,7 +201,12 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
+@@ -182,7 +203,12 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
              ).widened(sight));
          }
          // (the other LAN players' buses, for their riders to sit in)
@@ -60,7 +69,7 @@ index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6da
          // (and the vehicles the player placed and left, with their riders)
          h.set_placed_buses(cx.player.placed.iter().map(|q| (q.uid, &q.vehicle)));
          h.set_player_next_stop(
-@@ -196,11 +220,11 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
+@@ -196,11 +222,11 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
          let mut took = false;
          if let Some(back) = cx.traffic.pipeline.take_people_stepped() {
              let started = Instant::now().checked_sub(std::time::Duration::from_secs_f64(back.secs)).unwrap_or_else(Instant::now);
@@ -74,7 +83,7 @@ index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6da
              cx.traffic.pipeline.owe_people(step_dt, w.data(), bus);
          } else {
              took |= steps::tick_humans(
-@@ -208,7 +232,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
+@@ -208,7 +234,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
                  &mut cx.gfx.gfx.sim_view.people,
                  step_dt,
                  w,
@@ -83,7 +92,7 @@ index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6da
                  cx.traffic.traffic.as_mut(),
                  r,
                  scene,
-@@ -220,7 +244,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
+@@ -220,7 +246,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
          if let Some(t) = h.take_dialog().and_then(|n| passenger_dialog(&n)) {
              *cx.ui.service_msg = Some((t, 5.0));
          }
@@ -92,7 +101,7 @@ index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6da
              if took {
                  p.vehicle.set_var("GivenTicket", -1.0);
              }
-@@ -232,7 +256,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
+@@ -232,7 +258,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
                  // a passenger's request is the vehicle trigger Omsi.exe fires
                  // (0x62e42c), not the cab's stop button `door_haltewunsch`,
                  // whose switch and brake sounds some buses play
@@ -101,7 +110,7 @@ index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6da
              }
              h.write_pax_vars(&mut p.vehicle);
              p.vehicle.host.humans_on_path_link = h.path_link_counts();
-@@ -250,7 +274,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
+@@ -250,7 +276,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
          // the view sync of the people: the coins and ticket blocks of the player's bus,
          // then everybody's pose (see `view_sync`), in the frame's last tick only
          if cx.clock.fixed_tick.view_due() {
@@ -110,14 +119,140 @@ index 1c9a0831684aabacd98f2d9a5aacc4d1b3c8a272..2645fcb68bb5c50fb3c53177957cc6da
              view_sync::sync(ViewSync::people(h, bus, center), &mut cx.gfx.gfx.sim_view, w, r, scene);
          }
      }
-@@ -268,6 +292,7 @@ pub(super) fn on_foot(mut cx: crate::on_foot::OnFootCx, dt: f32) {
+@@ -268,6 +294,9 @@ pub(super) fn on_foot(mut cx: crate::on_foot::OnFootCx, dt: f32) {
  /// (`Languages/<LANG>_basic*.olf`, `RL_PassDlg_<name>`): Omsi.exe shows them as the riders
  /// speak. None for what has no hint (a greeting).
  fn passenger_dialog(name: &str) -> Option<String> {
-+    if name=="BridgeOpenDoor"{return Some(crate::coop::text("Pode abrir a porta, por favor?","Could you open the door, please?","Bitte die Tür öffnen!").into());}
++    if let Some(caption) = dialog::current(name) {
++        return Some(caption);
++    }
      static TEXTS: std::sync::OnceLock<Option<omsi_content::language::Language>> = std::sync::OnceLock::new();
      let texts = TEXTS.get_or_init(|| {
          let lang = crate::settings::Settings::load().language;
+diff --git a/crates/omsi-app/src/app_events/frame/people/dialog.rs b/crates/omsi-app/src/app_events/frame/people/dialog.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..34a39e29a2d8ecf53272af469d2c1d1da29df199
+--- /dev/null
++++ b/crates/omsi-app/src/app_events/frame/people/dialog.rs
+@@ -0,0 +1,33 @@
++//! Additional passenger captions use the same compiled catalog and language selection
++//! as the rest of the native interface. No voice files or settings are read here.
++
++use omsi_sim::people::PassengerDialog;
++
++fn key(dialog: PassengerDialog) -> &'static str {
++    match dialog {
++        PassengerDialog::OpenDoor => "Could you open the door, please?",
++        PassengerDialog::MissedStop => "Driver, you missed my stop!",
++        PassengerDialog::LetMeOff => "Please let me get off!",
++        PassengerDialog::ExitThanks => "Thank you, driver!",
++    }
++}
++
++fn in_language(name: &str, language: &str) -> Option<String> {
++    let key = key(PassengerDialog::from_id(name)?);
++    let locale = omsi_cfg::lang::language_iso(language);
++    Some(if locale.is_empty() {
++        key.to_owned()
++    } else {
++        crate::_rust_i18n_try_translate(locale, key)
++            .map(|translated| translated.into_owned())
++            .unwrap_or_else(|| key.to_owned())
++    })
++}
++
++pub(super) fn current(name: &str) -> Option<String> {
++    in_language(name, &omsi_ui::i18n::language())
++}
++
++#[cfg(test)]
++#[path = "dialog_tests.rs"]
++mod tests;
+diff --git a/crates/omsi-app/src/app_events/frame/people/dialog_tests.rs b/crates/omsi-app/src/app_events/frame/people/dialog_tests.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..c36ed78e87ae0a7727565fed18c0df534e3d24bc
+--- /dev/null
++++ b/crates/omsi-app/src/app_events/frame/people/dialog_tests.rs
+@@ -0,0 +1,79 @@
++use super::{in_language, key};
++use omsi_sim::people::PassengerDialog;
++
++#[test]
++fn every_passenger_caption_uses_a_real_catalog_translation_for_every_supported_language() {
++    let mut translations = 0;
++    for &(code, _, locale, aliases, _) in omsi_cfg::lang::LANGUAGES {
++        let table = omsi_launcher_lib::i18n::table(crate::_LOCALES, locale);
++        for dialog in PassengerDialog::ALL {
++            let english = key(dialog);
++            let expected = if locale == "en" {
++                english.to_owned()
++            } else {
++                let translated = table
++                    .get(english)
++                    .unwrap_or_else(|| panic!("missing {locale}: {english}"));
++                assert!(!translated.trim().is_empty(), "empty {locale}: {english}");
++                assert_ne!(
++                    translated, english,
++                    "English placeholder for {locale}: {english}"
++                );
++                translations += 1;
++                translated.clone()
++            };
++            assert_eq!(
++                in_language(dialog.id(), code).as_deref(),
++                Some(expected.as_str()),
++                "{code}: {dialog:?}"
++            );
++            for alias in aliases {
++                assert_eq!(
++                    in_language(dialog.id(), alias).as_deref(),
++                    Some(expected.as_str()),
++                    "{alias}: {dialog:?}"
++                );
++            }
++        }
++    }
++    assert_eq!(translations, 29 * PassengerDialog::ALL.len());
++}
++
++#[test]
++fn french_japanese_brazilian_and_european_portuguese_do_not_use_the_three_language_helper() {
++    assert_eq!(
++        in_language("BridgeOpenDoor", "FRA").as_deref(),
++        Some("Pouvez-vous ouvrir la porte, s’il vous plaît ?")
++    );
++    assert_eq!(
++        in_language("BridgeOpenDoor", "JPN").as_deref(),
++        Some("ドアを開けてもらえますか？")
++    );
++    assert_eq!(
++        in_language("BridgeMissedStop", "PTB").as_deref(),
++        Some("Motorista, você passou do meu ponto!")
++    );
++    assert_eq!(
++        in_language("BridgeMissedStop", "PTP").as_deref(),
++        Some("Motorista, passou a minha paragem!")
++    );
++}
++
++#[test]
++fn different_reactions_remain_distinct_and_stock_voice_captions_keep_their_existing_path() {
++    for &(_, _, locale, _, _) in omsi_cfg::lang::LANGUAGES {
++        let values: Vec<_> = PassengerDialog::ALL
++            .iter()
++            .map(|d| in_language(d.id(), locale).unwrap())
++            .collect();
++        for (index, value) in values.iter().enumerate() {
++            assert!(
++                !values[..index].contains(value),
++                "two reactions share the same caption in {locale}"
++            );
++        }
++    }
++    for stock in ["TooBad_A", "Thanks_1", "Pardon_1", "Hello_1", ""] {
++        assert_eq!(in_language(stock, "FRA"), None);
++    }
++}
 diff --git a/crates/omsi-app/src/view_sync/people.rs b/crates/omsi-app/src/view_sync/people.rs
 index 82ba07320689adc590959a7ff54e7773cf2d072a..598b70bcb03ed5c6ec51170a5ceabcea56b86c1a 100644
 --- a/crates/omsi-app/src/view_sync/people.rs
@@ -737,19 +872,12 @@ index 0000000000000000000000000000000000000000..f11e570841fc1ee1b1974cac1c09c7f1
 + }
 +}
 diff --git a/crates/omsi-launcher-core/src/passenger_animation_tests.rs b/crates/omsi-launcher-core/src/passenger_animation_tests.rs
-index ae7e2658ffaaaf198db6f7eaeb3ff4c67917f0be..352d57c5ae98650ddcc3ef7aa3aaa6b253ed3e17 100644
+index ae7e2658ffaaaf198db6f7eaeb3ff4c67917f0be..c6b51d06d99cc63d79c12c9b93e107f1a9f84170 100644
 --- a/crates/omsi-launcher-core/src/passenger_animation_tests.rs
 +++ b/crates/omsi-launcher-core/src/passenger_animation_tests.rs
-@@ -1,20 +1,24 @@
- #[test]
-     fn passenger_animation_is_saved_and_restored() {
--        assert_eq!(settings_from_text(None)["passenger_animation"], "original");
--        assert_eq!(settings_from_text(Some("version=2\npassenger_animation=original\n"))["passenger_animation"], "original");
-+        assert_eq!(settings_from_text(None)["passenger_animation"], "enhanced");
-+        assert_eq!(settings_from_text(Some("version=2\npassenger_animation=original\n"))["passenger_animation"], "enhanced");
+@@ -5,6 +5,10 @@
          assert_eq!(settings_from_text(Some("version=2\npassenger_animation=enhanced\n"))["passenger_animation"], "enhanced");
--        assert_eq!(settings_from_text(Some("version=3\npassenger_animation=enhanced\n"))["passenger_animation"], "original");
-+        assert_eq!(settings_from_text(Some("version=3\npassenger_animation=enhanced\n"))["passenger_animation"], "enhanced");
+         assert_eq!(settings_from_text(Some("version=3\npassenger_animation=enhanced\n"))["passenger_animation"], "original");
          assert_eq!(settings_from_text(Some("version=4\npassenger_animation=enhanced\n"))["passenger_animation"], "enhanced");
 +        let opt_out = "version=4\npassenger_effects_221=1\npassenger_animation=original\n";
 +        assert_eq!(settings_from_text(Some(opt_out))["passenger_animation"], "original");
@@ -758,18 +886,6 @@ index ae7e2658ffaaaf198db6f7eaeb3ff4c67917f0be..352d57c5ae98650ddcc3ef7aa3aaa6b2
          let mut settings = settings_from_text(None);
          settings["passenger_animation"] = json!("enhanced");
          let saved = settings_to_text(&settings, Some("passenger_animation=original\n"));
-         assert_eq!(saved.lines().filter(|s| s.starts_with("passenger_animation=")).count(), 1);
-         assert_eq!(settings_from_text(Some(&saved))["passenger_animation"], "enhanced");
--        assert_eq!(settings_from_text(Some("version=4\npassenger_animation=unknown\n"))["passenger_animation"], "original");
-+        assert_eq!(settings_from_text(Some("version=4\npassenger_animation=unknown\n"))["passenger_animation"], "enhanced");
-         let old = "version=3\npassenger_animation=enhanced\n";
-         let saved = settings_to_text(&settings_from_text(Some(old)), Some(old));
-         assert_eq!(saved.lines().filter(|l| l.starts_with("version=")).collect::<Vec<_>>(), ["version=4"]);
--        assert_eq!(settings_from_text(Some(&saved))["passenger_animation"], "original");
-+        assert_eq!(settings_from_text(Some(&saved))["passenger_animation"], "enhanced");
-     }
- 
- #[test]
 diff --git a/crates/omsi-launcher-core/src/passenger_defaults.rs b/crates/omsi-launcher-core/src/passenger_defaults.rs
 new file mode 100644
 index 0000000000000000000000000000000000000000..0e5e8ef8f070684e65c6f9edae68a95c8a701aa2
@@ -1409,19 +1525,21 @@ index 93fdf34427ec456e7f73da1a124f770d9173a3ec..42acc8968e3e075d4c3907edd2ddf982
  mod motion;
  mod rig;
 diff --git a/crates/omsi-sim/src/people.rs b/crates/omsi-sim/src/people.rs
-index 5831845f2a1328c4888c7650f630a098a2afa3ed..ac9df1efd6d7a2ebddfbf0315a1faf3a4abe6954 100644
+index 5831845f2a1328c4888c7650f630a098a2afa3ed..699ff52420089553c6b0acaaf053f0f58b55187b 100644
 --- a/crates/omsi-sim/src/people.rs
 +++ b/crates/omsi-sim/src/people.rs
-@@ -78,6 +78,8 @@ pub mod runners;
+@@ -78,6 +78,10 @@ pub mod runners;
  pub mod ticket_hook;
  // What the renderer has to follow, the money on the desk and what the people need of the map.
  pub mod bodies;
 +pub mod inspector;
 +mod reactions;
++mod dialog;
++pub use dialog::PassengerDialog;
  pub mod pose_facts;
  pub mod money;
  pub mod world;
-@@ -108,6 +110,8 @@ pub use money::Money;
+@@ -108,6 +112,8 @@ pub use money::Money;
  pub use pose_facts::PoseFacts;
  pub use pax::DutyTrip;
  pub use ticket_hook::{TicketAsk, TicketChange};
@@ -1534,6 +1652,85 @@ index beb0d2c158bb6dbe695510994a42ea03f351367c..6e2d204c30798eaaa223dc0ae2d7ac17
      /// Is `bus` among the buses people can be in this frame (an AI bus, or another player's)?
      pub fn knows_bus(&self, bus: u64) -> bool {
          self.remote_now.iter().any(|b| b.id == BusId::Ai(bus)) || self.seats.contains_key(&BusId::Ai(bus))
+diff --git a/crates/omsi-sim/src/people/dialog.rs b/crates/omsi-sim/src/people/dialog.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..dddd5bfdeb92f6c9873abcbe6de3f2db6d31f2c8
+--- /dev/null
++++ b/crates/omsi-sim/src/people/dialog.rs
+@@ -0,0 +1,73 @@
++//! Stable identifiers for the additional passenger captions. The application owns
++//! their text and translations; the simulation only reports which reaction occurred.
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub enum PassengerDialog {
++    OpenDoor,
++    MissedStop,
++    LetMeOff,
++    ExitThanks,
++}
++
++impl PassengerDialog {
++    pub const ALL: [Self; 4] = [
++        Self::OpenDoor,
++        Self::MissedStop,
++        Self::LetMeOff,
++        Self::ExitThanks,
++    ];
++
++    pub const fn id(self) -> &'static str {
++        match self {
++            Self::OpenDoor => "BridgeOpenDoor",
++            Self::MissedStop => "BridgeMissedStop",
++            Self::LetMeOff => "BridgeLetMeOff",
++            Self::ExitThanks => "BridgeExitThanks",
++        }
++    }
++
++    pub fn from_id(id: &str) -> Option<Self> {
++        match id {
++            "BridgeOpenDoor" => Some(Self::OpenDoor),
++            "BridgeMissedStop" => Some(Self::MissedStop),
++            "BridgeLetMeOff" => Some(Self::LetMeOff),
++            "BridgeExitThanks" => Some(Self::ExitThanks),
++            _ => None,
++        }
++    }
++
++    /// A missed stop takes precedence over a door closed on a departing rider.
++    pub const fn door_reaction(missed_stop: bool, closed_on_rider: bool) -> Self {
++        if missed_stop {
++            Self::MissedStop
++        } else if closed_on_rider {
++            Self::LetMeOff
++        } else {
++            Self::OpenDoor
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::PassengerDialog as Dialog;
++
++    #[test]
++    fn the_existing_door_identifier_remains_compatible_and_stock_lines_stay_separate() {
++        assert_eq!(Dialog::from_id("BridgeOpenDoor"), Some(Dialog::OpenDoor));
++        for line in ["Thanks_1", "TooBad_A", "Pardon_1", "Unknown", ""] {
++            assert_eq!(Dialog::from_id(line), None);
++        }
++        for dialog in Dialog::ALL {
++            assert_eq!(Dialog::from_id(dialog.id()), Some(dialog));
++        }
++    }
++
++    #[test]
++    fn missed_stop_and_closed_door_have_their_own_caption_with_stable_priority() {
++        assert_eq!(Dialog::door_reaction(true, true), Dialog::MissedStop);
++        assert_eq!(Dialog::door_reaction(true, false), Dialog::MissedStop);
++        assert_eq!(Dialog::door_reaction(false, true), Dialog::LetMeOff);
++        assert_eq!(Dialog::door_reaction(false, false), Dialog::OpenDoor);
++    }
++}
 diff --git a/crates/omsi-sim/src/people/mirror.rs b/crates/omsi-sim/src/people/mirror.rs
 index a3bd135212a8d4ce8f1114b4a53388f3388315fa..124b6ba374fbd197b92842e1befb6b9fd916df9f 100644
 --- a/crates/omsi-sim/src/people/mirror.rs
@@ -1762,7 +1959,7 @@ index a3bd135212a8d4ce8f1114b4a53388f3388315fa..124b6ba374fbd197b92842e1befb6b9f
                  self.claims_out.push(*id);
              }
 diff --git a/crates/omsi-sim/src/people/model.rs b/crates/omsi-sim/src/people/model.rs
-index 6c90fd26d702bbdfec8d8a0a7096566bf4318080..fa00ebde87accd96b7cf919332eeddabd870a3dd 100644
+index 6c90fd26d702bbdfec8d8a0a7096566bf4318080..b340c5bdba292eb9d9123b7d423748b803fa0a8e 100644
 --- a/crates/omsi-sim/src/people/model.rs
 +++ b/crates/omsi-sim/src/people/model.rs
 @@ -168,6 +168,18 @@ impl Person {
@@ -1784,7 +1981,15 @@ index 6c90fd26d702bbdfec8d8a0a7096566bf4318080..fa00ebde87accd96b7cf919332eeddab
      pub fn label(&self) -> String {
          format!(
              "#{} {}",
-@@ -413,6 +425,8 @@ pub struct PeopleSim {
+@@ -235,6 +247,7 @@ pub const CHAT_PAUSE: f64 = 12.0;
+ pub type WallCell = (f64, Vec<(Block, f64, f64)>);
+ 
+ pub struct PeopleSim {
++    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
+     pub types: Vec<Arc<HumanType>>,
+     pub people: Vec<Person>,
+     pub rng: u64,
+@@ -413,6 +426,8 @@ pub struct PeopleSim {
      pub defer_populate: bool,
      /// Passengers pay the exact fare: no change is ever due.
      pub exact_fare: bool,
@@ -1793,7 +1998,7 @@ index 6c90fd26d702bbdfec8d8a0a7096566bf4318080..fa00ebde87accd96b7cf919332eeddab
      pub bad_driving: bool,
      /// How passengers board (`boarding` in the settings): `auto` - pay and take the
      /// ticket by themselves after a moment; `pay` - wait at the desk for the driver to
-@@ -444,6 +458,8 @@ pub struct PeopleSim {
+@@ -444,6 +459,8 @@ pub struct PeopleSim {
      pub tiles_seen: u64,
      /// LAN play: this game draws the host's people instead of its own (`lan_world`).
      pub mirror: bool,
@@ -1802,7 +2007,7 @@ index 6c90fd26d702bbdfec8d8a0a7096566bf4318080..fa00ebde87accd96b7cf919332eeddab
      /// LAN play: where the other players are (host): people are kept around them too.
      pub lan_centers: Vec<DVec3>,
      /// A dedicated server: nobody plays at its own place (`center`, the map's camera), so
-@@ -463,6 +479,7 @@ pub struct PeopleSim {
+@@ -463,6 +480,7 @@ pub struct PeopleSim {
      pub claimed: HashMap<u32, f64>,
      /// The host's people waiting at a stop (client): (stop, waiting place).
      pub mirror_wait: HashMap<u32, (i64, usize)>,
@@ -1885,6 +2090,60 @@ index 71d142ccb240d818ad0c950669407720f9872d14..f3ba6bd4bbc1c888431b8446f574efa5
              clamp: false,
              clamp_open: false,
              clamp_left: false,
+diff --git a/crates/omsi-sim/src/people/pax/tests.rs b/crates/omsi-sim/src/people/pax/tests.rs
+index 1c0d82a480ee331e02a7740e9a3e3c1a2d3979f1..e428d3b408abee82f17a201cbbc229745111ccf8 100644
+--- a/crates/omsi-sim/src/people/pax/tests.rs
++++ b/crates/omsi-sim/src/people/pax/tests.rs
+@@ -106,11 +106,18 @@ fn arriving_ai_uses_the_timetable_stop_not_a_neighbour() {
+     );
+     bus.served = None;
+     bus.next_stop = None;
++    assert_eq!(
++        register(&mut humans, &bus).next,
++        Some(42),
++        "unknown routes choose the nearest same-direction stop rather than the last object id"
++    );
++    humans.stops.get_mut(&42).unwrap().pos = DVec3::Y * 9.0;
+     assert_eq!(
+         register(&mut humans, &bus).next,
+         Some(99),
+-        "unknown routes retain the geometric fallback"
++        "the geometric fallback follows distance when the other stop becomes nearer"
+     );
++    humans.stops.get_mut(&42).unwrap().pos = DVec3::ZERO;
+     bus.next_stop = Some(RequestStop {
+         id: 42,
+         name: "Scheduled".into(),
+@@ -118,10 +125,28 @@ fn arriving_ai_uses_the_timetable_stop_not_a_neighbour() {
+         pos: DVec3::ZERO,
+     });
+     bus.id = BusId::Player;
++    assert_eq!(
++        register(&mut humans, &bus).next,
++        Some(42),
++        "the player also prioritizes the selected route stop over a neighbouring platform"
++    );
++    humans.stops.get_mut(&42).unwrap().pos = DVec3::Y * 9.0;
++    assert_eq!(
++        register(&mut humans, &bus).next,
++        Some(42),
++        "a nearer neighbour does not replace the player's available selected route stop"
++    );
++    bus.next_stop.as_mut().unwrap().id = 123;
+     assert_eq!(
+         register(&mut humans, &bus).next,
+         Some(99),
+-        "preserve the player's OMSI-compatible geometric detection"
++        "an unavailable player route stop falls back to the nearest same-direction stop"
++    );
++    humans.stops.get_mut(&42).unwrap().pos = DVec3::ZERO;
++    assert_eq!(
++        register(&mut humans, &bus).next,
++        Some(42),
++        "the player's fallback follows distance rather than object-id order"
+     );
+ }
+ 
 diff --git a/crates/omsi-sim/src/people/pax_stops.rs b/crates/omsi-sim/src/people/pax_stops.rs
 index 4d179d443c21e20cbf55f68cf483dcff90b0dac9..436fa5cc323319771cd0a07e0c7995f986e058d5 100644
 --- a/crates/omsi-sim/src/people/pax_stops.rs
@@ -4427,20 +4686,22 @@ index 91b183fa0fdfcef709ca53d6c7cd7e559d1f5526..946a9aa3d4e4766e5c3f0a1e77c9a50a
 +    }
 +}
 diff --git a/crates/omsi-sim/src/people/pax_tick.rs b/crates/omsi-sim/src/people/pax_tick.rs
-index 0837ff7ee136d2e69489621cb3c3b64773996c02..f091aba8a17de99a278ec1491be09ac5c93f7dfb 100644
+index 0837ff7ee136d2e69489621cb3c3b64773996c02..dadb0e011660f2c4331a895c72cc1bd515e4bf1b 100644
 --- a/crates/omsi-sim/src/people/pax_tick.rs
 +++ b/crates/omsi-sim/src/people/pax_tick.rs
-@@ -201,9 +201,19 @@ impl PeopleSim {
+@@ -201,9 +201,21 @@ impl PeopleSim {
                  None => p.discomfort = 0.0,
              }
          }
 -        self.runner_step(i, dt, world, buses, bus_ix);
 -        self.pax_move(i, dt, dt_ms, world, buses, bus_ix);
 -        self.pax_task(i, dt, world, buses, bus_ix, at_stops, player_bus, taken_ticket, remove);
-+        if let Some(bn)=self.pax(i).and_then(|p|p.bus.or((p.task==Task::WaitingForBus).then_some(BusId::Player))).and_then(|b|bus_ix.get(&b)).map(|k|&buses[*k]) {
-+            let near=at_stops.get(&bn.id).is_some_and(|r|r.near.iter().any(|id|
-+                self.stops.get(id).is_some_and(|s|(s.pos-bn.pos).truncate().length()<22.0)));
-+            self.door_reaction(i,bn,near,dt);
++        if self.optional_features.passenger_door_comments {
++            if let Some(bn)=self.pax(i).and_then(|p|p.bus.or((p.task==Task::WaitingForBus).then_some(BusId::Player))).and_then(|b|bus_ix.get(&b)).map(|k|&buses[*k]) {
++                let near=at_stops.get(&bn.id).is_some_and(|r|r.near.iter().any(|id|
++                    self.stops.get(id).is_some_and(|s|(s.pos-bn.pos).truncate().length()<22.0)));
++                self.door_reaction(i,bn,near,dt);
++            }
 +        }
 +        let held = !self.people[i].remote && self.pax(i).is_some_and(|p|
 +            (p.responder_hold || p.inspector) && p.inside == Some(BusId::Player)
@@ -4453,16 +4714,132 @@ index 0837ff7ee136d2e69489621cb3c3b64773996c02..f091aba8a17de99a278ec1491be09ac5
          // (got off: a pedestrian now)
          let Some(p) = self.pax(i).cloned() else { return };
          // (0x62d75b) the stop they boarded at is forgotten once the bus has left it
+diff --git a/crates/omsi-sim/src/people/reaction_options_tests.rs b/crates/omsi-sim/src/people/reaction_options_tests.rs
+new file mode 100644
+index 0000000000000000000000000000000000000000..7440c050571c053f2f682ee3840711b5bc0c0f0b
+--- /dev/null
++++ b/crates/omsi-sim/src/people/reaction_options_tests.rs
+@@ -0,0 +1,100 @@
++use super::*;
++
++#[test]
++fn disabled_reactions_do_not_change_waits_or_rng_and_enabled_thanks_are_cosmetic() {
++    let root = std::env::temp_dir().join(format!("omsi-optional-reactions-{}", std::process::id()));
++    let humans = root.join("Humans/Test");
++    std::fs::create_dir_all(&humans).unwrap();
++    std::fs::write(humans.join("person.hum"), "[model]\nmodel.cfg\n").unwrap();
++    std::fs::write(humans.join("model.cfg"), "").unwrap();
++    std::fs::write(
++        root.join("test.bus"),
++        "[boundingbox]\n2.5\n12\n3\n0\n0\n1.5\n[passengercabin]\ncabin.cfg\n[paths]\npaths.cfg\n",
++    )
++    .unwrap();
++    std::fs::write(
++        root.join("paths.cfg"),
++        "[pathpnt]\n0\n0\n0.4\n[pathpnt]\n0\n1\n0.4\n[pathlink]\n0\n1\n",
++    )
++    .unwrap();
++    std::fs::write(
++        root.join("cabin.cfg"),
++        "[entry]\n0\n[exit]\n0\n[passpos]\n-0.5\n0\n0.9\n0.45\n0\n",
++    )
++    .unwrap();
++    let def = omsi_vehicle::Vehicle::load(&root.join("test.bus")).unwrap();
++    let cabin = Arc::new(Cabin::load_train(&[(&def, Vec3::ZERO, f32::INFINITY)]).unwrap());
++    let bus = BusNow {
++        id: BusId::Player,
++        cabin,
++        pos: DVec3::ZERO,
++        rot: Mat4::IDENTITY,
++        heading: 0.0,
++        speed: 0.0,
++        entry_open: vec![true],
++        exit_open: vec![false],
++        walk_open: None,
++        interior: 0.0,
++        air: CabinAir::default(),
++        half: DVec2::new(1.25, 6.0),
++        centre: DVec2::ZERO,
++        accel: DVec2::ZERO,
++        trailers: vec![],
++        terminus: Some("Town".into()),
++        takes: Takes::Terminus,
++        next_stop: None,
++        places_off: vec![],
++        served: None,
++        route: None,
++    };
++    let world = crate::world_data::WorldData::default();
++    let mut people = PeopleSim::new(&root, 20);
++    let i = people
++        .spawn(
++            &world,
++            DVec3::ZERO,
++            0.0,
++            State::Pax(Box::new(Pax::new(1.0, 0.5))),
++        )
++        .unwrap();
++    let p = people.pax_mut(i).unwrap();
++    p.bus = Some(BusId::Player);
++    p.inside = Some(BusId::Player);
++    p.task = Task::InBusToExit;
++    p.door = Some(0);
++    p.pos = DVec3::ZERO;
++    p.door_reaction_wait = 4.9;
++    people.time = 100.0;
++    let rng = people.rng;
++
++    people.door_reaction(i, &bus, true, 0.25);
++    people.thank_on_exit(usize::MAX);
++    assert_eq!(people.pax(i).unwrap().door_reaction_wait, 4.9);
++    assert_eq!(people.rng, rng);
++    assert!(people.dialog.is_none());
++
++    let selected = (1..1000).find(|&id| exit_thanks_selected(id, 0)).unwrap();
++    people.people[i].id = selected;
++    people.optional_features.passenger_exit_thanks = true;
++    people.thank_on_exit(i);
++    assert_eq!(
++        people.dialog.as_deref(),
++        Some(PassengerDialog::ExitThanks.id())
++    );
++    assert_eq!(
++        people.rng, rng,
++        "cosmetic thanks must not alter boarding/ticket RNG"
++    );
++
++    people.dialog = None;
++    people.last_chat = -100.0;
++    people.optional_features.passenger_door_comments = true;
++    people.door_reaction(i, &bus, true, 0.25);
++    assert!(people.pax(i).unwrap().door_reaction_wait > 4.9);
++    assert_eq!(
++        people.dialog.as_deref(),
++        Some(PassengerDialog::OpenDoor.id())
++    );
++    assert_eq!(people.rng, rng);
++    std::fs::remove_dir_all(root).unwrap();
++}
 diff --git a/crates/omsi-sim/src/people/reactions.rs b/crates/omsi-sim/src/people/reactions.rs
 new file mode 100644
-index 0000000000000000000000000000000000000000..56dc27423afcbe4225e72776a09f3c88b8dcfac4
+index 0000000000000000000000000000000000000000..76b1b1a1b79fc7990eb203d91f6a84fba26e12c2
 --- /dev/null
 +++ b/crates/omsi-sim/src/people/reactions.rs
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,109 @@
 +//! Reactions use each installed ticket pack's own voice, with bus-wide and rider cooldowns.
 +use super::*;
++
++// Cosmetic selection must never advance the RNG that controls passenger tasks,
++// destinations or ticket choices, even when the optional thanks are enabled.
++fn exit_thanks_selected(person: u32, transfer: u64) -> bool {
++    let mut value = u64::from(person) ^ transfer.wrapping_mul(0x9e3779b97f4a7c15);
++    value = (value ^ (value >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);
++    value = (value ^ (value >> 27)).wrapping_mul(0x94d049bb133111eb);
++    (value ^ (value >> 31)) % 100 < 22
++}
 +impl PeopleSim {
 +    pub(super) fn door_reaction(&mut self,i:usize,bn:&BusNow,near_platform:bool,dt:f32) {
++        if !self.optional_features.passenger_door_comments { return; }
 +        let Some(p)=self.pax(i).cloned() else{return;};
 +        if p.inspector || self.people[i].remote || bn.id!=BusId::Player{return;}
 +        let exiting=p.task==Task::InBusToExit;
@@ -4501,6 +4878,7 @@ index 0000000000000000000000000000000000000000..56dc27423afcbe4225e72776a09f3c88
 +            else if leaving {-(if p.door_reaction_wait<0.0 {p.door_reaction_wait.abs()+step} else {step})}
 +            else {0.0};
 +        let missed=leaving&&elapsed<=-2.5;
++        let caption=PassengerDialog::door_reaction(missed,shut_on_rider).id();
 +        let cooldown=(p.door_reaction_cooldown-dt.max(0.0)).max(0.0);
 +        if let Some(pax)=self.pax_mut(i) {
 +            pax.door_reaction_wait=elapsed;
@@ -4520,20 +4898,20 @@ index 0000000000000000000000000000000000000000..56dc27423afcbe4225e72776a09f3c88
 +        if missed {
 +            for line in ["Angry_1","Angry_2","Pardon_2","OpenDoor_2"] {
 +                if self.voice_file(i,line).is_some(){
-+                    self.say_ex(i,line,true);self.dialog=Some("BridgeOpenDoor".into());return;
++                    self.say_ex(i,line,true);self.dialog=Some(caption.into());return;
 +                }
 +            }
 +        }
 +        // Voice packs may provide only one variant. Missing lines are skipped.
 +        for line in ["OpenDoor_1","OpenDoor_2","OpenDoor_A","Door_1","DoorOpen_1"] {
-+            if self.voice_file(i,line).is_some(){self.say_ex(i,line,true);self.dialog=Some("BridgeOpenDoor".into());return;}
++            if self.voice_file(i,line).is_some(){self.say_ex(i,line,true);self.dialog=Some(caption.into());return;}
 +        }
 +        let directory=self.voice_file(i,"Thanks_1").or_else(||self.voice_file(i,"Hello_1")).and_then(|p|p.parent().map(Path::to_path_buf));
 +        if let Some(directory)=directory {
 +            for (file,is_dir) in omsi_cfg::vfs::list_dir(&directory).unwrap_or_default().into_iter().take(256) {
 +                let name=file.to_string_lossy();let lower=name.to_lowercase();
 +                if !is_dir&&lower.ends_with(".wav")&&["opendoor","dooropen","pleaseopen","tuerauf","türauf","tuer_","tür_","abrirporta","porta_"].iter().any(|s|lower.contains(s)) {
-+                    self.say_ex(i,&name[..name.len()-4],true);self.dialog=Some("BridgeOpenDoor".into());return;
++                    self.say_ex(i,&name[..name.len()-4],true);self.dialog=Some(caption.into());return;
 +                }
 +            }
 +        }
@@ -4541,17 +4919,35 @@ index 0000000000000000000000000000000000000000..56dc27423afcbe4225e72776a09f3c88
 +        // in their own voice. The localized hint supplies the actual request.
 +        if self.voice_file(i,"Pardon_1").is_some(){self.say_ex(i,"Pardon_1",true);}
 +        else{self.last_chat=self.time;}
-+        self.dialog=Some("BridgeOpenDoor".into());
++        self.dialog=Some(caption.into());
 +    }
 +    pub(super) fn thank_on_exit(&mut self,i:usize){
-+        if self.rand_f()<0.22 {self.say_ex(i,"Thanks_1",true);}
++        if !self.optional_features.passenger_exit_thanks { return; }
++        let Some(person) = self.people.get(i) else { return; };
++        let transfer = self.pax(i).map_or(0, |p| p.transfer_count as u64);
++        if exit_thanks_selected(person.id, transfer) {
++            self.say_ex(i,"Thanks_1",true);
++            self.dialog=Some(PassengerDialog::ExitThanks.id().into());
++        }
 +    }
 +}
++
++#[cfg(test)]
++#[path = "reaction_options_tests.rs"]
++mod optional_tests;
 diff --git a/crates/omsi-sim/src/people/spawn.rs b/crates/omsi-sim/src/people/spawn.rs
-index c317a77385e61b51db082dbd958d2fc557887ddf..7f12c5b538cbb876742b000d0c6442c560564b84 100644
+index c317a77385e61b51db082dbd958d2fc557887ddf..f34ced4aacf6455dda585b9433978f86e94a91d9 100644
 --- a/crates/omsi-sim/src/people/spawn.rs
 +++ b/crates/omsi-sim/src/people/spawn.rs
-@@ -154,6 +154,7 @@ impl PeopleSim {
+@@ -73,6 +73,7 @@ impl PeopleSim {
+             log::warn!("human pool limit {configured_people} adjusted to {people_limit} for safe spawning");
+         }
+         PeopleSim {
++            optional_features: Default::default(),
+             pool_types: types.len(),
+             types,
+             people: Vec::new(),
+@@ -154,6 +155,7 @@ impl PeopleSim {
              stroll_timer: 0.0,
              defer_populate: false,
              exact_fare: true,
@@ -4559,7 +4955,7 @@ index c317a77385e61b51db082dbd958d2fc557887ddf..7f12c5b538cbb876742b000d0c6442c5
              bad_driving: true,
              boarding: "auto".into(),
              stand_chance: 0.05,
-@@ -168,6 +169,7 @@ impl PeopleSim {
+@@ -168,6 +170,7 @@ impl PeopleSim {
              map_humans_done: false,
              tiles_seen: 0,
              mirror: false,
@@ -4567,7 +4963,7 @@ index c317a77385e61b51db082dbd958d2fc557887ddf..7f12c5b538cbb876742b000d0c6442c5
              lan_centers: Vec::new(),
              players_only: false,
              remote_now: Vec::new(),
-@@ -175,6 +177,7 @@ impl PeopleSim {
+@@ -175,6 +178,7 @@ impl PeopleSim {
              claims_out: Vec::new(),
              claimed: HashMap::new(),
              mirror_wait: HashMap::new(),
