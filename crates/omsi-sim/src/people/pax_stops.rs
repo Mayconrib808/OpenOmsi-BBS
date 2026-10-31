@@ -19,6 +19,30 @@ pub(super) fn entry_on_platform(side: Option<f32>, door_side: f32) -> bool {
     side.is_none_or(|wanted| wanted == door_side)
 }
 
+/// A pole is not the exact door position. The stop's own length plus a short
+/// approach allowance permits a door several metres before/after the pole, but
+/// never across a carriageway or another level of a multilevel stop.
+fn tolerant_stop_box(lateral: f64, along: f64, height: f64, stop_length: f32) -> bool {
+    let reach = (f64::from(stop_length.max(0.0)) + 8.0).clamp(10.0, 34.0);
+    lateral.is_finite() && along.is_finite() && height.is_finite()
+        && lateral.abs() <= 4.0 && along.abs() <= reach && height.abs() <= 3.0
+}
+
+#[cfg(test)]
+mod tolerant_stop_box_tests {
+    use super::tolerant_stop_box;
+    #[test] fn doors_a_few_metres_before_or_after_the_pole_can_board() {
+        assert!(tolerant_stop_box(1.5, 9.0, 0.0, 5.0));
+        assert!(tolerant_stop_box(-2.0, -9.0, 0.0, 5.0));
+    }
+    #[test] fn opposite_carriageway_another_floor_and_far_away_do_not_board() {
+        assert!(!tolerant_stop_box(6.5, 2.0, 0.0, 5.0));
+        assert!(!tolerant_stop_box(1.0, 2.0, 4.0, 5.0));
+        assert!(!tolerant_stop_box(1.0, 40.0, 0.0, 5.0));
+        assert!(!tolerant_stop_box(f64::NAN, 2.0, 0.0, 5.0));
+    }
+}
+
 fn custom_ticket_buy(percent:i32,roll:f32)->Option<bool>{
     (percent>=0).then(||percent>=100 || (percent>0 && roll<percent as f32/100.0))
 }
@@ -175,7 +199,7 @@ impl PeopleSim {
                     let lateral = d.truncate().dot(s_right);
                     let along = d.truncate().dot(s_fwd);
                     let in_box = scheduled_here
-                        || (lateral.abs() < 2.0 && along.abs() < (s.length as f64 - 5.0).max(0.0));
+                        || (same_way && tolerant_stop_box(lateral, along, d.z, s.length));
                     self.stops.get_mut(id).unwrap().buses.push((bn.id, in_box));
                 }
             }
