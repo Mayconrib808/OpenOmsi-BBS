@@ -9,6 +9,8 @@ on:
       - .github/workflows/release-222-candidate.yml
       - scripts/build_222.py
       - source/setup_changelog_windows.go
+      - source/setup_updates_windows.go
+      - source/bridge_update.go
       - source/setup_gui_windows.go
       - docs/releases/2.2.2.md
       - docs/releases/2.2.2-hotfix.2.md
