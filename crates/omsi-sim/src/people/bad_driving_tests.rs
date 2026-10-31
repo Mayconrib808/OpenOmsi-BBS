@@ -37,6 +37,7 @@ fn rider() -> Person {
         why: "",
         puppet: None,
         remote: false,
+            remote_seat: None,
     }
 }
 
