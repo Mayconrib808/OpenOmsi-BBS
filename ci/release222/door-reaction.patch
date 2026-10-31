@@ -1,7 +1,7 @@
 diff --git a/crates/omsi-sim/src/people/reactions.rs b/crates/omsi-sim/src/people/reactions.rs
 --- a/crates/omsi-sim/src/people/reactions.rs
 +++ b/crates/omsi-sim/src/people/reactions.rs
-@@ -1,52 +1,54 @@
+@@ -1,52 +1,88 @@
 -//! Reactions use each installed ticket pack's own voice, with bus-wide and rider cooldowns.
 -use super::*;
 -impl PeopleSim {
@@ -75,16 +75,50 @@ diff --git a/crates/omsi-sim/src/people/reactions.rs b/crates/omsi-sim/src/peopl
 +        let open=door.and_then(|k|if exiting{bn.exit_open.get(k)}else{bn.entry_open.get(k)}).copied().unwrap_or(false);
 +        let near_door=door.and_then(|k|if exiting{bn.cabin.exits.get(k)}else{bn.cabin.entries.get(k)})
 +            .is_some_and(|d|if exiting{(p.pos-d.inside.as_dvec3()).length()<1.6}else{(self.people[i].position-bn.world(d.outside)).length()<if matches!(p.task,Task::ToBus|Task::WaitingForBus){18.0}else{2.5}});
++        // An opened exit immediately cancels a pending complaint, including a
++        // missed-stop countdown. The normal task walker handles disembarking.
++        if exiting && open {
++            if let Some(pax)=self.pax_mut(i) {
++                pax.door_reaction_wait=0.0;pax.door_reaction_cooldown=0.0;
++                pax.reaction_door_was_open=true;
++            }
++            return;
++        }
++        let step=dt.max(0.0).min(0.25);
 +        let shut_on_rider=exiting&&p.reaction_door_was_open&&!open&&near_door;
-+        let waiting=(entering||exiting)&&near_platform&&near_door&&!open&&bn.speed.abs()<0.28;
-+        let elapsed=if waiting{p.door_reaction_wait+dt.max(0.0).min(0.25)}else{0.0};
++        // A rider ready to leave sees the front door open, but the exit stays shut.
++        let waiting=(entering||(exiting&&bn.entry_open.iter().any(|o|*o)))
++            &&near_platform&&near_door&&!open&&bn.speed.abs()<0.28;
++        // Negative door_reaction_wait is a one-shot missed-stop countdown.
++        // It only starts after the person really waited by this bus's closed exit.
++        let leaving=exiting&&bn.speed.abs()>3.0&&!open&&p.door_reaction_wait!=0.0;
++        let elapsed=if waiting {p.door_reaction_wait.max(0.0)+step}
++            else if leaving {-if p.door_reaction_wait<0.0 {p.door_reaction_wait.abs()+step} else {step}}
++            else {0.0};
++        let missed=leaving&&elapsed<=-2.5;
 +        let cooldown=(p.door_reaction_cooldown-dt.max(0.0)).max(0.0);
-+        if let Some(p)=self.pax_mut(i){p.door_reaction_wait=elapsed;p.door_reaction_cooldown=cooldown;p.reaction_door_was_open=open;}
-+        if cooldown>0.0 || (!shut_on_rider&&elapsed<7.0){return;}
-+        if self.time-self.last_chat<28.0&&self.time>=self.last_chat{return;}
-+        self.pax_mut(i).unwrap().door_reaction_cooldown=28.0;
++        if let Some(pax)=self.pax_mut(i) {
++            pax.door_reaction_wait=elapsed;
++            pax.door_reaction_cooldown=cooldown;
++            pax.reaction_door_was_open=open;
++        }
++        if (!missed && cooldown>0.0) || (!shut_on_rider && !missed && elapsed<5.0){return;}
++        // Bounded bus-wide cooldown: many riders never form an audio/text flood.
++        // Missed-stop anger takes precedence over an earlier polite reminder.
++        if !missed && self.time-self.last_chat<10.0 && self.time>=self.last_chat{return;}
++        if let Some(pax)=self.pax_mut(i) {
++            pax.door_reaction_cooldown=13.0;
++            if missed {pax.door_reaction_wait=0.0;}
++        }
 +        log::info!("BCS door reaction: person={} mode={} task={:?} near_stop={} door={:?} entry_open={:?} exit_open={:?}",
-+            self.people[i].id,if exiting{"exiting"}else{"boarding"},p.task,near_platform,door,bn.entry_open,bn.exit_open);
++            self.people[i].id,if missed{"missed_stop"}else if exiting{"exiting"}else{"boarding"},p.task,near_platform,door,bn.entry_open,bn.exit_open);
++        if missed {
++            for line in ["Angry_1","Angry_2","Pardon_2","OpenDoor_2"] {
++                if self.voice_file(i,line).is_some(){
++                    self.say_ex(i,line,true);self.dialog=Some("BridgeOpenDoor".into());return;
++                }
++            }
++        }
 +        // Voice packs may provide only one variant. Missing lines are skipped.
 +        for line in ["OpenDoor_1","OpenDoor_2","OpenDoor_A","Door_1","DoorOpen_1"] {
 +            if self.voice_file(i,line).is_some(){self.say_ex(i,line,true);self.dialog=Some("BridgeOpenDoor".into());return;}
