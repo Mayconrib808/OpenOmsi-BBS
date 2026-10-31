@@ -48,7 +48,7 @@ jobs:
           print('Built Setup 2.2.2.1 Hotfix 1 with verified icon and banner resources')
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'Changelog Setup build failed' }
-      - name: GUI smoke: 9 prior versions, all cumulative sections, 3 locales
+      - name: "GUI smoke: 9 prior versions, all cumulative sections, 3 locales"
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
