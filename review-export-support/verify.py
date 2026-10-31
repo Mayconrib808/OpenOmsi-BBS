@@ -59,6 +59,7 @@ result=dict(verified_at_utc=datetime.now(timezone.utc).isoformat(),source_files=
     changed_files=len(partition),patches=len(meta['patches']),exact_source_commit=exact,
     expected_source_tree=expected,reproduced_source_tree=reproduced,
     source_sha256s_verified=True,patches_file_disjoint=True,patch_roundtrip_passed=True,
-    new_rust_compilation_performed=False,gameplay_tested=False,fps_or_vram_measured=False)
+    new_rust_compilation_performed=bool(meta.get("revision_build_record",{}).get("windows_build_passed")),
+    windows_build_run=meta.get("revision_build_record",{}).get("run_id"),gameplay_tested=False,fps_or_vram_measured=False)
 (HERE/'verification.json').write_text(json.dumps(result,indent=2)+'\n',encoding='utf-8')
 print(json.dumps(result,indent=2))

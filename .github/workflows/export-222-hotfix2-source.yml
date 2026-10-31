@@ -1,4 +1,4 @@
-name: Publish exact Hotfix 2 source separated for developer review
+name: Publish corrected Hotfix 2 developer sources with localized optional features
 on:
   push:
     branches: [tools/export-openomsi-222-hotfix2-source]
@@ -8,67 +8,109 @@ permissions:
   actions: read
 concurrency:
   group: openomsi-222-hotfix2-source-export
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   export:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 90
     steps:
-      - name: Preserve source bytes on checkout
+      - name: Preserve exact source bytes
         run: git config --global core.autocrlf false
+      - name: Wait for the current Windows build and regression checks
+        id: revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NATIVE_RUN: '41167747295'
+        run: |
+          set -euo pipefail
+          complete=0
+          for attempt in $(seq 1 160); do
+            state=$(gh api "repos/${{ github.repository }}/actions/runs/$NATIVE_RUN" --jq '[.status, (.conclusion // "")] | @tsv')
+            status=$(printf '%s' "$state" | cut -f1)
+            if [ "$status" = completed ]; then
+              conclusion=$(printf '%s' "$state" | cut -f2)
+              test "$conclusion" = success || { echo "Native checks concluded: $conclusion"; exit 1; }
+              complete=1
+              break
+            fi
+            echo "Native build/checks still running (attempt $attempt)."
+            sleep 20
+          done
+          test "$complete" = 1 || { echo 'Timed out waiting for native validation'; exit 1; }
+          revision=$(gh api 'repos/${{ github.repository }}/git/ref/heads/fix/222-hotfix2-localized-options' --jq '.object.sha')
+          [[ "$revision" =~ ^[0-9a-f]{40}$ ]]
+          echo "sha=$revision" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v4
         with:
           path: control
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: 64db8910d135d123162ed90d772b06831909c9e2
+          ref: '${{ steps.revision.outputs.sha }}'
           path: native
+          fetch-depth: 3
           persist-credentials: true
       - uses: actions/download-artifact@v4
         with:
-          name: OpenOMSI-2.2.2-native-Windows
-          run-id: 41157142308
+          name: OpenOMSI-2.2.2-Hotfix2-localized-options-Windows
+          run-id: 41167747295
           github-token: ${{ github.token }}
           path: artifact
-      - name: Import exact released native sources and verify the artifact tree
+      - name: Verify the exact tested revision and protect the previous source head
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          gh api repos/${{ github.repository }}/actions/runs/41167747295 --jq '.conclusion' > native-conclusion.txt
+          test "$(cat native-conclusion.txt)" = success
           branch=source/openomsi-0.3.46-coop15-2.2.2-hotfix2
-          if test -n "$(git -C native ls-remote --heads origin "refs/heads/$branch")"; then
-            echo 'Source branch already exists; refuse to overwrite it.'
-            exit 1
-          fi
-          git -C native switch -c "$branch"
-          python3 control/review-export-support/export_exact_source.py artifact native
-          git -C native -c user.name=Codex -c user.email=codex@openai.com commit -m 'source: publish exact native source tree of 2.2.2 Hotfix 2'
-      - name: Generate complete file-disjoint feature patches and review report
+          expected=0a495b5934de3f97400092afb7c9ff76d85a6d38
+          actual=$(git -C native ls-remote --heads origin "refs/heads/$branch" | cut -f1)
+          test "$actual" = "$expected"
+          git -C native fetch origin "$expected"
+          git -C native fetch --depth=1 https://github.com/openOMSI-org/openOMSI.git 17be22987d7c01c813a1473e7696fc71fb3b1d89
+          python3 - <<'PY'
+          import json,subprocess,hashlib
+          from pathlib import Path
+          data=json.loads(Path('artifact/REVISION.json').read_text())
+          assert data['run_id']==41167747295
+          assert data['commit']=='${{ steps.revision.outputs.sha }}'
+          assert subprocess.check_output(['git','-C','native','rev-parse','HEAD^{tree}']).decode().strip()==data['source_tree']
+          for key in ['windows_build_passed','compiled_caption_tests_passed','settings_roundtrip_tests_passed','launcher_schema_tests_passed','traffic_tests_passed','bcs_tests_passed']:
+              assert data[key],key
+          assert not data['published_to_automatic_updates']
+          for filename,key in [('openomsi-localized-options-source.tar.gz','source_sha256'),('openomsi.exe','native_sha256')]:
+              matches=list(Path('artifact').rglob(filename))
+              assert len(matches)==1,(filename,matches)
+              assert hashlib.sha256(matches[0].read_bytes()).hexdigest()==data[key],filename
+          PY
+      - name: Regenerate every feature patch and prove the source reconstruction
         run: |
           set -euo pipefail
-          git -C native fetch --depth=1 https://github.com/openOMSI-org/openOMSI.git 17be22987d7c01c813a1473e7696fc71fb3b1d89
           export OPENOMSI_REVIEW_ROOT="$GITHUB_WORKSPACE/native"
-          export OPENOMSI_REVIEW_METADATA="$GITHUB_WORKSPACE/artifact/SOURCE.json"
-          export OPENOMSI_REVIEW_EXACT="$(git -C native rev-parse HEAD)"
+          export OPENOMSI_REVIEW_EXACT='${{ steps.revision.outputs.sha }}'
+          export OPENOMSI_REVIEW_TREE="$(git -C native rev-parse HEAD^{tree})"
+          export OPENOMSI_REVIEW_REVISION="$GITHUB_WORKSPACE/artifact/REVISION.json"
           python3 control/review-export-support/build_review_bundle.py
-          cp control/review-export-support/verify.py native/REVIEW-2.2.2-HOTFIX2/verify.py
-          cp control/review-export-support/REVIEW.md native/REVIEW-2.2.2-HOTFIX2/REVIEW.md
           python3 native/REVIEW-2.2.2-HOTFIX2/verify.py
-      - name: Publish only source and review documentation
+      - name: Publish source and updated review documentation together
         run: |
           set -euo pipefail
           git -C native add REVIEW-2.2.2-HOTFIX2
-          git -C native -c user.name=Codex -c user.email=codex@openai.com commit -m 'review: separate BCS events, inspectors, passengers and traffic with exact-source audit'
-          git -C native push origin HEAD:refs/heads/source/openomsi-0.3.46-coop15-2.2.2-hotfix2
-          git -C native rev-parse HEAD
+          tree=$(git -C native write-tree)
+          commit=$(git -C native -c user.name=Codex -c user.email=codex@openai.com commit-tree "$tree" -p 0a495b5934de3f97400092afb7c9ff76d85a6d38 -p '${{ steps.revision.outputs.sha }}' -m 'fix: publish fully localized passenger captions and optional controls with regenerated review patches')
+          git -C native push origin "${commit}:refs/heads/source/openomsi-0.3.46-coop15-2.2.2-hotfix2"
+          echo "Published corrected source review commit: $commit"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: OpenOMSI-2.2.2-Hotfix2-source-review-evidence
+          name: OpenOMSI-2.2.2-Hotfix2-corrected-source-review-evidence
           path: |
-            artifact/SOURCE.json
             native/REVIEW-2.2.2-HOTFIX2/provenance.json
+            native/REVIEW-2.2.2-HOTFIX2/revision-build.json
             native/REVIEW-2.2.2-HOTFIX2/verification.json
             native/REVIEW-2.2.2-HOTFIX2/REVIEW.md
             native/REVIEW-2.2.2-HOTFIX2/VALIDATION.md
-          if-no-files-found: warn
+            native/REVIEW-2.2.2-HOTFIX2/OPTIONS.md
           retention-days: 30
+          if-no-files-found: warn
