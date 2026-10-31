@@ -38,4 +38,12 @@ test('traffic options are kept separate and the transfer percentage retains its 
   assert.equal(chance.type, 'slider');
   assert.equal(chance.label, 'Connection chance');
   assert.equal(chance.def, 20);
+  const frequency = actual.find((r) => r.key === 'illegal_parking_frequency');
+  assert.ok(frequency, 'optional parking needs an independent frequency control');
+  assert.equal(frequency.type, 'slider');
+  assert.equal(frequency.def, 0.8);
+  assert.equal(frequency.min, 0);
+  assert.equal(frequency.max, 5);
+  assert.equal(frequency.when({ illegal_parking: false }), false);
+  assert.equal(frequency.when({ illegal_parking: true }), true);
 });
