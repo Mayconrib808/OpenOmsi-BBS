@@ -140,6 +140,35 @@ apply("crates/omsi-app/src/lan_world.rs",
                             .unwrap_or_else(|| "no local waiting passenger".into());
                         log::info!("LAN: the host hands waiting passenger {id} over to our bus; {passenger}");""")
 
+
+# Select the actual *nearest* same-direction stop, with the scheduled one
+# taking precedence. Older logic chose the last stop in numeric-id order.
+# Dense BRT corridors contain many stops inside a 60 m sphere, so the largest
+# ID was not necessarily the bus's real stop and exit checks got confused.
+apply("crates/omsi-sim/src/people/pax_stops.rs",
+    """                if same_way && matches_trip {
+                    reg.next = Some(*id);
+                }""",
+    """                if same_way && matches_trip {
+                    let now_scheduled = bn.next_stop.as_ref().is_some_and(|next| next.id == *id);
+                    let old_scheduled = reg.next.is_some_and(|prev|
+                        bn.next_stop.as_ref().is_some_and(|next| next.id == prev));
+                    let old_distance = reg.next.and_then(|prev| self.stops.get(&prev))
+                        .map_or(f64::INFINITY, |old| (bn.pos - old.pos).length());
+                    if reg.next.is_none() || (now_scheduled && !old_scheduled)
+                        || (now_scheduled == old_scheduled && dist < old_distance) {
+                        reg.next = Some(*id);
+                    }
+                }""")
+
+# A zero timer is already expired. The old negative-only check could leave
+# the passenger with a stale target, even with an open door and valid stop.
+apply("crates/omsi-sim/src/people/pax_task.rs",
+    """            if p.timer < 0.0 {
+                // the bus stands: the nearest exit that is open now""",
+    """            if p.timer <= 0.0 {
+                // the bus stands: the nearest exit that is open now""")
+
 # A passenger must have a real, open exit on a valid stop before departing.
 # Record the exact failed precondition once every eight seconds per rider;
 # never substitute a teleport or force departure at the wrong map stop.
