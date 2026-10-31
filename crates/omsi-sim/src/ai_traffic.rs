@@ -115,6 +115,9 @@ pub struct TrafficSim {
     pub group_curves: bool,
     /// Optional map-specific individual weekday/public-holiday road curves.
     pub extended_density: extended_density::ExtendedDensity,
+    /// Files are re-resolved only when the calendar date changes (for Chrono).
+    pub extended_density_map_dir: std::path::PathBuf,
+    pub extended_density_date: i32,
     /// Map holidays; other calendar and Chrono rules retain their stock behavior.
     pub holiday_calendar: omsi_map::Calendar,
     pub is_public_holiday: bool,
