@@ -171,4 +171,29 @@ apply("crates/omsi-sim/src/people/pax_task.rs",
         }
         self.pax_mut(i).unwrap().short = !may_leave;""")
 
+
+# A number of bus addons declare PAX_Exit<n>_Open without updating it
+# consistently. When the physical, matching door leaf is actually animated
+# fully open, respect its state instead of trapping everybody. No keypress or
+# passenger request may create an open exit: this reads only real animation.
+apply("crates/omsi-sim/src/people/buses.rs",
+    """        // Some addon buses declare one [entry] and one [exit] but animate
+        // their actual exit using a later door leaf (door_2 through door_7).""",
+    """        // In some addon scripts PAX_Exit<n>_Open is declared but left false,
+        // even while its corresponding door_<k> leaf is visibly open.
+        // The physical animation is an independent positive signal, not a
+        // guessed opening based on a keypress or an idle release switch.
+        for (i, state) in exit.iter_mut().enumerate() {
+            if !*state {
+                let k = exit_door_base + i;
+                let physical = v.door_anim(k).or_else(||
+                    (k > 7).then(|| v.door_anim(7)).flatten());
+                if physical.is_some_and(|value| value.is_finite() && value > 0.90) {
+                    *state = true;
+                }
+            }
+        }
+        // Some addon buses declare one [entry] and one [exit] but animate
+        // their actual exit using a later door leaf (door_2 through door_7).""")
+
 print("OpenOMSI 2.2.3 post-patch fixes layered on the fully materialized native source")
