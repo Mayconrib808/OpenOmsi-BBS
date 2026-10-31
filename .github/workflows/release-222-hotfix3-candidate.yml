@@ -1,0 +1,136 @@
+name: Build Bridge 2.2.2 Hotfix 3 signed-update candidate
+on:
+  push:
+    branches: [release/2.2.2-hotfix.3]
+    paths:
+      - .github/workflows/release-222-hotfix3-candidate.yml
+      - scripts/build_222.py
+      - source/setup_updates_windows.go
+      - source/setup_changelog_windows.go
+      - source/bridge_update.go
+      - docs/releases/2.2.2-hotfix.3.md
+      - build-support/release222/native-build.json
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: release-222-hotfix3-candidate
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 9a518edee1beeb88b103f98b697db58072b21a56
+          path: native-source
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify native Windows CI succeeded on exact pinned source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $r = gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41211107371 | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $r.status -ne 'completed' -or $r.conclusion -ne 'success') { throw 'Native Windows tests are not approved' }
+          if ($r.head_sha -ne '9a518edee1beeb88b103f98b697db58072b21a56') { throw 'Native build source SHA mismatch' }
+          if ($r.path -ne '.github/workflows/check-inspector-traffic-222.yml') { throw 'Wrong workflow' }
+          $checked = (git -C native-source rev-parse HEAD).Trim()
+          if ($checked -ne $r.head_sha) { throw 'Source checkout changed' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-222-inspector-traffic-Windows-CANDIDATE
+          run-id: 41211107371
+          github-token: ${{ github.token }}
+          path: tested-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2-native-Windows
+          run-id: 41157142308
+          github-token: ${{ github.token }}
+          path: prior-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix3-candidate
+          run-id: 40901236438
+          github-token: ${{ github.token }}
+          path: baseline
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-candidate
+          run-id: 40765546864
+          github-token: ${{ github.token }}
+          path: parts
+      - name: Assemble complete native inputs and exact source provenance
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force native | Out-Null
+          Copy-Item tested-native/openomsi.exe native/openomsi.exe
+          Copy-Item prior-native/bcs-assets native/bcs-assets -Recurse
+          Get-ChildItem tested-native -Filter '*.dll' | Copy-Item -Destination native
+          git -C native-source archive --format=tar.gz --prefix=openomsi-222/ -o ../native/openomsi-source.tar.gz HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Native source archive failed' }
+          & .\native\openomsi.exe --version | Out-File -FilePath native/version.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native executable version check failed' }
+          @'
+          import json,hashlib
+          from pathlib import Path
+          d=Path('native')
+          sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          source_commit='9a518edee1beeb88b103f98b697db58072b21a56'
+          reported=(d/'SOURCE_COMMIT.txt')
+          reported=Path('tested-native/SOURCE_COMMIT.txt')
+          assert reported.read_text(encoding='utf-8-sig').strip()==source_commit
+          version='0.3.46-coop.15-2.2.2'
+          assert version in (d/'version.txt').read_text(encoding='utf-8-sig')
+          info=dict(commit=source_commit,build_commit=source_commit,run_id=41211107371,upstream_commit='17be22987d7c01c813a1473e7696fc71fb3b1d89',version=version,native_sha256=sha(d/'openomsi.exe'),source_sha256=sha(d/'openomsi-source.tar.gz'),windows_gameplay_tested=False)
+          (d/'SOURCE.json').write_text(json.dumps(info,indent=2)+'\n')
+          print('Pinned native:',info['native_sha256'])
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Native manifest mismatch' }
+      - name: Build cumulative Hotfix 3 Bridge + matching Coop/P15 assets
+        shell: pwsh
+        run: |
+          python scripts/build_222.py --baseline baseline --parts parts --native native --output build/release222
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge 2.2.2 Hotfix 3 packaging/regression failed' }
+      - name: Verify new Bridge signed-update candidate metadata
+        shell: pwsh
+        run: |
+          @'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('build/release222/build-report.json').read_text())
+          assert r['sequence']==2026103101
+          assert r['version']=='2.2.2'
+          assert r['native_candidate_run']==41211107371
+          assert r['native_build_commit']=='9a518edee1beeb88b103f98b697db58072b21a56'
+          assert r['complete_hosts_unchanged'] and r['p14_server_unchanged']
+          assert r['bridge_regressions_tested'] and r['setup_changelog_ui_tested']
+          print('Hotfix 3 candidate:', r['updater_sha256'],r['installer_size'])
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Candidate metadata verification failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.2-Hotfix3-CANDIDATE
+          path: |
+            build/release222/Atualizar-Bridge.exe
+            build/release222/build-report.json
+            build/release222/coop-spec.json
+            build/release222/coop_bundle_manifest.go
+            build/release222/coop-assets/*
+            build/release222/native-help.txt
+            build/release222/setup-previews/*
+          if-no-files-found: error
+          retention-days: 30
