@@ -121,7 +121,7 @@ pub(super) fn after_humans(cx: AfterHumansCx, dt: f32) {
 
 crate::app::stage_ctx!(
     /// The people's part of the game.
-    HumansCx { reads: [view, clock, net, duty, world], writes: [people, traffic, player, gfx, ui] }
+    HumansCx { reads: [view, clock, net, duty, world, weather], writes: [people, traffic, player, gfx, ui] }
 );
 
 /// The people at the stops and in the buses, and their view sync.
@@ -171,6 +171,13 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
             let own = Some(crate::humans::BusId::Player);
             f.seat.map(|s| s.0) != own && f.inside.map(|i| i.0) != own
         });
+        // The human outfit choice follows the host's simulated weather (never
+        // the local computer's real climate), and is evaluated only at spawn.
+        if let Some(weather) = cx.weather.weather.as_ref() {
+            h.climate_temp_c = weather.temp.0;
+            h.climate_rain = weather.precip.iter().any(|v| v.is_finite() && *v > 0.01);
+            h.climate_snow = weather.snow || weather.snow_on_road;
+        }
         // (OMSI's `AIPassFactor`, the passengers setting in per cent)
         steps::humans_by_hour(h, w, cx.clock.clock.time, cx.common.settings.pax_density, cx.duty.duty.as_ref());
         // #2206: the map may opt into its own day-of-week/public-holiday
