@@ -1,4 +1,7 @@
 name: Build 2.2.2 native integration
+concurrency:
+  group: openomsi-native-${{ github.ref }}
+  cancel-in-progress: true
 on:
   push:
     branches: [work/native-222-build, fix/2223-boarding-traffic-diagnostics-20261030]
