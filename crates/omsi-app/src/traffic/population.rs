@@ -452,13 +452,20 @@ impl Traffic {
                 through[sector(lane)] += 1;
             }
             let mut fallback = [0usize; 8];
-            for (lane, weight) in pick(false) {
-                let direction = sector(lane);
-                let reach = self.sim.net.reach.get(lane).copied().unwrap_or(0.0);
-                if through[direction] == 0 && directional_road_fallback(reach) {
-                    // Modest weight: do not crowd real long cul-de-sacs.
-                    candidates.push((lane, weight * 0.20));
-                    fallback[direction] += 1;
+            // Do not scan a second set of lanes if there is no paired
+            // direction to repair: most minor streets need no fallback.
+            if (0..8).any(|d| through[d] == 0 && through[(d + 4) % 8] > 0) {
+                for (lane, weight) in pick(false) {
+                    let direction = sector(lane);
+                    let reach = self.sim.net.reach.get(lane).copied().unwrap_or(0.0);
+                    if through[direction] == 0
+                        && through[(direction + 4) % 8] > 0
+                        && directional_road_fallback(reach)
+                    {
+                        // Modest weight: do not crowd real long cul-de-sacs.
+                        candidates.push((lane, weight * 0.20));
+                        fallback[direction] += 1;
+                    }
                 }
             }
             if self.sim.debug_population && fallback.iter().any(|&n| n > 0) {
