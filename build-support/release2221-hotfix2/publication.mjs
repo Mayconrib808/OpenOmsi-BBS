@@ -51,8 +51,8 @@ if(process.argv[2]==='prepare'){
       ||report.bridge_regressions_tested!==true||report.setup_changelog_ui_tested!==true
       ||report.setup_live_update_ui_tested!==true||report.coop_protocol!==15
       ||report.windows_gameplay_tested!==false||report.paired_gameplay_tested!==false
-      ||report.desktop_launcher_unchanged!==true||report.desktop_launcher_run!==41233812376
-      ||report.desktop_launcher_commit!=='2063fd3c4b96db496102e8df6101e97a127b38bd')
+      ||report.desktop_launcher_unchanged!==false||report.desktop_launcher_run!==41251825053
+      ||report.desktop_launcher_commit!=='174474733605a70c4e8f09f22ee91cebbb23ece9')
     throw Error('Candidate incomplete, wrong version, or regression flags missing');
   const names=['HostAgent.exe','CompanyHost.exe'];
   for(const name of names)if(report.retained_host_hashes[name]!==report.retained_runtime_sha256[name]||report.retained_runtime_sha256[name]!==report.components_sha256[name])throw Error('Retained host changed: '+name);
