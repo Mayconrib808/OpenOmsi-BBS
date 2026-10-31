@@ -1,7 +1,7 @@
 diff --git a/crates/omsi-sim/src/people/inspector.rs b/crates/omsi-sim/src/people/inspector.rs
 --- a/crates/omsi-sim/src/people/inspector.rs
 +++ b/crates/omsi-sim/src/people/inspector.rs
-@@ -1,88 +1,170 @@
+@@ -1,88 +1,179 @@
 -//! A fictional BCS companion uses the ordinary cabin, seat pool and path walker.
 -use super::*;
 -
@@ -133,7 +133,16 @@ diff --git a/crates/omsi-sim/src/people/inspector.rs b/crates/omsi-sim/src/peopl
 +            Some((score,tie,k))
 +        }).collect();
 +        choices.sort_unstable();
-+        let ty = choices.last()?.2;
++        // Prefer a recognisable professional model; if none is installed, prefer
++        // a type not worn by any other passenger currently in this bus.
++        // Never alter normal riders' types, models or seat reservations.
++        let used: std::collections::HashSet<_> = self.people.iter()
++            .filter(|person| person.inside(BusId::Player))
++            .map(|person| person.ty.def.path.as_path())
++            .collect();
++        let ty = choices.iter().rev()
++            .find(|(_,_,k)| !used.contains(self.types[*k].def.path.as_path()))
++            .or_else(|| choices.last()).map(|c|c.2)?;
 +        self.seats.get_mut(&BusId::Player)?[seat] = true;
 +        let s = cabin.seats[seat].clone();
 +        let mut pax = Pax::new(0.9, 0.5);
