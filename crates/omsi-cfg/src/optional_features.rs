@@ -15,6 +15,8 @@ pub struct OptionalFeatures {
     pub ai_bus_overtaking: bool,
     /// Additional lane courtesy for buses leaving a bay (opt-in, host controlled).
     pub cars_yield_to_buses: bool,
+    /// Physically stopped, hazard-flashing AI vehicles (host authority, opt-in).
+    pub illegal_parking: bool,
 }
 
 pub struct Feature {
@@ -27,7 +29,7 @@ pub const HOST_HELP: &str = "In multiplayer, shared AI vehicles are controlled b
 pub fn help(key: &str) -> &'static str {
     if matches!(
         key,
-        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings" | "ai_bus_overtaking" | "ai_driver_wave" | "cars_yield_to_buses"
+        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings" | "ai_bus_overtaking" | "ai_driver_wave" | "cars_yield_to_buses" | "illegal_parking"
     ) {
         HOST_HELP
     } else {
@@ -79,6 +81,10 @@ pub const FEATURES: &[Feature] = &[
         key: "cars_yield_to_buses",
         label: "Cars change lanes for buses leaving stops",
     },
+    Feature {
+        key: "illegal_parking",
+        label: "Temporary illegally parked AI cars",
+    },
 ];
 
 pub fn is_key(key: &str) -> bool {
@@ -103,6 +109,7 @@ impl OptionalFeatures {
             "passenger_ambient_talk" => self.passenger_ambient_talk,
             "ai_bus_overtaking" => self.ai_bus_overtaking,
             "cars_yield_to_buses" => self.cars_yield_to_buses,
+            "illegal_parking" => self.illegal_parking,
             _ => return None,
         })
     }
@@ -121,6 +128,7 @@ impl OptionalFeatures {
             "passenger_ambient_talk" => self.passenger_ambient_talk = enabled,
             "ai_bus_overtaking" => self.ai_bus_overtaking = enabled,
             "cars_yield_to_buses" => self.cars_yield_to_buses = enabled,
+            "illegal_parking" => self.illegal_parking = enabled,
             _ => return None,
         }
         Some(feature.key)
