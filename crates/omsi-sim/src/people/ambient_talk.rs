@@ -7,6 +7,14 @@ use super::*;
 const CONVERSATION_PAUSE: f64 = 42.0;
 const RESPONSE_AFTER: f64 = 2.4;
 const NEAR: f64 = 3.5;
+/// Max passengers inspected per sparse conversation opportunity, across all loaded buses.
+/// This work is never done on the ordinary rendering frame.
+const RIDER_SAMPLE_LIMIT: usize = 64;
+
+pub(crate) fn can_converse(a_bus: BusId, b_bus: BusId, a: DVec3, b: DVec3) -> bool {
+    a_bus == b_bus && a.is_finite() && b.is_finite()
+        && (a - b).length_squared() <= NEAR * NEAR
+}
 
 pub(crate) fn chat_due(now: f64, last: f64, bus_last_chat: f64) -> bool {
     now.is_finite() && now >= 0.0 && now - last >= CONVERSATION_PAUSE
@@ -49,25 +57,37 @@ impl PeopleSim {
         if let Some((id, at)) = self.ambient_talk_reply {
             if self.time < at { return; }
             self.ambient_talk_reply = None;
-            if let Some(i) = self.people.iter().position(|p| p.id == id && p.is_local_seated_passenger(BusId::Player)) {
+            // A rider might have alighted, changed buses, or been replaced by a
+            // LAN mirror after the first line. Never play an orphaned reply.
+            if let Some(i) = self.people.iter().position(|p| {
+                p.id == id && matches!(p.place, Place::Bus(bus, _) if p.is_local_seated_passenger(bus))
+            }) {
                 let _ = self.ambient_voice(i, true);
             }
             return;
         }
         if !chat_due(self.time, self.ambient_talk_at, self.last_chat) { return }
         self.ambient_talk_at = self.time;
-        // Run only once per 42 s. Search a bounded number of riders in the
-        // player's bus; never scan every AI bus or every pedestrian on the map.
-        let seated: Vec<usize> = self.people.iter().enumerate()
-            .filter(|(_, p)| p.is_local_seated_passenger(BusId::Player))
-            .map(|(i, _)| i).take(20).collect();
+        // Run once every 42 seconds, not per bus or per frame. Include passengers
+        // in timetable AI buses as well as the player's. A dedicated host emits no
+        // local sound; a LAN mirror doesn't double-play the host's voices.
+        let seated: Vec<(usize, BusId)> = self.people.iter().enumerate()
+            .filter_map(|(i, p)| match p.place {
+                Place::Bus(bus, _) if p.is_local_seated_passenger(bus) => Some((i, bus)),
+                _ => None,
+            })
+            .take(RIDER_SAMPLE_LIMIT)
+            .collect();
         if seated.len() < 2 { return }
         let first = (self.rand() as usize) % seated.len();
-        let speaker = seated[first];
-        let other = seated.iter().copied().enumerate()
-            .filter(|(j,i)| *j != first && (self.people[*i].position - self.people[speaker].position).length() <= NEAR)
-            .map(|(_,i)| i).next();
-        let Some(other) = other else { return };
+        let (speaker, bus) = seated[first];
+        let nearby: Vec<usize> = seated.iter().copied().filter_map(|(i, other_bus)| {
+            (i != speaker && can_converse(bus, other_bus,
+                self.people[speaker].position, self.people[i].position)).then_some(i)
+        }).collect();
+        if nearby.is_empty() { return }
+        // Pick both participants rather than always taking the lowest person id.
+        let other = nearby[(self.rand() as usize) % nearby.len()];
         if self.ambient_voice(speaker, false) {
             self.ambient_talk_reply = Some((self.people[other].id, self.time + RESPONSE_AFTER));
         }
@@ -84,5 +104,18 @@ mod tests {
         assert!(!chat_due(50.0, 0.0, 45.0));
         assert!(chat_due(50.0, 0.0, 20.0));
         assert!(!chat_due(f64::NAN, 0.0, 0.0));
+    }
+    #[test]
+    fn dialogue_requires_same_bus_and_nearby_real_positions() {
+        let p = DVec3::new(12.0, 0.0, 1.0);
+        assert!(can_converse(BusId::Player, BusId::Player, p,
+            DVec3::new(14.0, 0.0, 1.0)));
+        assert!(can_converse(BusId::Ai(3), BusId::Ai(3), p, p));
+        assert!(!can_converse(BusId::Ai(3), BusId::Ai(4), p, p));
+        assert!(!can_converse(BusId::Player, BusId::Ai(3), p, p));
+        assert!(!can_converse(BusId::Player, BusId::Player, p,
+            DVec3::new(50.0, 0.0, 1.0)));
+        assert!(!can_converse(BusId::Player, BusId::Player, p,
+            DVec3::new(f64::NAN, 0.0, 1.0)));
     }
 }

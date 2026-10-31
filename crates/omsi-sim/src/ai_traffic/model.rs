@@ -40,6 +40,17 @@ impl Passing {
 /// oncoming lane): its half width and a margin.
 pub const ONCOMING_ROOM: f32 = 1.15;
 
+/// A strictly local same-direction bypass of a bus serving another stop.
+/// Unlike a route lane change, this keeps the scheduled route's lane and stop
+/// indices intact. Both lanes count as occupied until the body has returned.
+#[derive(Debug, Clone, Copy)]
+pub struct BusLanePass {
+    pub target_lane: usize,
+    pub offset: f32,
+    /// Distance at which the rear has cleared the stopped bus and can return.
+    pub return_at: f32,
+}
+
 /// What makes a new car a timetable bus (`Traffic::create_car`).
 pub struct BusSetup {
     /// The trip's lanes, as far as the loaded tiles have them.
@@ -98,6 +109,8 @@ pub struct AiCar {
     /// That decision was taken standing first at the light's line as it went green.
     pub amber_start: bool,
     pub passing: Option<Passing>,
+    /// Optional multi-lane bus-to-bus overtake that preserves the fixed timetable route.
+    pub bus_lane_pass: Option<BusLanePass>,
     /// Finished (a dead end, the end of a timetable trip, given up): taken off the road as
     /// soon as nobody can see it.
     pub gone: bool,
@@ -720,6 +733,7 @@ impl TrafficSim {
             amber: None,
             amber_start: false,
             passing: None,
+            bus_lane_pass: None,
             gone: false,
             fresh: 1.5,
             merge_after: None,

@@ -99,6 +99,7 @@ impl Traffic {
             amber: None,
             amber_start: false,
             passing: None,
+            bus_lane_pass: None,
             gone: false,
             fresh: 0.0,
             merge_after: None,

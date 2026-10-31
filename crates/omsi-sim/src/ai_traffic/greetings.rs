@@ -173,7 +173,11 @@ impl Greetings {
     /// Waving and horn/flash are independent opt-ins. The ordinary update
     /// remains available for tests and existing greeting implementations.
     pub fn update_with_signals(&mut self, sim: &mut super::TrafficSim, mut buses: Vec<Bus>, dt: f32, signals_enabled: bool) {
-        if sim.mirror || !dt.is_finite() || dt <= 0.0 { return; }
+        // A LAN mirror can reproduce *visual-only* greetings from the
+        // replicated bus positions and line displays, without a new packet or
+        // any horn/flash/script side effects. Only the authoritative host
+        // controls signalling and keeps vehicle scripts unchanged.
+        if (sim.mirror && signals_enabled) || !dt.is_finite() || dt <= 0.0 { return; }
         self.clock += dt;
         let now = self.clock;
         for car in &sim.cars {
@@ -303,6 +307,19 @@ mod tests {
         sim.cars[0].vehicle.position=DVec3::ZERO; sim.cars[0].vehicle.heading=0.0;
         sim.cars[0].vehicle.host.capture_sound_triggers=true;
         (f,sim)
+    }
+    #[test] fn lan_mirror_can_wave_without_generating_host_sound_or_lamps() {
+        let (_f, mut sim) = scene();
+        sim.mirror = true;
+        let p = bus(BusId::Player(8), 40.0, 180.0, "205");
+        let mut g = Greetings::default();
+        g.update_with_signals(&mut sim, vec![p.clone()], 0.1, false);
+        g.update_with_signals(&mut sim, vec![p.clone()], 0.25, false);
+        // Fade starts at zero exactly on the greeting tick; sample one frame later.
+        g.update_with_signals(&mut sim, vec![p], 0.1, false);
+        assert!(g.wave(sim.cars[0].id).0 > 0.0);
+        assert!(sim.cars[0].vehicle.host.network_sound_triggers.is_empty());
+        assert_eq!(sim.cars[0].vehicle.var("lights_fern"), Some(0.0));
     }
     #[test] fn waving_without_horn_toggle_does_not_emit_a_horn_or_flash() {
         let (_f, mut sim) = scene();
