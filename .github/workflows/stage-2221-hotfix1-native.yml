@@ -30,7 +30,7 @@ jobs:
       - name: Confirm source and branch
         shell: pwsh
         run: |
-          if ("${{ github.ref }}" -ne "refs/heads/feature/2221-independent-demand-weather-clothes") { throw 'Wrong candidate branch' }
+          if ("${{ github.ref }}" -ne "refs/heads/fix/2221-lan-seated-people") { throw 'Wrong candidate branch' }
           if (-not (Test-Path 'crates/omsi-sim/src/people/demand.rs') -or -not (Test-Path 'crates/omsi-sim/src/people/clothing.rs')) { throw 'Incomplete source' }
       - name: Regression tests
         shell: pwsh
