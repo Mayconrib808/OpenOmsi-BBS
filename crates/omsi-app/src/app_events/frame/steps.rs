@@ -54,8 +54,8 @@ pub(crate) fn traffic_tick(
                         r.last.flags & omsi_net::FLAG_HORN != 0); b.high_beam = r.last.head == 3; b.speed = r.last.speed_kmh / 3.6; b }).collect();
                 if let Some(p) = player { buses.push(Bus::from_vehicle(BusId::Player(0), &p.vehicle, "", false)); }
                 let greeting_dt = if dt > 0.0 { dt } else { t.sim.last_dt };
-                greetings.update_with_signals(&mut t.sim, buses, greeting_dt,
-                    t.optional_features.ai_bus_greetings && !t.sim.mirror);
+                let host_signals = t.optional_features.ai_bus_greetings && !t.sim.mirror;
+                greetings.update_with_signals(&mut t.sim, buses, greeting_dt, host_signals);
             }
             t.greetings = greetings;
         }
