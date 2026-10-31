@@ -77,7 +77,7 @@ diff --git a/crates/omsi-sim/src/people/reactions.rs b/crates/omsi-sim/src/peopl
 +            .is_some_and(|d|if exiting{(p.pos-d.inside.as_dvec3()).length()<1.6}else{(self.people[i].position-bn.world(d.outside)).length()<if matches!(p.task,Task::ToBus|Task::WaitingForBus){18.0}else{2.5}});
 +        // An opened exit immediately cancels a pending complaint, including a
 +        // missed-stop countdown. The normal task walker handles disembarking.
-+        if exiting && open {
++        if exiting && bn.exit_open.iter().any(|o| *o) {
 +            if let Some(pax)=self.pax_mut(i) {
 +                pax.door_reaction_wait=0.0;pax.door_reaction_cooldown=0.0;
 +                pax.reaction_door_was_open=true;
