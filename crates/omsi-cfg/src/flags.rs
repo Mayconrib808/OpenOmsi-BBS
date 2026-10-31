@@ -155,6 +155,7 @@ flags! {
     OMSI_BATCH: Num, Test, Use, "-", "Offscreen: prepare the map tiles this many at a time, as the window's streaming does.";
     OMSI_BENCH: Num, Test, Use, "-", "Offscreen: draw the final picture this many more times and log the median CPU and GPU-wait time.";
     OMSI_BENCH_FRAMES: Bool, Debug, Use, "off", "With OMSI_BENCH: log every bench frame's times, not only the medians.";
+    OMSI_BENCH_STEREO: Bool, Test, Use, "off", "With OMSI_BENCH: benchmark a stationary stereo pair without a headset; --size is per eye, symmetric 100 degree vertical FOV and 64 mm eye separation. GPU completion waits are confined to this offline benchmark.";
     OMSI_BLEND_AB: Bool, Test, Use, "off", "Offscreen: a second picture with the blended draws in the old order, for a before/after of the draw order.";
     OMSI_BRIDGE_ONLY: Bool, Test, Use, "off", "LAN: forget our own addresses so that only what the rendezvous bridge reports is tried.";
     OMSI_BUDGET_FROM: Text, Test, Use, "-", "Offscreen with OMSI_TEXTURE_MEMORY: x,y[,MB] - the texture budget is met as seen from that point.";
@@ -459,6 +460,9 @@ flags! {
     OMSI_ROAD_PHOTO_N: Num, Test, Use, "400", "With OMSI_ROAD_PHOTO: number of sample points.";
     OMSI_ROAD_PHOTO_SIDE: Num, Test, Use, "0", "With OMSI_ROAD_PHOTO: metres to either side of the carriageway.";
     OMSI_ROAD_PHOTO_SLANT: Num, Test, Use, "-", "With OMSI_ROAD_PHOTO: from a driver's eye this far back instead of from above.";
+    OMSI_ROAD_SNOW: Text, Switch, Use, "settings", "Built-up snow on the roads and roofs, whatever the road_snow setting says: off for the weather's on/off snow on road, a number 0..1 for the cover to start with.";
+    OMSI_ROAD_SNOW_GRID: Bool, Test, Use, "off", "With the roads' snow: a 4 m grid in the track field instead of the lanes' ruts (to see it lie on the world).";
+    OMSI_ROAD_SNOW_LOG: Bool, Test, Use, "off", "With the roads' snow: log its cover, the snow fallen, the weather and what it costs a frame (mean, worst, rut texels drawn) every ten seconds.";
     OMSI_ROOT: Text, Setup, Use, "found", "The OMSI 2 installation folder (also the content root for tests that need real content).";
     OMSI_RT_REFL_HALF: Bool, Switch, Use, "off", "Trace reflections at half size.";
     OMSI_RUNNER_CHANCE: Num, Tuning, Use, "0.05", "Chance a late passenger runs for a bus standing at a stop (0: never, 1: every bus).";

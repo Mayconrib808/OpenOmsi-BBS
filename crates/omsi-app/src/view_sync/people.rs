@@ -535,6 +535,8 @@ impl PeopleView {
     /// simulation but the frame.
     pub(crate) fn pose(&mut self, world: &World, renderer: &Renderer, scene: &mut Scene, camera: DVec3) {
         let bcs_patient = crate::bcs_events::patient_pose();
+        let bcs_actor = crate::bcs_events::actor_pose();
+        let bcs_remotes=crate::bcs_events::remote_poses();
         for inst in self.hidden.drain(..) {
             renderer.set_params(scene, inst, &[], false, &[]);
         }
@@ -654,6 +656,16 @@ impl PeopleView {
                     && matches!(p.facts.activity, omsi_sim::human::Activity::Sit) {
                     crate::bcs_events::slump(&ty, &mut bones, blend);
                 }
+            }
+            if let Some((actor,event,blend,phase))=bcs_actor {
+                if p.id==actor&&matches!(p.place,Place::Bus(BusId::Player,_)){
+                    crate::bcs_events::reaction(&ty,&mut bones,event,blend,phase);
+                }
+            }
+            for &(id,event,blend,phase)in &bcs_remotes{
+                if p.id!=id||!matches!(p.place,Place::Bus(_, _)){continue;}
+                if matches!(event,1..=4)&&matches!(p.facts.activity,omsi_sim::human::Activity::Sit){crate::bcs_events::slump(&ty,&mut bones,blend);}
+                else if matches!(event,6|7){crate::bcs_events::reaction(&ty,&mut bones,event,blend,phase);}
             }
             // an avatar's face near the eye: blinks, looks, expressions, the lips
             // (from the camera the picture is drawn from: a face is seen from there)

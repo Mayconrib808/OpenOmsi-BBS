@@ -953,6 +953,20 @@ fn a_light_enh_has_its_bitmap_z_offset_factor_and_effects() {
     assert!(model_lights_faded(&model, &|_| Mat4::IDENTITY, DVec3::ZERO, &|_| 0.0, &[]).is_empty());
 }
 
+/// London's GarageLights.sco has a `[light_enh_2]` with no height: read on, its values come a
+/// line late and it is a yellow glow 120 m across over Lower Marsh. It is not drawn; the
+/// two sound lights of the file are.
+#[test]
+fn a_light_enh_2_left_a_number_short_is_not_drawn() {
+    let sound = |x: &str| format!("[light_enh_2]\n{x}\n-0.02046\n0.25409\n-0.07\n0\n-1\n-1\n0\n0.07\n0\n2\n255\n255\n235\n2.0\n120\n200\non\n0.8\n0.5\n1\n1\n0.2\n\n");
+    let short = "[light_enh_2]\n0.27022\n-0.02046\n-0.07\n0\n-1\n-1\n0\n0.07\n0\n2\n255\n255\n235\n2.0\n120\n200\non\n0.8\n0.5\n1\n1\n0.2\n\n";
+    let text = format!("[mesh]\nGarageLights.o3d\n{}{}{}[shadow]\n", sound("-1.25282"), sound("-0.343"), short);
+    let model = Model::parse(&omsi_cfg::CfgFile::from_str("GarageLights.sco", &text));
+    assert_eq!(model.meshes[0].light_enh_2.len(), 3);
+    let coronas = model_lights_faded(&model, &|_| Mat4::IDENTITY, DVec3::ZERO, &|_| 1.0, &[]);
+    assert!(!coronas.is_empty() && coronas.iter().all(|c| c.size < 10.0), "{coronas:?}");
+}
+
 /// A bridge deck high over the ground under it (London Bridge over the Thames) is
 /// draped by its `[crossing_heightdeformation]` as one lying on the ground is: Omsi.exe
 /// does it in the object's own frame, wherever the map puts the object (#961).

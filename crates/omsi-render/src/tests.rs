@@ -1464,8 +1464,10 @@ mod light;
 mod more;
 mod night_coverage;
 mod prepass_reach;
+mod snow_track_field;
 mod transparency;
 mod vanilla_lighting;
 
 mod xr_targets;
 mod xr_culling;
+mod xr_diagnostics;

@@ -40,6 +40,7 @@ type BodyWork<'a> = (
     &'a mut f32,
     &'a mut super::scenery::SceneryGuard,
     &'a mut f32,
+    Option<(DVec3,f64)>,
 );
 
 /// A worker more helps with the cars' bodies and scripts per this much of their work (s,
@@ -58,9 +59,14 @@ fn step_body(net: &Network, dt: f32, scripts: bool, profile: bool, w: &mut BodyW
         record_rail_trail(trail, state.odometer as f64, state.way_point(net, 0.0));
     }
     let trail = &*trail;
+    if w.8.is_some(){state.speed=0.0;frame.speed=0.0;}
     let behind = |d: f64| rail_behind(trail, state, net, d);
     // (watched near the scenery, and where it got to for the planner's next step)
-    let link = guard.step(
+    let link = if let Some((at,heading))=w.8 {
+        let a=heading.to_radians();let f=DVec3::new(a.sin(),a.cos(),0.0);
+        body.place(&|d|at+f*d as f64,ground.as_ref().map(|g|g.as_ref()as &dyn Fn(f64,f64)->Option<f64>),contact.as_deref(),0.0);
+        crate::traffic::BodyLink::default()
+    }else{guard.step(
         body,
         (state, net, dt),
         &|d| if rail && d < 0.0 { behind(-d as f64) } else { state.way_point(net, d) },
@@ -68,7 +74,7 @@ fn step_body(net: &Network, dt: f32, scripts: bool, profile: bool, w: &mut BodyW
             .as_ref()
             .map(|g| g.as_ref() as &dyn Fn(f64, f64) -> Option<f64>),
         contact.as_deref(),
-    );
+    )};
     body.apply(vehicle);
     if rail && !vehicle.trailers.is_empty() {
         // the coupled cars (a train's, a tram's sections) on the track it
@@ -208,6 +214,8 @@ impl TrafficSim {
         let mut coming: HashMap<usize, Vec<(usize, f32)>> = HashMap::new();
         let mut reservations = ClaimBook::default();
         for (i, c) in self.cars.iter().enumerate() {
+            // A pavement responder has an actual off-road footprint, not a reservation on its former road.
+            if c.response.as_ref().is_some_and(|d|d.parked.is_some()){continue;}
             by_lane
                 .entry(c.state.lane)
                 .or_default()
@@ -1032,7 +1040,11 @@ impl TrafficSim {
                 st.route.last() == Some(&last)
             };
             let air = self.net.lanes[st.lane].kind == LaneKind::Air;
-            if exhausted && st.change.is_none() && end < 150.0 {
+            // A responder's route ends at its explicit roadside destination,
+            // not at a finished ordinary trip. Clearing it here makes
+            // response_stop reject the lost route and stop the car on the spot.
+            let responding = car.response.as_ref().is_some_and(|r| r.phase != super::response::Phase::Departing);
+            if exhausted && st.change.is_none() && end < 150.0 && !responding {
                 let service = car.bus.as_deref_mut();
                 let in_service = service
                     .as_ref()
@@ -1323,7 +1335,7 @@ impl TrafficSim {
             .zip(frames.iter_mut())
             .filter_map(|(c, f)| {
                 let f = f.as_mut()?;
-                Some((&mut c.state, &mut c.body, &mut c.vehicle, f, &mut c.rail_trail, &mut c.ai_secs, &mut c.guard, &mut c.script_owed))
+                Some((&mut c.state, &mut c.body, &mut c.vehicle, f, &mut c.rail_trail, &mut c.ai_secs, &mut c.guard, &mut c.script_owed, c.response.as_ref().and_then(|d|d.parked)))
             })
             .collect();
         // (the slowest first, by what each took the step before: the last ones taken are

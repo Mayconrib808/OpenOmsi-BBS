@@ -13,13 +13,12 @@
 //! greyed and takes no clicks. The statistics tile shows the last trip's summary again, or
 //! the personnel file when there is none.
 
-use super::{card, el, note, text};
+use super::{card, el, note, text, theme, theme_color};
 use omsi_plugin::ui::{Align, Anchor, Element, Kind, Panel, Rgba, RowAlign, Weight};
 use omsi_ui::tr;
 
 /// OMSI 2's lit tile: a deep orange-brown, the white icon on it.
 const LIT: Rgba = Rgba([138, 72, 26, 255]);
-const MUTED: Rgba = Rgba([142, 142, 142, 255]);
 pub(crate) const COLUMNS: usize = 5;
 pub(crate) const PER_PAGE: usize = 15;
 /// Five tiles of 84 and four gaps of 8, with the card's padding round them.
@@ -114,7 +113,7 @@ impl TileState {
 
 impl QuickMenu {
     pub(crate) fn panel(&self, app: &crate::App) -> Panel {
-        self.panel_of(&TileState::of(app))
+        self.panel_of(&TileState::of(app), app.settings.is_light_theme())
     }
 
     /// The tile chosen: its id.
@@ -123,7 +122,8 @@ impl QuickMenu {
     }
 
     /// The page shown, with the tiles as `state` has them.
-    pub(crate) fn panel_of(&self, state: &TileState) -> Panel {
+    pub(crate) fn panel_of(&self, state: &TileState, light: bool) -> Panel {
+        let muted = theme_color(theme(light).TEXT_DIM);
         let tiles = page_tiles(self.page);
         let mut children: Vec<Element> = tiles
             .chunks(COLUMNS)
@@ -149,17 +149,17 @@ impl QuickMenu {
         };
         let mut foot = vec![Element { grow: true, ..text(&caption, 15.0, Weight::Bold) }];
         if off {
-            foot[0].color = Some(MUTED);
-            foot.push(Element { color: Some(MUTED), ..el(None, Kind::Text { text: tr("Currently unavailable").into_owned(), size: 12.0, weight: Weight::Regular, align: Align::Right, wrap: false }) });
+            foot[0].color = Some(muted);
+            foot.push(Element { color: Some(muted), ..el(None, Kind::Text { text: tr("Currently unavailable").into_owned(), size: 12.0, weight: Weight::Regular, align: Align::Right, wrap: false }) });
         }
         if pages() > 1 {
             let at = format!("{} / {}", self.page + 1, pages());
-            foot.push(Element { color: Some(MUTED), ..el(None, Kind::Text { text: at, size: 12.0, weight: Weight::Regular, align: Align::Right, wrap: false }) });
+            foot.push(Element { color: Some(muted), ..el(None, Kind::Text { text: at, size: 12.0, weight: Weight::Regular, align: Align::Right, wrap: false }) });
             foot.push(el(Some("next"), Kind::Button { text: String::new(), icon: Some("chevron_right".into()) }));
         }
         children.push(el(None, Kind::Row { children: foot, gap: 10.0, align: RowAlign::Start }));
-        children.push(note(&tr("Alt or Esc closes the menu; the game goes on.")));
-        Panel { padding: 14.0, gap: 8.0, ..card(Anchor::BottomRight, 32.0, 32.0, WIDTH, 215, children) }
+        children.push(note(&tr("Alt or Esc closes the menu; the game goes on."), light));
+        Panel { padding: 14.0, gap: 8.0, ..card(Anchor::BottomRight, 32.0, 32.0, WIDTH, 215, light, children) }
     }
 
     /// The next page (after the last, the first), its first tile chosen.
@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn the_panel_shows_the_chosen_tiles_name_and_the_lit_and_greyed_ones() {
         let q = QuickMenu { focus: 7, ..Default::default() };
-        let p = q.panel_of(&TileState { off: vec!["map"], lit: vec!["arrows"] });
+        let p = q.panel_of(&TileState { off: vec!["map"], lit: vec!["arrows"] }, false);
         let tiles: Vec<&Element> = p.children.iter().take(3).flat_map(|r| match &r.kind {
             Kind::Row { children, .. } => children.iter().collect::<Vec<_>>(),
             _ => vec![],
@@ -385,6 +385,19 @@ mod tests {
         assert!(app.menus.chooser.is_some());
         app.close_list();
         app.close_game_menu();
+    }
+
+    #[test]
+    fn game_panels_follow_the_light_theme_setting() {
+        let args = <crate::cli::Args as clap::Parser>::parse_from(["openomsi"]);
+        let mut app = crate::assemble_app(args, Default::default());
+        app.settings.ui_theme = "light".into();
+        toggle(&mut app);
+        app.frame_game_panels(0.0, [0.0, 0.0, 1280.0, 720.0], false);
+
+        let panel = app.menus.game_panels.ui.panels().iter().find(|p| p.id == "quick").unwrap();
+        let background = panel.panel.background.unwrap();
+        assert!(background.0[0] > 230 && background.0[1] > 230 && background.0[2] > 230, "{background:?}");
     }
 
     #[test]

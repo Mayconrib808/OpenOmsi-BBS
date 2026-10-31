@@ -52,7 +52,7 @@ impl App {
 
 crate::app::stage_ctx!(
     /// The lights' stage's part of the game: the lamps, the rain and the spray, the sounds of the world around.
-    LightsCx { reads: [clock, world, net, view, menus], writes: [perf, sound, weather, people, gfx, traffic, player] }
+    LightsCx { reads: [clock, world, net, view, menus, integrations], writes: [perf, sound, weather, people, gfx, traffic, player] }
 );
 
 /// The lights (the lamps' cones, the light maps, every light that shines), the rain and
@@ -70,6 +70,14 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
         w.update_light_map_atlas(r, cam.position);
     }
     cx.perf.profile.add(crate::profile_keys::ProfKey::LightsAtlas, __ta.elapsed().as_secs_f64());
+    // the roads' and roofs' built-up snow, its ruts and tracks (omsi_scene::road_snow)
+    let __ts = Instant::now();
+    if let (Some(r), Some(cam), Some(scene)) = (cx.gfx.renderer.as_ref(), cx.view.camera.as_ref(), cx.gfx.scene.as_mut()) {
+        let (v, p, view) = (omsi_scene::road_snow::vehicles(cx.player.player.as_ref().map(|p| &p.vehicle), cx.traffic.traffic.as_deref()), cx.player.player.as_ref(), &cx.gfx.gfx.sim_view.traffic);
+        omsi_scene::road_snow::frame(r, if *cx.clock.paused { 0.0 } else { dt * crate::app_impl::time_speed(cx.common.settings, cx.net) as f32 }, cx.weather.weather.as_ref(), cam.position, cx.traffic.traffic.as_ref().map(|t| &t.net), &v);
+        omsi_scene::road_snow::show_roofs(r, scene, v.iter().map(|x| x.0), |k| if k == 0 { p.map(|p| (&p.render, &p.trailer_renders[..])) } else { view.car(k - 1).map(|c| (&c.body, &c.trailers[..])) });
+    }
+    cx.perf.profile.add(crate::profile_keys::ProfKey::LightsSnow, __ts.elapsed().as_secs_f64());
     if let (Some(w), Some(scene), Some(cam)) = (
         cx.world.world.as_ref(),
         cx.gfx.scene.as_mut(),
@@ -98,6 +106,7 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
             }
             p.panto_fx.push_effects(scene);
         }
+        crate::bcs_events::append_visuals(&cx.integrations.bcs_events,scene);
         cx.perf.profile.add(crate::profile_keys::ProfKey::LightsCollect, __tc.elapsed().as_secs_f64());
         // the object editor's pick: a magenta glow over it
         if let Some(id) = cx.menus.menus.editor.as_ref().and_then(|e| e.selected) {

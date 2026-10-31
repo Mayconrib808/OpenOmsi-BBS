@@ -123,6 +123,8 @@ impl PeopleSim {
                 }
             }
             Task::InBusToExit => {
+                let now = self.time;
+                self.pax_mut(i).unwrap().door_since = Some(now);
                 let bus = self.pax(i).unwrap().bus.or(self.pax(i).unwrap().inside);
                 let Some(bn) = bus.and_then(|b| bus_ix.get(&b).map(|k| &buses[*k])) else { return };
                 // the stop button
@@ -257,7 +259,19 @@ impl PeopleSim {
         // returns the first slot, which might be None. Retry without the open mask
         // to keep ticket-sale restrictions and the nearest platform-facing target.
         let pt = bn.cabin.omsi_nearest(here, &list, p.ticket == TICKET_BUY, false, Some(&flags), Some(&open))
-            .or_else(|| bn.cabin.omsi_nearest(here, &list, p.ticket == TICKET_BUY, false, Some(&flags), None));
+            .or_else(|| bn.cabin.omsi_nearest(here, &list, p.ticket == TICKET_BUY, false, Some(&flags), None))
+            .or_else(|| {
+                let nearest = list.iter().flatten().copied()
+                    .filter_map(|id| bn.cabin.graph.points.get(id)
+                        .map(|pos| (id, (*pos - here).length_squared())))
+                    .min_by(|a, b| a.1.total_cmp(&b.1))
+                    .map(|(id, _)| id);
+                if nearest.is_some() && debug_pax() {
+                    log::info!("pax {} reselecting same-side entry for bus {:?}",
+                        self.people[i].id, bn.id);
+                }
+                nearest
+            });
         let p = self.pax_mut(i).unwrap();
         if let Some(q) = pt.and_then(|k| bn.cabin.graph.points.get(k)) {
             p.target = q.as_dvec3();
@@ -324,7 +338,7 @@ impl PeopleSim {
                 }
                 self.pax_mut(i).unwrap().bus = Some(b);
                 // still rolling in, or standing in the stop's box: to the gather point
-                if bn.speed.abs() <= 2.0 && !self.in_stop_box(stop, b) {
+                if bn.speed.abs() <= 2.0 && !self.in_stop_box(stop, b) && !self.can_walk_to_stopped_bus(i, stop, bn) {
                     return;
                 }
                 if super::debug_pax() {
@@ -335,7 +349,7 @@ impl PeopleSim {
             Task::ToBus => {
                 let Some(stop) = p.stop else { return };
                 if let Some(bn) = bn {
-                    if bn.speed.abs() < 3.0 && self.in_stop_box(stop, bn.id) {
+                    if bn.speed.abs() < 3.0 && (self.in_stop_box(stop, bn.id) || self.can_walk_to_stopped_bus(i, stop, bn)) {
                         // A seat in a disconnected trailer needs an entry on this side
                         // too; otherwise a passenger reserves it and can never board.
                         let side = self.preferred_entry_side(stop, bn, p.pos);
@@ -499,6 +513,16 @@ impl PeopleSim {
                 pp.pax_state = 1.0;
                 return;
             }
+            if self.pax(i).is_some_and(|p| p.door.is_none()) {
+                self.choose_entry(i, buses, bus_ix);
+                if self.pax(i).is_some_and(|p| p.door.is_none()) {
+                    if debug_pax() {
+                        log::info!("pax {} not boarding {:?}: no same-side entry point",
+                            self.people[i].id, bn.id);
+                    }
+                    return;
+                }
+            }
             // in the doorway, but the plugins have not had their say about the ticket yet
             // (`TICKET_HOLD` at most): they could still make it a pass, which decides the
             // way in
@@ -574,7 +598,7 @@ impl PeopleSim {
         if p.ticket == TICKET_STAMP {
             if p.sub == 1 && p.timer < 0.5 {
                 // the validator stamps
-                self.stamped.push(bn.id);
+                self.stamped.push((bn.id, p.stamper));
                 let pp = self.pax_mut(i).unwrap();
                 pp.sub = 2;
                 pp.reach = false;
@@ -601,8 +625,26 @@ impl PeopleSim {
         }
         let door_open = p.door.map(|d| bn.exit_open.get(d).copied().unwrap_or(false)).unwrap_or(false);
         let may_leave = door_open && (reg.next.is_some() || p.complaint == 3);
+        if bn.id == BusId::Player && bn.speed.abs() < 1.0
+            && p.door_since.is_some_and(|since| self.time - since >= 8.0)
+            && (!may_leave || p.st != 7) {
+            let reason = if reg.next.is_none() && p.complaint != 3 {
+                "stop_not_recognized"
+            } else if p.door.is_none() { "no_exit_selected" }
+              else if !door_open { "selected_exit_closed" }
+              else { "walking_or_path_blocked" };
+            log::info!(
+                "passenger exit blocked: id={} reason={} st={} door={:?} next={:?} served={:?} destination={:?} pt={:?} target={:?} entry_open={:?} exit_open={:?}",
+                self.people[i].id, reason, p.st, p.door, reg.next, bn.served,
+                p.dest, p.pt, p.pt_target, bn.entry_open, bn.exit_open);
+            let now = self.time;
+            self.pax_mut(i).unwrap().door_since = Some(now);
+        }
         self.pax_mut(i).unwrap().short = !may_leave;
-        let out = p.st == 7 && bn.speed.abs() < 1.0 && may_leave;
+        let at_exit_threshold = p.door.and_then(|door| bn.cabin.exits.get(door))
+            .is_some_and(|door| (p.pos - door.inside.as_dvec3()).length() <= 0.45);
+        let out = (p.st == 7 || at_exit_threshold) && bn.speed.abs() < 1.0 && may_leave;
+        if out && bn.id==BusId::Player {self.thank_on_exit(i);}
         if !out {
             if reg.next.is_none() {
                 if bn.id == BusId::Player {
@@ -610,7 +652,7 @@ impl PeopleSim {
                 }
                 return;
             }
-            if p.timer < 0.0 {
+            if p.timer <= 0.0 {
                 // the bus stands: the nearest exit that is open now (0x62d6b1 passes the
                 // exits' open states, +0x6e0: a shut door is skipped, none open gives the
                 // first). Without them the nearest door was taken again, open or shut, and
@@ -839,9 +881,11 @@ mod connection_tests {
         let ix=HashMap::from([(BusId::Player,0)]);
         let regs=HashMap::from([(BusId::Player,BusAtStops{all_exit:true,..Default::default()})]);
         let p=h.pax_mut(i).unwrap();p.inside=Some(BusId::Player);p.bus=Some(BusId::Player);
-        p.task=Task::SittingInBus;p.seat=Some(0);p.st=0;p.pos=DVec3::new(0.,1.,0.);
-        h.people[i].activity=Activity::Sit;
+        p.task=Task::SittingInBus;p.seat=Some(0);p.st=0;p.pos=DVec3::new(0.,1.,0.);p.pax_state=2.0;
+        h.people[i].place=Place::Bus(BusId::Player,Vec3::new(0.,1.,0.));
+        assert_eq!(h.people[i].activity,Activity::Stand,"reproduce the stale walker activity of a seated passenger");
         let id=h.people[i].id;h.hold_for_responder(Some(id));
+        assert!(h.pax(i).unwrap().responder_hold);
         let mut ticket=false;let mut remove=Vec::new();
         h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
         assert_eq!(h.pax(i).unwrap().task,Task::SittingInBus);
@@ -851,6 +895,52 @@ mod connection_tests {
         h.hold_for_responder(None);
         h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
         assert_eq!(h.pax(i).unwrap().task,Task::InBusToExit);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn medical_patient_eligibility_reads_the_seat_state_not_the_walker_cache() {
+        let (root,mut h,_world,i)=fixture("medical-seat-eligibility");
+        let p=h.pax_mut(i).unwrap();
+        p.inside=Some(BusId::Player);p.bus=Some(BusId::Player);
+        p.task=Task::SittingInBus;p.seat=Some(0);p.pax_state=2.0;
+        h.people[i].place=Place::Bus(BusId::Player,Vec3::ZERO);
+        assert_eq!(h.people[i].activity,Activity::Stand);
+        assert!(h.people[i].is_local_seated_passenger(BusId::Player));
+        h.people[i].activity=Activity::Walk;
+        assert!(h.people[i].is_local_seated_passenger(BusId::Player));
+        h.pax_mut(i).unwrap().pax_state=0.0;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"standing riders are excluded");
+        h.pax_mut(i).unwrap().pax_state=2.0;
+        h.people[i].remote=true;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"remote mirrors are excluded");
+        h.people[i].remote=false;
+        h.pax_mut(i).unwrap().seat=None;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"an assigned seat is required");
+        h.pax_mut(i).unwrap().seat=Some(0);
+        h.pax_mut(i).unwrap().task=Task::InBusToExit;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"alighting riders are excluded");
+        h.pax_mut(i).unwrap().task=Task::SittingInBus;
+        h.people[i].place=Place::Ground;
+        assert!(!h.people[i].is_local_seated_passenger(BusId::Player),"outside people are excluded");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
+    fn medical_patient_test_riders_wait_seated_before_the_incident() {
+        let (root,mut h,world,i)=fixture("medical-test-wait");
+        let buses=vec![bus(&root,BusId::Player,"Destino",DVec3::new(40.,0.,0.))];
+        let ix=HashMap::from([(BusId::Player,0)]);
+        let regs=HashMap::from([(BusId::Player,BusAtStops{all_exit:true,..Default::default()})]);
+        let p=h.pax_mut(i).unwrap();p.inside=Some(BusId::Player);p.bus=Some(BusId::Player);
+        p.task=Task::SittingInBus;p.seat=Some(0);p.st=0;p.pos=DVec3::new(0.,1.,0.);p.pax_state=2.0;
+        h.people[i].place=Place::Bus(BusId::Player,Vec3::new(0.,1.,0.));
+        h.hold_seated_test_passengers();
+        let mut ticket=false;let mut remove=Vec::new();
+        h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
+        assert_eq!(h.pax(i).unwrap().task,Task::SittingInBus);
+        assert!(h.people[i].is_local_seated_passenger(BusId::Player));
+        h.hold_for_responder(None);
+        h.pax_tick(i,0.1,&world,&buses,&ix,&regs,None,&mut ticket,&mut remove);
+        assert_eq!(h.pax(i).unwrap().task,Task::InBusToExit,"normal alighting resumes when the test hold is released");
         std::fs::remove_dir_all(root).unwrap();
     }
     fn fixture(name:&str)->(std::path::PathBuf,PeopleSim,crate::world_data::WorldData,usize) {

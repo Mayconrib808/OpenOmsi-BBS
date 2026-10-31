@@ -181,7 +181,7 @@ impl PeopleSim {
                     pos: p.position,
                     heading: p.heading,
                     speed: 0.0,
-                    activity: p.activity,
+                    activity: p.pose_facts().activity,
                     aboard: Some((
                         0,
                         l,
@@ -276,7 +276,7 @@ impl PeopleSim {
                     pos: p.position,
                     heading: p.heading,
                     speed: if aboard.is_some() { 0.0 } else { p.vel.length() },
-                    activity: p.activity,
+                    activity: p.pose_facts().activity,
                     aboard,
                     waiting,
                 })

@@ -292,6 +292,7 @@ pub(super) fn on_foot(mut cx: crate::on_foot::OnFootCx, dt: f32) {
 /// (`Languages/<LANG>_basic*.olf`, `RL_PassDlg_<name>`): Omsi.exe shows them as the riders
 /// speak. None for what has no hint (a greeting).
 fn passenger_dialog(name: &str) -> Option<String> {
+    if name=="BridgeOpenDoor"{return Some(crate::coop::text("Pode abrir a porta, por favor?","Could you open the door, please?","Bitte die Tür öffnen!").into());}
     static TEXTS: std::sync::OnceLock<Option<omsi_content::language::Language>> = std::sync::OnceLock::new();
     let texts = TEXTS.get_or_init(|| {
         let lang = crate::settings::Settings::load().language;

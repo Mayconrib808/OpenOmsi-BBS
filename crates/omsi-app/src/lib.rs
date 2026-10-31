@@ -433,6 +433,9 @@ pub(crate) fn prepare(mut args: Args, bare: bool) -> Result<Option<(Args, Option
         omsi_cfg::vfs::mount_dir_zips(&c.join("Archives"));
     }
     omsi_cfg::add_content_root(args.root.clone());
+    if let Some(root)=std::env::current_exe().ok().and_then(|p|p.parent().map(|p|p.join("bcs-assets"))).filter(|p|p.is_dir()){
+        omsi_cfg::add_content_root(root);
+    }
     if args.list_maps {
         for m in server::installed_maps() {
             println!("{m}");

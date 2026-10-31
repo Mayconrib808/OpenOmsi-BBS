@@ -168,6 +168,18 @@ impl Person {
     pub fn inside(&self, bus: BusId) -> bool {
         matches!(self.place, Place::Bus(b, _) if b == bus)
     }
+    /// A local passenger actually occupying a seated place in this bus. Passenger
+    /// animation comes from Pax::pax_state; Person::activity is the walker's cache
+    /// and can still say Stand while a passenger is sitting in the rendered cabin.
+    pub fn is_local_seated_passenger(&self, bus: BusId) -> bool {
+        !self.remote
+            && self.inside(bus)
+            && matches!(&self.state, State::Pax(p)
+                if !p.inspector && p.inside == Some(bus)
+                    && p.task == super::pax::Task::SittingInBus
+                    && p.seat.is_some()
+                    && p.pax_state.round() == 2.0)
+    }
     pub fn label(&self) -> String {
         format!(
             "#{} {}",
@@ -396,8 +408,9 @@ pub struct PeopleSim {
     /// whether the trip has reached its last stop. None: free drive, and nobody waiting
     /// boards the player's bus.
     pub duty: Option<(Arc<DutyTrip>, usize, bool)>,
-    /// Buses whose validator somebody used since the app last looked (`take_stamped`).
-    pub stamped: Vec<BusId>,
+    /// Buses whose validator somebody used since the app last looked (`take_stamped`), with
+    /// the index of that `[stamper]` in the bus's cabin.
+    pub stamped: Vec<(BusId, Option<usize>)>,
     /// Pedestrians to keep strolling near the player (scaled by `density`).
     pub pedestrians: usize,
     /// Omsi.exe's people (`[AIMaxCountRandom]`'s second line, the `ai_max_humans` setting):

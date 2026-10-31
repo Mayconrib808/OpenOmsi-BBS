@@ -1,9 +1,13 @@
 //! The driver grants one passenger permission; the passenger chooses their own bus view.
-use super::{button, card, grow_row, note, title};
+use super::{button, grow_row, title};
 use crate::coop::text;
 use omsi_plugin::ui::{Anchor, Panel};
 
 pub(crate) fn status(app: &crate::App) -> Option<Panel> {
+    let light = app.settings.is_light_theme();
+    let note = |text: &str| super::note(text, light);
+    let card = |anchor, x, y, width, alpha, children| super::card(anchor, x, y, width, alpha, light, children);
+
     if !app.net.coop.remote.is_some_and(|(_, e, _)| e != 0)
         || (app.net.coop.desk.stage == 0 && app.net.coop.desk.uncollected <= 0.0)
         || app.net.coop.panel
@@ -49,6 +53,10 @@ pub(crate) fn status(app: &crate::App) -> Option<Panel> {
 }
 
 pub(crate) fn panel(app: &crate::App) -> Panel {
+    let light = app.settings.is_light_theme();
+    let note = |text: &str| super::note(text, light);
+    let card = |anchor, x, y, width, alpha, children| super::card(anchor, x, y, width, alpha, light, children);
+
     if app.net.coop.character.open { return super::character_panel::panel(app); }
     let mut children = vec![
         title(text("Cooperativo", "Cooperative", "Kooperativ")),

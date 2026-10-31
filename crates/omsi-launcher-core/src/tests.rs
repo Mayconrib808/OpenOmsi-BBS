@@ -26,6 +26,7 @@ fn a_part_found_from_the_vehicle_folder_is_no_missing_pack() {
 }
 
 include!("passenger_animation_tests.rs");
+include!("plugin_launch_tests.rs");
 
 #[test]
 fn the_games_options_survive_a_save() {
@@ -63,6 +64,27 @@ fn the_games_options_survive_a_save() {
     assert_eq!(values["discord_app_id"], json!("123456"));
     let saved = settings_to_text(&values, Some(custom_id));
     assert_eq!(settings_from_text(Some(&saved))["discord_app_id"], json!("123456"));
+}
+
+#[test]
+fn launcher_settings_bridge_unifies_ui_theme_with_legacy_nav_light() {
+    assert_eq!(settings_from_text(None)["ui_theme"], json!("dark"));
+    assert_eq!(settings_from_text(Some("ui_theme=light\n"))["ui_theme"], json!("light"));
+    assert_eq!(settings_from_text(Some("ui_theme=dark\n"))["ui_theme"], json!("dark"));
+    assert_eq!(settings_from_text(Some("ui_theme=blue\n"))["ui_theme"], json!("dark"));
+    assert_eq!(settings_from_text(Some("nav_light=1\n"))["ui_theme"], json!("light"));
+    assert_eq!(settings_from_text(Some("ui_theme=dark\nnav_light=1\n"))["ui_theme"], json!("dark"));
+
+    let saved = settings_to_text(&json!({ "ui_theme": "light", "nav_light": true }), None);
+    assert!(saved.lines().any(|line| line == "ui_theme=light"), "{saved}");
+    assert!(!saved.lines().any(|line| line.starts_with("nav_light=")), "{saved}");
+
+    let rewritten = settings_to_text(&json!({ "ui_theme": "light", "nav_light": true }), Some("nav_light=1\n"));
+    assert!(rewritten.lines().any(|line| line == "ui_theme=light"), "{rewritten}");
+    assert!(!rewritten.lines().any(|line| line.starts_with("nav_light=")), "{rewritten}");
+
+    let invalid = settings_to_text(&json!({ "ui_theme": "blue" }), None);
+    assert!(invalid.lines().any(|line| line == "ui_theme=dark"), "{invalid}");
 }
 
 #[test]

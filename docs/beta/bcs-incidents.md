@@ -56,6 +56,17 @@ The additive plugin event `bcs_incident(event_id, instance, stage, passenger)`
 reports capture/controller intent. Actual dispatch, physical arrival and transfer
 are logged separately; this event is not proof of physical arrival.
 
+## Standalone visual test
+
+The manual harness sets `OPENOMSI_BCS_EVENTS_VISUAL_TEST=1` only for its own
+game process. It also disables plugins and starts with `--riders 4`. The game
+accepts this hold only in a seeded standalone run, with no server, LAN host or
+LAN join. Seeded seated passengers wait aboard before the medical scene starts,
+including at an out-of-service stop; this avoids normal alighting emptying the
+test bus before the tester presses the event button. Once a patient is selected,
+the ordinary single-patient responder hold takes over. Normal BCS trips and LAN
+sessions do not receive the test hold.
+
 ## Emergency models
 
 The loader consumes `bcs-emergency-vehicles.json` in the original OMSI root.
@@ -121,3 +132,36 @@ passenger pose in both animation modes and through alighting stops,
 original ambulance mesh and siren,
 spawn/stop placement on actual maps, and arrival/departure in game. A successful
 headless simulation or compile does not validate these visuals.
+
+### Short BCS medical calls (beta 0.2.2)
+
+Responders now enter on a connected 10–18 m approach to a road stop roughly 14 m
+behind the bus, already moving. The route is built backwards from the stop, so
+a nearby origin cannot require a kilometre-long detour. Nearby creation can be
+visible when a hidden origin is unavailable. Actual road clearance, braking and
+physical arrival still apply. Generic end-of-trip cleanup preserves the response
+route until arrival; previously it erased the route within 150 m and the response
+controller stopped the car immediately. BCS completion adds no five-second hold.
+A stalled approach records the AI stop reason and expires after 30 s.
+
+### Capture continuity (beta 0.2.3)
+
+A missing/unreadable poll during atomic JSON replacement keeps the last validated
+heartbeat only within the existing 15-second freshness limit. A repeated directory
+entry for the same PID is one source. Explicit incompatible data, another unreadable
+PID and multiple active sources remain rejected. This prevents one filesystem poll
+from permanently blocking the medical event before the ambulance is requested.
+The capture/lifecycle regression compiles the actual modules in a small test harness.
+
+### Roadside access (beta 0.2.4)
+
+Search actual road space within 60 m around the bus; do not require a lane
+aligned exactly behind a parked bus. Sample nearby positions along the road so
+the bus body can be avoided. The connected approach stays 10–18 m long and
+can cross small map segments without an artificial 2 m margin on each segment.
+Spawn distance is bounded by 80 m; body clearance still rejects occupied space.
+Failures record candidate and occupancy counts.
+
+If a terminal offers a clear road stop but lacks a clear drive-in, place the
+actual responder there stationary. Its real position and standstill still gate
+arrival; no timer fabricates a vehicle. The nearest clear stop is preferred.

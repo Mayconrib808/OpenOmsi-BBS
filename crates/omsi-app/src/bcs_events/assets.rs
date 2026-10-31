@@ -65,6 +65,11 @@ impl Loader {
         if self.value.is_some() {
             return;
         }
+        if let Some(root)=std::env::current_exe().ok().and_then(|p|p.parent().map(|p|p.join("bcs-assets"))).filter(|p|p.is_dir()) {
+            // A shared relative Vehicles/OpenOMSI_BCS path resolves on every
+            // client/server; installed content retains its existing priority.
+            omsi_cfg::add_content_root(root);
+        }
         let value = Arc::new(Mutex::new(None));
         self.value = Some(value.clone());
         let launched = std::thread::Builder::new()
@@ -89,10 +94,14 @@ impl Loader {
                 } else {
                     Config::default()
                 };
+                let fallback = std::env::current_exe().ok().and_then(|p|p.parent().map(|p|p.join("bcs-assets")));
+                let police_custom=config.police.is_some();let fire_custom=config.fire.is_some();
                 let catalog = Catalog {
                     medical: load(&root, config.ambulance, AMBULANCE, Service::Medical),
-                    police: load(&root, config.police, BMW, Service::Police),
-                    fire: load(&root, config.fire, ROMAN, Service::Fire),
+                    police: load(&root, config.police, BMW, Service::Police).or_else(||
+                        if police_custom {None} else {fallback.as_ref().and_then(|p|load(p,None,"Vehicles/OpenOMSI_BCS/Police/Police.ovh",Service::Police))}),
+                    fire: load(&root, config.fire, ROMAN, Service::Fire).or_else(||
+                        if fire_custom {None} else {fallback.as_ref().and_then(|p|load(p,None,"Vehicles/OpenOMSI_BCS/Fire/Fire.ovh",Service::Fire))}),
                 };
                 if let Ok(mut slot) = value.lock() {
                     *slot = Some(catalog);
@@ -183,6 +192,11 @@ fn signals(binding: &Binding, service: Service) -> Option<Signals> {
                 en_route: variables(&["Folgetonhorn"], 1.0),
                 on_scene: variables(&["Folgetonhorn"], 0.0),
                 departing: variables(&["Folgetonhorn", "blaulicht_1", "blaulicht_2"], 0.0),
+            },
+            (_, path) if path.starts_with("Vehicles/OpenOMSI_BCS/") => Signals {
+                en_route: variables(&["bcs_siren","bcs_beacon"],1.0),
+                on_scene: vec![("bcs_siren".into(),0.0),("bcs_beacon".into(),1.0)],
+                departing: variables(&["bcs_siren","bcs_beacon","bcs_blue"],0.0),
             },
             _ => Signals::default(),
         }

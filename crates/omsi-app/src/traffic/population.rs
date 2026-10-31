@@ -355,7 +355,14 @@ impl Traffic {
             })
             .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
             .collect();
-        let street_target = (self.sim.target as f32 * density * road_scale(&near_density)).round() as usize;
+        // Physical lane length matters on avenues: a few long parallel paths can
+        // carry more cars than dozens of very short junction segments.
+        let lane_metres:f32=self.sim.net.lanes_starting_near(center,self.sim.spawn_radius).into_iter()
+            .filter_map(|i|self.sim.net.lanes.get(i)).filter(|l|l.kind==LaneKind::Street&&!l.no_cars&&l.density>0.0)
+            .filter(|l|(l.start()-center).truncate().length()<self.sim.spawn_radius)
+            .map(|l|l.length().clamp(0.0,300.0)*l.density.clamp(0.0,2.0)).sum();
+        let scale=road_scale(&near_density).max((lane_metres/6000.0).clamp(1.0,4.0));
+        let street_target = (self.sim.target as f32 * density * scale).round() as usize;
         // the cars that come into range again, where they have got to
         self.wake_dormant(world, center, street_target);
         // the whole map's population: as dense as around the player, on every street the
@@ -383,6 +390,18 @@ impl Traffic {
             log::info!("population t={:.1}: street target {street_target}, {} cars, {} dormant; admission: {} admitted, refused {:?}, retried {:?}, {} waiting; removals {:?}", self.sim.time, self.sim.cars.len(), self.sim.dormant.len(), a.admitted, a.denied, a.retried, a.len(), self.sim.removals);
         }
         self.sim.initial = false;
+    }
+
+    /// Road population near the receiving LAN player, not near the host.
+    fn street_target_near(&self, center: DVec3) -> usize {
+        let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
+            .into_iter()
+            .map(|i| &self.sim.net.lanes[i])
+            .filter(|l| l.kind == LaneKind::Street
+                && l.points.first().is_some_and(|p| (*p - center).length() < self.sim.spawn_radius))
+            .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
+            .collect();
+        (self.sim.target as f32 * self.street_density() * road_scale(&near_density)).round() as usize
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -436,6 +455,28 @@ impl Traffic {
         }
         if candidates.is_empty() {
             return;
+        }
+        if kind==LaneKind::Street {
+            let sector=|lane:usize|->usize {
+                let l=&self.sim.net.lanes[lane];
+                ((l.at(l.length()*0.5).1.rem_euclid(360.0)/45.0).floor() as usize).min(7)
+            };
+            let mut demand=[0.0_f32;8];let mut present=[0_usize;8];
+            let mut on_lane:HashMap<usize,usize>=HashMap::new();
+            for &(lane,weight) in &candidates {demand[sector(lane)]+=weight;}
+            for car in self.sim.cars.iter().filter(|c|!c.is_bus()&&(c.vehicle.position-center).length()<radius) {
+                if car.state.lane<self.sim.net.lanes.len(){present[sector(car.state.lane)]+=1;*on_lane.entry(car.state.lane).or_default()+=1;}
+            }
+            let total_demand=demand.iter().sum::<f32>().max(1.0);
+            let total_present=present.iter().sum::<usize>() as f32;
+            for (lane,weight) in &mut candidates {
+                let k=sector(*lane);
+                let expected=(total_present+8.0)*demand[k]/total_demand;
+                let directional=(expected/(present[k] as f32+1.0)).clamp(0.4,2.5);
+                let occupied=on_lane.get(lane).copied().unwrap_or(0) as f32;
+                let fill=occupied*20.0/self.sim.net.lanes[*lane].length().max(8.0);
+                *weight*=directional/(1.0+fill*fill);
+            }
         }
         let mut acc = 0.0f32;
         let cumulative: Vec<f32> = candidates.iter().map(|c| { acc += c.1; acc }).collect();
@@ -800,12 +841,17 @@ impl Traffic {
         for c in centers {
             if done
                 .iter()
-                .any(|d| (*d - c).truncate().length() < self.sim.spawn_radius)
+                .any(|d| (*d - c).truncate().length() < self.sim.spawn_radius * 0.65)
             {
                 continue;
             }
+            let local_target = self.street_target_near(c);
+            if self.sim.debug_population {
+                log::info!("population LAN center ({:.0},{:.0}): host target {}, player target {}, admission refused {:?} retried {:?}",
+                    c.x, c.y, target, local_target, self.sim.admission.denied, self.sim.admission.retried);
+            }
             self.sim.count_near = Some((c, self.sim.spawn_radius));
-            self.populate_kind(world, c, LaneKind::Street, target);
+            self.populate_kind(world, c, LaneKind::Street, local_target);
             self.sim.count_near = None;
             done.push(c);
         }

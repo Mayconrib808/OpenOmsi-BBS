@@ -71,8 +71,8 @@ pub(super) fn title(t: &str) -> Element {
     text(t, 17.0, Weight::Bold)
 }
 
-pub(super) fn note(t: &str) -> Element {
-    Element { color: Some(Rgba([170, 170, 170, 255])), ..text(t, 12.0, Weight::Regular) }
+pub(super) fn note(t: &str, light: bool) -> Element {
+    Element { color: Some(theme_color(theme(light).TEXT_DIM)), ..text(t, 12.0, Weight::Regular) }
 }
 
 pub(super) fn button(id: &str, t: &str, icon: Option<&str>) -> Element {
@@ -108,9 +108,23 @@ pub(super) fn divider() -> Element {
     el(None, Kind::Divider)
 }
 
-/// The game's card: its dark colour, a little see-through over the picture (`alpha`).
-pub(super) fn card(anchor: omsi_plugin::ui::Anchor, x: f32, y: f32, width: f32, alpha: u8, children: Vec<Element>) -> Panel {
-    Panel { anchor, x, y, width, padding: 14.0, gap: 8.0, background: Some(Rgba([14, 16, 20, alpha])), radius: 12.0, accent: None, visible: true, clickable: false, draggable: false, grab: false, frame: false, children }
+pub(super) fn theme(light: bool) -> omsi_ui::theme::Theme {
+    omsi_ui::theme::palette(light)
+}
+
+pub(super) fn theme_color(c: omsi_ui::Color) -> Rgba {
+    Rgba(c.0.map(|v| (v * 255.0 + 0.5) as u8))
+}
+
+/// 遊戲面板背景；`alpha` 控制透出後方畫面的程度。
+pub(super) fn card(anchor: omsi_plugin::ui::Anchor, x: f32, y: f32, width: f32, alpha: u8, light: bool, children: Vec<Element>) -> Panel {
+    let background = if light {
+        let c = theme_color(theme(true).PANEL);
+        Rgba([c.0[0], c.0[1], c.0[2], alpha])
+    } else {
+        Rgba([14, 16, 20, alpha])
+    };
+    Panel { anchor, x, y, width, padding: 14.0, gap: 8.0, background: Some(background), radius: 12.0, accent: None, visible: true, clickable: false, draggable: false, grab: false, frame: false, children }
 }
 
 // --- the frame -----------------------------------------------------------------------------
@@ -154,6 +168,7 @@ impl crate::App {
                 j.take_summary();
             }
         }
+        let light = self.settings.is_light_theme();
         // (the quick menu's tile under the mouse is the one chosen, its name shown)
         let gp = &mut self.menus.game_panels;
         if gp.quick.is_some() && gp.ui.focused() {
@@ -167,11 +182,11 @@ impl crate::App {
         let panels: Vec<(&str, Option<Panel>)> = vec![
             ("coop_status", coop_panel::status(self)),
             ("coop", self.net.coop.panel.then(|| coop_panel::panel(self))),
-            ("view", self.menus.game_panels.view.as_ref().map(|v| v.panel(self))),
-            ("trip", self.menus.game_panels.trip.as_ref().map(|t| t.panel())),
-            ("dest", self.menus.game_panels.dest.as_ref().map(|d| d.panel())),
+            ("view", self.menus.game_panels.view.as_ref().map(|v| v.panel(self, light))),
+            ("trip", self.menus.game_panels.trip.as_ref().map(|t| t.panel(light))),
+            ("dest", self.menus.game_panels.dest.as_ref().map(|d| d.panel(light))),
             ("quick", self.menus.game_panels.quick.as_ref().map(|q| q.panel(self))),
-            ("move", self.menus.game_panels.move_to.map(move_here::panel)),
+            ("move", self.menus.game_panels.move_to.map(|at| move_here::panel(at, light))),
         ];
         let gp = &mut self.menus.game_panels;
         for (id, p) in panels {
@@ -204,6 +219,7 @@ impl crate::App {
             cursor: self.input.cursor,
             dt,
             backdrop: crate::ui::backdrop(self.settings.ui_opacity),
+            light,
             navigator: None,
             dock: None,
         };

@@ -512,6 +512,28 @@ fn quick_actions_pending_setting_is_not_lost_when_other_settings_are_saved() {
 }
 
 #[test]
+fn ui_theme_uses_one_setting_and_migrates_the_old_map_switch() {
+    assert_eq!(Settings::default().ui_theme, "dark");
+    assert_eq!(Settings::from_text("ui_theme=light\n").ui_theme, "light");
+    assert_eq!(Settings::from_text("ui_theme=dark\n").ui_theme, "dark");
+    assert_eq!(Settings::from_text("ui_theme=neon\n").ui_theme, "dark");
+    assert_eq!(Settings::from_text("nav_light=1\n").ui_theme, "light");
+    assert_eq!(Settings::from_text("nav_light=1\nui_theme=dark\n").ui_theme, "dark");
+    let mut light = Settings::default();
+    light.ui_theme = "light".into();
+    let saved = light.to_text();
+    assert!(saved.lines().any(|line| line == "ui_theme=light"));
+    assert!(!saved.lines().any(|line| line.starts_with("nav_light=")));
+    assert_eq!(Settings::from_text(&saved).ui_theme, "light");
+}
+
+#[test]
+fn ui_theme_light_helper_is_the_only_runtime_boolean_conversion() {
+    assert!(!Settings::from_text("ui_theme=dark\n").is_light_theme());
+    assert!(Settings::from_text("ui_theme=light\n").is_light_theme());
+}
+
+#[test]
 fn lamp_shadows_on_by_default_and_round_trip_through_the_launcher() {
     assert!(Settings::from_text("").lamp_shadows);
     let mut ui = omsi_launcher_lib::settings_from_text(None);

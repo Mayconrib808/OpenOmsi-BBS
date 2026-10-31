@@ -19,6 +19,28 @@ pub(super) fn entry_on_platform(side: Option<f32>, door_side: f32) -> bool {
     side.is_none_or(|wanted| wanted == door_side)
 }
 
+/// Tolerate stop-pole placement without treating the opposite road as a stop.
+fn tolerant_stop_box(lateral: f64, along: f64, height: f64, length: f32) -> bool {
+    let reach = (f64::from(length.max(0.0)) + 8.0).clamp(10.0, 34.0);
+    lateral.is_finite() && along.is_finite() && height.is_finite()
+        && lateral.abs() <= 4.0 && along.abs() <= reach && height.abs() <= 3.0
+}
+#[cfg(test)]
+mod tolerant_stop_box_tests {
+    use super::tolerant_stop_box;
+    #[test]
+    fn same_platform_before_and_after_pole_can_board() {
+        assert!(tolerant_stop_box(1.5, 9.0, 0.0, 5.0));
+        assert!(tolerant_stop_box(-2.0, -9.0, 0.0, 5.0));
+    }
+    #[test]
+    fn rejects_opposite_road_other_floor_and_far_stop() {
+        assert!(!tolerant_stop_box(6.5, 2.0, 0.0, 5.0));
+        assert!(!tolerant_stop_box(1.0, 2.0, 4.0, 5.0));
+        assert!(!tolerant_stop_box(1.0, 40.0, 0.0, 5.0));
+    }
+}
+
 fn custom_ticket_buy(percent:i32,roll:f32)->Option<bool>{
     (percent>=0).then(||percent>=100 || (percent>0 && roll<percent as f32/100.0))
 }
@@ -148,7 +170,15 @@ impl PeopleSim {
                 let matches_trip = !matches!(bn.id, BusId::Ai(_))
                     || bn.next_stop.as_ref().is_none_or(|next| next.id == *id);
                 if same_way && matches_trip {
-                    reg.next = Some(*id);
+                    let now_scheduled = bn.next_stop.as_ref().is_some_and(|next| next.id == *id);
+                    let old_scheduled = reg.next.is_some_and(|prev|
+                        bn.next_stop.as_ref().is_some_and(|next| next.id == prev));
+                    let old_distance = reg.next.and_then(|prev| self.stops.get(&prev))
+                        .map_or(f64::INFINITY, |old| (bn.pos - old.pos).length());
+                    if reg.next.is_none() || (now_scheduled && !old_scheduled)
+                        || (now_scheduled == old_scheduled && dist < old_distance) {
+                        reg.next = Some(*id);
+                    }
                 }
                 // Active timetable service belongs to one platform, not every nearby
                 // stop with the same destination (including the opposite carriageway).
@@ -175,7 +205,7 @@ impl PeopleSim {
                     let lateral = d.truncate().dot(s_right);
                     let along = d.truncate().dot(s_fwd);
                     let in_box = scheduled_here
-                        || (lateral.abs() < 2.0 && along.abs() < (s.length as f64 - 5.0).max(0.0));
+                        || (same_way && tolerant_stop_box(lateral, along, d.z, s.length));
                     self.stops.get_mut(id).unwrap().buses.push((bn.id, in_box));
                 }
             }
@@ -234,6 +264,26 @@ impl PeopleSim {
         Some(match p.spot.and_then(|k| s.spots.get(k)) {
             Some(sp) => place_floor(sp, s.pos.z),
             None => s.pos.z,
+        })
+    }
+
+    /// A small curb-offset/traffic stop can be reached without collecting the
+    /// opposite platform. Normal route, destination, capacity and door rules still apply.
+    pub fn can_walk_to_stopped_bus(&self, i: usize, stop: i64, bn: &BusNow) -> bool {
+        let Some(platform) = self.stops.get(&stop) else { return false; };
+        if bn.speed.abs() > 0.28 || bn.served.is_some_and(|id| id != stop) { return false; }
+        let heading = platform.heading.to_radians();
+        if bn.fwd().dot(DVec2::new(heading.sin(), heading.cos())) < 0.7 { return false; }
+        let person = self.people[i].position;
+        let local = bn.to_local(person);
+        if local.x.abs() > 6.0 || (person.z - bn.pos.z).abs() > 1.8 { return false; }
+        let side = self.preferred_entry_side(stop, bn, person);
+        bn.cabin.entries.iter().enumerate().any(|(index, door)| {
+            door.point.is_some() && bn.entry_open.get(index).copied().unwrap_or(false)
+                && entry_on_platform(side, door.side)
+                // The door and waiting person must be on the same physical side.
+                && local.x * door.side >= 0.5
+                && (bn.world(door.outside) - person).length() <= 18.0
         })
     }
 

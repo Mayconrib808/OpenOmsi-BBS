@@ -4,6 +4,13 @@
 pub(super) struct Snapshot {
     pub pid: u32, pub event: u32, pub instance: u64, pub service: u32,
     pub completed: bool, pub delay_elapsed: bool, pub observed_ms: u64,
+    pub inspector: Option<InspectorSnapshot>,
+}
+
+#[derive(Clone, Debug)]
+pub(super) struct InspectorSnapshot {
+    pub id: u32, pub name: String, pub instance: u64,
+    pub phase: String, pub checked: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,7 +38,7 @@ pub(super) struct Controller {
 
 impl Controller {
     pub fn step(&mut self, context: Option<&str>, snapshot: Option<&Snapshot>, riders: &[u32], dt: f32) {
-        let candidate = snapshot.filter(|s| s.event == 4).map(|s| Key { pid: s.pid, instance: s.instance });
+        let candidate = snapshot.filter(|s| matches!(s.event, 1..=4)).map(|s| Key { pid: s.pid, instance: s.instance });
         if self.context.as_deref() != context {
             // An incident already assigned to another bus/map may never follow a switch.
             self.blocked = self.key.or(self.blocked);
@@ -71,7 +78,7 @@ impl Controller {
 #[cfg(test)]
 mod tests {
     use super::*;
-    fn faint() -> Snapshot { Snapshot { pid: 10, event: 4, instance: 1, service: 0, completed: false, delay_elapsed: false, observed_ms: 0 } }
+    fn faint() -> Snapshot { Snapshot { pid: 10, event: 4, instance: 1, service: 0, completed: false, delay_elapsed: false, observed_ms: 0, inspector: None } }
     #[test] fn wrong_service_deadline_and_actual_completion_are_distinct() {
         let mut c = Controller::default(); let mut s = faint();
         c.step(Some("bus A"), Some(&s), &[8,2,7], 0.25);

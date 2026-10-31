@@ -80,6 +80,7 @@ struct Offscreen<'a> {
     /// a dedicated server's administration and clock (see `admin`)
     srv_admin: crate::admin::ServerAdmin,
     coop_ai: crate::coop::AiServer,
+    bcs_responses: crate::bcs_events::HostResponses,
     srv_clock: f64,
     srv_metar: Option<String>,
     srv_metar_due: std::time::Instant,

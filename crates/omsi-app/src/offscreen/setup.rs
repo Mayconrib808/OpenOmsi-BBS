@@ -279,6 +279,7 @@ impl<'a> Offscreen<'a> {
         let recorder = record::Recorder::new(out, player.as_mut(), &args.root, settings.doppler);
         Ok(Offscreen {
             coop_ai: Default::default(),
+            bcs_responses:Default::default(),
             args,
             out,
             w,

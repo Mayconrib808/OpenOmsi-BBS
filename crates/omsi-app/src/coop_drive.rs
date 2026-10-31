@@ -360,6 +360,11 @@ impl App {
                 }
                 self.args.bus = v.original_bus.take();
                 self.player = v.parked.take();
+                // Parking the original vehicle stops and takes its SoundSet. Restore
+                // the whole vehicle configuration, including articulated sections.
+                if let (Some(p), Some(audio)) = (self.player.as_mut(), self.sound.audio.as_ref()) {
+                    if p.sounds.is_none() { p.load_sounds(audio); }
+                }
                 if let (Some(p), Some(r), Some(scene)) = (self.player.as_mut(), self.renderer.as_ref(), self.scene.as_mut()) {
                     p.sync_transforms(r, scene, true, v.world.settings.rain_quality());
                 }

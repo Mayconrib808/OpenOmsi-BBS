@@ -580,7 +580,7 @@ impl App {
                     n.arrows = self.settings.nav_arrows;
                     n.show_ai = self.settings.nav_ai;
                     n.show_surface = self.settings.nav_surface;
-                    n.light = self.settings.nav_light;
+                    n.light = self.settings.is_light_theme();
                     n.show_3d = self.settings.nav_3d;
                     n.classic_2d = self.settings.nav_classic_2d;
                     n.widget = self.settings.nav_widget;
@@ -616,6 +616,9 @@ impl App {
                             h.populate(&w, centre);
                             crate::view_sync::apply_people(&mut h, &mut self.gfx.sim_view.people, &w, &renderer, &mut scene);
                             h.seed_riders(self.args.riders, &p.vehicle, &w);
+                            if self.net.lan.is_none() && crate::bcs_events::local_visual_test(&self.args) {
+                                h.sim.hold_seated_test_passengers();
+                            }
                             crate::view_sync::apply_people(&mut h, &mut self.gfx.sim_view.people, &w, &renderer, &mut scene);
                         }
                     }

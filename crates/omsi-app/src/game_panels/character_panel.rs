@@ -1,5 +1,5 @@
 //! Character selection is available to every cooperative role.
-use super::{button,card,grow_row,input,note,title};
+use super::{button,grow_row,input,title};
 use crate::coop::text;
 use crate::coop_character::catalog;
 use omsi_plugin::ui::{Anchor,Panel};
@@ -7,6 +7,10 @@ use omsi_plugin::ui::{Anchor,Panel};
 const PER_PAGE: usize=6;
 
 pub(crate) fn panel(app:&crate::App)->Panel {
+    let light = app.settings.is_light_theme();
+    let note = |text: &str| super::note(text, light);
+    let card = |anchor, x, y, width, alpha, children| super::card(anchor, x, y, width, alpha, light, children);
+
     let state=&app.net.coop.character;
     let mut children=vec![
         title(text("Personagem / skin","Character / skin","Spielfigur / Skin")),

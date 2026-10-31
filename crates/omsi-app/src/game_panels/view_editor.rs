@@ -37,17 +37,17 @@ pub(crate) struct ViewValues {
 }
 
 impl ViewEditor {
-    pub(crate) fn panel(&self, app: &crate::App) -> Panel {
+    pub(crate) fn panel(&self, app: &crate::App, light: bool) -> Panel {
         let mirrors = app.player.as_ref().map(|p| (0..p.vehicle.ty.def.cameras_reflexion.len()).map(|i| p.mirror_offsets.get(i).copied().unwrap_or([0.0; 2])).collect()).unwrap_or_default();
-        self.panel_of(&ViewValues { seat: app.settings.seat, pitch: app.settings.seat_pitch_deg, yaw: app.cam.view_yaw, fov: app.cam.view_fov, mirrors })
+        self.panel_of(&ViewValues { seat: app.settings.seat, pitch: app.settings.seat_pitch_deg, yaw: app.cam.view_yaw, fov: app.cam.view_fov, mirrors }, light)
     }
 
-    pub(crate) fn panel_of(&self, v: &ViewValues) -> Panel {
+    pub(crate) fn panel_of(&self, v: &ViewValues, light: bool) -> Panel {
         let cm = |v: f32| format!("{:+.0} cm", v * 100.0);
         let deg = |v: f32| format!("{v:+.1}°");
         let mut c = vec![
             title(localized("Ajustar câmera", "View editor", "Kamera einstellen")),
-            note(localized("Ajuste vendo o resultado na cabine. Alt ou Esc fecha esta janela.", "Adjust the view live in the cab. Alt or Esc closes this panel.", "Änderungen direkt im Fahrerraum sehen. Alt oder Esc schließt das Fenster.")),
+            note(localized("Ajuste vendo o resultado na cabine. Alt ou Esc fecha esta janela.", "Adjust the view live in the cab. Alt or Esc closes this panel.", "Änderungen direkt im Fahrerraum sehen. Alt oder Esc schließt das Fenster."), light),
             slider_row("seat0", localized("Esquerda / direita", "Eye left / right", "Links / rechts"), &cm(v.seat[0]), v.seat[0], SEAT, 0.01),
             slider_row("seat1", localized("Frente / trás", "Eye forward / back", "Vor / zurück"), &cm(v.seat[1]), v.seat[1], SEAT, 0.01),
             slider_row("seat2", localized("Altura", "Eye up / down", "Höhe"), &cm(v.seat[2]), v.seat[2], SEAT, 0.01),
@@ -66,10 +66,10 @@ impl ViewEditor {
         }
         c.push(grow_row(vec![button("save", localized("Salvar neste ônibus", "Save for this vehicle", "Für diesen Bus speichern"), Some("save")), button("reset", localized("Restaurar", "Reset", "Zurücksetzen"), Some("restart_alt")), button("close", localized("Fechar", "Close", "Schließen"), Some("close"))]));
         if let Some(said) = &self.said {
-            c.push(note(said));
+            c.push(note(said, light));
         }
         // (at the side, see-through: the view it changes is the picture behind it)
-        card(Anchor::Right, -12.0, 0.0, 440.0, 170, c)
+        card(Anchor::Right, -12.0, 0.0, 440.0, 170, light, c)
     }
 }
 

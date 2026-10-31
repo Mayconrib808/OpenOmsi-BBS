@@ -51,6 +51,7 @@ impl Offscreen<'_> {
             ref mut srv_clock,
             ref mut srv_admin,
             ref mut coop_ai,
+            ref mut bcs_responses,
             ref srv_metar,
             ref mut srv_metar_due,
             ref mut srv_metar_rx,
@@ -125,10 +126,12 @@ impl Offscreen<'_> {
             let hub = omsi_lan::admin::hub().map(|h| &**h);
             let rules = crate::admin::server_rules(srv_metar.is_some());
             for (from, text) in commands {
+                if bcs_responses.receive(l,from,&text){continue;}
                 if coop_ai.receive(l, traffic.as_mut(), humans_off.as_mut(), from, &text) { continue; }
                 omsi_lan::admin::server_command(l, from, &text, srv_admin, &positions, &rules, hub);
             }
             coop_ai.tick(l, traffic.as_mut(), humans_off.as_mut());
+            if let Some(t)=traffic.as_mut(){bcs_responses.tick(l,t,world,dt);}
             for text in crate::lan::take_local_admin() {
                 srv_admin.admins.insert(crate::admin::LOCAL_ADMIN, omsi_admin::Role::Admin);
                 omsi_lan::admin::server_command(l, crate::admin::LOCAL_ADMIN, &format!("admin {text}"), srv_admin, &positions, &rules, hub);
@@ -922,6 +925,7 @@ impl Offscreen<'_> {
             ref mut spray,
             ref mut cabin_air,
             ref mut wetness,
+            ref renderer,
             ref traffic,
             ref player,
             ref camera,
@@ -961,6 +965,8 @@ impl Offscreen<'_> {
             steps::throw_spray(spray, dt, player.as_ref(), traffic.as_ref(), remotes_off, eye, steps::spray_wind(weather), world, spray_wet, world.settings.rain_quality());
         }
         *wetness = crate::weather_setup::road_wetness(precip_of(weather).1, dt as f64, *wetness);
+        let (v, eye) = (omsi_scene::road_snow::vehicles(player.as_ref().map(|p| &p.vehicle), traffic.as_deref()), player.as_ref().map_or(camera.position, |p| p.vehicle.position));
+        omsi_scene::road_snow::frame(renderer, dt, Some(weather), eye, traffic.as_ref().map(|t| &t.net), &v);
     }
 
     /// A snapshot due at `t_s` (`--snapshots`).

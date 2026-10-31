@@ -564,7 +564,7 @@ impl Renderer {
         // it off; what the settings asked for is kept, so that only a change of theirs does)
         let upscaler_asked = (options.fsr1, options.fsr_sharpness, options.render_scale);
         let options = RenderOptions { fsr1: (options.fsr1 || crate::fsr1_enabled()) && upscale.fsr.is_some(), ..options };
-        let gpu_timers = [GpuTimers::new(&device), GpuTimers::new(&device)];
+        let gpu_timers = std::array::from_fn(|_| GpuTimers::new(&device));
         // GLES cannot reliably read the depth buffer (the same limitation as SSAO).
         let puddles = (!gl && !passes.leave_out_enhanced).then(|| {
             puddles::Pipelines::new(&device, &scene.shader, &scene.camera_layout, &scene.material_layout)
@@ -621,6 +621,9 @@ impl Renderer {
                 lm_atlas: scene.lm_atlas,
                 lm_uniform: scene.lm_uniform,
                 lm_place: std::cell::Cell::new((0.0, 0.0, 0.0)),
+                snow_track: std::cell::RefCell::new(scene.snow_track),
+                snow_track_made: std::cell::Cell::new(0),
+                snow_track_uniform: scene.snow_track_uniform,
                 fog_lamps_pipeline: fog_lamps.pipeline,
                 fog_lamps_layout: fog_lamps.layout,
                 fog_lamps_buf: fog_lamps.buf,

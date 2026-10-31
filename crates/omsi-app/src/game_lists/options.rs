@@ -408,7 +408,6 @@ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "navigator" => if app.vr_active() { app.vr_nav_profile().enabled } else { app.menus.navigator.as_ref().is_some_and(|n| n.enabled) },
         "nav_ai" => app.menus.navigator.as_ref().map_or(s.nav_ai, |n| n.show_ai),
         "nav_surface" => app.menus.navigator.as_ref().map_or(s.nav_surface, |n| n.show_surface),
-        "nav_light" => app.menus.navigator.as_ref().map_or(s.nav_light, |n| n.light),
         "nav_3d" => app.menus.navigator.as_ref().map_or(s.nav_3d, |n| n.show_3d),
         "nav_classic_2d" => app.menus.navigator.as_ref().map_or(s.nav_classic_2d, |n| n.classic_2d),
         "nav_widget" => app.menus.navigator.as_ref().map_or(s.nav_widget, |n| n.widget),
@@ -462,6 +461,7 @@ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "cloud_shadows" => s.cloud_shadows,
         "light_glow" => s.light_glow,
         "windy_trees" => s.windy_trees,
+        "road_snow" => s.road_snow,
         "mirror_hud_every_frame" => s.mirror_hud_every_frame,
         "mirror_shadows" => s.mirror_shadows,
         "mirror_particles" => s.mirror_particles,
@@ -539,13 +539,6 @@ pub(super) fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static 
             }
             app.settings.nav_surface = on;
             Some(("nav_surface", bit))
-        }
-        "nav_light" => {
-            if let Some(n) = app.menus.navigator.as_mut() {
-                n.light = on;
-            }
-            app.settings.nav_light = on;
-            Some(("nav_light", bit))
         }
         "nav_classic_2d" => {
             if let Some(n) = app.menus.navigator.as_mut() {
@@ -797,6 +790,8 @@ fn toggle_set_graphics_and_controls(app: &mut App, id: &str, on: bool, bit: Stri
             app.settings.windy_trees = on;
             Some(("windy_trees", bit))
         }
+        // (the next picture tells the road snow, see `picture_lighting`)
+        "road_snow" => { app.settings.road_snow = on; Some(("road_snow", bit)) }
         "mirror_hud_every_frame" => { app.settings.mirror_hud_every_frame = on; Some(("mirror_hud_every_frame", bit)) }
         "mirror_shadows" => { app.settings.mirror_shadows = on; Some(("mirror_shadows", bit)) }
         "mirror_particles" => { app.settings.mirror_particles = on; Some(("mirror_particles", bit)) }
