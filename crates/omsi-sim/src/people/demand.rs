@@ -9,6 +9,7 @@
 #[derive(Clone, Debug)]
 pub struct DemandAudit {
     pub last_report_at: f64,
+    pub last_seat_report_at: f64,
     pub seeded_stops: u64,
     pub new_queue_units: f64,
     pub materialized: u64,
@@ -24,7 +25,7 @@ pub struct DemandAudit {
 }
 impl Default for DemandAudit {
     fn default() -> Self {
-        Self { last_report_at: -60.0, seeded_stops: 0,
+        Self { last_report_at: -60.0, last_seat_report_at: -60.0, seeded_stops: 0,
             new_queue_units: 0.0, materialized: 0, spawn_refused: 0,
             patience_left: 0, last_stop: None, clothing_evaluated: 0,
             clothing_tagged_selected: 0, conversation_attempts: 0,
