@@ -44,6 +44,15 @@ pub const QUEUE_STANDOFF: f32 = 3.0;
 /// the bus docked there, in the stop's reach - serves the stop where it stands at once, as
 /// in OMSI 2 two buses at a stop take on people together (#2429). Further back it waits.
 pub const SERVE_QUEUED_REACH: f32 = 25.0;
+/// #1291: a very long articulated bus needs room for its own body and the
+/// queue gap before it can share a stop behind the bus already docked. A
+/// short bus retains the legacy radius; never extend beyond 55 metres.
+pub fn length_aware_queue_reach(front: f32, rear: f32) -> f32 {
+    if !front.is_finite() || !rear.is_finite() || front < 0.0 || rear < 0.0 {
+        return SERVE_QUEUED_REACH;
+    }
+    (front + rear + QUEUE_STANDOFF + 3.0).clamp(SERVE_QUEUED_REACH, 55.0)
+}
 /// A waiting bus standing this near the stop (its origin to the stop point, m) serves it
 /// where it stands when the berth is taken for long.
 pub const SERVE_BEHIND_REACH: f32 = 40.0;
@@ -348,6 +357,14 @@ mod tests {
     use super::*;
 
     const K: BerthKey = BerthKey { stop: 7, lane: 3 };
+    #[test]
+    fn long_articulated_buses_can_serve_in_a_long_shared_bay_without_changing_short_buses() {
+        assert_eq!(length_aware_queue_reach(5.0, 7.0), SERVE_QUEUED_REACH);
+        assert!(length_aware_queue_reach(9.0, 17.0) > SERVE_QUEUED_REACH);
+        assert_eq!(length_aware_queue_reach(f32::NAN, 10.0), SERVE_QUEUED_REACH);
+        assert!(length_aware_queue_reach(60.0, 10.0) <= 55.0);
+    }
+
 
     #[test]
     fn the_berth_goes_to_who_came_first_and_is_kept_until_given_back() {
