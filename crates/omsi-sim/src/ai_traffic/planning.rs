@@ -33,6 +33,101 @@ impl TrafficSim {
     }
 }
 
+/// S-curve fraction for a deliberately limited same-direction passing manoeuvre.
+/// The fixed timetable route remains the same: only its temporary lateral pose changes.
+pub fn bus_lane_smooth(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+impl TrafficSim {
+    /// Existing passes finish by returning to the original route lane. A bus is
+    /// never allowed to join the neighbouring lane as its permanent new route.
+    pub fn advance_bus_lane_pass(&mut self, i: usize) {
+        let Some(pass) = self.cars[i].bus_lane_pass else { return; };
+        let st = &mut self.cars[i].state;
+        if st.odometer < pass.return_at {
+            st.lateral_target = pass.offset;
+        } else {
+            st.lateral_target = 0.0;
+            if st.lateral.abs() < 0.12 {
+                self.cars[i].bus_lane_pass = None;
+            }
+        }
+    }
+
+    /// #2973: a scheduled bus may pass a *different* stopped bus using an
+    /// adjacent lane of the same direction without changing its fixed route.
+    /// For safety this first implementation requires a long, uninterrupted and
+    /// unobstructed parallel section; shorter spline/junction chains wait.
+    pub fn try_bus_lane_pass(&mut self, i: usize, scene: &super::lateral::SideScene, ts: &TickScene) -> bool {
+        if !self.ai_bus_overtaking { return false; }
+        let car = &self.cars[i];
+        let st = &car.state;
+        if !car.is_bus() || car.is_rail() || car.at_stop() || car.passing.is_some()
+            || car.bus_lane_pass.is_some() || st.change.is_some() || car.park.is_some()
+            || st.speed > 14.0 || self.time < car.pass_retry
+            || self.net.lanes[st.lane].kind != LaneKind::Street
+        { return false; }
+        let Some((lead, who)) = scene.lead else { return false; };
+        if !self.different_stopped_bus_ahead(i, who, lead.gap, scene.obstacle_len) { return false; }
+        let ahead_gap = lead.gap;
+        // Complete the first S-curve before the front corner reaches the bus.
+        if !(23.0..=70.0).contains(&ahead_gap) { return false; }
+        let lane = &self.net.lanes[st.lane];
+        if lane.no_overtaking || !self.net.crossings[st.lane].is_empty() { return false; }
+        // Passing on the overtaking side (left on a right-hand-traffic map).
+        let target = if self.net.left_hand { lane.right } else { lane.left };
+        let Some(target) = target.filter(|&l| self.open_to(i,l)
+            && self.net.parallel(st.lane,l)
+            && self.net.crossings[l].is_empty()
+            && !self.net.lanes[l].no_overtaking) else { return false; };
+        // Don't overtake across a mandatory route lane change or before a stop.
+        if st.route.get(st.route_index + 1).is_some_and(|&l| self.net.parallel(st.lane,l)) { return false; }
+        let first = (ahead_gap - 8.0).clamp(15.0, 28.0);
+        let leave = ahead_gap + scene.obstacle_len + st.front + st.rear + 10.0;
+        let back = 28.0;
+        let total = leave + back + st.front + 3.0;
+        let s_target = self.net.beside_s(st.lane,target,st.s);
+        if lane.length() - st.s < total || self.net.lanes[target].length() - s_target < total
+            || self.net.crossings[target].len() > 0
+        { return false; }
+        let (p,h) = lane.at(st.s);
+        let q = self.net.lanes[target].at(s_target).0;
+        if (q.z-p.z).abs() > 0.7 { return false; }
+        let h = (h as f64).to_radians();
+        let offset = (q-p).truncate().dot(DVec2::new(h.cos(), -h.sin())) as f32;
+        let right_side = self.net.left_hand;
+        if !offset.is_finite() || !(2.3..=5.4).contains(&offset.abs())
+            || (offset > 0.0) != right_side { return false; }
+        // Reserve the entire overtake and return region before beginning; another
+        // vehicle already occupying it, or a parked object, vetoes the manoeuvre.
+        if !self.lane_clear(i,target,s_target,st.rear+15.0,total+20.0,&ts.by_lane)
+            || !self.can_merge(i,target,s_target,&ts.by_lane)
+        { return false; }
+        let net = &self.net;
+        let path = |d:f32| {
+            let centre = st.way_point(net,d);
+            let dir = (st.way_point(net,d+1.0)-centre).truncate().normalize_or_zero();
+            let lateral = if d < first { offset * bus_lane_smooth(d/first) }
+                else if d < leave { offset }
+                else { offset * (1.0-bus_lane_smooth((d-leave)/back)) };
+            centre + DVec3::new(dir.y,-dir.x,0.0)*lateral as f64
+        };
+        if self.ghost_blocked(i,&path,total,&ts.feet,&[],&[]).is_some() { return false; }
+        let at = st.odometer + leave;
+        let current = st.lateral;
+        let odo = st.odometer;
+        let car = &mut self.cars[i];
+        car.bus_lane_pass = Some(super::model::BusLanePass { target_lane:target,offset,return_at:at });
+        car.state.lateral_target = offset;
+        car.state.lateral_ramp = (current,offset,odo,first);
+        car.stopped = 0.0;
+        if ts.debug { log::info!("t={:.1}: timetable bus {} temporarily overtakes bus {} on same-direction lane {}, keeps own route lane {}",self.time,car.id,who.unwrap_or(usize::MAX),target,st.lane); }
+        true
+    }
+}
+
 /// Seconds a car at `st` needs to drive `dist` metres out on the other half of the road:
 /// the first `creep` metres edging out, the rest speeding up to `v_cap` (a driver standing
 /// still first reacts).
@@ -1326,6 +1421,14 @@ pub struct PullOut {
 #[cfg(test)]
 mod bus_stop_overtake_safety_tests {
     use super::safe_bus_stop_overtake;
+    #[test]
+    fn same_direction_pass_curve_never_overshoots() {
+        assert_eq!(super::bus_lane_smooth(-1.0),0.0);
+        assert_eq!(super::bus_lane_smooth(0.0),0.0);
+        assert_eq!(super::bus_lane_smooth(1.0),1.0);
+        assert_eq!(super::bus_lane_smooth(2.0),1.0);
+        assert!((0..100).all(|n| (0.0..=1.0).contains(&super::bus_lane_smooth(n as f32/100.0))));
+    }
     #[test]
     fn cannot_pass_own_stop_or_with_insufficient_distance() {
         assert!(!safe_bus_stop_overtake(10, 10, 100.0, 7.0, 12.0, 12.0));
