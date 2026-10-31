@@ -9,7 +9,45 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 )
+
+// The installed Setup knows its own signed publication sequence, even when
+// the previous release never displayed its changelog. Select ONLY the release
+// milestones newer than that sequence; do not show the same Hotfix 1 notes to
+// someone who is already running Hotfix 1.
+func notesSinceInstalledSequence(lang string, installed uint64, target bridgeRelease) string {
+    if target.Sequence < 2026103003 || target.Version != "2.2.2-hotfix.2" {
+        return localReleaseNotes(lang,target)
+    }
+    var items []string
+    if installed < 2026103001 {
+        items = append(items,localText(lang,
+            "2.2.2: eventos visuais do BCS, fiscais no ônibus, veículos de emergência, tráfego multiplayer e embarque mais flexível; OpenOMSI 0.3.46/P15.",
+            "2.2.2: visual BCS incidents, onboard inspectors, emergency vehicles, multiplayer traffic and more flexible boarding; openOMSI 0.3.46/P15.",
+            "2.2.2: visuelle BBS-Ereignisse, Kontrolleur im Bus, Einsatzfahrzeuge, Mehrspieler-Verkehr und flexiblerer Einstieg; openOMSI 0.3.46/P15."))
+    }
+    if installed < 2026103002 {
+        items = append(items,localText(lang,
+            "Hotfix 1: patrulha do fiscal, saída traseira em ônibus personalizados, escala dos carros de emergência, resposta de 180 s e distribuição de carros para convidados.",
+            "Hotfix 1: inspector aisle patrol, custom-bus rear exit, emergency-vehicle scale, 180 s response window and improved guest traffic.",
+            "Hotfix 1: Kontrollgang, Hintertür von Zusatzbussen, Größe der Einsatzfahrzeuge, 180-s-Einsätze und Verkehr bei Gästen."))
+    }
+    if installed < 2026103003 {
+        items = append(items,localText(lang,
+            "Hotfix 2: desembarque por portas realmente abertas, parada correta, retomada do caminho sem teleporte, fiscal sem repetição infinita, tolerância na parada e diagnóstico de rotas e tráfego.",
+            "Hotfix 2: alighting through physically open exits, correct stop matching, path recovery without teleporting, inspector loop fix, boarding allowance and better routing/traffic diagnostics.",
+            "Hotfix 2: Ausstieg durch tatsächlich offene Türen, richtige Haltestelle, Wegkorrektur ohne Teleport, Kontrolleur-Schleife behoben, toleranter Einstieg und bessere Diagnose."))
+    }
+    if len(items)==0 {return localReleaseNotes(lang,target)}
+    return strings.Join(items,"\r\n\r\n")
+}
+
+func localReleaseNotes(lang string, release bridgeRelease) string {
+    s:=release.Notes[normalizeLanguage(lang)]
+    if s=="" {s=release.Notes["pt"]}
+    return s
+}
 
 type setupUpdateResult struct {
 	release *bridgeRelease
@@ -68,10 +106,7 @@ func (g *setupGUI) updateCommand() {
 		return
 	}
 	r := *g.availableUpdate
-	notes := r.Notes[normalizeLanguage(g.config.Language)]
-	if notes == "" {
-		notes = r.Notes["pt"]
-	}
+	notes := notesSinceInstalledSequence(g.config.Language,bridgeReleaseSequence(),r)
 	if guiMessageBox(g.window, fmt.Sprintf(g.text("updates_confirm"), r.Version)+"\r\n\r\n"+notes, 0x24) != 6 {
 		return
 	}
