@@ -695,6 +695,7 @@ impl Offscreen<'_> {
             ref settings,
             ref srv_admin,
             ref run_clock,
+            ref weather,
             ref remotes_off,
             ref lan_off,
             ref mut player,
