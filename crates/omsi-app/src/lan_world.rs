@@ -1288,7 +1288,15 @@ impl Mirror {
                 if granted {
                     if h.grant(id) {
                         m.granted += 1;
-                        log::info!("LAN: the host hands waiting passenger {id} over to our bus");
+                        let grant = h.people.iter().find(|person| person.id == id)
+                            .and_then(|person| match &person.state {
+                                omsi_sim::people::State::Pax(pax) => Some(format!(
+                                    "stop={:?} bus={:?} task={:?} position=({:.1},{:.1})",
+                                    pax.stop, pax.bus, pax.task, person.position.x, person.position.y)),
+                                _ => None,
+                            })
+                            .unwrap_or_else(|| "not a local waiting passenger".into());
+                        log::info!("LAN: the host hands waiting passenger {id} over to our bus; {grant}");
                     } else {
                         // the host has let them go (they are ours now, and the host
                         // says no more of them): a copy kept here would stand at the
