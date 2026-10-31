@@ -93,31 +93,14 @@ apply("crates/omsi-sim/src/people/pax_task.rs",
             }
             // in the doorway, but the plugins have not had their say about the ticket yet""")
 
-# The server already supports a traffic bubble for each LAN peer; its target
-# erroneously reused the host's local road density even kilometres away.
-apply("crates/omsi-app/src/traffic/population.rs",
-    """        let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
-            .into_iter()
-            .map(|i| &self.sim.net.lanes[i])
-            .filter(|l| {
-                l.kind == LaneKind::Street
-                    && l.points
-                        .first()
-                        .map(|p| (*p - center).length() < self.sim.spawn_radius)
-                        .unwrap_or(false)
-            })
-            .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
-            .collect();
-        let street_target = (self.sim.target as f32 * density * road_scale(&near_density)).round() as usize;""",
-    """        let street_target = self.street_target_near(center);""")
-apply("crates/omsi-app/src/traffic/population.rs",
-    """        let density = self.street_density();
-        // ... and so does how much road there is around:""",
-    """        // ... and so does how much road there is around:""")
+# The host already has per-player bubbles. Do not alter the host's own
+# population equation (the cumulative patch may have tuned it already).
+# Fix only the remote bubble's target using roads local to that player.
 apply("crates/omsi-app/src/traffic/population.rs",
     """    #[allow(clippy::too_many_arguments)]
     pub(super) fn populate_kind(""",
-    """    fn street_target_near(&self, center: DVec3) -> usize {
+    """    /// Road population near the receiving LAN player, not near the host.
+    fn street_target_near(&self, center: DVec3) -> usize {
         let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
             .into_iter()
             .map(|i| &self.sim.net.lanes[i])
@@ -131,43 +114,15 @@ apply("crates/omsi-app/src/traffic/population.rs",
     #[allow(clippy::too_many_arguments)]
     pub(super) fn populate_kind(""")
 apply("crates/omsi-app/src/traffic/population.rs",
-    """        let centers = self.sim.lan_centers.clone();
-        let mut done = vec![center];
-        for c in centers {
-            if done
-                .iter()
-                .any(|d| (*d - c).truncate().length() < self.sim.spawn_radius)
-            {
-                continue;
+    """            self.sim.count_near = Some((c, self.sim.spawn_radius));
+            self.populate_kind(world, c, LaneKind::Street, target);""",
+    """            let local_target = self.street_target_near(c);
+            if self.sim.debug_population {
+                log::info!("population LAN center ({:.0},{:.0}): host target {}, player target {}, admission refused {:?} retried {:?}",
+                    c.x, c.y, target, local_target, self.sim.admission.denied, self.sim.admission.retried);
             }
             self.sim.count_near = Some((c, self.sim.spawn_radius));
-            self.populate_kind(world, c, LaneKind::Street, target);
-            self.sim.count_near = None;
-            done.push(c);
-        }""",
-    """        let centers = self.sim.lan_centers.clone();
-        let mut done = vec![center];
-        for c in centers {
-            if done.iter().any(|d| (*d - c).truncate().length() < self.sim.spawn_radius) {
-                continue;
-            }
-            let local_target = self.street_target_near(c);
-            let before = if self.sim.debug_population {
-                Some(self.sim.cars.iter().filter(|car| !car.is_bus()
-                    && (car.vehicle.position - c).length() < self.sim.spawn_radius).count())
-            } else { None };
-            self.sim.count_near = Some((c, self.sim.spawn_radius));
-            self.populate_kind(world, c, LaneKind::Street, local_target);
-            self.sim.count_near = None;
-            if let Some(before) = before {
-                let after = self.sim.cars.iter().filter(|car| !car.is_bus()
-                    && (car.vehicle.position - c).length() < self.sim.spawn_radius).count();
-                log::info!("population LAN center ({:.0},{:.0}): host target {}, local target {}, cars {} -> {} (refused {:?}, retried {:?})",
-                    c.x, c.y, target, local_target, before, after,
-                    self.sim.admission.denied, self.sim.admission.retried);
-            }
-            done.push(c);
-        }""")
+            self.populate_kind(world, c, LaneKind::Street, local_target);""")
 apply("crates/omsi-app/src/traffic/population.rs",
     """        if candidates.is_empty() {
             return;
@@ -175,10 +130,10 @@ apply("crates/omsi-app/src/traffic/population.rs",
         let mut acc = 0.0f32;""",
     """        if candidates.is_empty() {
             if self.sim.debug_population {
-                let blocked = nearby.iter().filter(|&&i| self.sim.net.lanes[i].no_cars).count();
+                let forbidden = nearby.iter().filter(|&&i| self.sim.net.lanes[i].no_cars).count();
                 let zero = nearby.iter().filter(|&&i| self.sim.net.lanes[i].density <= 0.0).count();
-                log::info!("population no spawn lane at ({:.0},{:.0}) kind={kind:?}: {} nearby, {} forbidden, {} zero density",
-                    center.x, center.y, nearby.len(), blocked, zero);
+                log::info!("population no eligible lane at ({:.0},{:.0}) kind={kind:?}: {} nearby, {} forbidden, {} zero density",
+                    center.x, center.y, nearby.len(), forbidden, zero);
             }
             return;
         }
