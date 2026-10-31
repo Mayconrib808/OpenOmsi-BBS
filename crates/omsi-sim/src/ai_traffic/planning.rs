@@ -620,15 +620,19 @@ impl TrafficSim {
             return;
         }
         let st = &car.state;
+        // The opt-in #2973 case starts preparing earlier, but still runs
+        // every oncoming-traffic, clear-road and S-curve collision check below.
+        // Fixed-route buses never change to a neighbouring route lane here.
+        let bus_pass = lead.is_some_and(|(l, who)| self.different_stopped_bus_ahead(i, who, l.gap, obstacle_len));
         // (an emergency vehicle going round a car making way for it: after a second, or on
         // the move)
         let aside = lead.and_then(|l| l.1).is_some_and(|j| j < self.cars.len() && self.cars[j].make_way.is_some_and(|w| w.from == car.id));
         // a parked car is known from afar: the driver pulls out while still rolling up to
         // it; anything else is waited behind for a moment first
-        let rolling = (parked || aside) && st.speed > 0.5;
+        let rolling = (parked || aside || bus_pass) && st.speed > 0.5;
         if car.passing.is_some()
             || st.change.is_some()
-            || (car.stopped < if aside { 1.0 } else { 3.0 } && !rolling)
+            || (car.stopped < if aside || bus_pass { 1.0 } else { 3.0 } && !rolling)
             || !standing
             || car.yielding
             || car.at_stop()
@@ -670,9 +674,9 @@ impl TrafficSim {
             _ => gap,
         };
         let reach = if rolling {
-            (st.speed * st.speed / (2.0 * st.decel) + 12.0).clamp(15.0, 40.0)
+            (st.speed * st.speed / (2.0 * st.decel) + if bus_pass { 18.0 } else { 12.0 }).clamp(15.0, 40.0)
         } else {
-            22.0 + (car.pass_room - 4.0).max(0.0)
+            (if bus_pass { 30.0 } else { 22.0 }) + (car.pass_room - 4.0).max(0.0)
         };
         // (a car still half out from a pass it gave up may start again from there)
         // (lateral towards the oncoming side: a car still half out, or pulled the other way)
