@@ -46,9 +46,14 @@ impl StopDemand {
     pub fn advance(&mut self, stop: i64, now: f64, dt: f32, mean: f32, density: f32, capacity: usize) {
         if !dt.is_finite() || dt <= 0.0 || !now.is_finite() { return; }
         let minute = (now / 60.0).floor() as i64;
-        if self.minute != minute {
-            self.minute = minute;
+        if self.minute == i64::MIN {
+            // When a map first loads, some people were already waiting. This
+            // one-time seed is not tied to any bus departure or camera reload.
+            self.waiting = (mean.max(0.0) * density.clamp(0.0, 3.0)
+                * demand_variation(stop, minute) * 0.30)
+                .clamp(0.0, capacity.min(100) as f32);
         }
+        self.minute = minute;
         let rate = arrivals_per_minute(mean, density, demand_variation(stop, minute));
         self.waiting = (self.waiting + rate * (dt.min(5.0) / 60.0))
             .clamp(0.0, capacity.min(100) as f32);
@@ -80,6 +85,18 @@ mod tests {
         assert!(d.waiting < x);
         assert_eq!(demand_variation(43, 10), demand_variation(43, 10));
         assert_ne!(demand_variation(43, 10), demand_variation(43, 11));
+    }
+    #[test]
+    fn initial_queue_is_seeded_once_not_refilled_by_bus_arrivals() {
+        let mut d=StopDemand::default();
+        d.advance(5, 60.0, 1.0, 8.0, 1.0, 15);
+        let initial=d.waiting;
+        assert!(initial > 0.0);
+        d.admitted();
+        let after=d.waiting;
+        d.advance(5, 60.1, 0.1, 8.0, 1.0, 15);
+        assert!(d.waiting < initial);
+        assert!(d.waiting >= after);
     }
     #[test]
     fn zero_or_nan_density_never_spawns() {
