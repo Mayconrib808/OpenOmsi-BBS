@@ -14,6 +14,8 @@ export const OPTIONAL_FEATURE_ROWS = [
   { type: 'toggle', key: 'ai_bus_overtaking', label: 'AI buses safely pass other stopped buses', help: host },
   { type: 'toggle', key: 'cars_yield_to_buses', label: 'Cars change lanes for buses leaving stops', help: host },
   { type: 'toggle', key: 'illegal_parking', label: 'Temporary illegally parked AI cars', help: host },
+  { type: 'toggle', key: 'independent_passenger_demand', label: 'Independent passenger demand at each stop', help: host },
+  { type: 'toggle', key: 'weather_clothing', label: 'Weather-appropriate passenger clothing', help: host },
 ];
 
 export const optionalRows = (traffic) => OPTIONAL_FEATURE_ROWS.filter((row) =>
