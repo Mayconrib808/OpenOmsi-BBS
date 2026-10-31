@@ -924,6 +924,27 @@ func runSetupGUI(dir string, smoke bool) error {
 					guiUser.NewProc("DestroyWindow").Call(g.window)
 					return err
 				}
+                // A user can upgrade directly from any prior release. The
+                // changelog tour must include every unseen milestone, but
+                // never replay one the user already acknowledged. 2.2.2.1
+                // had no working tour, so Hotfix 3 -> Hotfix 1 shows BOTH.
+                for _, tc := range []struct{from string; want int; newest string}{
+                    {"2.2.2.1-hotfix.1",0,""},
+                    {"2.2.2.1",1,"🛠️ 2.2.2.1 • HOTFIX 1"},
+                    {"2.2.2-hotfix.3",2,"🛠️ 2.2.2.1 • HOTFIX 1"},
+                    {"2.2.2-hotfix.2",3,"🛠️ 2.2.2.1 • HOTFIX 1"},
+                    {"2.2.2-hotfix.1",4,"🛠️ 2.2.2.1 • HOTFIX 1"},
+                    {"2.2.2",5,"🛠️ 2.2.2.1 • HOTFIX 1"},
+                    {"2.2.1.9",10,"🛠️ 2.2.2.1 • HOTFIX 1"},
+                    {"2.2.0.8",11,"🛠️ 2.2.2.1 • HOTFIX 1"},
+                    {"",11,"🛠️ 2.2.2.1 • HOTFIX 1"},
+                }{
+                    sections:=selectLogSections(tc.from)
+                    if len(sections)!=tc.want{return fmt.Errorf("changelog from %q expected %d chapters, got %d",tc.from,tc.want,len(sections))}
+                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[1].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
+                        return fmt.Errorf("changelog from %q has missing or wrong cumulative sections",tc.from)
+                    }
+                }
                 notes:=g.showReleaseChangelog(true)
                 if notes==0{return fmt.Errorf("changelog window did not open: %s",lang)}
                 guiUser.NewProc("RedrawWindow").Call(notes,0,0,0x0581)
