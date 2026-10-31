@@ -47,6 +47,7 @@ pub(crate) use omsi_sim::ai_traffic::viewer::Viewer;
 /// replayed by `view_sync::apply_traffic`.
 pub struct Traffic {
     pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
+    pub illegal_parking_frequency: f32,
     pub sim: TrafficSim,
     pub greetings: omsi_sim::ai_traffic::greetings::Greetings,
     /// What the renders have to follow since the view last caught up, oldest first (see
@@ -110,6 +111,7 @@ impl Traffic {
             sim,
             greetings: Default::default(),
             optional_features: Default::default(),
+            illegal_parking_frequency: 0.8,
             events: Vec::new(),
             snapshot: Default::default(),
             looks: Default::default(),
@@ -137,7 +139,9 @@ impl Traffic {
         self.sim.ai_bus_overtaking = self.optional_features.ai_bus_overtaking;
         self.sim.cars_yield_to_buses = self.optional_features.cars_yield_to_buses;
         // A rare event is sampled once per eligible lane, not per rendered frame.
-        self.sim.illegal_parking_percent = if self.optional_features.illegal_parking { 0.8 } else { 0.0 };
+        self.sim.illegal_parking_percent = if self.optional_features.illegal_parking {
+            self.illegal_parking_frequency.clamp(0.0, 5.0)
+        } else { 0.0 };
         self.sim.advance(dt, player);
         self.after_step();
     }
