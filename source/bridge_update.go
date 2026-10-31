@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -134,7 +135,28 @@ func updatedHostManifest(previous []byte, setup []byte) []byte {
 	return []byte(strings.Join(lines, "\n") + "\n")
 }
 
+// Record the pre-update version before replacing the installed Setup.exe.
+// Older versions can be identified by their existing changelog marker or the
+// package's local host inventory. No network, registry or user data is required.
+func previousBridgeChangelogVersion(dir string) string {
+    if marker, err := os.ReadFile(filepath.Join(appDir(dir), "changelog-seen.txt")); err == nil {
+        seen := strings.TrimSpace(string(marker))
+        switch seen {
+        case "2.2.2", "2.2.2-hotfix.1", "2.2.2-hotfix.2":
+            return seen
+        }
+    }
+    if raw, err := os.ReadFile(filepath.Join(dir,"docs","HOST-PESSOAL-2.2.0.3.json")); err == nil {
+        var m struct { Version string `json:"version"` }
+        if json.Unmarshal(raw,&m)==nil && len(m.Version)>0 && len(m.Version)<70 {
+            return strings.TrimSpace(m.Version)
+        }
+    }
+    return "" // Older installs without a version marker show all known changes.
+}
+
 func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byte, checkClosed func(string) error) (state bcsNextTripPreparation, err error) {
+    fromVersion := previousBridgeChangelogVersion(dir)
 	if len(payload) < 2 || len(payload["Setup.exe"]) == 0 || len(payload["PeDePeAdapter/openomsi.exe"]) == 0 {
 		return state, fmt.Errorf("atualizador incompleto")
 	}
@@ -261,6 +283,13 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	if err = activateUpdatedDynamicHost(dir, payload); err != nil {
 		return state, err
 	}
+    // Mark the source version only after all signed runtime files were written
+    // and verified. This is an advisory changelog hint, never a trust check.
+    if fromVersion != "" {
+        if e := os.MkdirAll(appDir(dir), 0755); e == nil {
+            _ = os.WriteFile(filepath.Join(appDir(dir),"changelog-from.txt"),[]byte(fromVersion+"\n"),0644)
+        }
+    }
 	if fileExists(configPath(dir)) {
 		c = readConfig(configPath(dir))
 	}
