@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2-hotfix.3"
+const changelogSeenVersion = "2.2.2.1-hotfix.1"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -285,38 +285,101 @@ func earlierBridgeLogSection() logSection {
     }
 }
 
+// Newer releases must be listed before the old cumulative sections. Each
+// section is shown only when that release is newer than the last acknowledged
+// changelog; installing several releases at once still shows their full history.
+func hotfix2221LogSection() logSection {
+    return logSection{
+        label:logT("🛠️ 2.2.2.1 • HOTFIX 1","🛠️ 2.2.2.1 • HOTFIX 1","🛠️ 2.2.2.1 • HOTFIX 1"),
+        accent:logAccent(255,203,92),
+        entries:[]logEntry{
+            {logT("🖥️ Lobby atualizado e controles visíveis","🖥️ Updated launcher and visible settings","🖥️ Aktualisierter Launcher und Optionen"),
+             logT("A 2.2.2.1 anterior instalou o jogo, mas manteve um launcher antigo. O pacote agora inclui o launcher Windows recompilado, com as 14 opções de mecânicas extras em Jogabilidade > Passageiros / Tráfego; nenhuma é ativada sem consentimento.",
+                  "The previous 2.2.2.1 installed the game but retained an outdated launcher. The package now includes the rebuilt Windows launcher with all 14 optional feature controls under Gameplay > Passengers / Traffic; nothing is silently enabled.",
+                  "Die bisherige 2.2.2.1 installierte das Spiel, behielt aber einen veralteten Launcher. Das Paket enthält nun den neu erstellten Windows-Launcher mit 14 optionalen Einstellungen unter Gameplay > Fahrgäste / Verkehr. Nichts wird automatisch aktiviert.")},
+            {logT("🪑 Passageiros sentados no multiplayer","🪑 Correct remote seated passenger poses","🪑 Sitzende Fahrgäste im Mehrspieler"),
+             logT("Corrigido o passageiro que aparecia em pé dentro da cadeira para o outro jogador. O cliente respeita o estado de sentado e o banco enviados pela rede nas animações originais e aprimoradas; levantar e desembarcar continuam possíveis.",
+                  "Fixed riders appearing to stand inside seats on another player's screen. The client reconstructs the transmitted seated state and seat for original and enhanced animation; standing up and alighting remain supported.",
+                  "Fahrgäste, die auf einem anderen PC im Sitz stehend dargestellt wurden, erhalten die übertragene Sitzpose in ursprünglicher und verbesserter Animation. Aufstehen und Aussteigen bleiben möglich.")},
+            {logT("📜 Histórico acumulado de atualizações","📜 Cumulative release notes restored","📜 Vollständiger Änderungsverlauf"),
+             logT("O changelog volta a abrir no Setup depois da instalação. A janela mostra a Hotfix 1, a 2.2.2.1 e as versões anteriores ainda não vistas, sem repetir as mudanças já confirmadas. A seleção depende do último changelog visualizado, não apenas do número do jogo.",
+                  "The release tour opens again in Setup after installation. It shows Hotfix 1, the original 2.2.2.1 and any older updates not yet acknowledged, without repeating versions already read.",
+                  "Der Änderungsverlauf öffnet sich nach der Installation erneut. Er zeigt Hotfix 1, 2.2.2.1 und frühere noch nicht bestätigte Änderungen, ohne bereits gelesene Versionen zu wiederholen.")},
+            {logT("🔍 Fiscal e tráfego: ativação e diagnóstico","🔍 Inspector and traffic: enabling and diagnosis","🔍 Kontrolleur und Verkehr: Aktivierung"),
+             logT("As opções Fiscal do BCS e Tráfego extra permanecem desligadas por padrão. Agora podem ser encontradas no launcher atualizado. A presença de carros IA normais não significa que a densidade extra esteja habilitada; a qualidade da distribuição em mapas reais ainda exige verificação.",
+                  "BCS inspectors and extra traffic remain disabled by default and can now be enabled in the updated launcher. Normal AI traffic can be present without extra density; real-map traffic distribution still needs verification.",
+                  "BBS-Kontrolleure und zusätzlicher Verkehr bleiben standardmäßig aus und sind jetzt im Launcher sichtbar. Normale KI-Fahrzeuge fahren auch ohne Extradichte; die Verteilung auf echten Karten muss noch geprüft werden.")},
+        },
+    }
+}
+
+func release2221LogSection() logSection {
+    return logSection{
+        label:logT("🚌 2.2.2.1 • NOVIDADES","🚌 2.2.2.1 • FEATURES","🚌 2.2.2.1 • NEU"),
+        accent:logAccent(110,190,251),
+        entries:[]logEntry{
+            {logT("👋 Acenos e conversas nos ônibus","👋 Driver greetings and passenger talk","👋 Fahrergrüße und Gespräche"),
+             logT("Motoristas IA podem acenar ao cruzar com você, enquanto passageiros podem conversar ocasionalmente usando vozes já instaladas. As duas mecânicas são opcionais e não devem produzir sons ou gestos continuamente.",
+                  "AI drivers can wave when passing your bus; riders can occasionally talk using installed voice clips. Both are optional, with cooldowns to avoid constant gestures or sounds.",
+                  "KI-Fahrer können beim Vorbeifahren winken, Fahrgäste gelegentlich mit installierten Stimmen sprechen. Beides ist optional und hat Pausen gegen Wiederholungen.")},
+            {logT("🚌 Ultrapassagem e preferência ao sair do ponto","🚌 Passing stopped buses and yielding","🚌 Überholen und Vorfahrt am Halt"),
+             logT("Ônibus IA podem tentar ultrapassar outros parados, com verificações de faixa e distância. Carros podem facilitar a saída do ônibus quando houver espaço seguro. São comportamentos experimentais; colisões e FPS precisam de testes em mapas diferentes.",
+                  "AI buses can attempt to pass stopped buses with lane and gap checks, while cars may yield when buses leave stops safely. These are experimental and need collision and performance tests on different maps.",
+                  "KI-Busse können stehende Busse mit Spur- und Abstandsprüfung überholen; Autos können beim Ausfahren Platz machen. Experimentell: Kollisionen und Leistung sind auf weiteren Karten zu testen.")},
+            {logT("🚏 Baias e estacionamento irregular","🚏 Shared bays and illegal parking","🚏 Haltebuchten und Falschparken"),
+             logT("A IA considera melhor o tamanho dos ônibus em paradas longas; o uso integral e simultâneo de todas as vagas ainda não está completo. Alguns carros podem parar irregularmente, ligar o pisca-alerta e reagir à buzina após um atraso.",
+                  "AI buses account for vehicle length at extended bays, but full multi-bus bay management remains incomplete. Some cars can stop illegally, use hazard lights and respond to honks after a delay.",
+                  "Die KI berücksichtigt Buslängen an langen Haltestellen; die vollständige Mehrfachbelegung ist noch nicht fertig. Manche Autos halten falsch, blinken und reagieren verzögert auf Hupen.")},
+            {logT("🚶 Passageiros chegam ao ponto ao longo do tempo","🚶 Independent stop passenger demand","🚶 Unabhängige Fahrgastnachfrage"),
+             logT("Passageiros podem chegar gradualmente, esperar por linhas compatíveis e desistir após uma espera longa, em vez de surgir uma nova multidão a cada ônibus. A opção é independente das configurações de lotação e demanda do mapa.",
+                  "Passengers can arrive over time, wait for suitable lines and give up after long delays instead of an instant refill for each bus. This is an independent opt-in feature.",
+                  "Fahrgäste können allmählich kommen, auf passende Linien warten und nach langer Zeit aufgeben, statt bei jedem Bus neu zu erscheinen. Die Funktion ist separat zuschaltbar.")},
+            {logT("🧥 Roupas conforme o clima","🧥 Clothing adapted to the weather","🧥 Kleidung passend zum Wetter"),
+             logT("Em chuva, neve, calor ou frio, personagens podem escolher variantes de roupas CTI existentes. Sem variantes adequadas, o modelo permanece igual; o recurso não cria novas roupas tridimensionais.",
+                  "Characters may select existing CTI clothing variants to suit rain, snow, warm or cold weather. Models without compatible variants stay unchanged; no new 3D clothes are generated.",
+                  "Figuren können vorhandene CTI-Kleidungsvarianten je nach Regen, Schnee oder Temperatur verwenden. Ohne passende Varianten bleibt das Modell unverändert.")},
+            {logT("⚙️ Opções separadas, cliente e servidor P15","⚙️ Independent settings and matched P15","⚙️ Einzelne Schalter und P15-Version"),
+             logT("As opções novas ficam desligadas por padrão e podem ser ligadas individualmente. O pacote traz cliente e servidor P15 da mesma base; para o multiplayer funcionar corretamente, todos devem usar versões compatíveis.",
+                  "New options default to off and can be enabled separately. Client and P15 server belong to the same build line; multiplayer users must run compatible versions.",
+                  "Neue Optionen sind standardmäßig aus und können einzeln aktiviert werden. Client und P15-Server müssen aus derselben kompatiblen Version stammen.")},
+        },
+    }
+}
+
 func logSections() []logSection {
     if shownLogSections!=nil{return shownLogSections}
     return allLogSections()
 }
 
+// Show newest unseen releases first. The saved marker is the last changelog
+// actually acknowledged, not merely the last executable installed. In
+// particular 2.2.2.1 never opened its tour, so users with a Hotfix 3 marker
+// must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
-    hotfix3:=hotfix3LogSection()
-    hotfix2:=hotfix2LogSection()
-    old:=allLogSections()
     from=strings.TrimSpace(from)
-    switch {
-    case from=="2.2.2-hotfix.3":
-        return []logSection{}
-    case from=="2.2.2-hotfix.2":
-        return []logSection{hotfix3}
-    case from=="2.2.2-hotfix.1":
-        return []logSection{hotfix3,hotfix2}
-    case from=="2.2.2":
-        return []logSection{hotfix3,hotfix2,old[0]}
-    case strings.HasPrefix(from,"2.2.1.9"):
-        return append([]logSection{hotfix3,hotfix2},old...)
-    case strings.HasPrefix(from,"2.2.1"):
+    if from==changelogSeenVersion{return []logSection{}}
+    result:=[]logSection{hotfix2221LogSection()}
+    if from=="2.2.2.1"{return result}
+    result=append(result,release2221LogSection())
+    if from=="2.2.2-hotfix.3"{return result}
+    result=append(result,hotfix3LogSection())
+    if from=="2.2.2-hotfix.2"{return result}
+    result=append(result,hotfix2LogSection())
+    if from=="2.2.2-hotfix.1"{return result}
+    old:=allLogSections()
+    if from=="2.2.2"{return append(result,old[0])}
+    if strings.HasPrefix(from,"2.2.1.9"){return append(result,old...)}
+    if strings.HasPrefix(from,"2.2.1"){
         earlier:=earlierBridgeLogSection()
         earlier.entries=earlier.entries[2:]
-        return append([]logSection{hotfix3,hotfix2,earlier},old...)
-    case strings.HasPrefix(from,"2.2.0"):
+        return append(append(result,earlier),old...)
+    }
+    if strings.HasPrefix(from,"2.2.0"){
         earlier:=earlierBridgeLogSection()
         earlier.entries=earlier.entries[1:]
-        return append([]logSection{hotfix3,hotfix2,earlier},old...)
-    default:
-        return append([]logSection{hotfix3,hotfix2,earlierBridgeLogSection()},old...)
+        return append(append(result,earlier),old...)
     }
+    return append(append(result,earlierBridgeLogSection()),old...)
 }
 
 func logFill(dc uintptr,r guiRect,color uintptr){
@@ -359,7 +422,7 @@ func logWindowPaint(window uintptr){
     logFill(dc,guiRect{0,0,w,113},guiRGB(21,37,61))
     logFill(dc,guiRect{0,109,w,113},guiRGB(255,202,84))
     logTextDraw(dc,"OpenOMSI  BCS BRIDGE",guiRect{26,15,w-22,44},state.heading,white,0x0000|0x0020)
-    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2  ·  HOTFIX 3","✨ UPDATE 2.2.2  ·  HOTFIX 3","✨ UPDATE 2.2.2  ·  HOTFIX 3")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
+    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2.1  ·  HOTFIX 1","✨ UPDATE 2.2.2.1  ·  HOTFIX 1","✨ UPDATE 2.2.2.1  ·  HOTFIX 1")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
     logTextDraw(dc,logL(g.config.Language,logT("Escolha um assunto à esquerda. Role para ler todas as mudanças.","Choose a category on the left. Scroll to read the complete notes.","Links ein Thema wählen und für alle Änderungen scrollen.")),guiRect{26,83,w-24,107},state.tiny,muted,0x0020)
     logFill(dc,guiRect{0,114,268,h-76},guiRGB(17,29,47))
     logFill(dc,guiRect{0,h-77,w,h},guiRGB(21,37,61))
@@ -494,7 +557,7 @@ func changelogWindowProc(window uintptr,message uint32,wparam,lparam uintptr)uin
 func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     if changelogWindow!=0{return changelogWindow}
     if !force{
-        if bridgeVersion!="2.2.2"{return 0}
+        if bridgeVersion!=changelogSeenVersion{return 0}
         seen,_:=os.ReadFile(filepath.Join(appDir(g.dir),"changelog-seen.txt"))
         if strings.TrimSpace(string(seen))==changelogSeenVersion{return 0}
     }
@@ -518,7 +581,7 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     width,height:=int(rect.Right-rect.Left),int(rect.Bottom-rect.Top)
     x,y:=int(parent.Left)+(int(parent.Right-parent.Left)-width)/2,int(parent.Top)
     if x<0{x=0};if y<0{y=0}
-    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  2.2.2 Hotfix 3"))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
+    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  2.2.2.1 Hotfix 1"))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
     if window==0{return 0}
     changelogWindow=window
     changelogState=&logWindowState{heading:guiFont(26,700),subhead:guiFont(19,700),body:guiFont(18,400),tiny:guiFont(16,400)}
@@ -527,8 +590,12 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
         guiUser.NewProc("SendMessageW").Call(hwnd,guiWMSetFont,g.font,1)
         return hwnd
     }
+    // Eleven release categories are possible for a user updating from an
+    // older Bridge. Adapt the tab spacing so none disappear below the footer.
+    tabTop,tabStep,tabHeight:=152,65,54
+    if len(logSections())>8{tabTop,tabStep,tabHeight=141,48,42}
     for i,s:=range logSections(){
-        hwnd:=control(logL(g.config.Language,s.label),17,152+i*65,232,54,logIDSectionBase+i)
+        hwnd:=control(logL(g.config.Language,s.label),17,tabTop+i*tabStep,232,tabHeight,logIDSectionBase+i)
         changelogState.buttons=append(changelogState.buttons,hwnd)
     }
     done:=control(logL(g.config.Language,logT("✓ VAMOS JOGAR","✓ LET'S PLAY","✓ LOS GEHT'S")),810,716,230,44,logIDDone)
