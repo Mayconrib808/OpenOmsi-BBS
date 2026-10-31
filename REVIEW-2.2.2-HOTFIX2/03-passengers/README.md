@@ -43,3 +43,14 @@ These are **review partitions**, not independently buildable upstream pull reque
 - [crates/omsi-sim/src/people/tests.rs](../../crates/omsi-sim/src/people/tests.rs)
 - [crates/omsi-sim/src/view_events.rs](../../crates/omsi-sim/src/view_events.rs)
 - [launcher/ui/js/pages/passenger-settings.js](../../launcher/ui/js/pages/passenger-settings.js)
+
+## Speech and other retained support files
+
+The ordinary bad-driving complaint logic is unchanged upstream code, so it is present in the full workspace but does not appear as a new diff in this part. These links include that complete code and the exact subtitle integration:
+
+- [Original complaints and ordinary payment thanks: pax_driver.rs](../../crates/omsi-sim/src/people/pax_driver.rs)
+- [Bad-driving behavior tests](../../crates/omsi-sim/src/people/bad_driving_tests.rs)
+- [Installed-voice lookup and shared cooldown: spawn.rs](../../crates/omsi-sim/src/people/spawn.rs)
+- [Door-request caption integration](../../crates/omsi-app/src/app_events/frame/people.rs)
+
+Door requests, exit thanks and missed-stop additions are in reactions.rs and the part's patch above. Use the shared integration part as well when reconstructing the full native tree.
