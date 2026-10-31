@@ -93,7 +93,7 @@ diff --git a/crates/omsi-sim/src/people/reactions.rs b/crates/omsi-sim/src/peopl
 +        // It only starts after the person really waited by this bus's closed exit.
 +        let leaving=exiting&&bn.speed.abs()>3.0&&!open&&p.door_reaction_wait!=0.0;
 +        let elapsed=if waiting {p.door_reaction_wait.max(0.0)+step}
-+            else if leaving {-if p.door_reaction_wait<0.0 {p.door_reaction_wait.abs()+step} else {step}}
++            else if leaving {-(if p.door_reaction_wait<0.0 {p.door_reaction_wait.abs()+step} else {step})}
 +            else {0.0};
 +        let missed=leaving&&elapsed<=-2.5;
 +        let cooldown=(p.door_reaction_cooldown-dt.max(0.0)).max(0.0);
