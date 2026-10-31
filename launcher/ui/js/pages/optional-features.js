@@ -13,7 +13,8 @@ export const OPTIONAL_FEATURE_ROWS = [
   { type: 'toggle', key: 'passenger_ambient_talk', label: 'Optional passenger conversations inside buses', help: restart },
   { type: 'toggle', key: 'ai_bus_overtaking', label: 'AI buses safely pass other stopped buses', help: host },
   { type: 'toggle', key: 'cars_yield_to_buses', label: 'Cars change lanes for buses leaving stops', help: host },
+  { type: 'toggle', key: 'illegal_parking', label: 'Temporary illegally parked AI cars', help: host },
 ];
 
 export const optionalRows = (traffic) => OPTIONAL_FEATURE_ROWS.filter((row) =>
-  (['extra_traffic_density', 'ai_bus_greetings', 'ai_driver_wave', 'ai_bus_overtaking', 'cars_yield_to_buses'].includes(row.key)) === traffic);
+  (['extra_traffic_density', 'ai_bus_greetings', 'ai_driver_wave', 'ai_bus_overtaking', 'cars_yield_to_buses', 'illegal_parking'].includes(row.key)) === traffic);
