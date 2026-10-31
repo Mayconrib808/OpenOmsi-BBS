@@ -2,7 +2,7 @@ name: Stage OpenOMSI 2.2.2.1 hotfix1 Windows game and server
 on:
   push:
     branches: [fix/2221-lan-seated-people]
-    paths: [.github/workflows/stage-2221-hotfix1-native.yml]
+    paths: [.github/workflows/stage-2221-hotfix1-native.yml, crates/omsi-sim/src/people/**]
   workflow_dispatch: {}
 permissions:
   contents: read
