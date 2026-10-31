@@ -33,7 +33,10 @@ impl Effects {
                 self.at=bus+match self.kind{30=>right*3.5-forward*3.0,32=>right*1.6-forward*8.0,_=>DVec3::ZERO};
                 let ground=world.data().walk_height_near(self.at.x,self.at.y,self.at.z);
                 if let Some(z)=ground{self.at.z=z;}else{self.kind=0;return;}
-                let mesh=match self.kind{30=>Some(bin()),32=>Some(oil()),_=>None};
+                // No cardboard-like emergency prop for event 30. Fire/smoke particles
+                // remain; actual responder vehicles come from bcs-assets.
+                // Event 32 still draws a genuine surface oil decal.
+                let mesh = match self.kind { 32 => Some(oil()), _ => None };
                 if let Some(mesh)=mesh {
                     let color=if self.kind==32{[0.018,0.022,0.014,0.87]}else{[0.15,0.22,0.12,1.0]};
                     let material=r.add_material(scene,None,if self.kind==32{AlphaMode::Blend}else{AlphaMode::Opaque},color,false);
@@ -69,12 +72,4 @@ fn oil()->MeshData{
     for k in 0..32{let a=k as f32*std::f32::consts::TAU/32.0;let radius=1.0+0.09*(a*5.0).sin()+0.06*(a*9.0).cos();mesh.positions.push(Vec3::new(a.cos()*1.25*radius,a.sin()*2.4*radius,0.022));}
     for k in 0..32{mesh.indices.extend([0,k+1,(k+1)%32+1]);}
     mesh.normals=vec![Vec3::Z;mesh.positions.len()];mesh.uvs=vec![Vec2::ZERO;mesh.positions.len()];mesh.ranges=vec![(0,mesh.indices.len()as u32,0)];mesh
-}
-fn bin()->MeshData{
-    let mut mesh=MeshData::default();
-    for k in 0..12{let a=k as f32*std::f32::consts::TAU/12.0;let b=(k+1)as f32*std::f32::consts::TAU/12.0;let n=mesh.positions.len()as u32;
-        mesh.positions.extend([Vec3::new(a.cos()*0.3,a.sin()*0.3,0.0),Vec3::new(b.cos()*0.3,b.sin()*0.3,0.0),Vec3::new(b.cos()*0.32,b.sin()*0.32,0.85),Vec3::new(a.cos()*0.32,a.sin()*0.32,0.85)]);
-        mesh.normals.extend([Vec3::new(a.cos(),a.sin(),0.0);4]);mesh.uvs.extend([Vec2::ZERO;4]);mesh.indices.extend([n,n+1,n+2,n,n+2,n+3]);
-    }
-    mesh.ranges=vec![(0,mesh.indices.len()as u32,0)];mesh
 }

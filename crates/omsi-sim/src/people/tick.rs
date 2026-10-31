@@ -16,6 +16,31 @@ impl PeopleSim {
                 self.tick_stages.iter().filter(|s| s.1 >= 1.0).map(|(n, t)| format!("{n} {t:.1}")).collect::<Vec<_>>().join(", ")
             );
         }
+        // Diagnostic only: remote sitting animation can fail if the authoritative
+        // LAN seat index or the cabin's seat geometry was unavailable.
+        // This checks the pose facts, not the final pixels on the GPU.
+        if self.time - self.demand_audit.last_seat_report_at >= 60.0 {
+            self.demand_audit.last_seat_report_at = self.time;
+            let mut remote_aboard=0_u32;
+            let mut intended_sit=0_u32;
+            let mut restored_sit=0_u32;
+            let mut missing_seat_index=0_u32;
+            for person in self.people.iter().filter(|p|p.remote
+                && matches!(p.place, Place::Bus(_, _))) {
+                remote_aboard+=1;
+                if person.activity == Activity::Sit {
+                    intended_sit+=1;
+                    if person.remote_seat.is_none() {missing_seat_index+=1;}
+                    if person.pose_facts_with_buses(self.last_buses.as_slice()).seat.is_some() {
+                        restored_sit+=1;
+                    }
+                }
+            }
+            if remote_aboard > 0 {
+                log::info!("FEATURE AUDIT lan_seats remote_aboard={} intended_seated={} restored_seated_pose={} missing_seat_index={} visual_gpu_confirmation=false",
+                    remote_aboard,intended_sit,restored_sit,missing_seat_index);
+            }
+        }
         if omsi_cfg::flags::OMSI_CHECK_WALLS.is_set() {
             self.check_walls();
         }
@@ -69,6 +94,11 @@ impl PeopleSim {
         }
         self.use_map_humans(world);
         self.time += dt as f64;
+        if self.mirror && self.optional_features.independent_passenger_demand
+            && self.time - self.demand_audit.last_report_at >= 60.0 {
+            self.demand_audit.last_report_at = self.time;
+            log::info!("FEATURE AUDIT demand local_mirror=true arrivals_not_authoritative=true: host owns the demand ledger; check host log for seeded_stops, generated_queue and arrivals_materialized");
+        }
         let net = traffic.map(|t| &t.net);
         if let Some(b) = bus {
             self.center = b.position;

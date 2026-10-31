@@ -137,7 +137,7 @@ impl TrafficSim {
         car.state.lateral_target = offset;
         car.state.lateral_ramp = (current,offset,odo,first);
         car.stopped = 0.0;
-        if ts.debug { log::info!("t={:.1}: timetable bus {} temporarily overtakes bus {} on same-direction lane {}, keeps own route lane {}",self.time,car.id,who.unwrap_or(usize::MAX),target,source_lane); }
+        log::info!("FEATURE AUDIT ai_bus_overtaking performed car={} overtaken_car={:?} target_lane={} source_lane={}",car.id,who,target,source_lane);
         true
     }
 }

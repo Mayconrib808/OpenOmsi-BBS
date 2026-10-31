@@ -44,6 +44,7 @@ impl PeopleSim {
             });
             self.voice_said.insert(path, self.time);
             self.last_chat = self.time;
+            self.demand_audit.conversation_lines += 1;
             return true;
         }
         false
@@ -68,6 +69,7 @@ impl PeopleSim {
         }
         if !chat_due(self.time, self.ambient_talk_at, self.last_chat) { return }
         self.ambient_talk_at = self.time;
+        self.demand_audit.conversation_attempts += 1;
         // Run once every 42 seconds, not per bus or per frame. Include passengers
         // in timetable AI buses as well as the player's. A dedicated host emits no
         // local sound; a LAN mirror doesn't double-play the host's voices.
@@ -78,18 +80,26 @@ impl PeopleSim {
             })
             .take(RIDER_SAMPLE_LIMIT)
             .collect();
-        if seated.len() < 2 { return }
+        if seated.len() < 2 {
+            self.demand_audit.conversation_without_pairs += 1;
+            return
+        }
         let first = (self.rand() as usize) % seated.len();
         let (speaker, bus) = seated[first];
         let nearby: Vec<usize> = seated.iter().copied().filter_map(|(i, other_bus)| {
             (i != speaker && can_converse(bus, other_bus,
                 self.people[speaker].position, self.people[i].position)).then_some(i)
         }).collect();
-        if nearby.is_empty() { return }
+        if nearby.is_empty() {
+            self.demand_audit.conversation_without_pairs += 1;
+            return
+        }
         // Pick both participants rather than always taking the lowest person id.
         let other = nearby[(self.rand() as usize) % nearby.len()];
         if self.ambient_voice(speaker, false) {
             self.ambient_talk_reply = Some((self.people[other].id, self.time + RESPONSE_AFTER));
+        } else {
+            self.demand_audit.conversation_without_clips += 1;
         }
     }
 }

@@ -48,6 +48,8 @@ pub(crate) use omsi_sim::ai_traffic::viewer::Viewer;
 pub struct Traffic {
     pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
     pub illegal_parking_frequency: f32,
+    /// Throttled feature diagnostics: never per vehicle or frame.
+    last_feature_report: f32,
     pub sim: TrafficSim,
     pub greetings: omsi_sim::ai_traffic::greetings::Greetings,
     /// What the renders have to follow since the view last caught up, oldest first (see
@@ -112,6 +114,7 @@ impl Traffic {
             greetings: Default::default(),
             optional_features: Default::default(),
             illegal_parking_frequency: 0.8,
+            last_feature_report: -60.0,
             events: Vec::new(),
             snapshot: Default::default(),
             looks: Default::default(),
@@ -143,6 +146,19 @@ impl Traffic {
             self.illegal_parking_frequency.clamp(0.0, 5.0)
         } else { 0.0 };
         self.sim.advance(dt, player);
+        if self.sim.time - self.last_feature_report >= 60.0 {
+            self.last_feature_report = self.sim.time;
+            let extended = self.sim.extended_density.road.len();
+            let active_parks = self.sim.cars.iter().filter(|c| c.temporary_park.is_some()).count();
+            log::info!(
+                "FEATURE AUDIT traffic mirror={} total_ai={} ai_bus_overtaking={} cars_yield_to_buses={} illegal_parking={} frequency_percent={:.1} parked_events_active={} extra_traffic_density={} extended_day_groups={} extended_road_rules={} weekday={} public_holiday={} stock_group_curves={}",
+                self.sim.mirror, self.sim.cars.len(), self.optional_features.ai_bus_overtaking,
+                self.optional_features.cars_yield_to_buses, self.optional_features.illegal_parking,
+                self.sim.illegal_parking_percent, active_parks, self.optional_features.extra_traffic_density,
+                extended, if extended > 0 { "loaded" } else { "absent_stock_fallback" },
+                self.sim.weekday, self.sim.is_public_holiday, self.sim.group_curves,
+            );
+        }
         self.after_step();
     }
 

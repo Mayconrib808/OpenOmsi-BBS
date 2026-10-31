@@ -143,6 +143,9 @@ pub struct Greetings {
     /// Short visual gestures keyed by existing one-shot greetings, never a new random search.
     waves: HashMap<u64, f32>,
     clock: f32,
+    audit_last: f32,
+    audit_waves: u64,
+    audit_mirror_noted: bool,
 }
 
 impl Greetings {
@@ -177,7 +180,14 @@ impl Greetings {
         // replicated bus positions and line displays, without a new packet or
         // any horn/flash/script side effects. Only the authoritative host
         // controls signalling and keeps vehicle scripts unchanged.
-        if (sim.mirror && signals_enabled) || !dt.is_finite() || dt <= 0.0 { return; }
+        if sim.mirror && signals_enabled {
+            if !self.audit_mirror_noted {
+                self.audit_mirror_noted = true;
+                log::info!("FEATURE AUDIT greetings mirrored_traffic=true: sound/lamp greetings are host-authoritative; this path does not create local signals");
+            }
+            return;
+        }
+        if !dt.is_finite() || dt <= 0.0 { return; }
         self.clock += dt;
         let now = self.clock;
         for car in &sim.cars {
@@ -233,6 +243,9 @@ impl Greetings {
             let Some(car) = sim.cars.iter_mut().find(|c| c.id == id) else { continue; };
             self.last.insert(id,now);
             self.waves.insert(id, now);
+            self.audit_waves += 1;
+            // A real visual gesture was scheduled, not merely enabled in settings.
+            log::info!("FEATURE AUDIT ai_driver_wave performed ai_bus={} other={:?} response_to_signal={} traffic_mirror={}",id,other,response,sim.mirror);
             if !signals_enabled { continue; }
             // Audio is emitted once by the model-aware presentation path below;
             // do not also fire a script trigger that could double the same horn.
@@ -249,6 +262,12 @@ impl Greetings {
         }
         self.flashes.retain(|id,f| present.contains(&BusId::Ai(*id)) && now - f.began <= 0.7);
         self.waves.retain(|id, began| present.contains(&BusId::Ai(*id)) && now - *began <= 1.3);
+        if now - self.audit_last >= 60.0 {
+            log::info!("FEATURE AUDIT greetings evaluated=true mirror={} signals_enabled={} buses_considered={} visual_waves_last_minute={} active_waves={}",
+                sim.mirror, signals_enabled, buses.len(), self.audit_waves, self.waves.len());
+            self.audit_last = now;
+            self.audit_waves = 0;
+        }
         for car in &mut sim.cars {
             if let Some(f) = self.flashes.get(&car.id) {
                 let elapsed = now - f.began;

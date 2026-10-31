@@ -2322,6 +2322,8 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
     v["ticket_chance_enabled"]=json!(false);
     v["ticket_chance_percent"]=json!(-1.0);
     v["passenger_transfer_percent"]=json!(20.0);
+    // The temporary illegal-parking frequency is a percentage (0..5), not a fixed 0.8 setting.
+    v["illegal_parking_frequency"]=json!(0.8);
     for feature in omsi_cfg::optional_features::FEATURES { v[feature.key] = json!(false); }
     v["passenger_umbrellas"]=json!(false);
     v["passenger_hailing"]=json!(false);
@@ -2437,6 +2439,7 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
             "ticket_chance_percent" => v[&k]=json!(val.parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(-1.0).clamp(-1.0,100.0)),
             "passenger_umbrellas" | "passenger_hailing" => v[&k]=json!(b(val)),
             "passenger_transfer_percent" => v[&k]=json!(val.parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(20.0).clamp(0.0,100.0)),
+            "illegal_parking_frequency" => v[&k]=json!(val.parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(0.8).clamp(0.0,5.0)),
             "passenger_hailing_maps" => v[&k]=json!(val),
             "passenger_animation" => v[&k] = json!(if val.eq_ignore_ascii_case("enhanced") { "enhanced" } else { "original" }),
             "character_models" => v[&k] = json!(if val.eq_ignore_ascii_case("improved") { "improved" } else { "original" }),
@@ -2932,6 +2935,7 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
     text.push_str(&format!("passenger_animation={}\n", if v.get("passenger_animation").and_then(|x| x.as_str()) == Some("enhanced") { "enhanced" } else { "original" }));
     text.push_str(&format!("ticket_chance_enabled={}\nticket_chance_percent={}\n",b("ticket_chance_enabled",false),v.get("ticket_chance_percent").and_then(|x|x.as_f64()).filter(|x|x.is_finite()).unwrap_or(-1.0).clamp(-1.0,100.0)));
     text.push_str(&format!("passenger_transfer_percent={}\n",f("passenger_transfer_percent",20.0).clamp(0.0,100.0)));
+    text.push_str(&format!("illegal_parking_frequency={}\n",f("illegal_parking_frequency",0.8).clamp(0.0,5.0)));
     for feature in omsi_cfg::optional_features::FEATURES { text.push_str(&format!("{}={}\n", feature.key, b(feature.key, false))); }
     text.push_str(&format!("passenger_effects_221=1\npassenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n",b("passenger_umbrellas",false),b("passenger_hailing",false),v.get("passenger_hailing_maps").and_then(|x|x.as_str()).unwrap_or(passenger_defaults::MAPS).replace(['\r','\n'],"")));
     text.push_str(&format!("character_models={}\n", if v.get("character_models").and_then(|x| x.as_str()) == Some("improved") { "improved" } else { "original" }));
@@ -3560,3 +3564,21 @@ mod omsi_options_tests;
 mod right_stick_look_tests;
 #[cfg(test)]
 mod head_tracking_tests;
+
+#[cfg(test)]
+mod hotfix_2221_illegal_parking_settings_tests {
+    use super::*;
+    #[test]
+    fn temporary_illegal_parking_slider_roundtrips() {
+        let defaults = settings_from_text(None);
+        assert_eq!(defaults["illegal_parking_frequency"], serde_json::json!(0.8));
+        for value in [0.0_f64, 0.1, 1.7, 2.5, 5.0] {
+            let mut v = defaults.clone();
+            v["illegal_parking_frequency"] = serde_json::json!(value);
+            let saved = settings_to_text(&v, None);
+            assert_eq!(settings_from_text(Some(&saved))["illegal_parking_frequency"], serde_json::json!(value));
+        }
+        let loaded = settings_from_text(Some("illegal_parking_frequency=9\n"));
+        assert_eq!(loaded["illegal_parking_frequency"], serde_json::json!(5.0));
+    }
+}

@@ -351,6 +351,8 @@ pub struct PeopleSim {
     pub density: f32,
     /// The optional stop-arrival ledger is independent of timetable services.
     pub stop_demand: HashMap<i64, super::demand::StopDemand>,
+    /// Event counts to prove actual optional features are running in a host-owned simulation.
+    pub demand_audit: super::demand::DemandAudit,
     /// Climate comes from the host weather and affects only newly created skins.
     pub climate_temp_c: f32,
     pub climate_rain: bool,
