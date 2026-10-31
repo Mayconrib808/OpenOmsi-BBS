@@ -9,7 +9,10 @@ export const OPTIONAL_FEATURE_ROWS = [
   { type: 'toggle', key: 'extra_traffic_density', label: 'Extra traffic on wide roads', help: host },
   { type: 'toggle', key: 'ai_bus_greetings', label: 'AI bus greetings', help: host },
   { type: 'toggle', key: 'passenger_connections_enabled', label: 'Passenger connections between lines', help: restart },
+  { type: 'toggle', key: 'ai_driver_wave', label: 'AI bus drivers wave when greeting', help: host },
+  { type: 'toggle', key: 'passenger_ambient_talk', label: 'Optional passenger conversations inside buses', help: restart },
+  { type: 'toggle', key: 'ai_bus_overtaking', label: 'AI buses safely pass other stopped buses', help: host },
 ];
 
 export const optionalRows = (traffic) => OPTIONAL_FEATURE_ROWS.filter((row) =>
-  (row.key === 'extra_traffic_density' || row.key === 'ai_bus_greetings') === traffic);
+  (['extra_traffic_density', 'ai_bus_greetings', 'ai_driver_wave', 'ai_bus_overtaking'].includes(row.key)) === traffic);
