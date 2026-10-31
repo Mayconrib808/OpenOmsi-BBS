@@ -174,6 +174,7 @@ impl PeopleSim {
         ids.sort_unstable();
         let forced = omsi_cfg::flags::OMSI_PAX_WAITING.parse::<usize>();
         let independent = self.optional_features.independent_passenger_demand;
+        if independent && (!dt.is_finite() || dt <= 0.0) { return; }
         // Passengers who have waited too long can leave. Never remove people
         // already boarding or aboard, and never age them while the game pauses.
         if independent {
