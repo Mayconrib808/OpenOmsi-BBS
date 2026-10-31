@@ -24,6 +24,20 @@ pub struct DayCurve {
 }
 
 impl ExtendedDensity {
+    /// Use the active Chrono's optional extension, otherwise the map's base
+    /// extension. Resolve only once when a date changes, never per frame.
+    /// An absent file intentionally preserves all original OMSI density rules.
+    pub fn load_for_date(map_dir: &std::path::Path, date: i32) -> Option<Self> {
+        let folders = omsi_map::active_chrono_dirs(map_dir, date);
+        folders.iter().rev().map(|d| d.as_path())
+            .chain(std::iter::once(map_dir))
+            .find_map(|dir| {
+                let path = omsi_cfg::resolve_path(dir, "extended_trafficdens.txt");
+                omsi_cfg::CfgFile::read(&path).ok()
+                    .map(|f| Self::parse(&f.lines.join("\n")))
+            })
+    }
+
     /// Parse an opt-in extension, rejecting malformed sections without modifying
     /// the game's stock unsched_trafficdens.txt parser.
     pub fn parse(source: &str) -> Self {
