@@ -186,3 +186,11 @@ jobs:
             build/release2221hf2/setup-previews/*
           if-no-files-found: error
           retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.2.1-Hotfix2-SIGNING-METADATA
+          path: |
+            build/release2221hf2/build-report.json
+            build/release2221hf2/coop-spec.json
+          if-no-files-found: error
+          retention-days: 30
