@@ -70,6 +70,8 @@ impl TrafficSim {
             groups,
             group_curves,
             extended_density: Default::default(),
+            extended_density_map_dir: std::path::PathBuf::new(),
+            extended_density_date: 0,
             holiday_calendar: Default::default(),
             is_public_holiday: false,
             group_uvg,
