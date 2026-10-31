@@ -43,8 +43,21 @@ pub fn bus_lane_smooth(t: f32) -> f32 {
 impl TrafficSim {
     /// Existing passes finish by returning to the original route lane. A bus is
     /// never allowed to join the neighbouring lane as its permanent new route.
-    pub fn advance_bus_lane_pass(&mut self, i: usize) {
+    pub fn advance_bus_lane_pass(&mut self, i: usize, ts: &TickScene) {
         let Some(pass) = self.cars[i].bus_lane_pass else { return; };
+        let st = &self.cars[i].state;
+        // A new car may arrive on the passing lane after the initial plan.
+        // Before the moving bus occupies that lane, cancel if the merge is
+        // no longer clear. Never jerk a bus back once it is already beside it.
+        if st.lateral.abs() < 0.65 && st.odometer < pass.return_at - 10.0 {
+            let at = self.net.beside_s(st.lane, pass.target_lane, st.s);
+            if !self.lane_clear(i, pass.target_lane, at, st.rear + 12.0,
+                st.front + 35.0, &ts.by_lane) {
+                self.cars[i].bus_lane_pass = None;
+                self.cars[i].state.lateral_target = 0.0;
+                return;
+            }
+        }
         let st = &mut self.cars[i].state;
         if st.odometer < pass.return_at {
             st.lateral_target = pass.offset;
@@ -1429,6 +1442,8 @@ mod bus_stop_overtake_safety_tests {
         assert_eq!(super::bus_lane_smooth(1.0),1.0);
         assert_eq!(super::bus_lane_smooth(2.0),1.0);
         assert!((0..100).all(|n| (0.0..=1.0).contains(&super::bus_lane_smooth(n as f32/100.0))));
+        assert!((1..=100).all(|n| super::bus_lane_smooth(n as f32/100.0)
+            >= super::bus_lane_smooth((n-1) as f32/100.0)));
     }
     #[test]
     fn cannot_pass_own_stop_or_with_insufficient_distance() {

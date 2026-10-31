@@ -346,6 +346,12 @@ pub struct PeopleSim {
     pub footfalls: Vec<Footfall>,
     /// `[trafficdensity_passenger]` factor for the current hour (set by the app).
     pub density: f32,
+    /// The optional stop-arrival ledger is independent of timetable services.
+    pub stop_demand: HashMap<i64, super::demand::StopDemand>,
+    /// Climate comes from the host weather and affects only newly created skins.
+    pub climate_temp_c: f32,
+    pub climate_rain: bool,
+    pub climate_snow: bool,
     /// The clock's time of day in seconds (set by the app): day tickets sell by it.
     pub time_of_day: f64,
     /// How late the player's bus is on its duty (s; set by the app): over five minutes,

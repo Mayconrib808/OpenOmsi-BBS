@@ -16,10 +16,10 @@ function rows(value) {
   return [...(value.type ? [value] : []), ...Object.values(value).flatMap(rows)];
 }
 
-test('all twelve optional settings are real, unique toggles in the launcher settings schema', () => {
+test('all fourteen optional settings are real, unique toggles in the launcher settings schema', () => {
   const actual = rows(schema.SETTINGS_TABS);
-  assert.equal(options.OPTIONAL_FEATURE_ROWS.length, 12);
-  assert.equal(new Set(options.OPTIONAL_FEATURE_ROWS.map((r) => r.key)).size, 12);
+  assert.equal(options.OPTIONAL_FEATURE_ROWS.length, 14);
+  assert.equal(new Set(options.OPTIONAL_FEATURE_ROWS.map((r) => r.key)).size, 14);
   for (const option of options.OPTIONAL_FEATURE_ROWS) {
     const matches = actual.filter((r) => r.key === option.key);
     assert.equal(matches.length, 1, `missing or duplicated launcher switch ${option.key}`);
@@ -32,7 +32,7 @@ test('all twelve optional settings are real, unique toggles in the launcher sett
 
 test('traffic options are kept separate and the transfer percentage retains its normal slider', () => {
   assert.deepEqual(options.optionalRows(true).map((r) => r.key), ['extra_traffic_density', 'ai_bus_greetings', 'ai_driver_wave', 'ai_bus_overtaking', 'cars_yield_to_buses', 'illegal_parking']);
-  assert.equal(options.optionalRows(false).length, 6);
+  assert.equal(options.optionalRows(false).length, 8);
   const actual = rows(schema.SETTINGS_TABS);
   const chance = actual.find((r) => r.key === 'passenger_transfer_percent');
   assert.equal(chance.type, 'slider');

@@ -128,6 +128,10 @@ impl PeopleSim {
             exit_busy: Vec::new(),
             footfalls: Vec::new(),
             density: 1.0,
+            stop_demand: HashMap::new(),
+            climate_temp_c: 22.0,
+            climate_rain: false,
+            climate_snow: false,
             time_of_day: 12.0 * 3600.0,
             delay: 0.0,
             root: root.to_path_buf(),
@@ -480,6 +484,16 @@ impl PeopleSim {
             }
         }
         let (idx, variant) = choice.unwrap_or((0, 0));
+        // Only reuse installed CTI skins. Keep avatars and inspectors unchanged,
+        // and preserve the normal random skin if a model has no seasonal tag.
+        let variant = if self.optional_features.weather_clothing && kind.is_none()
+            && !matches!(&state, State::Pax(p) if p.inspector) {
+            let ty = &self.types[idx];
+            let names: Vec<String> = ty.variants.iter().map(|s| s.name.clone()).collect();
+            super::clothing::choose_variant(&names,
+                super::clothing::Climate::new(self.climate_temp_c,self.climate_rain,self.climate_snow),
+                variant.saturating_sub(1)).unwrap_or(variant)
+        } else { variant };
         // Stock staff clothing is the default skin: normal riders continue to
         // vary clothes randomly, while a fiscal cannot appear in a casual CTI
         // alternate outfit during a BCS inspection.

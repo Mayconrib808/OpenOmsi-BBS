@@ -17,6 +17,10 @@ pub struct OptionalFeatures {
     pub cars_yield_to_buses: bool,
     /// Physically stopped, hazard-flashing AI vehicles (host authority, opt-in).
     pub illegal_parking: bool,
+    /// Demand accumulates per stop rather than refilling when a bus departs.
+    pub independent_passenger_demand: bool,
+    /// Prefer tagged clothing variants suited to local weather at spawn time.
+    pub weather_clothing: bool,
 }
 
 pub struct Feature {
@@ -29,7 +33,7 @@ pub const HOST_HELP: &str = "In multiplayer, shared AI vehicles are controlled b
 pub fn help(key: &str) -> &'static str {
     if matches!(
         key,
-        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings" | "ai_bus_overtaking" | "ai_driver_wave" | "cars_yield_to_buses" | "illegal_parking"
+        "bcs_event_scenes" | "extra_traffic_density" | "ai_bus_greetings" | "ai_bus_overtaking" | "ai_driver_wave" | "cars_yield_to_buses" | "illegal_parking" | "independent_passenger_demand"
     ) {
         HOST_HELP
     } else {
@@ -85,6 +89,14 @@ pub const FEATURES: &[Feature] = &[
         key: "illegal_parking",
         label: "Temporary illegally parked AI cars",
     },
+    Feature {
+        key: "independent_passenger_demand",
+        label: "Independent passenger demand at each stop",
+    },
+    Feature {
+        key: "weather_clothing",
+        label: "Weather-appropriate passenger clothing",
+    },
 ];
 
 pub fn is_key(key: &str) -> bool {
@@ -110,6 +122,8 @@ impl OptionalFeatures {
             "ai_bus_overtaking" => self.ai_bus_overtaking,
             "cars_yield_to_buses" => self.cars_yield_to_buses,
             "illegal_parking" => self.illegal_parking,
+            "independent_passenger_demand" => self.independent_passenger_demand,
+            "weather_clothing" => self.weather_clothing,
             _ => return None,
         })
     }
@@ -129,6 +143,8 @@ impl OptionalFeatures {
             "ai_bus_overtaking" => self.ai_bus_overtaking = enabled,
             "cars_yield_to_buses" => self.cars_yield_to_buses = enabled,
             "illegal_parking" => self.illegal_parking = enabled,
+            "independent_passenger_demand" => self.independent_passenger_demand = enabled,
+            "weather_clothing" => self.weather_clothing = enabled,
             _ => return None,
         }
         Some(feature.key)

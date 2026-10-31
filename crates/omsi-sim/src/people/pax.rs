@@ -119,6 +119,8 @@ pub struct Pax {
     /// (`DOOR_GIVE_UP`), and the bus they then left standing: not walked to again before it
     /// opens a door.
     pub door_since: Option<f64>,
+    /// Arrival time at the stop for independent-demand abandonment.
+    pub demand_arrived_at: Option<f64>,
     pub shunned: Option<BusId>,
     pub transfer_from: Option<BusId>,
     pub transfer_count: u8,
@@ -230,6 +232,7 @@ impl Pax {
             pt_target: None,
             short: false,
             door_since: None,
+            demand_arrived_at: None,
             shunned: None,
             transfer_from: None,
             transfer_count: 0,

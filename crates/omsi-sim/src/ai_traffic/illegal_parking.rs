@@ -10,6 +10,9 @@ pub enum HornReaction { Wait, Nudge, Leave }
 #[derive(Debug, Clone, Copy)]
 pub struct TemporaryPark {
     pub until: f32,
+    /// Duration counts after the physical stop, not while approaching it.
+    pub duration: f32,
+    pub parked: bool,
     pub response_at: Option<f32>,
     pub honks: u8,
 }
@@ -35,12 +38,19 @@ impl TemporaryPark {
         // A blockage of a single-lane street is strictly capped at 30 seconds.
         let duration = if single_lane { 10.0 + 20.0 * draw(seed, event_number + 1) }
                        else { 15.0 + 30.0 * draw(seed, event_number + 1) };
-        Some(Self { until: now + duration, response_at: None, honks: 0 })
+        Some(Self { until: now + duration, duration, parked: true, response_at: None, honks: 0 })
+    }
+
+    /// Start the deadline only when the body is actually stationary at the target.
+    pub fn activate(&mut self, now: f32) {
+        if self.parked || !now.is_finite() { return; }
+        self.parked = true;
+        self.until = now + self.duration;
     }
 
     /// Honking creates one delayed response (3-10 s), not an immediate teleport.
     pub fn hear_horn(&mut self, now: f32, seed: u64) {
-        if !now.is_finite() || now >= self.until { return; }
+        if !self.parked || !now.is_finite() || now >= self.until { return; }
         self.honks = self.honks.saturating_add(1);
         if self.response_at.is_none() {
             self.response_at = Some(now + 3.0 + 7.0 * draw(seed, 200 + self.honks as u64));
@@ -48,7 +58,7 @@ impl TemporaryPark {
     }
 
     pub fn reaction(&mut self, now: f32, seed: u64) -> HornReaction {
-        if !now.is_finite() { return HornReaction::Wait; }
+        if !now.is_finite() || !self.parked { return HornReaction::Wait; }
         if now >= self.until { return HornReaction::Leave; }
         if self.response_at.is_none_or(|at| now < at) { return HornReaction::Wait; }
         self.response_at = None;
@@ -72,6 +82,9 @@ impl TrafficSim {
         }
         let now = self.time;
         if let Some((mut parking, mut at)) = self.cars[i].temporary_park {
+            if self.cars[i].state.s >= at - 1.7 && self.cars[i].state.speed < 0.45 {
+                parking.activate(now);
+            }
             match parking.reaction(now, self.cars[i].seed) {
                 HornReaction::Leave => {
                     self.cars[i].temporary_park = None;
@@ -111,7 +124,8 @@ impl TrafficSim {
                 b.stops.iter().any(|stop| c.state.route.get(stop.ri) == Some(&lane_id)
                     && (stop.s-target_s).abs() < 35.0)))
         { return None; }
-        let state = TemporaryPark::new(now, seed, lane_id as u64, single_lane)?;
+        let mut state = TemporaryPark::new(now, seed, lane_id as u64, single_lane)?;
+        state.parked = false;
         self.cars[i].temporary_park = Some((state, target_s));
         log::info!("t={now:.1}: traffic AI car {} schedules short temporary obstruction on lane {} at {:.1} m", self.cars[i].id, lane_id, target_s);
         Some(25.0 + self.cars[i].state.front + 0.4)
@@ -149,6 +163,18 @@ mod tests {
         assert_eq!(p.reaction(102.0, 22), HornReaction::Wait);
         p.hear_horn(103.0, 22);
         assert_eq!(p.reaction(response, 22), HornReaction::Leave);
+    }
+    #[test]
+    fn deadline_starts_when_car_really_stops_not_when_it_plans_to_stop() {
+        let mut p = TemporaryPark::new(100.0, 22, 4, true).unwrap();
+        p.parked = false;
+        p.hear_horn(110.0, 22);
+        assert_eq!(p.honks, 0);
+        assert_eq!(p.reaction(300.0, 22), HornReaction::Wait);
+        p.activate(300.0);
+        assert!(p.until <= 330.0);
+        assert_eq!(p.reaction(300.0, 22), HornReaction::Wait);
+        assert_eq!(p.reaction(330.0, 22), HornReaction::Leave);
     }
     #[test]
     fn zero_frequency_never_creates_an_event() {

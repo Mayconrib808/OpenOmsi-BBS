@@ -695,6 +695,7 @@ impl Offscreen<'_> {
             ref settings,
             ref srv_admin,
             ref run_clock,
+            ref weather,
             ref remotes_off,
             ref lan_off,
             ref mut player,
@@ -716,6 +717,11 @@ impl Offscreen<'_> {
             // (a dedicated server's own passenger density, which its admins may change)
             let density = srv_admin.passenger_density.unwrap_or(settings.pax_density);
             steps::humans_by_hour(h, world, run_clock.time, density, duty.as_ref());
+            // Headless multiplayer host chooses the same weather-specific
+            // CTI skins that connected clients will receive in the snapshot.
+            h.climate_temp_c = weather.temp.0;
+            h.climate_rain = weather.precip.iter().any(|v| v.is_finite() && *v > 0.01);
+            h.climate_snow = weather.snow || weather.snow_on_road;
             // populate stops near every LAN player every 2 seconds, as app_events.rs
             // does every 2 s near the local player.  At startup `center` is ZERO (no
             // player bus on a headless server), so stops on the actual map - which can
