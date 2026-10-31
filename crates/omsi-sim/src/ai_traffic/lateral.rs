@@ -180,7 +180,7 @@ impl TrafficSim {
         self.pull_out_step(i, ts);
         self.guard_pass(i, &ts.by_lane);
         self.finish_pass(i);
-        self.advance_bus_lane_pass(i);
+        self.advance_bus_lane_pass(i, ts);
         let car = &self.cars[i];
         let mut why = if car.state.change.is_some() {
             "change"
