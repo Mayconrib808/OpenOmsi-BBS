@@ -17,7 +17,7 @@ import (
 // milestones newer than that sequence; do not show the same Hotfix 1 notes to
 // someone who is already running Hotfix 1.
 func notesSinceInstalledSequence(lang string, installed uint64, target bridgeRelease) string {
-    if target.Sequence < 2026103003 || target.Version != "2.2.2-hotfix.2" {
+    if target.Sequence < 2026103003 || (target.Version != "2.2.2-hotfix.2" && target.Version != "2.2.2-hotfix.3") {
         return localReleaseNotes(lang,target)
     }
     var items []string
@@ -62,6 +62,12 @@ func notesSinceInstalledSequence(lang string, installed uint64, target bridgeRel
             "Hotfix 2: desembarque por portas realmente abertas, parada correta, retomada do caminho sem teleporte, fiscal sem repetição infinita, tolerância na parada e diagnóstico de rotas e tráfego.",
             "Hotfix 2: alighting through physically open exits, correct stop matching, path recovery without teleporting, inspector loop fix, boarding allowance and better routing/traffic diagnostics.",
             "Hotfix 2: Ausstieg durch tatsächlich offene Türen, richtige Haltestelle, Wegkorrektur ohne Teleport, Kontrolleur-Schleife behoben, toleranter Einstieg und bessere Diagnose."))
+    }
+    if target.Sequence >= 2026103101 && installed < 2026103101 {
+        items = append(items,localText(lang,
+            "Hotfix 3: fiscais com modelos próprios masculino e feminino, sem solicitações de parada nem reclamações de passageiros; proteção do banco reservado e ajuste de geração de tráfego por sentido em avenidas com carregamento dinâmico.",
+            "Hotfix 3: dedicated male and female inspector models, without passenger stop requests or complaints; reserved-seat protection and improved traffic spawning by direction on streamed divided avenues.",
+            "Hotfix 3: eigene männliche und weibliche Kontrolleurmodelle ohne Haltewünsche oder Fahrgastbeschwerden; Sitzplatzreservierung und bessere richtungsabhängige Verkehrserzeugung auf nachgeladenen Straßen."))
     }
     if len(items)==0 {return localReleaseNotes(lang,target)}
     return strings.Join(items,"\r\n\r\n")
