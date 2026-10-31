@@ -1,0 +1,9 @@
+{
+  "commit": "4a2baf3271d15dbc0d313acd79a4b44102fa8e35",
+  "run_id": 41229587365,
+  "workflow": ".github/workflows/stage-2221-native-candidate.yml",
+  "version": "0.3.46-coop.15-2.2.2.1",
+  "protocol": 15,
+  "windows_gameplay_tested": false,
+  "paired_gameplay_tested": false
+}
