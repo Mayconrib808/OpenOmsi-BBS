@@ -129,7 +129,9 @@ impl Network {
         self.remote.retain(|owner,v|v.heard.elapsed()<Duration::from_secs(4)&&lan.peers().any(|p|p.pose.id==*owner));
         self.send-=dt.max(0.0);
         if let Some(source)=source{
-            // Do not log empty event=0 snapshots every frame when the BCS feed flickers.\n            // Active event changes remain visible in diagnostics.\n            if source.event != 0 && self.last.as_ref().is_none_or(|old| old.source.instance!=source.instance||old.source.event!=source.event||old.source.service!=source.service) {
+            // Do not log empty event=0 snapshots every frame when the BCS feed flickers.
+            // Active event changes remain visible in diagnostics.
+            if source.event != 0 && self.last.as_ref().is_none_or(|old| old.source.instance!=source.instance||old.source.event!=source.event||old.source.service!=source.service) {
                 log::info!("BCS client: sending event={} service={} instance={} completed={} to role {:?}",source.event,source.service,source.instance,source.completed,lan.role);
             }
             // Keep the observed completion alive until the host has had time to
