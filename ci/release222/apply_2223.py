@@ -147,7 +147,8 @@ apply("crates/omsi-sim/src/people/pax_task.rs",
     """            Task::InBusToExit => {
                 let bus = self.pax(i).unwrap().bus.or(self.pax(i).unwrap().inside);""",
     """            Task::InBusToExit => {
-                self.pax_mut(i).unwrap().door_since = Some(self.time);
+                let now = self.time;
+                self.pax_mut(i).unwrap().door_since = Some(now);
                 let bus = self.pax(i).unwrap().bus.or(self.pax(i).unwrap().inside);""")
 apply("crates/omsi-sim/src/people/pax_task.rs",
     """        let may_leave = door_open && (reg.next.is_some() || p.complaint == 3);
@@ -165,7 +166,8 @@ apply("crates/omsi-sim/src/people/pax_task.rs",
                 "passenger exit blocked: id={} reason={} st={} door={:?} next={:?} served={:?} destination={:?} pt={:?} target={:?} entry_open={:?} exit_open={:?}",
                 self.people[i].id, reason, p.st, p.door, reg.next, bn.served,
                 p.dest, p.pt, p.pt_target, bn.entry_open, bn.exit_open);
-            self.pax_mut(i).unwrap().door_since = Some(self.time);
+            let now = self.time;
+            self.pax_mut(i).unwrap().door_since = Some(now);
         }
         self.pax_mut(i).unwrap().short = !may_leave;""")
 
