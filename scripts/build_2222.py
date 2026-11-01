@@ -108,7 +108,21 @@ def main():
  with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED,compresslevel=6)as z:
   for name,data in sorted(files.items()):
    item=zipfile.ZipInfo(prefix+name,(2026,10,31,0,0,0));item.compress_type=zipfile.ZIP_DEFLATED;z.writestr(item,data,compresslevel=6)
- packed=bundle.getvalue();assert max(map(len,files.values()))<=128<<20 and len(packed)<=256<<20 and sum(map(len,files.values()))<=512<<20
+ packed=bundle.getvalue()
+ # This cumulative update intentionally includes two identical P15 binaries, seven
+ # artist-made winter models, and the corresponding source archive. Previous
+ # (128/256/512 MiB) package ceilings predated those assets; they were not
+ # Cloudflare per-asset limits (actual uploaded ZIP chunks remain <= 16 MiB).
+ biggest=max((len(data),name) for name,data in files.items())
+ raw_bytes=sum(map(len,files.values()))
+ packed_bytes=len(packed)
+ print('2.2.2.2 package budget: single=%d MiB, compressed=%d MiB, unpacked=%d MiB' %
+       (biggest[0]>>20,packed_bytes>>20,raw_bytes>>20),flush=True)
+ print('Largest entry:',biggest[1],flush=True)
+ # Keep bounded limits and enforce compression/expanded size independently.
+ assert biggest[0]<=256<<20, 'Oversized archive member; reject package'
+ assert packed_bytes<=512<<20, 'Compressed update exceeds 512 MiB'
+ assert raw_bytes<=1024<<20, 'Expanded update exceeds 1 GiB'
  partdir=out/'coop-assets';partdir.mkdir();parts=[]
  for start in range(0,len(packed),16<<20):
   data=packed[start:start+(16<<20)];digest=sha(data);(partdir/(digest+'.bin')).write_bytes(data);parts.append(dict(sha256=digest,size=len(data)))
