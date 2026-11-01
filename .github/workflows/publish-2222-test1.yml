@@ -26,7 +26,7 @@ jobs:
           const fs=require('fs'),{execFileSync}=require('child_process');
           const p=require('./build-support/release2222-test1/publication.json');
           const r=JSON.parse(execFileSync('gh',['api','repos/'+process.env.GITHUB_REPOSITORY+'/actions/runs/'+p.candidate_run_id],{encoding:'utf8'}));
-          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2222-hotfix1-candidate.yml')throw Error('Wrong or failed opt-in test release candidate');
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2222-test1-candidate.yml')throw Error('Wrong or failed opt-in test release candidate');
           fs.appendFileSync(process.env.GITHUB_OUTPUT,'run_id='+p.candidate_run_id+'\n');
           NODE
       - name: Check publisher syntax and preflight all signed releases
