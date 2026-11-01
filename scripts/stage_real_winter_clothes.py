@@ -22,7 +22,7 @@ PACKS = {
         "assets": {"toigo_fisherman_sweater": ("MargaretToigo", "CC0-1.0", "sweater")},
     },
     "shirts02": {
-        "file": "shirts02_cc-by.zip",
+        "file": "shirts02_ccby.zip",
         "assets": {
             "elvs_hooded_sweat_jacket1": ("Elvaerwyn", "CC-BY-4.0", "hooded jacket"),
             "mindfront_knitted_sweater_01": ("Mindfront", "CC-BY-4.0", "knitted sweater"),
@@ -174,7 +174,7 @@ def stage(pack: str, target: Path) -> dict:
         notice.append(f"{name}: {detail['creator']}, {detail['license']}, original work, derived adaptations (if any) must be credited.")
     notice.append("\nLicense links: https://creativecommons.org/licenses/by/4.0/ and https://creativecommons.org/publicdomain/zero/1.0/")
     (target / "CREDITS_AND_LICENSES.txt").write_text("\n".join(notice) + "\n", encoding="utf-8")
-    print(json.dumps({name: data["geometry"] for name, data in detail.items()}, indent=2))
+    print(json.dumps({name: item["geometry"] for name, item in manifest["authors_and_licenses"].items()}, indent=2))
     return manifest
 
 
