@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.2-hotfix.1"
+const changelogSeenVersion = "2.2.2.2-test.1"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -291,6 +291,24 @@ func earlierBridgeLogSection() logSection {
 // Every release, including hotfixes, has its own cumulative changelog section.
 // A separate cumulative changelog is mandatory for every hotfix. Existing
 // entries are retained; players updating from 2.2.2.2 see only this new entry.
+// Independent TEST release notes; all prior hotfix notes remain cumulative.
+func winterTest1LogSection() logSection {
+    return logSection{
+        label:logT("🧪 2.2.2.2-test.1 • TESTE","🧪 2.2.2.2-test.1 • TEST","🧪 2.2.2.2-test.1 • TEST"),
+        accent:logAccent(218,174,255),
+        entries:[]logEntry{
+            {logT("🧥 Roupas 3D: teste de encaixe","🧥 3D clothing: fit preview","🧥 3D-Kleidung: Anprobe-Test"),
+             logT("VERSÃO EXPERIMENTAL. A adaptação de casacos, toucas e luvas foi refeita por segmentos do esqueleto. Ative manualmente Roupas conforme o clima nas opções do jogo para testar. Os modelos ainda NÃO foram aprovados visualmente; fotografe frente, costas, caminhada, sentados e movimentação dos braços. Desative a opção se houver defeitos.",
+                  "EXPERIMENTAL BUILD. Coats, hats and gloves have been refitted to skeleton segments. Manually enable Weather-appropriate passenger clothing in game settings to test. Models have NOT been visually approved. Take front, rear, walking, seated and arm-motion screenshots. Disable this option if malformed.",
+                  "EXPERIMENTELLE VERSION. Jacken, Mützen und Handschuhe werden an Skelettsegmente angepasst. Wettergerechte Fahrgastkleidung in den Spieleinstellungen manuell einschalten. Noch NICHT visuell freigegeben. Bilder von Vorder-/Rückseite, Laufen, Sitzen und Armbewegungen machen. Bei Fehlern ausschalten.")},
+            {logT("🛡️ Controle de qualidade e retorno","🛡️ Safety and rollback","🛡️ Sicherheit und Rückkehr"),
+             logT("Nenhuma mecânica adicional é ativada automaticamente. A checagem de triângulos e coordenadas continua bloqueando geometrias inválidas e mantém o personagem original. A Hotfix 1 está preservada para recuperação; o jogo, Bridge, eventos BCS, servidor P15 e logs não foram propositalmente alterados.",
+                  "No additional game feature is enabled automatically. The triangle/coordinate checks continue to reject invalid geometry and preserve original passengers. Hotfix 1 remains available for rollback; unrelated Bridge, BCS, P15 and logging functionality is unchanged.",
+                  "Weitere Spielmechaniken werden nicht automatisch aktiviert. Ungültige Geometrie wird blockiert, Originalfahrgäste bleiben erhalten. Hotfix 1 bleibt für Rückkehr erhalten; Bridge, BBS, P15 und Protokollierung bleiben unverändert.")},
+        },
+    }
+}
+
 func winterSafetyHotfixLogSection() logSection {
     return logSection{
         label:logT("🛡️ 2.2.2.2 • HOTFIX 1","🛡️ 2.2.2.2 • HOTFIX 1","🛡️ 2.2.2.2 • HOTFIX 1"),
@@ -419,8 +437,10 @@ func logSections() []logSection {
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    if from==changelogSeenVersion{return []logSection{winterSafetyHotfixLogSection()}}
-    result:=[]logSection{winterSafetyHotfixLogSection()}
+    if from==changelogSeenVersion{return []logSection{winterTest1LogSection()}}
+    result:=[]logSection{winterTest1LogSection()}
+    if from=="2.2.2.2-hotfix.1"{return result}
+    result=append(result,winterSafetyHotfixLogSection())
     if from=="2.2.2.2"{return result}
     result=append(result,release2222LogSection())
     if from=="2.2.2.1-hotfix.2"{return result}

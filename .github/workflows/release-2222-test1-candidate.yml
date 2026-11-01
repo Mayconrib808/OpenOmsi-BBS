@@ -1,0 +1,239 @@
+name: Build Bridge 2.2.2.2 TEST 1 with opt-in 3D clothing and cumulative changelog
+on:
+  push:
+    branches: [release/2.2.2.2-test.1]
+    paths:
+      - .github/workflows/release-2222-test1-candidate.yml
+      - scripts/build_2222_test1.py
+      - source/version.go
+      - source/setup_changelog_windows.go
+      - source/setup_gui_windows.go
+      - source/company_gateway.go
+      - source/coop_update.go
+      - source/coop_update_test.go
+      - docs/releases/2.2.2.2-test.1.md
+      - build-support/release2222-test1/native-build.json
+      - build-support/release2222/launcher-build.json
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: release-2222-test1-candidate
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: 9717969bd1890f5b03ba072a5526adfb61d919b9
+          path: native-source
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Verify exact native branch CI and staging artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41327386037 | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect pinned native source CI' }
+          for ($i=0; $i -lt 280 -and $r.status -ne 'completed'; $i++) {
+            Start-Sleep -Seconds 15
+            $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41327386037 | ConvertFrom-Json
+          }
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '9717969bd1890f5b03ba072a5526adfb61d919b9' -or $r.path -ne '.github/workflows/build-winter-test1-native.yml') { throw 'Unapproved or incomplete native candidate' }
+          $qa=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41269757851 | ConvertFrom-Json
+          if($LASTEXITCODE -ne 0 -or $qa.status -ne 'completed' -or $qa.conclusion -ne 'success' -or $qa.path -ne '.github/workflows/test-winter-visual-safety.yml') { throw 'Required independent winter safety gate has not passed' }
+          $head=(git -C native-source rev-parse HEAD).Trim()
+          if ($head -ne $r.head_sha) { throw 'Native source archive mismatch' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.2-Test1-native-windows-CANDIDATE
+          run-id: 41327386037
+          github-token: ${{ github.token }}
+          path: tested-native
+      - name: Verify exact rebuilt 2.2.2.2 desktop lobby
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41260965494 | ConvertFrom-Json
+          for ($i=0; $i -lt 280 -and $r.status -ne 'completed'; $i++) {
+            Start-Sleep -Seconds 15
+            $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41260965494 | ConvertFrom-Json
+          }
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '4dd5bb79d91f522ee452aba0854676a3d0fd716c' -or $r.path -ne '.github/workflows/check-2222-desktop-launcher.yml') { throw 'Rebuilt matching 2.2.2.2 launcher missing or failed' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.2-desktop-launcher-CANDIDATE
+          run-id: 41260965494
+          github-token: ${{ github.token }}
+          path: tested-launcher
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2-native-Windows
+          run-id: 41157142308
+          github-token: ${{ github.token }}
+          path: prior-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix3-candidate
+          run-id: 40901236438
+          github-token: ${{ github.token }}
+          path: baseline
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-candidate
+          run-id: 40765546864
+          github-token: ${{ github.token }}
+          path: parts
+      - name: Unpack tested Windows lobby with all optional toggles
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip='tested-launcher/OpenOMSI-2.2.2.2-launcher-candidate.zip'
+          $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected=(Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
+          if ($digest -ne $expected) { throw 'Launcher ZIP integrity mismatch' }
+          New-Item -ItemType Directory -Force launcher | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath launcher -Force
+          $meta=Get-Content launcher/BUILD-INFO.json -Raw | ConvertFrom-Json
+          if ($meta.version -ne '0.3.46-coop.15-2.2.2.2' -or $meta.source_commit -ne '4dd5bb79d91f522ee452aba0854676a3d0fd716c' -or $meta.optional_ui_controls -ne 14) { throw 'Incorrect launcher build or feature switches' }
+          if ((Get-FileHash launcher/openomsi-launcher-app.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $meta.launcher_sha256) { throw 'Launcher binary mismatch' }
+      - name: Unpack exact native executable and verify provenance
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip='tested-native/OpenOMSI-winter-safety-hotfix-native.zip'
+          $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expect=(Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
+          if ($digest -ne $expect) { throw 'Native ZIP checksum mismatch' }
+          New-Item -ItemType Directory -Force native | Out-Null
+          Expand-Archive -LiteralPath $zip -DestinationPath native -Force
+          $details=Get-Content native/BUILD-INFO.json -Raw | ConvertFrom-Json
+          if ($details.source_commit -ne '9717969bd1890f5b03ba072a5526adfb61d919b9' -or $details.bridge_release_target -ne '2.2.2.2-test.1') { throw 'Wrong candidate source or version' }
+          $nativeDigest=(Get-FileHash native/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($nativeDigest -ne $details.exe_sha256) { throw 'Native executable checksum mismatch' }
+          if (-not (Test-Path native/bcs-assets/Vehicles/OpenOMSI_BCS/Fire/model/Fire.obj)) { throw '3D fire vehicle missing from native build' }
+          if (-not (Test-Path native/bcs-assets/Vehicles/OpenOMSI_BCS/Police/model/Police.obj)) { throw '3D police vehicle missing from native build' }
+          Get-ChildItem prior-native -Filter '*.dll' | Copy-Item -Destination native
+          git -C native-source archive --format=tar.gz --prefix=openomsi-2222-test1/ -o ../native/openomsi-source.tar.gz HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Failed to archive native source' }
+          & ./native/openomsi.exe --version | Out-File native/version.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native CLI failed' }
+          @'
+          import json,hashlib
+          from pathlib import Path
+          d=Path("native")
+          sha=lambda f:hashlib.sha256(f.read_bytes()).hexdigest()
+          commit="9717969bd1890f5b03ba072a5526adfb61d919b9"
+          version="0.3.46-coop.15-2.2.2.2-test.1"
+          assert version in (d/"version.txt").read_text(encoding="utf-8-sig")
+          info=dict(commit=commit,build_commit=commit,run_id=41327386037,
+              upstream_commit="17be22987d7c01c813a1473e7696fc71fb3b1d89",
+              version=version,native_sha256=sha(d/"openomsi.exe"),
+              source_sha256=sha(d/"openomsi-source.tar.gz"),
+              windows_gameplay_tested=False,
+              winter_overlay_fail_closed=True,unapproved_garments_visible=False)
+          (d/"SOURCE.json").write_text(json.dumps(info,indent=2)+"\n")
+          print("Verified source and native binary SHA:",info["native_sha256"])
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Native provenance invalid' }
+      - name: Confirm signed-manifest release inputs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $meta=Get-Content native/SOURCE.json -Raw | ConvertFrom-Json
+          if ($meta.version -ne '0.3.46-coop.15-2.2.2.2-test.1' -or $meta.run_id -ne 41327386037) { throw 'Mismatched P15 client/server candidate' }
+          node --test native-source/launcher/tests/optional-features.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'New settings not represented in source UI' }
+      - name: Validate compulsory cumulative changelog, including the 2.2.2.1 Hotfix 2
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $src=Get-Content source/setup_changelog_windows.go -Raw
+          foreach($text in @('winterSafetyHotfixLogSection','release2222LogSection','hotfix2221SecondLogSection','hotfix2221LogSection','release2221LogSection','const changelogSeenVersion = "2.2.2.2-test.1"')) {
+            if(-not $src.Contains($text)){throw "Required cumulative changelog part missing: $text"}
+          }
+          if($src.Contains('OpenOMSI BCS Bridge  •  2.2.2.1 Hotfix 1')) { throw "Outdated changelog window title" }
+          if(-not $src.Contains('if from==changelogSeenVersion{return []logSection{winterSafetyHotfixLogSection()}}')) { throw "Manually reopened release tour has empty sections" }
+      - name: Build cumulative Bridge, Setup, client and P15 server
+        shell: pwsh
+        run: |
+          python scripts/build_2222_test1.py --baseline baseline --parts parts --native native --launcher launcher --output build/release2222-test1
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge 2.2.2.2 packaging/regression failed' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Bridge-2.2.2.2-Test1-SETUP-GUI-DIAGNOSTICS
+          path: |
+            build/release2222-test1/runtime/app/setup-v1.1.3.log
+            build/release2222-test1/setup-previews/*
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Verify release and trust boundaries
+        shell: pwsh
+        run: |
+          @'
+          import json,hashlib
+          from pathlib import Path
+          p=Path("build/release2222-test1")
+          r=json.loads((p/"build-report.json").read_text())
+          s=json.loads((p/"coop-spec.json").read_text())
+          exe=(p/"Atualizar-Bridge.exe").read_bytes()
+          assert r["version"]=="2.2.2.2-test.1" and r["sequence"]==2026103107
+          assert r["native_candidate_run"]==41327386037
+          assert r["native_build_commit"]=="9717969bd1890f5b03ba072a5526adfb61d919b9"
+          assert r["desktop_launcher_unchanged"] is False
+          assert r["desktop_launcher_commit"]=="4dd5bb79d91f522ee452aba0854676a3d0fd716c"
+          assert r["desktop_launcher_run"]==41260965494
+          path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe'
+          assert s['files'][path]==r['desktop_launcher_sha256']
+          assert s['files']['OpenOmsi Coop 0.3.41/programa/openomsi.exe']==s['files']['app/server-dinamico-p15/openomsi.exe']
+          assert r['setup_changelog_ui_tested'] and r['bridge_regressions_tested']
+          assert r["complete_hosts_unchanged"] and r["p14_server_unchanged"]
+          assert r["bridge_regressions_tested"] and r["setup_changelog_ui_tested"]
+          assert r['winter_real_artist_assets_included'] and r['feature_event_audit_included']
+          assert r['per_release_changelog_including_hotfixes']
+          for name in ['toigo_gloves_short','mindfront_knitted_hat_01','elvs_hooded_sweat_jacket1']:
+              asset='OpenOmsi Coop 0.3.41/programa/bcs-assets/WinterClothes/'+name+'/garment.obj'
+              assert asset in s['files'], 'Winter garment missing from installed client '+name
+          assert r["updater_sha256"]==hashlib.sha256(exe).hexdigest()
+          assert r["coop_archive_sha256"]==s["sha256"]
+          assert all((p/"coop-assets"/(t["sha256"]+".bin")).is_file() for t in s["parts"])
+          print("Unsigned but verified winter safety hotfix candidate:",r["updater_sha256"],r["installer_size"])
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Release inventory invalid' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.2.2-Test1-CANDIDATE
+          path: |
+            build/release2222-test1/Atualizar-Bridge.exe
+            build/release2222-test1/build-report.json
+            build/release2222-test1/coop-spec.json
+            build/release2222-test1/coop_bundle_manifest.go
+            build/release2222-test1/coop-assets/*
+            build/release2222-test1/native-help.txt
+            build/release2222-test1/setup-previews/*
+          if-no-files-found: error
+          retention-days: 30
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.2.2-Test1-SIGNING-METADATA
+          path: |
+            build/release2222-test1/build-report.json
+            build/release2222-test1/coop-spec.json
+          if-no-files-found: error
+          retention-days: 30
