@@ -43,7 +43,7 @@ impl PeopleSim {
                 speaker: person.id,
                 path: path.clone(),
             });
-            self.voice_said.insert(path, self.time);
+            self.voice_said.insert(path.clone(), self.time);
             self.last_chat = self.time;
             self.demand_audit.conversation_lines += 1;
             record(Role::Host,"passenger_conversations",ResultKind::Completed,"audio_queued",

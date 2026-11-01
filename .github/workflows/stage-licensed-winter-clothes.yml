@@ -57,6 +57,10 @@ jobs:
           pack="${{ matrix.pack }}"
           report=json.loads((Path("staging-adapted")/pack/"conversion_report.json").read_text(encoding="utf8"))
           assert not report["release_approved"]
+          for part in report["entries"]:
+              binding=json.loads(Path(part["binding"]).read_text(encoding="utf-8"))
+              assert binding["per_vertex_weights"] and binding["copied_real_textures_and_materials"]
+              assert binding["fitted_to_stock_omsi_human"] is False
           for x in report["entries"]:
               assert Path(x["mesh"]).is_file()
               assert Path(x["binding"]).is_file()

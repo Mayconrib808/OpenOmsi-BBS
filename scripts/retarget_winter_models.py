@@ -137,7 +137,7 @@ def main():
         if not any(m["file"].lower().endswith((".png",".jpg",".jpeg",".tga")) for m in source_materials):
             raise ValueError(f"No actual fabric texture for {name}")
         binding["copied_real_textures_and_materials"]=source_materials
-        (dest/"skin_binding.json").write_text(json.dumps(binding,ensure_ascii=False,separators=(",",":"))+"\\n",encoding="utf-8")
+        (dest/"skin_binding.json").write_text(json.dumps(binding,ensure_ascii=False,separators=(",",":"))+"\n",encoding="utf-8")
         (dest/"ATTRIBUTION.txt").write_text(
             f"{name} | Artist: {item['creator']} | License: {item['license']}\n"
             f"Source: {item['source']}\n"
