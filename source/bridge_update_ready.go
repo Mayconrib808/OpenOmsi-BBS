@@ -1,0 +1,72 @@
+package main
+
+import (
+    "errors"
+    "fmt"
+    "os"
+    "path/filepath"
+    "strings"
+    "time"
+)
+
+// The Setup must not exit simply because CreateProcess succeeded. The
+// downloaded updater acknowledges its own startup and preflight first.
+func newBridgeUpdateHandoffPath() (string,error) {
+    cache,err:=os.UserCacheDir()
+    if err!=nil{return "",err}
+    dir:=filepath.Join(cache,"OpenOmsi-BBS","Updates")
+    if err=os.MkdirAll(dir,0700);err!=nil{return "",err}
+    f,err:=os.CreateTemp(dir,".bridge-handoff-*.signal")
+    if err!=nil{return "",err}
+    path:=f.Name()
+    if e:=f.Close();e!=nil{os.Remove(path);return "",e}
+    if e:=os.Remove(path);e!=nil{return "",e}
+    return path,nil
+}
+
+// The helper may create only a new handshake in the user's updater cache;
+// never accept an arbitrary file path from command-line arguments.
+func validateBridgeHandoffPath(path string) error {
+    cache,err:=os.UserCacheDir()
+    if err!=nil{return err}
+    dir:=filepath.Join(cache,"OpenOmsi-BBS","Updates")
+    if !filepath.IsAbs(path)||!strings.EqualFold(filepath.Clean(filepath.Dir(path)),filepath.Clean(dir))||
+       !strings.HasPrefix(filepath.Base(path),".bridge-handoff-")||!strings.HasSuffix(path,".signal"){
+        return fmt.Errorf("invalid updater handoff path")
+    }
+    return nil
+}
+func announceBridgeUpdateHandoff(path string,preflight error) error {
+    if path==""{return nil}
+    if err:=validateBridgeHandoffPath(path);err!=nil{return err}
+    content:="READY\n"
+    if preflight!=nil{content="ERROR: "+preflight.Error()+"\n"}
+    dir:=filepath.Dir(path)
+    f,err:=os.CreateTemp(dir,".handoff-pending-*.tmp")
+    if err!=nil{return err}
+    temp:=f.Name()
+    defer os.Remove(temp)
+    if _,err=f.WriteString(content);err!=nil{f.Close();return err}
+    if err=f.Sync();err!=nil{f.Close();return err}
+    if err=f.Close();err!=nil{return err}
+    // The parent observes either the complete READY/ERROR or nothing, never
+    // a partially written handoff.
+    return os.Rename(temp,path)
+}
+func awaitBridgeUpdateHandoff(path string,timeout time.Duration) error {
+    deadline:=time.Now().Add(timeout)
+    for {
+        raw,err:=os.ReadFile(path)
+        if err==nil {
+            message:=strings.TrimSpace(string(raw))
+            switch {
+            case message=="READY":return nil
+            case strings.HasPrefix(message,"ERROR: "):return errors.New(strings.TrimPrefix(message,"ERROR: "))
+            default:return fmt.Errorf("updater returned an invalid startup confirmation")
+            }
+        }
+        if !os.IsNotExist(err){return err}
+        if time.Now().After(deadline){return fmt.Errorf("o atualizador baixado não confirmou a inicialização; o Setup foi mantido aberto")}
+        time.Sleep(50*time.Millisecond)
+    }
+}
