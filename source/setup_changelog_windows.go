@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.2-test.1"
+const changelogSeenVersion = "2.2.2.2-test.2"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -292,6 +292,27 @@ func earlierBridgeLogSection() logSection {
 // A separate cumulative changelog is mandatory for every hotfix. Existing
 // entries are retained; players updating from 2.2.2.2 see only this new entry.
 // Independent TEST release notes; all prior hotfix notes remain cumulative.
+func winterTest2LogSection() logSection {
+    return logSection{
+        label:logT("🧪 2.2.2.2-test.2 • TESTE","🧪 2.2.2.2-test.2 • TEST","🧪 2.2.2.2-test.2 • TEST"),
+        accent:logAccent(134,218,194),
+        entries:[]logEntry{
+            {logT("🧥 Roupas ligadas ao corpo real","🧥 Clothes attached to the actual body","🧥 Kleidung an der echten Körperoberfläche"),
+             logT("Novo ajuste pela superfície do personagem carregado. Casacos, toucas e luvas acompanham a malha já animada ao andar, sentar ou mover os braços; a adaptação é reaproveitada por modelo. O teste visual no jogo ainda precisa ser confirmado.",
+                  "New fitting against the loaded passenger's surface. Coats, hats and gloves follow the final animated mesh during walking, sitting and arm movements; each model's fit is cached. In-game visual validation is still required.",
+                  "Neue Anpassung an die Oberfläche des geladenen Fahrgasts. Jacken, Mützen und Handschuhe folgen dem fertig animierten Körper beim Laufen, Sitzen und Bewegen der Arme. Die Anpassung wird je Modell gespeichert. Visuelle Prüfung im Spiel steht noch aus.")},
+            {logT("🔄 Atualização com início confirmado","🔄 Confirmed updater startup","🔄 Bestätigter Updater-Start"),
+             logT("O Setup aguarda a confirmação do atualizador mantendo a janela responsiva. Tentativas canceladas não podem instalar depois. Bloqueios temporários ao substituir executáveis são repetidos automaticamente; os limites do ZIP e dos arquivos foram alinhados ao pacote cumulativo.",
+                  "Setup waits for the updater's acknowledgement while remaining responsive. Canceled attempts cannot install later. Temporary executable locks are retried automatically; ZIP and member limits now match the cumulative package.",
+                  "Setup wartet bei weiterhin bedienbarer Oberfläche auf die Bestätigung des Updaters. Abgebrochene Versuche installieren später nichts. Temporäre Dateisperren werden automatisch erneut versucht; ZIP- und Dateigrenzen entsprechen dem Gesamtpaket.")},
+            {logT("📋 Diagnóstico e histórico acumulado","📋 Diagnostics and cumulative history","📋 Diagnose und vollständiger Änderungsverlauf"),
+             logT("O log identifica cada etapa da atualização e o motivo de falha. As roupas registram o modelo real, o método de fixação e os motivos de bloqueio. Este changelog é exclusivo da test 2 e mantém as mudanças anteriores desde sua última versão vista.",
+                  "Logs identify update stages and failure reasons. Clothing diagnostics include the actual model, attachment method and rejection reasons. Test 2 has its own changelog and retains changes since the last release you viewed.",
+                  "Protokolle zeigen Updatephasen und Fehlergründe sowie das tatsächliche Fahrgastmodell, die Befestigungsmethode und Ablehnungsgründe. Test 2 hat einen eigenen Änderungsverlauf mit allen seit der zuletzt angesehenen Version hinzugekommenen Änderungen.")},
+        },
+    }
+}
+
 func winterTest1LogSection() logSection {
     return logSection{
         label:logT("🧪 2.2.2.2-test.1 • TESTE","🧪 2.2.2.2-test.1 • TEST","🧪 2.2.2.2-test.1 • TEST"),
@@ -437,8 +458,10 @@ func logSections() []logSection {
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    if from==changelogSeenVersion{return []logSection{winterTest1LogSection()}}
-    result:=[]logSection{winterTest1LogSection()}
+    if from==changelogSeenVersion{return []logSection{winterTest2LogSection()}}
+    result:=[]logSection{winterTest2LogSection()}
+    if from=="2.2.2.2-test.1"{return result}
+    result=append(result,winterTest1LogSection())
     if from=="2.2.2.2-hotfix.1"{return result}
     result=append(result,winterSafetyHotfixLogSection())
     if from=="2.2.2.2"{return result}

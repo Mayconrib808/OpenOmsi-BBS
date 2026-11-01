@@ -15,7 +15,17 @@ var updateSetupUser32 = syscall.NewLazyDLL("user32.dll")
 // A PID supplied by an older Setup is a hint, not the identity of the target.
 // Fresh file-identity scans also handle a stale PID, another instance and the
 // manual updater. Only this installation's actual Setup windows are closed.
-func waitForSetupUpdate(_ uint32, dir string) error {
+func waitForSetupUpdate(parent uint32, dir string) error {
+	// A handoff-aware Setup exits after its worker returns to the UI thread.
+	// Do not race that completion with WM_CLOSE, which could open its Busy
+	// dialog while the worker is still marked active. Older Setups which do
+	// not exit themselves are asked to close normally after this short grace.
+	if parent!=0 && sameExecutableForUpdate(processExecutableForUpdate(parent),filepath.Join(dir,"Setup.exe")) {
+		if handle,err:=syscall.OpenProcess(0x00100000,false,parent);err==nil {
+			_,_=syscall.WaitForSingleObject(handle,3000)
+			syscall.CloseHandle(handle)
+		}
+	}
 	return awaitBridgeSetupClosure(45*time.Second, func() ([]uint32, error) {
 		return bridgeSetupsRunningForUpdate(dir)
 	}, func(pid uint32) error {

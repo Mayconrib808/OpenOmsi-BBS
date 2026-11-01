@@ -168,6 +168,10 @@ func (g *setupGUI) updateCommand() {
 		if err = checkUpdateHostClosed(g.dir); err != nil {
 			return guiResult{err: err}
 		}
+        // Fail while Setup is still visible, not after we have closed it.
+        running,err:=gamesRunning()
+        if err!=nil{return guiResult{err:err}}
+        if running{return guiResult{err:fmt.Errorf("feche BCS, OMSI e openOMSI antes de atualizar")}}
 		// Integrity drift in the old installation is a reason to repair it, not
 		// a reason to deny the signed updater. Keep it in the log for diagnosis
 		// but let the SHA-256/signature-verified update continue.
@@ -179,6 +183,7 @@ func (g *setupGUI) updateCommand() {
 			return guiResult{err: err}
 		}
 		path, err := downloadBridgeRelease(ctx, bridgeUpdateClient(), r.Installer, filepath.Join(cache, "OpenOmsi-BBS", "Updates"))
+		if err==nil {err=launchSetupUpdate(g.dir,path,r.Installer.SHA256)}
 		return guiResult{err: err, updateInstaller: path, updateHash: r.Installer.SHA256}
 	})
 }
@@ -187,7 +192,7 @@ func launchSetupUpdate(dir, path, hash string) error {
 	if err := verifyDownloadedBridgeRelease(path, hash); err != nil {
 		return err
 	}
-	return startBridgeUpdateProcess(path, filepath.Dir(path), "--target-dir", dir, "--wait-setup", strconv.Itoa(os.Getpid()), "--reopen")
+	return startBridgeUpdateWithAcknowledgment(path, filepath.Dir(path), "--target-dir", dir, "--wait-setup", strconv.Itoa(os.Getpid()), "--reopen")
 }
 
 func (g *setupGUI) renderUpdateState() {

@@ -28,6 +28,11 @@ type coopDistribution struct {
 	Files     map[string]string
 }
 
+// These are the same bounded budgets enforced by the cumulative packager.
+const coopMaxArchiveBytes = 512 << 20
+const coopMaxMemberBytes = 256 << 20
+const coopMaxExpandedBytes = 1024 << 20
+
 func coopDigestValid(value string) bool {
 	b, err := hex.DecodeString(value)
 	return err == nil && len(b) == sha256.Size && value == strings.ToLower(value)
@@ -100,7 +105,7 @@ func readCoopDistribution(data []byte, spec coopDistribution) (map[string][]byte
 		}
 		expected, ok := spec.Files[name]
 		total += entry.UncompressedSize64
-		if !ok || files[name] != nil || entry.UncompressedSize64 > 128<<20 || total > 512<<20 {
+		if !ok || files[name] != nil || entry.UncompressedSize64 > coopMaxMemberBytes || total > coopMaxExpandedBytes {
 			return nil, fmt.Errorf("arquivo inesperado no pacote do Cooperativo")
 		}
 		r, err := entry.Open()
@@ -124,7 +129,7 @@ func downloadCoopDistribution(ctx context.Context, client *http.Client, origin s
 	if err != nil {
 		return nil, err
 	}
-	if !coopDigestValid(spec.SHA256) || spec.Size < 1 || spec.Size > 512<<20 || len(spec.Parts) == 0 || len(spec.Parts) > 32 {
+	if !coopDigestValid(spec.SHA256) || spec.Size < 1 || spec.Size > coopMaxArchiveBytes || len(spec.Parts) == 0 || len(spec.Parts) > 32 {
 		return nil, fmt.Errorf("distribuição do Cooperativo inválida")
 	}
 	var expectedSize int64

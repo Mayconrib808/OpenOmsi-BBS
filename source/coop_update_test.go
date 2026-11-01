@@ -88,6 +88,22 @@ func TestCumulativeBundleInstallsManagedServerAndCoopAtExactPaths(t *testing.T) 
 	}
 }
 
+func TestCumulativeNativeMemberLargerThanOld128MiBLimit(t *testing.T) {
+    // A real ZIP member just above the obsolete limit, generated in chunks so
+    // the input fixture does not require another 129 MiB allocation.
+    var data bytes.Buffer
+    archive:=zip.NewWriter(&data)
+    member,err:=archive.Create("test/programa/openomsi.exe");if err!=nil{t.Fatal(err)}
+    block:=bytes.Repeat([]byte{'x'},1<<20);hash:=sha256.New()
+    for i:=0;i<129;i++ {if _,err=member.Write(block);err!=nil{t.Fatal(err)};hash.Write(block)}
+    if err=archive.Close();err!=nil{t.Fatal(err)}
+    name:=bundledCoopFolder+"/programa/openomsi.exe"
+    spec:=coopDistribution{Prefix:"test/",Size:int64(data.Len()),SHA256:fmt.Sprintf("%x",sha256.Sum256(data.Bytes())),Files:map[string]string{name:fmt.Sprintf("%x",hash.Sum(nil))}}
+    files,err:=readCoopDistribution(data.Bytes(),spec)
+    if err!=nil{t.Fatalf("valid native member rejected by obsolete budget: %v",err)}
+    if len(files[name])!=129<<20{t.Fatal("large member was truncated")}
+}
+
 func TestCoopDownloadRechecksCacheAndRejectsChangedPart(t *testing.T) {
 	data, spec := coopFixture(t)
 	parts := map[string][]byte{}

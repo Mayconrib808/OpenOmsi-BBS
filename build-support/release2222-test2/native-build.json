@@ -1,0 +1,11 @@
+{
+  "commit": "176f9a140b4b7b929464a639176ee012a86868de",
+  "workflow": ".github/workflows/release-2222-test2-candidate.yml",
+  "version": "0.3.46-coop.15-2.2.2.2-test.2",
+  "protocol": 15,
+  "windows_gameplay_tested": false,
+  "paired_gameplay_tested": false,
+  "winter_preview_compiled": true,
+  "winter_visual_approved": false,
+  "weather_clothing_opt_in_required": true
+}

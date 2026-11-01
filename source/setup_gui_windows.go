@@ -403,11 +403,10 @@ func (g *setupGUI) finish() {
 	}
 	guiSetText(g.status, result.status)
 	if result.updateInstaller != "" {
-		if err := launchSetupUpdate(g.dir, result.updateInstaller, result.updateHash); err != nil {
-			guiMessageBox(g.window, err.Error(), 0x10)
-			return
-		}
-		guiUser.NewProc("DestroyWindow").Call(g.window)
+		// Download, validation and startup acknowledgement ran in the worker.
+		// Keep the UI responsive and the update button disabled until ready.
+		logSetup(g.dir,"update-handoff-acknowledged",nil)
+        guiUser.NewProc("DestroyWindow").Call(g.window)
 		// The child updater has started and verified its download. Finish this
 		// process now: closing only the window can leave COM/UI teardown alive
 		// long enough to block replacement of Setup.exe. All work has completed;
@@ -929,22 +928,24 @@ func runSetupGUI(dir string, smoke bool) error {
                 // never replay one the user already acknowledged. 2.2.2.1
                 // had no working tour, so Hotfix 3 -> Hotfix 1 shows BOTH.
                 for _, tc := range []struct{from string; want int; newest string}{
-                    {"2.2.2.2-hotfix.1",1,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.2.2",2,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.2.1-hotfix.2",3,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.2.1-hotfix.1",4,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.2.1",5,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.2-hotfix.3",6,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.2-hotfix.2",7,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.2-hotfix.1",8,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.2",9,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.1.9",14,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"2.2.0.8",15,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"",15,"🧪 2.2.2.2-test.1 • TESTE"},
+                    {"2.2.2.2-test.1",1,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2.2-test.2",1,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2.2-hotfix.1",2,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2.2",3,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2.1-hotfix.2",4,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2.1-hotfix.1",5,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2.1",6,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2-hotfix.3",7,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2-hotfix.2",8,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2-hotfix.1",9,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.2",10,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.1.9",15,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"2.2.0.8",16,"🧪 2.2.2.2-test.2 • TESTE"},
+                    {"",16,"🧪 2.2.2.2-test.2 • TESTE"},
                 }{
                     sections:=selectLogSections(tc.from)
                     if len(sections)!=tc.want{return fmt.Errorf("changelog from %q expected %d chapters, got %d",tc.from,tc.want,len(sections))}
-                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[5].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
+                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[6].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
                         return fmt.Errorf("changelog from %q has missing or wrong cumulative sections",tc.from)
                     }
                 }

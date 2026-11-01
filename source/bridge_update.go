@@ -142,7 +142,7 @@ func previousBridgeChangelogVersion(dir string) string {
     if marker, err := os.ReadFile(filepath.Join(appDir(dir), "changelog-seen.txt")); err == nil {
         seen := strings.TrimSpace(string(marker))
         switch seen {
-        case "2.2.2", "2.2.2-hotfix.1", "2.2.2-hotfix.2", "2.2.2-hotfix.3", "2.2.2.1", "2.2.2.1-hotfix.1":
+        case "2.2.2", "2.2.2-hotfix.1", "2.2.2-hotfix.2", "2.2.2-hotfix.3", "2.2.2.1", "2.2.2.1-hotfix.1", "2.2.2.1-hotfix.2", "2.2.2.2", "2.2.2.2-hotfix.1", "2.2.2.2-test.1", "2.2.2.2-test.2":
             return seen
         }
     }
@@ -242,6 +242,10 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 		if e != nil && !os.IsNotExist(e) {
 			return state, e
 		}
+		// A cumulative update carries many unchanged assets. Do not retain a
+		// second copy or ask Windows to replace an identical, possibly scanned
+		// executable. Changed files still keep the full rollback behavior.
+		if e==nil && bytes.Equal(b,files[name]){continue}
 		previous[name] = b
 		order = append(order, name)
 	}
