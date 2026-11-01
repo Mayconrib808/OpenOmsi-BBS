@@ -940,7 +940,7 @@ func runSetupGUI(dir string, smoke bool) error {
                     {"2.2.2",9,"🧪 2.2.2.2-test.1 • TESTE"},
                     {"2.2.1.9",14,"🧪 2.2.2.2-test.1 • TESTE"},
                     {"2.2.0.8",15,"🧪 2.2.2.2-test.1 • TESTE"},
-                    {"",14,"🧪 2.2.2.2-test.1 • TESTE"},
+                    {"",15,"🧪 2.2.2.2-test.1 • TESTE"},
                 }{
                     sections:=selectLogSections(tc.from)
                     if len(sections)!=tc.want{return fmt.Errorf("changelog from %q expected %d chapters, got %d",tc.from,tc.want,len(sections))}
