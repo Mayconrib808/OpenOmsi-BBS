@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.2"
+const changelogSeenVersion = "2.2.2.2-hotfix.1"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -289,6 +289,25 @@ func earlierBridgeLogSection() logSection {
 // section is shown only when that release is newer than the last acknowledged
 // changelog; installing several releases at once still shows their full history.
 // Every release, including hotfixes, has its own cumulative changelog section.
+// A separate cumulative changelog is mandatory for every hotfix. Existing
+// entries are retained; players updating from 2.2.2.2 see only this new entry.
+func winterSafetyHotfixLogSection() logSection {
+    return logSection{
+        label:logT("🛡️ 2.2.2.2 • HOTFIX 1","🛡️ 2.2.2.2 • HOTFIX 1","🛡️ 2.2.2.2 • HOTFIX 1"),
+        accent:logAccent(145,211,245),
+        entries:[]logEntry{
+            {logT("🧥 Roupas deformadas desativadas","🧥 Broken clothing hidden","🧥 Verformte Kleidung ausgeblendet"),
+             logT("Corrigida a renderização de roupas de frio não adaptadas aos passageiros. Modelos experimentais sem aprovação de encaixe e animação são bloqueados, evitando triângulos gigantes, casacos flutuantes e toucas deslocadas. Os humanos usam suas roupas originais até existirem modelos realmente ajustados.",
+                  "Unfitted experimental winter garments can no longer render as giant triangles, detached coats or misplaced hats. Until actual passenger-rig visual validation is complete, original passenger clothing remains visible.",
+                  "Nicht angepasste experimentelle Winterkleidung erzeugt keine riesigen Dreiecke, schwebenden Jacken oder verschobenen Mützen mehr. Bis zur visuellen Prüfung bleibt die Originalkleidung sichtbar.")},
+            {logT("🔒 Demais funções preservadas","🔒 Other features preserved","🔒 Andere Funktionen bleiben"),
+             logT("Mantidos o servidor P15, o launcher com 14 opções, os logs detalhados, os eventos BCS e as demais mecânicas da 2.2.2.2. Esta hotfix não anuncia roupas novas como prontas: o encaixe real aos esqueletos continua pendente de validação visual.",
+                  "P15 server, 14 launcher options, detailed logs, BCS events and all other 2.2.2.2 features are preserved. This hotfix does not claim the winter garments are visually fixed; stock-rig fitting remains unapproved.",
+                  "P15-Server, 14 Launcher-Optionen, ausführliche Protokolle, BBS-Ereignisse und übrige 2.2.2.2-Funktionen bleiben. Die Winterkleidung ist noch nicht visuell angepasst und freigegeben.")},
+        },
+    }
+}
+
 func release2222LogSection() logSection {
     return logSection{
         label: logT("🧥 2.2.2.2 • ROUPAS E LOGS","🧥 2.2.2.2 • WINTER & LOGS","🧥 2.2.2.2 • WINTER & PROTOKOLLE"),
@@ -400,8 +419,10 @@ func logSections() []logSection {
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    if from==changelogSeenVersion{return []logSection{release2222LogSection()}}
-    result:=[]logSection{release2222LogSection()}
+    if from==changelogSeenVersion{return []logSection{winterSafetyHotfixLogSection()}}
+    result:=[]logSection{winterSafetyHotfixLogSection()}
+    if from=="2.2.2.2"{return result}
+    result=append(result,release2222LogSection())
     if from=="2.2.2.1-hotfix.2"{return result}
     result=append(result,hotfix2221SecondLogSection())
     if from=="2.2.2.1-hotfix.1"{return result}
