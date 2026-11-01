@@ -9,8 +9,8 @@ The `actual_installed_stock_humans_fit_without_triangle_explosions` Rust test re
 In PowerShell from the repository root (adjust paths to your installation and the extracted, test-only artist bundle):
 
 ```powershell
-$env:OPENOMSI_WINTER_TEST_ASSETS = 'C:\\qa\\winter-test-assets'
-$env:OPENOMSI_WINTER_STOCK_HUMANS = 'C:\\Program Files (x86)\\Steam\\steamapps\\common\\OMSI 2\\Humans\\Other\\man02.hum;C:\\Program Files (x86)\\Steam\\steamapps\\common\\OMSI 2\\Humans\\Other\\woman01.hum'
+$env:OPENOMSI_WINTER_TEST_ASSETS = 'C:\qa\winter-test-assets'
+$env:OPENOMSI_WINTER_STOCK_HUMANS = 'C:\Program Files (x86)\Steam\steamapps\common\OMSI 2\Humans\Other\man02.hum;C:\Program Files (x86)\Steam\steamapps\common\OMSI 2\Humans\Other\woman01.hum'
 cargo test --locked -p omsi-app actual_installed_stock_humans_fit_without_triangle_explosions -- --nocapture
 ```
 
