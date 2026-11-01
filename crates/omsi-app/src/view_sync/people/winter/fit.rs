@@ -9,7 +9,7 @@ use super::{Art,Rig};
 use glam::{Quat,Vec3};
 
 const MAX_EDGE_M:f32=0.32;
-const MAX_STRETCH:f32=3.25;
+const MAX_STRETCH:f32=6.25; // Adjacent sleeve seams on the real hooded jacket reach ~6x locally; absolute 32 cm edge limit still blocks spikes.
 const EPS:f32=0.0001;
 
 #[derive(Clone,Copy)]
