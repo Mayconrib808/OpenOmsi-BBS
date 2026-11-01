@@ -544,22 +544,32 @@ impl TrafficSim {
         if self.open_run(st, target, s_target, need + 15.0) < need + 15.0 { return false; }
         let player_leaving = ts.player.and_then(|p| self.letting_out(i, &p))
             .is_some_and(|gap| courtesy_window(gap, st.speed));
+        let mut ai_bus_to_yield: Option<u64> = None;
         let ai_leaving = ts.by_lane.get(&st.lane).into_iter().flatten().any(|&(j, s, _, foreign)| {
             if foreign || i == j { return false; }
             let bus = &self.cars[j];
             let gap = s - bus.state.rear - st.s - st.front;
-            courtesy_window(gap, st.speed)
+            let eligible=courtesy_window(gap, st.speed)
                 && bus.state.speed < 0.5
                 && bus.bus.as_ref().is_some_and(|b| {
                     b.phase == Phase::Closing
                         && b.stops.front().is_some_and(|stop| stop.bay.abs() > 0.5)
                 })
-                && bus.state.signal == (if self.net.left_hand { 2 } else { 1 })
+                && bus.state.signal == (if self.net.left_hand { 2 } else { 1 });
+            if eligible {ai_bus_to_yield=Some(bus.id);}
+            eligible
         });
         if !(player_leaving || ai_leaving) { return false; }
         let source_lane = st.lane;
         let car_id = car.id;
         let changed = self.try_change(i, target, dir, ChangeKind::Choice, ts, None);
+        crate::feature_audit::record(crate::feature_audit::Role::Host,"cars_yield_to_buses",
+            if changed {crate::feature_audit::ResultKind::Executed}
+            else {crate::feature_audit::ResultKind::Blocked},
+            if changed {"lane_change_started"}else{"safe_lane_change_rejected"},
+            &format!("car={} bus={} from_lane={} to_lane={} player_bus={} ai_bus={:?} outcome={}",
+                car_id,if player_leaving {"player".to_string()} else {format!("{:?}",ai_bus_to_yield)},
+                source_lane,target,player_leaving,ai_bus_to_yield,if changed {"yielded"}else{"blocked"}));
         if changed {
             log::info!("FEATURE AUDIT cars_yield_to_buses performed car={} lane={} target={} player_bus_leaving={} ai_bus_leaving={}",
                 car_id, source_lane, target, player_leaving, ai_leaving);
