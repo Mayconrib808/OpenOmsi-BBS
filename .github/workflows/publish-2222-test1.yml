@@ -65,7 +65,7 @@ jobs:
           path: approved-prior2211hf2
       - uses: actions/download-artifact@v4
         with:
-          name: Bridge-2.2.2.1-Test1-CANDIDATE
+          name: Bridge-2.2.2.1-Hotfix1-CANDIDATE
           run-id: 41237643318
           github-token: ${{ github.token }}
           path: approved-prior2211hf1

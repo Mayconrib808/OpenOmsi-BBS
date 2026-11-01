@@ -165,11 +165,11 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $src=Get-Content source/setup_changelog_windows.go -Raw
-          foreach($text in @('winterSafetyHotfixLogSection','release2222LogSection','hotfix2221SecondLogSection','hotfix2221LogSection','release2221LogSection','const changelogSeenVersion = "2.2.2.2-test.1"')) {
+          foreach($text in @('winterTest1LogSection','winterSafetyHotfixLogSection','release2222LogSection','hotfix2221SecondLogSection','hotfix2221LogSection','release2221LogSection','const changelogSeenVersion = "2.2.2.2-test.1"')) {
             if(-not $src.Contains($text)){throw "Required cumulative changelog part missing: $text"}
           }
           if($src.Contains('OpenOMSI BCS Bridge  •  2.2.2.1 Hotfix 1')) { throw "Outdated changelog window title" }
-          if(-not $src.Contains('if from==changelogSeenVersion{return []logSection{winterSafetyHotfixLogSection()}}')) { throw "Manually reopened release tour has empty sections" }
+          if(-not $src.Contains('if from==changelogSeenVersion{return []logSection{winterTest1LogSection()}}')) { throw "Manually reopened release tour has empty sections" }
       - name: Build cumulative Bridge, Setup, client and P15 server
         shell: pwsh
         run: |
