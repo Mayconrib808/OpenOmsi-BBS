@@ -146,10 +146,27 @@ impl Traffic {
             self.illegal_parking_frequency.clamp(0.0, 5.0)
         } else { 0.0 };
         self.sim.advance(dt, player);
+        let role = if self.sim.mirror {omsi_sim::feature_audit::Role::Client}
+                   else {omsi_sim::feature_audit::Role::Host};
+        for (name,enabled) in [
+            ("ai_bus_overtaking",self.optional_features.ai_bus_overtaking),
+            ("cars_yield_to_buses",self.optional_features.cars_yield_to_buses),
+            ("illegal_parking",self.optional_features.illegal_parking),
+            ("dynamic_traffic",true),
+        ] {omsi_sim::feature_audit::heartbeat(role,name,enabled);}
         if self.sim.time - self.last_feature_report >= 60.0 {
             self.last_feature_report = self.sim.time;
             let extended = self.sim.extended_density.road.len();
             let active_parks = self.sim.cars.iter().filter(|c| c.temporary_park.is_some()).count();
+            log::info!("FEATURE DENSITY role={} active_street={} active_buses={} active_rail={} active_parked={} max_scheduled={} density_actual={:.3} density_map_baseline={:.3} density_factor={:.3} group_curves={} extended_day_groups={} event_outcomes_in_FEATURE_SUMMARY=true",
+                if self.sim.mirror {"client_mirror"}else{"host"},
+                self.sim.cars.iter().filter(|c| !c.is_bus() && !c.is_rail() && c.park.is_none()).count(),
+                self.sim.cars.iter().filter(|c|c.is_bus()).count(),
+                self.sim.cars.iter().filter(|c|c.is_rail()).count(),
+                self.sim.cars.iter().filter(|c|c.park.is_some()).count(),
+                self.sim.max_scheduled,
+                self.sim.street_density(),self.sim.street_density_map(),self.sim.unsched_factor,
+                self.sim.group_curves,extended);
             log::info!(
                 "FEATURE AUDIT traffic mirror={} total_ai={} ai_bus_overtaking={} cars_yield_to_buses={} illegal_parking={} frequency_percent={:.1} parked_events_active={} extra_traffic_density={} extended_day_groups={} extended_road_rules={} weekday={} public_holiday={} stock_group_curves={}",
                 self.sim.mirror, self.sim.cars.len(), self.optional_features.ai_bus_overtaking,
