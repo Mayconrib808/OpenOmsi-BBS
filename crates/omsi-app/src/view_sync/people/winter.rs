@@ -10,7 +10,7 @@ use omsi_render::{AlphaMode,MaterialId,MeshId,Renderer,Scene};
 use omsi_sim::feature_audit::{record,ResultKind,Role};
 use omsi_sim::human::{self,Rig};
 use serde::Deserialize;
-use std::{fs,path::Path};
+use std::{fs,path::{Path,PathBuf}};
 
 const MAX_NPCS:usize=12;
 const MAX_NEW_FRAME:usize=2;
@@ -142,6 +142,14 @@ fn parse_obj(buf:&[u8],binding:&Binding)->Result<(MeshData,Vec<Vec<(usize,f32,Ve
     mesh.one_sided=false;
     Ok((mesh,skin))
 }
+fn winter_install_root(map_content_root:&Path)->PathBuf {
+    // Updates put native bcs-assets beside openomsi.exe, not necessarily under
+    // the original OMSI 2 map root passed to World::open.
+    std::env::current_exe().ok()
+        .and_then(|p|p.parent().map(|dir|dir.join("bcs-assets").join("WinterClothes")))
+        .filter(|dir|dir.is_dir())
+        .unwrap_or_else(||map_content_root.join("bcs-assets").join("WinterClothes"))
+}
 fn load_asset(root:&Path,name:&str)->Result<Art,String>{
     if !allowed_texture_name(name){return Err("bad asset name".into());}
     let dir=root.join(name);
@@ -221,11 +229,12 @@ impl Renders {
     fn setup(&mut self,root:&Path,renderer:&Renderer,scene:&mut Scene){
         if self.loaded{return;}
         self.loaded=true;
+        let asset_root=winter_install_root(root);
         for name in [
             "elvs_hooded_sweat_jacket1","toigo_fisherman_sweater","mindfront_knitted_sweater_01",
             "elvs_slouchy_beanie1","mindfront_knitted_hat_01","toigo_gloves_short"
         ] {
-            match load_asset(&root.join("bcs-assets").join("WinterClothes"),name) {
+            match load_asset(&asset_root,name) {
                 Ok(art)=>{
                     let tex=renderer.add_texture(scene,&art.diffuse,true);
                     let mat=renderer.add_material_extra(scene,Some(tex),AlphaMode::Opaque,[1.;4],false,
@@ -334,7 +343,7 @@ impl Renders {
                 record(Role::Client,"winter_clothing",ResultKind::Completed,"real_mesh_uploaded_and_instance_visible",
                     &format!("person={} temperature_c={:.1} stock_model={} asset_file={} vertices={} original_diffuse_texture=true bone_deformed=true",
                         p.id,temp,p.ty.def.path.display(),
-                        root.join("bcs-assets").join("WinterClothes").join(&art.name).join("garment.obj").display(),
+                        winter_install_root(root).join(&art.name).join("garment.obj").display(),
                         part.positions.len()));
             }
         }
