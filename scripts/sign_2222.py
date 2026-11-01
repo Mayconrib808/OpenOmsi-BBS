@@ -28,7 +28,7 @@ assert report["setup_live_update_ui_tested"] is True
 assert report["complete_hosts_unchanged"] and not report["complete_hosts_rebuilt"]
 assert report["p14_server_unchanged"] and report["bridge_regressions_tested"]
 assert report["native_client_sha256"]["openomsi.exe"]==report["dynamic_p15_sha256"]
-assert report["desktop_launcher_run"]==41251825053 and report["desktop_launcher_unchanged"]
+assert report["desktop_launcher_run"]==41260965494 and not report["desktop_launcher_unchanged"]
 assert not report["windows_gameplay_tested"] and not report["paired_gameplay_tested"]
 assert re.fullmatch("[a-f0-9]{64}",report["updater_sha256"])
 assert 1_000_000<report["installer_size"]<=25<<20

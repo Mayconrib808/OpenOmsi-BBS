@@ -1,0 +1,8 @@
+{
+  "run_id": 41260965494,
+  "commit": "4dd5bb79d91f522ee452aba0854676a3d0fd716c",
+  "workflow": ".github/workflows/check-2222-desktop-launcher.yml",
+  "version": "0.3.46-coop.15-2.2.2.2",
+  "native_release": "2.2.2.2",
+  "optional_ui_controls": 14
+}

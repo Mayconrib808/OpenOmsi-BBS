@@ -8,7 +8,7 @@ on:
       - source/version.go
       - docs/releases/2.2.2.2.md
       - build-support/release2222/native-build.json
-      - build-support/release2221-hotfix2/launcher-build.json
+      - build-support/release2222/launcher-build.json
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -57,10 +57,21 @@ jobs:
           run-id: 41260601016
           github-token: ${{ github.token }}
           path: tested-native
+      - name: Verify exact rebuilt 2.2.2.2 desktop lobby
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41260965494 | ConvertFrom-Json
+          for ($i=0; $i -lt 280 -and $r.status -ne 'completed'; $i++) {
+            Start-Sleep -Seconds 15
+            $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41260965494 | ConvertFrom-Json
+          }
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '4dd5bb79d91f522ee452aba0854676a3d0fd716c' -or $r.path -ne '.github/workflows/check-2222-desktop-launcher.yml') { throw 'Rebuilt matching 2.2.2.2 launcher missing or failed' }
       - uses: actions/download-artifact@v4
         with:
-          name: OpenOMSI-2.2.2.1-hotfix2-desktop-launcher-CANDIDATE
-          run-id: 41251825053
+          name: OpenOMSI-2.2.2.2-desktop-launcher-CANDIDATE
+          run-id: 41260965494
           github-token: ${{ github.token }}
           path: tested-launcher
       - uses: actions/download-artifact@v4
@@ -85,14 +96,14 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $zip='tested-launcher/OpenOMSI-2.2.2.1-hotfix2-launcher-candidate.zip'
+          $zip='tested-launcher/OpenOMSI-2.2.2.2-launcher-candidate.zip'
           $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           $expected=(Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
           if ($digest -ne $expected) { throw 'Launcher ZIP integrity mismatch' }
           New-Item -ItemType Directory -Force launcher | Out-Null
           Expand-Archive -LiteralPath $zip -DestinationPath launcher -Force
           $meta=Get-Content launcher/BUILD-INFO.json -Raw | ConvertFrom-Json
-          if ($meta.version -ne '0.3.46-coop.15-2.2.2.1-hotfix.2' -or $meta.source_commit -ne '174474733605a70c4e8f09f22ee91cebbb23ece9' -or $meta.optional_ui_controls -ne 14) { throw 'Incorrect launcher build or feature switches' }
+          if ($meta.version -ne '0.3.46-coop.15-2.2.2.2' -or $meta.source_commit -ne '4dd5bb79d91f522ee452aba0854676a3d0fd716c' -or $meta.optional_ui_controls -ne 14) { throw 'Incorrect launcher build or feature switches' }
           if ((Get-FileHash launcher/openomsi-launcher-app.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $meta.launcher_sha256) { throw 'Launcher binary mismatch' }
       - name: Unpack exact native executable and verify provenance
         shell: pwsh
@@ -166,9 +177,9 @@ jobs:
           assert r["version"]=="2.2.2.2" and r["sequence"]==2026103105
           assert r["native_candidate_run"]==41260601016
           assert r["native_build_commit"]=="d69e4272c9541f55ece1fc49261e09a1d63ef300"
-          assert r["desktop_launcher_unchanged"] is True
-          assert r["desktop_launcher_commit"]=="174474733605a70c4e8f09f22ee91cebbb23ece9"
-          assert r["desktop_launcher_run"]==41251825053
+          assert r["desktop_launcher_unchanged"] is False
+          assert r["desktop_launcher_commit"]=="4dd5bb79d91f522ee452aba0854676a3d0fd716c"
+          assert r["desktop_launcher_run"]==41260965494
           path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe'
           assert s['files'][path]==r['desktop_launcher_sha256']
           assert s['files']['OpenOmsi Coop 0.3.41/programa/openomsi.exe']==s['files']['app/server-dinamico-p15/openomsi.exe']

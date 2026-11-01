@@ -51,8 +51,8 @@ if(process.argv[2]==='prepare'){
       ||report.bridge_regressions_tested!==true||report.setup_changelog_ui_tested!==true
       ||report.setup_live_update_ui_tested!==true||report.coop_protocol!==15
       ||report.windows_gameplay_tested!==false||report.paired_gameplay_tested!==false
-      ||report.desktop_launcher_unchanged!==true||report.desktop_launcher_run!==41251825053
-      ||report.desktop_launcher_commit!=='174474733605a70c4e8f09f22ee91cebbb23ece9')
+      ||report.desktop_launcher_unchanged!==false||report.desktop_launcher_run!==41260965494
+      ||report.desktop_launcher_commit!=='4dd5bb79d91f522ee452aba0854676a3d0fd716c')
     throw Error('Candidate incomplete, wrong version, or regression flags missing');
   if(!report.winter_real_artist_assets_included||!report.feature_event_audit_included||
       !report.per_release_changelog_including_hotfixes)throw Error('Winter/log/changelog not contained in candidate');
