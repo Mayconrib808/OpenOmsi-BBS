@@ -19,9 +19,24 @@ impl Feed {
         let worker_value = value.clone();
         let worker_running = running.clone();
         std::thread::Builder::new().name("BCS incident capture reader".into()).spawn(move || {
+            let mut reported: Option<(u32,u32,u64,bool)> = None;
             while worker_running.load(Ordering::Relaxed) {
                 let next = scan(&directory, now_ms());
-                if let Ok(mut slot) = worker_value.lock() { *slot = accept_poll(slot.take(), next, now_ms()); }
+                if let Ok(mut slot) = worker_value.lock() {
+                    let accepted=accept_poll(slot.take(), next, now_ms());
+                    if let Some(s) = accepted.as_ref().filter(|s|s.event>0) {
+                        let key=(s.pid,s.event,s.instance,s.completed);
+                        if reported!=Some(key) {
+                            reported=Some(key);
+                            omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Client,
+                                "bcs_events",omsi_sim::feature_audit::ResultKind::Evaluated,
+                                "source_event_received",
+                                &format!("pid={} event={} instance={} requested_service={} completed={} delay_elapsed={}",
+                                    s.pid,s.event,s.instance,s.service,s.completed,s.delay_elapsed));
+                        }
+                    }
+                    *slot=accepted;
+                }
                 std::thread::sleep(Duration::from_millis(250));
             }
         }).ok()?;
