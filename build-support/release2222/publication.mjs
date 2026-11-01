@@ -15,7 +15,7 @@ function decode(raw) {
   return JSON.parse(payload);
 }
 const current=decode(oldSigned),release=decode(signed);
-if(current.version!=='2.2.2.1-hotfix.2'||current.sequence!==2026103104)throw Error('Unexpected Hotfix 1 signed baseline');
+if(current.version!=='2.2.2.1-hotfix.2'||current.sequence!==2026103104)throw Error('Unexpected 2.2.2.1 Hotfix 2 signed baseline');
 if(release.schema!==1||release.version!=='2.2.2.2'||release.sequence!==2026103105||release.sequence<=current.sequence)throw Error('Wrong 2.2.2.2 signed release identity');
 if(info.version!==release.version||info.sequence!==release.sequence)throw Error('Signed release disagrees with publication identity');
 const installer=release.installer;
@@ -92,7 +92,7 @@ if(process.argv[2]==='prepare'){
     chunks.push(bytes);
   }
   if(sha(Buffer.concat(chunks))!==spec.sha256||!binary.includes(Buffer.from(spec.sha256)))throw Error('Cumulative ZIP was not authenticated by updater');
-  console.log('VERIFIED staging: 2.2.2.1 Hotfix 2 with new lobby, corrected LAN seats, old-version rollback and authenticated P15 assets');
+  console.log('VERIFIED staging: 2.2.2.2 with winter clothes, feature logs, modern lobby, 2.2.2.1 Hotfix 2 rollback and authenticated P15 assets');
 }else if(process.argv[2]==='verify-live'){
   const live=await loadLive();
   if(!live.equals(signed))throw Error('Live update feed does not match signed 2.2.2.2');
@@ -102,5 +102,5 @@ if(process.argv[2]==='prepare'){
     const response=await fetch(origin+'/packages/'+name,{headers:{'Cache-Control':'no-cache'},signal:AbortSignal.timeout(120000)});
     if(!response.ok||sha(Buffer.from(await response.arrayBuffer()))!==name.slice(0,64))throw Error('Live asset missing/corrupt: '+name);
   }
-  console.log('LIVE VERIFIED: Signed Hotfix 2 + working 2.2.2.1 rollback installer + new lobby and exact P15 assets');
+  console.log('LIVE VERIFIED: Signed 2.2.2.2 + working 2.2.2.1 Hotfix 2 rollback installer + new lobby and exact P15 assets');
 }else throw Error('Expected prepare or verify-live');
