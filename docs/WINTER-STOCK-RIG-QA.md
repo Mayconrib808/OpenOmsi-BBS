@@ -11,10 +11,10 @@ In PowerShell from the repository root (adjust paths to your installation and th
 ```powershell
 $env:OPENOMSI_WINTER_TEST_ASSETS = 'C:\qa\winter-test-assets'
 $env:OPENOMSI_WINTER_STOCK_HUMANS = 'C:\Program Files (x86)\Steam\steamapps\common\OMSI 2\Humans\Other\man02.hum;C:\Program Files (x86)\Steam\steamapps\common\OMSI 2\Humans\Other\woman01.hum'
-cargo test --locked -p omsi-app actual_installed_stock_humans_fit_without_triangle_explosions -- --nocapture
+cargo test --locked -p omsi-app actual_installed_stock_humans_fit_without_triangle_explosions -- --ignored --nocapture
 ```
 
-The example human filenames are placeholders: choose .hum paths that **actually exist** in the installed game. A missing `OPENOMSI_WINTER_STOCK_HUMANS` explicitly **skips** this test and does not count as QA. Record the list of real .hum paths and the `STOCK_HUMAN_NUMERIC_FIT_OK` results. Even passing this test does not authorize release.
+The example human filenames are placeholders: choose .hum paths that **actually exist** in the installed game. The licensed-stock-human test is **ignored by default in CI**. An explicit `--ignored` run **fails** if `OPENOMSI_WINTER_STOCK_HUMANS` is missing, rather than silently passing; a green CI badge is never evidence of real stock-human testing. Record the list of real .hum paths and the `STOCK_HUMAN_NUMERIC_FIT_OK` results. Even passing this test does not authorize release.
 
 ## Required visual QA in the actual game
 
