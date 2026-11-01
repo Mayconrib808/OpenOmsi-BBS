@@ -284,7 +284,13 @@ impl Renders {
                 if triangles>VERTEX_BUDGET/3 {break;}
                 let rest=fitted(art,&p.ty.rig);
                 let part=if let Some(mut reuse)=self.spare.get_mut(&idx).and_then(|v|v.pop()){
-                    reuse.rest=rest;reuse.reported=false;reuse
+                    // The GPU instance was last skinned to another passenger. Its
+                    // cached vertex buffers cannot be reused without an upload.
+                    reuse.rest=rest;
+                    reuse.positions.clear();
+                    reuse.normals.clear();
+                    reuse.reported=false;
+                    reuse
                 }else{
                     let mesh=renderer.add_mesh(scene,&art.base);
                     let instance=renderer.add_instance(scene,mesh,at,xf,vec![self.materials[idx]]);
