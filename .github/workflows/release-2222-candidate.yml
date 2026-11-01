@@ -6,6 +6,7 @@ on:
       - .github/workflows/release-2222-candidate.yml
       - scripts/build_2222.py
       - source/version.go
+      - source/setup_changelog_windows.go
       - docs/releases/2.2.2.2.md
       - build-support/release2222/native-build.json
       - build-support/release2222/launcher-build.json
@@ -159,6 +160,8 @@ jobs:
           foreach($text in @('release2222LogSection','hotfix2221SecondLogSection','hotfix2221LogSection','release2221LogSection','const changelogSeenVersion = "2.2.2.2"')) {
             if(-not $src.Contains($text)){throw "Required cumulative changelog part missing: $text"}
           }
+          if($src.Contains('OpenOMSI BCS Bridge  •  2.2.2.1 Hotfix 1')) { throw "Outdated changelog window title" }
+          if(-not $src.Contains('if from==changelogSeenVersion{return []logSection{release2222LogSection()}}')) { throw "Manually reopened release tour has empty sections" }
       - name: Build cumulative Bridge, Setup, client and P15 server
         shell: pwsh
         run: |
