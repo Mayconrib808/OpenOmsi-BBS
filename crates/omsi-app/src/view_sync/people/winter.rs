@@ -233,11 +233,14 @@ fn load_asset_candidate(root:&Path,name:&str)->Result<(Art,bool),String>{
 // textures only prove they can be parsed, NOT that they fit stock OMSI rigs.
 fn load_asset(root:&Path,name:&str)->Result<Art,String>{
     let (art,approved)=load_asset_candidate(root,name)?;
-    // A runtime environment variable must never bypass visual QA in a shipped
-    // executable. Candidate geometry is exercised by load_asset_candidate in
-    // automated tests, but only explicitly reviewed assets enter live rendering.
-    if !approved {
-        return Err("stock-rig fitting not visually approved; garment withheld from live renderer".into());
+    // TEST CHANNEL ONLY. The designated experimental build may load the
+    // unapproved artist meshes for in-game screenshots. This flag is injected
+    // at compilation, never taken from a user's runtime environment.
+    // Live rendering still requires weather_clothing=true from the launcher;
+    // all invalid rig fits and stretched posed triangles remain fail-closed.
+    const TEST_CHANNEL: bool = matches!(option_env!("OPENOMSI_WINTER_TEST_PREVIEW"),Some("1"));
+    if !approved && !TEST_CHANNEL {
+        return Err("stock-rig fitting not visually approved; garment withheld from stable renderer".into());
     }
     Ok(art)
 }
