@@ -19,7 +19,7 @@ MAX_TEXTURE = 2048
 def clean_bad_png_ancillary(path: Path) -> list[str]:
     """Repair broken ancillary metadata only; never alter critical image/IDAT bytes."""
     data=path.read_bytes()
-    if not data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
         raise ValueError(f"Not a PNG: {path}")
     off=8
     out=bytearray(data[:8])
