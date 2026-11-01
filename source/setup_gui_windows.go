@@ -929,19 +929,21 @@ func runSetupGUI(dir string, smoke bool) error {
                 // never replay one the user already acknowledged. 2.2.2.1
                 // had no working tour, so Hotfix 3 -> Hotfix 1 shows BOTH.
                 for _, tc := range []struct{from string; want int; newest string}{
-                    {"2.2.2.1-hotfix.1",0,""},
-                    {"2.2.2.1",1,"🛠️ 2.2.2.1 • HOTFIX 1"},
-                    {"2.2.2-hotfix.3",2,"🛠️ 2.2.2.1 • HOTFIX 1"},
-                    {"2.2.2-hotfix.2",3,"🛠️ 2.2.2.1 • HOTFIX 1"},
-                    {"2.2.2-hotfix.1",4,"🛠️ 2.2.2.1 • HOTFIX 1"},
-                    {"2.2.2",5,"🛠️ 2.2.2.1 • HOTFIX 1"},
-                    {"2.2.1.9",10,"🛠️ 2.2.2.1 • HOTFIX 1"},
-                    {"2.2.0.8",11,"🛠️ 2.2.2.1 • HOTFIX 1"},
-                    {"",11,"🛠️ 2.2.2.1 • HOTFIX 1"},
+                    {"2.2.2.2",1,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.2.1-hotfix.2",1,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.2.1-hotfix.1",2,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.2.1",3,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.2-hotfix.3",4,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.2-hotfix.2",5,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.2-hotfix.1",6,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.2",7,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.1.9",15,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.0.8",16,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"",16,"🧥 2.2.2.2 • ROUPAS E LOGS"},
                 }{
                     sections:=selectLogSections(tc.from)
                     if len(sections)!=tc.want{return fmt.Errorf("changelog from %q expected %d chapters, got %d",tc.from,tc.want,len(sections))}
-                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[1].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
+                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[3].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
                         return fmt.Errorf("changelog from %q has missing or wrong cumulative sections",tc.from)
                     }
                 }

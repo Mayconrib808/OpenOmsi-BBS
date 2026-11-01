@@ -637,10 +637,11 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
         guiUser.NewProc("SendMessageW").Call(hwnd,guiWMSetFont,g.font,1)
         return hwnd
     }
-    // Eleven release categories are possible for a user updating from an
-    // older Bridge. Adapt the tab spacing so none disappear below the footer.
+    // Cumulative updates can contain up to sixteen release sections.
+    // Keep ALL section buttons above the bottom footer on 780px dialogs.
     tabTop,tabStep,tabHeight:=152,65,54
     if len(logSections())>8{tabTop,tabStep,tabHeight=141,48,42}
+    if len(logSections())>11{tabTop,tabStep,tabHeight=130,33,30}
     for i,s:=range logSections(){
         hwnd:=control(logL(g.config.Language,s.label),17,tabTop+i*tabStep,232,tabHeight,logIDSectionBase+i)
         changelogState.buttons=append(changelogState.buttons,hwnd)
