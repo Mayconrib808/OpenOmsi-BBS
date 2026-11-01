@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.1-hotfix.1"
+const changelogSeenVersion = "2.2.2.2"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -288,6 +288,49 @@ func earlierBridgeLogSection() logSection {
 // Newer releases must be listed before the old cumulative sections. Each
 // section is shown only when that release is newer than the last acknowledged
 // changelog; installing several releases at once still shows their full history.
+// Every release, including hotfixes, has its own cumulative changelog section.
+func release2222LogSection() logSection {
+    return logSection{
+        label: logT("🧥 2.2.2.2 • ROUPAS E LOGS","🧥 2.2.2.2 • WINTER & LOGS","🧥 2.2.2.2 • WINTER & PROTOKOLLE"),
+        accent: logAccent(126,211,180),
+        entries: []logEntry{
+            {logT("🧣 Roupas 3D reais para passageiros","🧣 Artist-made 3D passenger clothes","🧣 Echte 3D-Winterkleidung"),
+             logT("Modelos de artistas com texturas originais: jaquetas, suéteres, toucas e luvas para NPCs padrões. De 6 a 15 °C: casaco; até 5 °C, ou neve a até 12 °C: touca e luvas também. Roupas são opcionais, com limites de distância e quantidade para proteger o FPS. O cachecol ainda não está incluído e o caimento visual precisa de teste em mapas reais.",
+                  "Original artist-authored jackets, sweaters, hats and gloves for stock NPCs. From 6 to 15 °C: outerwear. At or below 5 °C, or snow at or below 12 °C: hats and gloves too. Optional feature, distance and count limits. Scarves are not included yet; in-game fit still requires validation.",
+                  "Originale Künstler-Modelle für Jacken, Pullover, Mützen und Handschuhe bei Standard-Fahrgästen. Bei 6–15 °C Jacken, bei maximal 5 °C oder Schnee bis 12 °C auch Mützen und Handschuhe. Optional, mit Leistungsgrenzen. Schal und Praxistest stehen noch aus.")},
+            {logT("📋 Logs com ações reais e resultados","📋 Actual actions and results in logs","📋 Tatsächliche Aktionen und Ergebnisse"),
+             logT("Os logs distinguem oportunidade ausente, tentativa, execução, conclusão, bloqueio e falha. Incluem IDs e motivos para ultrapassagem de ônibus IA, carros cedendo passagem, estacionamento irregular, conversas, roupas por temperatura, trânsito e eventos BCS.",
+                  "Feature logs distinguish no opportunity, attempt, execution, completion, blockage and failure. IDs and reasons cover AI overtaking, yielding cars, illegal parking, conversations, winter clothing, traffic density and BCS response events.",
+                  "Funktionsprotokolle unterscheiden keine Gelegenheit, Versuch, Ausführung, Abschluss, Sperre und Fehler. Kennungen und Gründe für KI-Überholen, Vorfahrt, Falschparken, Gespräche, Winterkleidung, Verkehr und BBS-Einsätze.")},
+            {logT("⏱️ Resumos e separação host/cliente","⏱️ Periodic summaries, host and client","⏱️ Zusammenfassungen für Host und Client"),
+             logT("A cada 60 segundos, FEATURE SUMMARY reúne avaliados, executados, concluídos, bloqueados e motivos. O host relata decisões de simulação; o cliente relata carregamento 3D e áudio aceito no mixer. O registro de áudio não garante som fisicamente ouvido.",
+                  "FEATURE SUMMARY every 60 seconds groups evaluations, execution, completion and blockers. Host reports simulation actions; client reports 3D loading and audio accepted by the mixer. Mixer acceptance does not guarantee speaker output.",
+                  "FEATURE SUMMARY fasst alle 60 Sekunden Prüfungen, Ausführungen, Abschlüsse und Sperrgründe zusammen. Host: Simulation; Client: 3D-Grafik und Audiomixer. Mixer-Annahme bedeutet nicht zwingend hörbaren Ton.")},
+            {logT("🛡️ Compatibilidade e limites","🛡️ Compatibility and limitations","🛡️ Kompatibilität und Grenzen"),
+             logT("Mantidos os eventos BCS, veículos 3D de polícia/bombeiro, funções existentes, launcher com 14 opções e o servidor P15. Roupas extras não substituem os humanos originais e ficam desativadas se a opção Roupas conforme o clima estiver desligada. Esta versão ainda exige confirmação de aparência e FPS no jogo.",
+                  "BCS events, 3D police/fire vehicles, existing functions, 14 launcher settings and P15 server are retained. Clothing overlays preserve original humans and follow the weather-clothing toggle. Visual fitting and FPS require in-game confirmation.",
+                  "BBS-Ereignisse, 3D-Polizei/Feuerwehr, bisherige Funktionen, 14 Launcher-Optionen und P15-Server bleiben. Kleidung ergänzt die Originalmenschen nur mit aktivierter Wetter-Option. Sichtprüfung und FPS-Test stehen aus.")},
+        },
+    }
+}
+
+func hotfix2221SecondLogSection() logSection {
+    return logSection{
+        label:logT("🚓 2.2.2.1 • HOTFIX 2","🚓 2.2.2.1 • HOTFIX 2","🚓 2.2.2.1 • HOTFIX 2"),
+        accent:logAccent(255,154,105),
+        entries:[]logEntry{
+            {logT("🚨 Polícia e bombeiro 3D","🚨 3D police and fire responders","🚨 3D-Polizei und Feuerwehr"),
+             logT("Acrescentados veículos 3D de substituição aos eventos BCS quando o modelo adequado não estiver instalado. O movimento e a posição ainda exigem teste visual por mapa.",
+                  "Original 3D fallback response vehicles for BCS incidents when preferred map models are missing. Movement and placement require in-game verification.",
+                  "Originale 3D-Ersatzfahrzeuge für BBS-Ereignisse bei fehlenden Kartenmodellen. Bewegung und Position müssen geprüft werden.")},
+            {logT("🚗 Estacionamento e interface","🚗 Parking frequency and launcher","🚗 Parkhäufigkeit und Launcher"),
+             logT("Frequência do estacionamento irregular entre 0 e 5%, passo de 0,1%, com persistência. Lobby recompilado, preservando 14 configurações opcionais.",
+                  "Illegal-parking frequency now persists from 0 to 5% in 0.1% steps; rebuilt Windows lobby retains all 14 optional settings.",
+                  "Falschparkhäufigkeit von 0 bis 5 % in 0,1-%-Schritten wird gespeichert; der Windows-Launcher behält 14 Optionen.")},
+        },
+    }
+}
+
 func hotfix2221LogSection() logSection {
     return logSection{
         label:logT("🛠️ 2.2.2.1 • HOTFIX 1","🛠️ 2.2.2.1 • HOTFIX 1","🛠️ 2.2.2.1 • HOTFIX 1"),
@@ -358,7 +401,11 @@ func logSections() []logSection {
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
     if from==changelogSeenVersion{return []logSection{}}
-    result:=[]logSection{hotfix2221LogSection()}
+    result:=[]logSection{release2222LogSection()}
+    if from=="2.2.2.1-hotfix.2"{return result}
+    result=append(result,hotfix2221SecondLogSection())
+    if from=="2.2.2.1-hotfix.1"{return result}
+    result=append(result,hotfix2221LogSection())
     if from=="2.2.2.1"{return result}
     result=append(result,release2221LogSection())
     if from=="2.2.2-hotfix.3"{return result}
