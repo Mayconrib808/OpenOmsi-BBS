@@ -199,6 +199,15 @@ impl Humans {
                     st.avatar_checked = (!view.avatars || avatars::pool().is_some()) && picked.is_none() == avatar.is_none();
                     st.made_as = (Arc::as_ptr(&ty) as usize, variant);
                     st.avatar = avatar;
+                    let clothing_name = variant.checked_sub(1).and_then(|i|ty.variants.get(i))
+                        .map(|s|s.name.as_str()).unwrap_or("original");
+                    omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Client,
+                        "winter_clothing", if st.meshes.is_empty() {
+                            omsi_sim::feature_audit::ResultKind::Failed
+                        } else {omsi_sim::feature_audit::ResultKind::Completed},
+                        if st.meshes.is_empty() {"stock_mesh_not_created"} else {"stock_mesh_draw_instances_created"},
+                        &format!("person={} original_model={} selected_cti={} variant={} mesh_instances={} artist_winter_3d_applied=false",
+                            id,ty.def.path.display(),clothing_name,variant,st.meshes.len()));
                 }
                 BodyOp::Retire { id, tkey, variant } => view.retire_meshes(id, tkey, variant),
                 BodyOp::Renamed { from, to } => view.rename(from, to),
