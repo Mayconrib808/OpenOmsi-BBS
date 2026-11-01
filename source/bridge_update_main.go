@@ -134,7 +134,8 @@ func main() {
         if preflight!=nil{cleanBridgeUpdateHandoff(opts.handoff);os.Exit(1)}
         if err=awaitBridgeUpdateAcceptance(opts.handoff,35*time.Second);err!=nil{
             logAutomaticUpdate(dir,"handoff-not-accepted",err)
-            return
+            cleanBridgeUpdateHandoff(opts.handoff)
+            os.Exit(1)
         }
         cleanBridgeUpdateHandoff(opts.handoff)
     }

@@ -66,9 +66,13 @@ def main():
             wait_until(ready.exists,30,'actual updater never acknowledged startup')
             assert ready.read_text().strip()=='READY',ready.read_text()
             assert old.poll() is None,'updater closed Setup before acknowledgement was accepted'
-            Path(str(ready)+'.accepted').write_text('ACCEPTED\n')
+            # Exercise the Windows CRLF form explicitly rather than relying on
+            # this Python interpreter's platform-specific newline conversion.
+            Path(str(ready)+'.accepted').write_bytes(b'ACCEPTED\r\n')
             code=updater.wait(timeout=180)
-            assert code==0,f'first updater invocation failed: exit={code}'
+            install_log=(target/'app/setup-v1.1.3.log').read_text(errors='replace')
+            assert code==0,f'first updater invocation failed: exit={code}\n{install_log[-6000:]}'
+            assert 'automatic-update-install: <nil>' in install_log,f'updater exited without installing:\n{install_log[-6000:]}'
             old.wait(timeout=20)
             assert hashlib.sha256(setup.read_bytes()).hexdigest()==expected_setup,'old Setup was not replaced'
             for name,digest in spec['files'].items():
@@ -82,6 +86,7 @@ def main():
                 'status':'passed','actual_executable':'Atualizar-Bridge.exe',
                 'invocations':1,'running_old_setup_replaced':True,
                 'startup_acceptance_required':True,'coop_extraction_exercised':True,
+                'windows_crlf_acceptance_tested':True,
                 'managed_files_verified':len(spec['files']),
                 'unmanaged_preferences_preserved':True,'setup_reopened':True,
                 'setup_sha256':expected_setup,'windows_gameplay_tested':False,

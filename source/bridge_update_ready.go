@@ -42,6 +42,9 @@ func announceBridgeUpdateHandoff(path string,preflight error) error {
     if _,err:=os.Stat(path+".canceled");err==nil{return fmt.Errorf("updater startup was canceled by Setup")}
     content:="READY\n"
     if preflight!=nil{content="ERROR: "+preflight.Error()+"\n"}
+    return writeBridgeUpdateSignal(path,content)
+}
+func writeBridgeUpdateSignal(path,content string) error {
     dir:=filepath.Dir(path)
     f,err:=os.CreateTemp(dir,".handoff-pending-*.tmp")
     if err!=nil{return err}
@@ -58,14 +61,21 @@ func announceBridgeUpdateHandoff(path string,preflight error) error {
 // never close Setup or install later unless that exact attempt was accepted.
 func acceptBridgeUpdateHandoff(path string) error {
     if err:=validateBridgeHandoffPath(path);err!=nil{return err}
-    return os.WriteFile(path+".accepted",[]byte("ACCEPTED\n"),0600)
+    return writeBridgeUpdateSignal(path+".accepted","ACCEPTED\n")
 }
 func awaitBridgeUpdateAcceptance(path string,timeout time.Duration) error {
     deadline:=time.Now().Add(timeout)
     for {
         if _,err:=os.Stat(path+".canceled");err==nil{return fmt.Errorf("Setup canceled this updater attempt")}
         raw,err:=os.ReadFile(path+".accepted")
-        if err==nil && string(raw)=="ACCEPTED\n"{return nil}
+        if err==nil {
+            // Windows text writers commonly use CRLF; LF and CRLF carry the
+            // same acknowledgement. Empty legacy writes remain pending until
+            // complete. Never turn an invalid acknowledgement into acceptance.
+            message:=strings.TrimSpace(string(raw))
+            if message=="ACCEPTED"{return nil}
+            if message!=""{return fmt.Errorf("Setup returned an invalid updater acceptance")}
+        }
         if err!=nil && !os.IsNotExist(err){return err}
         if time.Now().After(deadline){return fmt.Errorf("Setup did not accept this updater attempt; no files were changed")}
         time.Sleep(50*time.Millisecond)

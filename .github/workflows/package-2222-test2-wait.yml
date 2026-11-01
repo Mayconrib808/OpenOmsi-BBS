@@ -26,6 +26,11 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Verify Windows acceptance messages and updater process regressions
+        shell: pwsh
+        run: |
+          python scripts/test_2222_test2_updater.py
+          if($LASTEXITCODE -ne 0){throw 'Updater handshake regression failed'}
       - uses: actions/download-artifact@v4
         with:
           name: OpenOMSI-2.2.2.2-Test2-native-windows-CANDIDATE
@@ -86,6 +91,7 @@ jobs:
           assert r['version']=='2.2.2.2-test.2' and r['sequence']==2026110102
           assert r['complete_hosts_unchanged'] and not r['complete_hosts_rebuilt'] and r['p14_server_unchanged']
           assert r['actual_updater_first_attempt_windows_tested'] and actual['invocations']==1 and actual['status']=='passed'
+          assert actual['windows_crlf_acceptance_tested']
           assert r['native_build_commit']=='176f9a140b4b7b929464a639176ee012a86868de'
           assert s['files']['OpenOmsi Coop 0.3.41/programa/openomsi.exe']==s['files']['app/server-dinamico-p15/openomsi.exe']
           assert r['per_release_changelog_including_hotfixes'] and r['setup_changelog_ui_tested']
