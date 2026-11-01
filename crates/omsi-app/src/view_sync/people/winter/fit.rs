@@ -271,15 +271,16 @@ mod tests{
             }
         }
     }
-    #[test] fn actual_installed_stock_humans_fit_without_triangle_explosions(){
+    #[test]
+    #[ignore = "requires licensed OMSI .hum/.o3d files; run explicitly with --ignored"]
+    fn actual_installed_stock_humans_fit_without_triangle_explosions(){
         // Opt-in integration gate using the *real* licensed OMSI .hum/.o3d
         // files, not synthetic mannequin coordinates. A public CI runner
         // cannot redistribute or invent the user's installed stock humans.
         // This is NUMERICAL validation, never an in-game visual sign-off.
-        let Some(files)=std::env::var_os("OPENOMSI_WINTER_STOCK_HUMANS") else {
-            eprintln!("STOCK_HUMAN_NUMERIC_QA_SKIPPED: set OPENOMSI_WINTER_STOCK_HUMANS to one or more installed .hum paths");
-            return;
-        };
+        // Ignored by ordinary CI; an explicit QA run MUST fail without assets.
+        let files=std::env::var_os("OPENOMSI_WINTER_STOCK_HUMANS")
+            .expect("STOCK_HUMAN_NUMERIC_QA_MISSING: supply licensed .hum paths and --ignored");
         let asset_base=std::env::var("OPENOMSI_WINTER_TEST_ASSETS")
             .expect("stock-human QA needs OPENOMSI_WINTER_TEST_ASSETS");
         let humans:Vec<_>=std::env::split_paths(&files).collect();
