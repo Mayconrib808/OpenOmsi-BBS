@@ -40,7 +40,7 @@ def main():
  before={name:sha(data)for name,data in files.items()}
  evidence=readjson(a.native/'SOURCE.json');pin=readjson(ROOT/'build-support/release2222-test2/native-build.json')
  assert evidence['build_commit']==pin['commit']
- assert evidence['run_id']==int(os.environ['GITHUB_RUN_ID'])
+ assert evidence['run_id']==pin.get('run_id',int(os.environ['GITHUB_RUN_ID']))
  assert pin['workflow']=='.github/workflows/release-2222-test2-candidate.yml'
  assert evidence['upstream_commit']==UPSTREAM and evidence['version']==NATIVE_VERSION
  # Public safety gate: unrigged MakeHuman models may be included for

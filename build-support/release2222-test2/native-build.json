@@ -7,5 +7,9 @@
   "paired_gameplay_tested": false,
   "winter_preview_compiled": true,
   "winter_visual_approved": false,
-  "weather_clothing_opt_in_required": true
+  "weather_clothing_opt_in_required": true,
+  "run_id": 41345899315,
+  "artifact_id": 13101040765,
+  "artifact_sha256": "80b9d86ddb70eb55fc3e54b1f1bb96346e11c901e4187d7cb65b764ebdbee58e",
+  "native_job_id": 124965516134
 }

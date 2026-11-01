@@ -1,0 +1,122 @@
+name: Package TEST 2 - wait for actual Windows process exit
+on:
+  push:
+    branches: [fix/2222-test2-package-wait]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: package-2222-test2-wait
+  cancel-in-progress: true
+jobs:
+  bridge:
+    name: Package passed test 2 and verify first-attempt installation
+    runs-on: windows-2022
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.2-Test2-native-windows-CANDIDATE
+          run-id: 41345899315
+          github-token: ${{ github.token }}
+          path: native
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.2-desktop-launcher-CANDIDATE
+          run-id: 41260965494
+          github-token: ${{ github.token }}
+          path: tested-launcher
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2-native-Windows
+          run-id: 41157142308
+          github-token: ${{ github.token }}
+          path: prior-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix3-candidate
+          run-id: 40901236438
+          github-token: ${{ github.token }}
+          path: baseline
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-candidate
+          run-id: 40765546864
+          github-token: ${{ github.token }}
+          path: parts
+      - name: Verify exact retained launcher and DLLs
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip='tested-launcher/OpenOMSI-2.2.2.2-launcher-candidate.zip'
+          if((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()){throw 'Launcher checksum mismatch'}
+          Expand-Archive -LiteralPath $zip -DestinationPath launcher -Force
+          Get-ChildItem prior-native -Filter '*.dll' | Copy-Item -Destination native
+          # GUI-subsystem executables can return to PowerShell before their
+          # process exits. Wait through subprocess.run and check its real status.
+          python -c "import subprocess; r=subprocess.run(['native/openomsi.exe','--version'],capture_output=True,text=True,timeout=60); print(r.stdout+r.stderr); r.check_returncode(); assert '0.3.46-coop.15-2.2.2.2-test.2' in r.stdout+r.stderr"
+          if($LASTEXITCODE -ne 0){throw 'Staged native version verification failed'}
+      - name: Build Bridge and matching client/server, preserve complete hosts, run first-attempt installation
+        shell: pwsh
+        run: |
+          python scripts/build_2222_test2.py --baseline baseline --parts parts --native native --launcher launcher --output build/release2222-test2
+          if($LASTEXITCODE -ne 0){throw 'Cumulative build, Windows GUI or first-attempt update failed'}
+      - name: Verify test 2 final inventory
+        shell: pwsh
+        run: |
+          @'
+          import json,hashlib
+          from pathlib import Path
+          p=Path('build/release2222-test2')
+          r=json.loads((p/'build-report.json').read_text())
+          s=json.loads((p/'coop-spec.json').read_text())
+          actual=json.loads((p/'one-click-install-test.json').read_text())
+          assert r['version']=='2.2.2.2-test.2' and r['sequence']==2026110102
+          assert r['complete_hosts_unchanged'] and not r['complete_hosts_rebuilt'] and r['p14_server_unchanged']
+          assert r['actual_updater_first_attempt_windows_tested'] and actual['invocations']==1 and actual['status']=='passed'
+          assert r['native_build_commit']=='176f9a140b4b7b929464a639176ee012a86868de'
+          assert s['files']['OpenOmsi Coop 0.3.41/programa/openomsi.exe']==s['files']['app/server-dinamico-p15/openomsi.exe']
+          assert r['per_release_changelog_including_hotfixes'] and r['setup_changelog_ui_tested']
+          assert not r['windows_gameplay_tested'] and not r['winter_visual_approved']
+          assert hashlib.sha256((p/'Atualizar-Bridge.exe').read_bytes()).hexdigest()==r['updater_sha256']
+          print('TEST 2 CANDIDATE READY. Gameplay visual confirmation and signed-feed promotion remain pending.')
+          '@ | python -
+          if($LASTEXITCODE -ne 0){throw 'Final candidate inventory invalid'}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Bridge-Test2-FAILURE-DIAGNOSTICS
+          path: |
+            build/release2222-test2/one-click-install-setup.log
+            build/release2222-test2/runtime/app/setup-v1.1.3.log
+            build/release2222-test2/setup-previews/*
+          if-no-files-found: warn
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.2.2-Test2-CANDIDATE
+          path: |
+            build/release2222-test2/Atualizar-Bridge.exe
+            build/release2222-test2/build-report.json
+            build/release2222-test2/coop-spec.json
+            build/release2222-test2/coop_bundle_manifest.go
+            build/release2222-test2/coop-assets/*
+            build/release2222-test2/native-help.txt
+            build/release2222-test2/one-click-install-test.json
+            build/release2222-test2/one-click-install-setup.log
+            build/release2222-test2/setup-previews/*
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
