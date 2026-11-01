@@ -185,8 +185,11 @@ fn load_asset_candidate(root:&Path,name:&str)->Result<(Art,bool),String>{
 // textures only prove they can be parsed, NOT that they fit stock OMSI rigs.
 fn load_asset(root:&Path,name:&str)->Result<Art,String>{
     let (art,approved)=load_asset_candidate(root,name)?;
-    if !approved && std::env::var("OPENOMSI_WINTER_REST_FIT_PREVIEW").ok().as_deref()!=Some("1") {
-        return Err("stock-rig fitting not visually approved; enable only in preview builds for geometry tests".into());
+    // A runtime environment variable must never bypass visual QA in a shipped
+    // executable. Candidate geometry is exercised by load_asset_candidate in
+    // automated tests, but only explicitly reviewed assets enter live rendering.
+    if !approved {
+        return Err("stock-rig fitting not visually approved; garment withheld from live renderer".into());
     }
     Ok(art)
 }

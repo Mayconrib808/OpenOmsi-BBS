@@ -203,6 +203,61 @@ mod tests{
             }
         }
     }
+    #[test] fn seven_real_garments_remain_bounded_during_joint_poses(){
+        // Exercise the actual authored meshes through continuous shoulder,
+        // elbow, hand and head movements, not just static fitting. This is a
+        // numerical deformation gate, NOT an in-game visual QA approval.
+        let Ok(base)=std::env::var("OPENOMSI_WINTER_TEST_ASSETS") else{return;};
+        let root=std::path::Path::new(&base).join("bcs-assets").join("WinterClothes");
+        let names=["elvs_hooded_sweat_jacket1","toigo_fisherman_sweater",
+            "mindfront_knitted_sweater_01","elvs_slouchy_beanie1",
+            "mindfront_knitted_hat_01","toigo_gloves_short","toigo_gloves_medium"];
+        use glam::Affine3A;
+        use omsi_sim::human;
+        fn about(p:Vec3,q:Quat)->Affine3A {
+            Affine3A::from_translation(p)*Affine3A::from_quat(q)*Affine3A::from_translation(-p)
+        }
+        for size in [0.80_f32,1.0,1.15] {
+            let target=FitTarget{
+                waist:Vec3::new(0.0,0.0,1.04*size),
+                shoulder:[Vec3::new(-0.21*size,0.0,1.42*size),
+                          Vec3::new(0.21*size,0.0,1.42*size)],
+                elbow:[Vec3::new(-0.37*size,-0.01,1.30*size),
+                       Vec3::new(0.37*size,-0.01,1.30*size)],
+                wrist:[Vec3::new(-0.55*size,0.0,1.18*size),
+                       Vec3::new(0.55*size,0.0,1.18*size)],
+                head_pivot:Vec3::new(0.0,-0.02,1.54*size),
+                head_top:1.75*size,scale:size,
+            };
+            for name in names {
+                let (art,_)=super::super::load_asset_candidate(&root,name)
+                    .unwrap_or_else(|e|panic!("{name}: {e}"));
+                let rest=garment_fit(&art,&target)
+                    .unwrap_or_else(|e|panic!("{name} rest: {e}"));
+                for angle in [0.0_f32,0.12,0.25] {
+                    let mut bones=[Affine3A::IDENTITY;human::SLOTS];
+                    for side in 0..2 {
+                        let sign=if side==0{-1.0}else{1.0};
+                        let upper=about(target.shoulder[side],Quat::from_rotation_y(sign*angle));
+                        let fore=upper*about(target.elbow[side],Quat::from_rotation_y(-sign*angle*0.8));
+                        let hand=fore*about(target.wrist[side],Quat::from_rotation_z(sign*angle*0.5));
+                        bones[human::slot_of(if side==0{human::BONE_OA_L}else{human::BONE_OA_R}).unwrap()]=upper;
+                        bones[human::slot_of(if side==0{human::BONE_UA_L}else{human::BONE_UA_R}).unwrap()]=fore;
+                        bones[human::hand_slot(side)]=hand;
+                    }
+                    bones[human::slot_of(human::BONE_HEAD).unwrap()]=
+                        about(target.head_pivot,Quat::from_rotation_z(angle*0.6));
+                    let posed:Vec<Vec3>=rest.iter().enumerate().map(|(i,p)|{
+                        art.influences[i].iter().fold(Vec3::ZERO,|acc,(slot,w,_)|
+                            acc+bones[*slot].transform_point3(*p)* *w)
+                    }).collect();
+                    assert!(triangles_safe(&rest,&posed),
+                        "animated mesh unsafe: {name} size={size} angle={angle}");
+                    eprintln!("ANIMATED_FIT_OK asset={name} size={size} angle={angle}");
+                }
+            }
+        }
+    }
     #[test] fn giant_disconnected_triangles_are_never_accepted(){
         let rest=[Vec3::ZERO,Vec3::X*0.03,Vec3::Y*0.03];
         let bad=[Vec3::ZERO,Vec3::X*0.9,Vec3::Y*0.03];
