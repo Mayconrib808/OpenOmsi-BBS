@@ -19,6 +19,7 @@ const MAX_OBJ_BYTES:u64=6_000_000;
 const MAX_BINDING_BYTES:u64=3_000_000;
 const MAX_VERTICES:usize=36_000;
 const VERTEX_BUDGET:usize=120_000;
+mod fit;
 
 #[derive(Debug,Deserialize)]
 struct TextureRef {file:String}
@@ -184,12 +185,12 @@ fn load_asset_candidate(root:&Path,name:&str)->Result<(Art,bool),String>{
 // textures only prove they can be parsed, NOT that they fit stock OMSI rigs.
 fn load_asset(root:&Path,name:&str)->Result<Art,String>{
     let (art,approved)=load_asset_candidate(root,name)?;
-    if !approved {
-        return Err("model was only axis/scale converted: visual fit and animation QA not approved; using original passenger clothing".into());
+    if !approved && std::env::var("OPENOMSI_WINTER_REST_FIT_PREVIEW").ok().as_deref()!=Some("1") {
+        return Err("stock-rig fitting not visually approved; enable only in preview builds for geometry tests".into());
     }
     Ok(art)
 }
-fn fitted(art:&Art,rig:&Rig)->Vec<Vec3>{
+fn fitted_legacy_unused(art:&Art,rig:&Rig)->Vec<Vec3>{
     let mut out=Vec::with_capacity(art.base.positions.len());
     // Source anchors are *not* exact stock OMSI rest joints; conform each authored
     // vertex to the target's real rest joint while preserving author-created detail.
@@ -308,7 +309,14 @@ impl Renders {
                 let Some((idx,art))=self.art.iter().enumerate().find(|(_,a)|a.name==name) else {continue;};
                 triangles+=art.base.indices.len()/3;
                 if triangles>VERTEX_BUDGET/3 {break;}
-                let rest=fitted(art,&p.ty.rig);
+                let rest=match fit::fitted(art,&p.ty.rig){
+                    Ok(rest)=>rest,
+                    Err(reason)=>{
+                        record(Role::Client,"winter_clothing",ResultKind::Blocked,"stock_rig_fit_rejected",
+                            &format!("person={} model={} garment={} reason={reason}",p.id,p.ty.def.path.display(),name));
+                        continue;
+                    }
+                };
                 let part=if let Some(mut reuse)=self.spare.get_mut(&idx).and_then(|v|v.pop()){
                     // The GPU instance was last skinned to another passenger. Its
                     // cached vertex buffers cannot be reused without an upload.
@@ -320,6 +328,8 @@ impl Renders {
                 }else{
                     let mesh=renderer.add_mesh(scene,&art.base);
                     let instance=renderer.add_instance(scene,mesh,at,xf,vec![self.materials[idx]]);
+                    // Never display raw MakeHuman rest vertices for even one frame.
+                    renderer.set_params(scene,instance,&[],false,&[]);
                     LivePart{which:idx,mesh,instance,rest,
                         positions:Vec::new(),normals:Vec::new(),reported:false}
                 };
@@ -348,6 +358,21 @@ impl Renders {
                     }
                     part.positions.push(pt);
                     part.normals.push(normal.normalize_or(Vec3::Z));
+                }
+                if !fit::triangles_safe(&part.rest,&part.positions){
+                    renderer.set_params(scene,part.instance,&[],false,&[]);
+                    record(Role::Client,"winter_clothing",ResultKind::Blocked,"animated_triangle_distortion_rejected",
+                        &format!("person={} garment={} pose=invalid_or_stretched",p.id,art.name));
+                    // Try again on next valid pose; do not upload broken geometry.
+                    part.positions.clear();
+                    continue;
+                }
+                // Recompute triangle normals in posed space: normals inherited
+                // from the MakeHuman T-pose would shade rotated sleeves black.
+                for i in (0..part.positions.len()).step_by(3){
+                    let n=(part.positions[i+1]-part.positions[i])
+                        .cross(part.positions[i+2]-part.positions[i]).normalize_or(Vec3::Z);
+                    for j in 0..3 {part.normals[i+j]=n;}
                 }
                 renderer.update_mesh(scene,part.mesh,&part.positions,&part.normals,&art.base.uvs);
             }
