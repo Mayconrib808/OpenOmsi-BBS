@@ -11,9 +11,43 @@ import hashlib
 import json
 import shutil
 import sys
+import zlib
 
 PACKS = ["shirts01", "shirts02", "gloves01", "hats03"]
 MAX_TEXTURE = 2048
+
+def clean_bad_png_ancillary(path: Path) -> list[str]:
+    """Repair broken ancillary metadata only; never alter critical image/IDAT bytes."""
+    data=path.read_bytes()
+    if not data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+        raise ValueError(f"Not a PNG: {path}")
+    off=8
+    out=bytearray(data[:8])
+    removed=[]
+    complete=False
+    while off < len(data):
+        if off+12 > len(data): raise ValueError(f"Truncated PNG header: {path}")
+        size=int.from_bytes(data[off:off+4],"big")
+        if size>64_000_000 or off+12+size>len(data):raise ValueError(f"Invalid PNG chunk: {path}")
+        typ=data[off+4:off+8]
+        raw=data[off:off+12+size]
+        expect=int.from_bytes(raw[-4:],"big")
+        actual=zlib.crc32(raw[4:-4]) & 0xFFFFFFFF
+        if expect != actual:
+            if typ[0] & 0x20:
+                removed.append(typ.decode("ascii","replace"))
+                off+=12+size
+                continue
+            raise ValueError(f"Critical PNG chunk {typ!r} corrupted: {path}")
+        out.extend(raw)
+        off+=12+size
+        if typ==b"IEND":
+            complete=True
+            break
+    if not complete:raise ValueError(f"PNG IEND missing: {path}")
+    if removed:
+        path.write_bytes(out)
+    return removed
 
 def file_sha(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
@@ -51,6 +85,8 @@ def assemble(staged: Path, out: Path) -> dict:
             # Resize textures without touching original UVs; conservative filter avoids
             # reauthoring/low-poly model art and reduces VRAM for crowded bus stops.
             for image in part.glob("*.png"):
+                removed=clean_bad_png_ancillary(image)
+                if removed:print(f"Restored original pixels by removing invalid PNG metadata {removed}: {image}")
                 with Image.open(image) as im:
                     im.load()
                     if max(im.size) > MAX_TEXTURE:
