@@ -26,6 +26,13 @@ struct TextureRef {file:String}
 struct Binding {
     garment:String,
     garment_kind:String,
+    // Converted MakeHuman geometry is not automatically fitted to OMSI skeletons.
+    // An author must explicitly validate and release the rigged model after
+    // inspecting standing, walking, seated and arm-moving animations in-game.
+    #[serde(default)]
+    fitted_to_stock_omsi_human:bool,
+    #[serde(default)]
+    released:bool,
     per_vertex_weights:Vec<Vec<(String,f32)>>,
     reference_anchors_m:std::collections::HashMap<String,[f32;3]>,
     copied_real_textures_and_materials:Vec<TextureRef>,
@@ -150,12 +157,13 @@ fn winter_install_root(map_content_root:&Path)->PathBuf {
         .filter(|dir|dir.is_dir())
         .unwrap_or_else(||map_content_root.join("bcs-assets").join("WinterClothes"))
 }
-fn load_asset(root:&Path,name:&str)->Result<Art,String>{
+fn load_asset_candidate(root:&Path,name:&str)->Result<(Art,bool),String>{
     if !allowed_texture_name(name){return Err("bad asset name".into());}
     let dir=root.join(name);
     let raw=size_bounded(&dir.join("skin_binding.json"),MAX_BINDING_BYTES)?;
     let binding:Binding=serde_json::from_slice(&raw).map_err(|e|e.to_string())?;
     if binding.garment!=name{return Err("skin binding garment mismatch".into());}
+    let visually_approved=binding.fitted_to_stock_omsi_human&&binding.released;
     let (base,influences)=parse_obj(&size_bounded(&dir.join("garment.obj"),MAX_OBJ_BYTES)?,&binding)?;
     let materials=binding.copied_real_textures_and_materials.iter()
         .filter(|m|allowed_texture_name(&m.file)&&m.file.ends_with(".mhmat"))
@@ -170,7 +178,16 @@ fn load_asset(root:&Path,name:&str)->Result<Art,String>{
     }
     let diffuse=omsi_texture::decode_file(&dir.join(texture_name)).map_err(|e|e.to_string())?;
     if diffuse.width>2048||diffuse.height>2048{return Err("winter diffuse exceeds 2K limit".into());}
-    Ok(Art{name:name.into(),kind:binding.garment_kind,base,influences,diffuse})
+    Ok((Art{name:name.into(),kind:binding.garment_kind,base,influences,diffuse},visually_approved))
+}
+// Keep unaudited artist models out of the live renderer. Valid OBJ, UVs and
+// textures only prove they can be parsed, NOT that they fit stock OMSI rigs.
+fn load_asset(root:&Path,name:&str)->Result<Art,String>{
+    let (art,approved)=load_asset_candidate(root,name)?;
+    if !approved {
+        return Err("model was only axis/scale converted: visual fit and animation QA not approved; using original passenger clothing".into());
+    }
+    Ok(art)
 }
 fn fitted(art:&Art,rig:&Rig)->Vec<Vec3>{
     let mut out=Vec::with_capacity(art.base.positions.len());
@@ -363,7 +380,9 @@ mod tests {
             "elvs_hooded_sweat_jacket1","toigo_fisherman_sweater","mindfront_knitted_sweater_01",
             "elvs_slouchy_beanie1","mindfront_knitted_hat_01","toigo_gloves_short","toigo_gloves_medium"
         ] {
-            let art=load_asset(&root,name).unwrap_or_else(|error|panic!("{name}: {error}"));
+            let (art,visually_approved)=load_asset_candidate(&root,name).unwrap_or_else(|error|panic!("{name}: {error}"));
+            assert!(!visually_approved,"{name}: untested asset must NOT be approved");
+            assert!(load_asset(&root,name).is_err(),"{name}: unvalidated mesh must not enter live renderer");
             assert!(!art.base.positions.is_empty(),"{name}: no geometry");
             assert_eq!(art.base.positions.len(),art.influences.len(),"{name}: missing bone weights");
             assert_eq!(art.base.positions.len(),art.base.uvs.len(),"{name}: missing UVs");
