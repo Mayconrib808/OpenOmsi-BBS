@@ -400,7 +400,7 @@ func logSections() []logSection {
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    if from==changelogSeenVersion{return []logSection{}}
+    if from==changelogSeenVersion{return []logSection{release2222LogSection()}}
     result:=[]logSection{release2222LogSection()}
     if from=="2.2.2.1-hotfix.2"{return result}
     result=append(result,hotfix2221SecondLogSection())
@@ -469,7 +469,7 @@ func logWindowPaint(window uintptr){
     logFill(dc,guiRect{0,0,w,113},guiRGB(21,37,61))
     logFill(dc,guiRect{0,109,w,113},guiRGB(255,202,84))
     logTextDraw(dc,"OpenOMSI  BCS BRIDGE",guiRect{26,15,w-22,44},state.heading,white,0x0000|0x0020)
-    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO 2.2.2.1  ·  HOTFIX 1","✨ UPDATE 2.2.2.1  ·  HOTFIX 1","✨ UPDATE 2.2.2.1  ·  HOTFIX 1")),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
+    logTextDraw(dc,logL(g.config.Language,logT("✨ ATUALIZAÇÃO "+changelogSeenVersion,"✨ UPDATE "+changelogSeenVersion,"✨ AKTUALISIERUNG "+changelogSeenVersion)),guiRect{26,51,w-20,81},state.subhead,guiRGB(255,211,107),0x0020)
     logTextDraw(dc,logL(g.config.Language,logT("Escolha um assunto à esquerda. Role para ler todas as mudanças.","Choose a category on the left. Scroll to read the complete notes.","Links ein Thema wählen und für alle Änderungen scrollen.")),guiRect{26,83,w-24,107},state.tiny,muted,0x0020)
     logFill(dc,guiRect{0,114,268,h-76},guiRGB(17,29,47))
     logFill(dc,guiRect{0,h-77,w,h},guiRGB(21,37,61))
@@ -628,7 +628,7 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     width,height:=int(rect.Right-rect.Left),int(rect.Bottom-rect.Top)
     x,y:=int(parent.Left)+(int(parent.Right-parent.Left)-width)/2,int(parent.Top)
     if x<0{x=0};if y<0{y=0}
-    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  2.2.2.1 Hotfix 1"))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
+    window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  "+changelogSeenVersion))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
     if window==0{return 0}
     changelogWindow=window
     changelogState=&logWindowState{heading:guiFont(26,700),subhead:guiFont(19,700),body:guiFont(18,400),tiny:guiFont(16,400)}
