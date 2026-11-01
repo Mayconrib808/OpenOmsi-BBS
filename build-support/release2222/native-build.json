@@ -1,0 +1,10 @@
+{
+  "commit": "88df59c62792f3c63e4a23a7d14f3add1bdd3c8e",
+  "run_id": 41260230167,
+  "workflow": ".github/workflows/stage-2222-native.yml",
+  "version": "0.3.46-coop.15-2.2.2.2",
+  "protocol": 15,
+  "windows_gameplay_tested": false,
+  "paired_gameplay_tested": false,
+  "winter_source_run_id": 41257972400
+}
