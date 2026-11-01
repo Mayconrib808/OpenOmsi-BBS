@@ -5,7 +5,8 @@ const origin='https://openomsi-bbs-updates.maycongamesmaximo.workers.dev';
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const json=path=>JSON.parse(readFileSync(path,'utf8').replace(/^\uFEFF/,''));
 const signed=readFileSync('build-support/release2222/stable.json');
-const oldSigned=readFileSync('build-support/release2221-hotfix2/stable.json');
+const oldSigned=readFileSync('build-support/release2222/stable-original.json');
+const rollback=decode(readFileSync('build-support/release2221-hotfix2/stable.json'));
 const info=json('build-support/release2222/publication.json');
 const key=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),Buffer.from('5xKCV4uIoc9e0/sGeF9s9+cd5m5rwPOdyqslWqxPRrs=','base64')]),format:'der',type:'spki'});
 function decode(raw) {
@@ -15,8 +16,9 @@ function decode(raw) {
   return JSON.parse(payload);
 }
 const current=decode(oldSigned),release=decode(signed);
-if(current.version!=='2.2.2.1-hotfix.2'||current.sequence!==2026103104)throw Error('Unexpected 2.2.2.1 Hotfix 2 signed baseline');
-if(release.schema!==1||release.version!=='2.2.2.2'||release.sequence!==2026103105||release.sequence<=current.sequence)throw Error('Wrong 2.2.2.2 signed release identity');
+if(current.version!=='2.2.2.2'||current.sequence!==2026103105)throw Error('Expected previously deployed signed 2.2.2.2 baseline');
+if(rollback.version!=='2.2.2.1-hotfix.2'||rollback.sequence!==2026103104)throw Error('Rollback Hotfix 2 manifest mismatch');
+if(release.schema!==1||release.version!=='2.2.2.2'||release.sequence!==2026103105||release.sequence!==current.sequence||release.installer.sha256===current.installer.sha256)throw Error('Expected same-version replacement with different fixed updater');
 if(info.version!==release.version||info.sequence!==release.sequence)throw Error('Signed release disagrees with publication identity');
 const installer=release.installer;
 if(installer.url!==origin+'/packages/'+installer.sha256+'.exe'||installer.sha256!==info.installer_sha256||installer.size!==info.installer_size||installer.size>25*1024*1024)throw Error('Invalid signed updater identity');
@@ -39,7 +41,7 @@ async function loadLive(){
 }
 if(process.argv[2]==='prepare'){
   const live=await loadLive(),now=decode(live);
-  if(!live.equals(oldSigned)||now.version!==current.version||now.sequence!==current.sequence)throw Error('Production not exactly Hotfix 2; refusing overwrite');
+  if(!live.equals(oldSigned)||now.version!==current.version||now.sequence!==current.sequence)throw Error('Production not exactly original signed 2.2.2.2; refusing repair overwrite');
   const report=json('approved-new/build-report.json'),spec=json('approved-new/coop-spec.json');
   const binary=readFileSync('approved-new/Atualizar-Bridge.exe');
   if(report.version!=='2.2.2.2'||report.sequence!==2026103105||report.update_origin!==origin
@@ -84,7 +86,8 @@ if(process.argv[2]==='prepare'){
   for(const name of readdirSync('distribution/assets/packages')){
     if(!/^([a-f0-9]{64})\.(exe|bin)$/.test(name)||sha(readFileSync('distribution/assets/packages/'+name))!==name.slice(0,64))throw Error('Historical asset corrupt: '+name);
   }
-  if(!existsSync('distribution/assets/packages/'+current.installer.sha256+'.exe'))throw Error('Hotfix 2 rollback installer missing');
+  if(!existsSync('distribution/assets/packages/'+current.installer.sha256+'.exe'))throw Error('Original 2.2.2.2 installer missing');
+  if(!existsSync('distribution/assets/packages/'+rollback.installer.sha256+'.exe'))throw Error('2.2.2.1 Hotfix 2 rollback installer missing');
   const chunks=[];
   for(const part of spec.parts){
     const bytes=readFileSync('distribution/assets/packages/'+part.sha256+'.bin');
@@ -92,15 +95,15 @@ if(process.argv[2]==='prepare'){
     chunks.push(bytes);
   }
   if(sha(Buffer.concat(chunks))!==spec.sha256||!binary.includes(Buffer.from(spec.sha256)))throw Error('Cumulative ZIP was not authenticated by updater');
-  console.log('VERIFIED staging: 2.2.2.2 with winter clothes, feature logs, modern lobby, 2.2.2.1 Hotfix 2 rollback and authenticated P15 assets');
+  console.log('VERIFIED repair staging: fixed 2.2.2.2 updater accepts 17 authenticated parts, original package preserved, 2.2.2.1 Hotfix 2 rollback intact');
 }else if(process.argv[2]==='verify-live'){
   const live=await loadLive();
   if(!live.equals(signed))throw Error('Live update feed does not match signed 2.2.2.2');
   const spec=json('approved-new/coop-spec.json');
-  const checks=[installer.sha256+'.exe',current.installer.sha256+'.exe',...spec.parts.map(x=>x.sha256+'.bin')];
+  const checks=[installer.sha256+'.exe',current.installer.sha256+'.exe',rollback.installer.sha256+'.exe',...spec.parts.map(x=>x.sha256+'.bin')];
   for(const name of checks){
     const response=await fetch(origin+'/packages/'+name,{headers:{'Cache-Control':'no-cache'},signal:AbortSignal.timeout(120000)});
     if(!response.ok||sha(Buffer.from(await response.arrayBuffer()))!==name.slice(0,64))throw Error('Live asset missing/corrupt: '+name);
   }
-  console.log('LIVE VERIFIED: Signed 2.2.2.2 + working 2.2.2.1 Hotfix 2 rollback installer + new lobby and exact P15 assets');
+  console.log('LIVE VERIFIED: Signed repaired 2.2.2.2 updater + original/Hotfix 2 rollback + exact 17 P15 archive parts');
 }else throw Error('Expected prepare or verify-live');
