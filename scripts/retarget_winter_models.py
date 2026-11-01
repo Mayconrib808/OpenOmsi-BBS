@@ -7,6 +7,7 @@ This is an intermediate staging step, not evidence of correct in-game rigging.
 """
 from __future__ import annotations
 import argparse
+import hashlib
 import json
 import math
 from pathlib import Path
@@ -123,6 +124,20 @@ def main():
         if not selected.is_file():raise FileNotFoundError(selected)
         dest=a.output/name
         binding=convert_obj(selected,dest,name)
+        # Keep authentic artist UV maps and surface textures with the adapted geometry.
+        # Do not replace fabric with synthetic solid-colour materials.
+        source_materials=[]
+        for material in selected.parent.iterdir():
+            if material.is_file() and material.suffix.lower() in {".png",".jpg",".jpeg",".tga",".bmp",".mhmat",".mtl"}:
+                blob=material.read_bytes()
+                dest_material=dest/material.name
+                dest_material.write_bytes(blob)
+                source_materials.append({"file":material.name,"sha256":hashlib.sha256(blob).hexdigest(),
+                    "bytes":len(blob)})
+        if not any(m["file"].lower().endswith((".png",".jpg",".jpeg",".tga")) for m in source_materials):
+            raise ValueError(f"No actual fabric texture for {name}")
+        binding["copied_real_textures_and_materials"]=source_materials
+        (dest/"skin_binding.json").write_text(json.dumps(binding,ensure_ascii=False,separators=(",",":"))+"\\n",encoding="utf-8")
         (dest/"ATTRIBUTION.txt").write_text(
             f"{name} | Artist: {item['creator']} | License: {item['license']}\n"
             f"Source: {item['source']}\n"
