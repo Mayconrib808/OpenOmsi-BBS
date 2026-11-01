@@ -404,10 +404,12 @@ func (g *setupGUI) finish() {
 	guiSetText(g.status, result.status)
 	if result.updateInstaller != "" {
 		if err := launchSetupUpdate(g.dir, result.updateInstaller, result.updateHash); err != nil {
+            logSetup(g.dir, "update-handoff-failed", err)
 			guiMessageBox(g.window, err.Error(), 0x10)
 			return
 		}
-		guiUser.NewProc("DestroyWindow").Call(g.window)
+		logSetup(g.dir,"update-handoff-acknowledged",nil)
+        guiUser.NewProc("DestroyWindow").Call(g.window)
 		// The child updater has started and verified its download. Finish this
 		// process now: closing only the window can leave COM/UI teardown alive
 		// long enough to block replacement of Setup.exe. All work has completed;
