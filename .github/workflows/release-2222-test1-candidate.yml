@@ -145,8 +145,9 @@ jobs:
               upstream_commit="17be22987d7c01c813a1473e7696fc71fb3b1d89",
               version=version,native_sha256=sha(d/"openomsi.exe"),
               source_sha256=sha(d/"openomsi-source.tar.gz"),
-              windows_gameplay_tested=False,
-              winter_overlay_fail_closed=True,unapproved_garments_visible=False)
+              windows_gameplay_tested=False,paired_gameplay_tested=False,
+              winter_preview_compiled=True,weather_clothing_opt_in_required=True,
+              winter_visual_approved=False)
           (d/"SOURCE.json").write_text(json.dumps(info,indent=2)+"\n")
           print("Verified source and native binary SHA:",info["native_sha256"])
           '@ | python -
