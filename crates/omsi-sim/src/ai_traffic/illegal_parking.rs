@@ -84,9 +84,13 @@ impl TrafficSim {
         if let Some((mut parking, mut at)) = self.cars[i].temporary_park {
             if self.cars[i].state.s >= at - 1.7 && self.cars[i].state.speed < 0.45 {
                 parking.activate(now);
+                crate::feature_audit::record(crate::feature_audit::Role::Host,"illegal_parking",crate::feature_audit::ResultKind::Completed,"physically_parked",
+                    &format!("vehicle={} lane={} at_s={:.1} elapsed={:.1}",self.cars[i].id,self.cars[i].state.lane,at,now));
             }
             match parking.reaction(now, self.cars[i].seed) {
                 HornReaction::Leave => {
+                    crate::feature_audit::record(crate::feature_audit::Role::Host,"illegal_parking",crate::feature_audit::ResultKind::Completed,"parking_ended",
+                        &format!("vehicle={} lane={} at_s={:.1}",self.cars[i].id,self.cars[i].state.lane,at));
                     self.cars[i].temporary_park = None;
                     return None;
                 }
@@ -115,18 +119,34 @@ impl TrafficSim {
         let (seed, target_s, speed, single_lane) = (car.seed, st.s + 25.0, st.speed,
             lane.left.is_none() && lane.right.is_none());
         self.cars[i].parking_sampled_lane = Some(lane_id);
-        if !may_consider_stop(true, false, lane.length() - target_s, 30.0, speed)
-            || !eligible_event(seed, lane_id as u64, self.illegal_parking_percent)
-            || self.cars.iter().filter(|c| c.temporary_park.is_some()).count() >= 3
-            || !self.lane_clear(i, lane_id, target_s, 10.0, 15.0, &ts.by_lane)
-            // Real bus stops are never deliberate double-park targets.
-            || self.cars.iter().any(|c| c.bus.as_ref().is_some_and(|b|
-                b.stops.iter().any(|stop| c.state.route.get(stop.ri) == Some(&lane_id)
-                    && (stop.s-target_s).abs() < 35.0)))
-        { return None; }
+        let reason = if !may_consider_stop(true,false,lane.length()-target_s,30.0,speed) {
+            Some("unsafe_road_segment")
+        } else if !eligible_event(seed,lane_id as u64,self.illegal_parking_percent) {
+            Some("frequency_draw_not_selected")
+        } else if self.cars.iter().filter(|c|c.temporary_park.is_some()).count()>=3 {
+            Some("max_three_obstructions")
+        } else if !self.lane_clear(i,lane_id,target_s,10.0,15.0,&ts.by_lane) {
+            Some("collision_clearance_failed")
+        } else if self.cars.iter().any(|c|c.bus.as_ref().is_some_and(|b|
+            b.stops.iter().any(|stop|c.state.route.get(stop.ri)==Some(&lane_id)
+                && (stop.s-target_s).abs()<35.0))) {
+            Some("bus_stop_nearby")
+        } else {None};
+        if let Some(reason)=reason {
+            crate::feature_audit::record(crate::feature_audit::Role::Host,"illegal_parking",
+                if reason=="frequency_draw_not_selected" {crate::feature_audit::ResultKind::NoOpportunity}
+                else {crate::feature_audit::ResultKind::Blocked},
+                reason,&format!("vehicle={} lane={} planned_s={:.1} frequency_percent={:.1}",
+                    self.cars[i].id,lane_id,target_s,self.illegal_parking_percent));
+            return None;
+        }
         let mut state = TemporaryPark::new(now, seed, lane_id as u64, single_lane)?;
         state.parked = false;
         self.cars[i].temporary_park = Some((state, target_s));
+        crate::feature_audit::record(crate::feature_audit::Role::Host,"illegal_parking",
+            crate::feature_audit::ResultKind::Executed,"parking_scheduled",
+            &format!("vehicle={} lane={} target_s={:.1} frequency_percent={:.1} sim_t={now:.1}",
+                self.cars[i].id,lane_id,target_s,self.illegal_parking_percent));
         log::info!("t={now:.1}: traffic AI car {} schedules short temporary obstruction on lane {} at {:.1} m", self.cars[i].id, lane_id, target_s);
         Some(25.0 + self.cars[i].state.front + 0.4)
     }
