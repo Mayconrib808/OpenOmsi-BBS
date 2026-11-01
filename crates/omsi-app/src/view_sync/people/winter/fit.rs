@@ -171,6 +171,38 @@ mod tests{
         let v=align(src_el,src_sh,src_el,dst_sh,dst_el);
         assert!((v-dst_el).length()<0.0001);
     }
+    #[test] fn actual_seven_artist_meshes_fit_multiple_stock_like_rigs_without_exploding(){
+        let Ok(base)=std::env::var("OPENOMSI_WINTER_TEST_ASSETS") else{return;};
+        let root=std::path::Path::new(&base).join("bcs-assets").join("WinterClothes");
+        let names=["elvs_hooded_sweat_jacket1","toigo_fisherman_sweater",
+            "mindfront_knitted_sweater_01","elvs_slouchy_beanie1",
+            "mindfront_knitted_hat_01","toigo_gloves_short","toigo_gloves_medium"];
+        for (size,arm_drop) in [(0.80,0.18),(1.00,0.08),(1.15,0.33)]{
+            let t=FitTarget{
+                waist:Vec3::new(0.0,0.0,1.04*size),
+                shoulder:[Vec3::new(-0.21*size,0.0,1.42*size),
+                          Vec3::new(0.21*size,0.0,1.42*size)],
+                elbow:[Vec3::new(-0.37*size,-0.01,1.38*size-arm_drop),
+                       Vec3::new(0.37*size,-0.01,1.38*size-arm_drop)],
+                wrist:[Vec3::new(-0.55*size,0.0,1.34*size-arm_drop*2.0),
+                       Vec3::new(0.55*size,0.0,1.34*size-arm_drop*2.0)],
+                head_pivot:Vec3::new(0.0,-0.02,1.54*size),
+                head_top:1.75*size,scale:size,
+            };
+            for name in names {
+                let (art,_)=super::super::load_asset_candidate(&root,name)
+                    .unwrap_or_else(|e|panic!("{name}: {e}"));
+                let result=garment_fit(&art,&t);
+                let posed=result.unwrap_or_else(|e|panic!("size {size} asset {name}: {e}"));
+                assert_eq!(posed.len(),art.base.positions.len());
+                assert!(triangles_safe(&art.base.positions,&posed),"{name} invalid triangles");
+                let min=posed.iter().fold(Vec3::splat(f32::MAX),|a,v|a.min(*v));
+                let max=posed.iter().fold(Vec3::splat(f32::MIN),|a,v|a.max(*v));
+                assert!((max-min).max_element()<2.5,"{name} exploded extent");
+                eprintln!("FIT_OK asset={} scale={} arm_drop={} extent={:?}",name,size,arm_drop,max-min);
+            }
+        }
+    }
     #[test] fn giant_disconnected_triangles_are_never_accepted(){
         let rest=[Vec3::ZERO,Vec3::X*0.03,Vec3::Y*0.03];
         let bad=[Vec3::ZERO,Vec3::X*0.9,Vec3::Y*0.03];
