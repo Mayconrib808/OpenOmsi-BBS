@@ -302,7 +302,10 @@ mod tests{
                 .unwrap_or_else(|e|panic!("could not load {}: {e:#}",path.display()));
             let rig=&ty.rig;
             for art in &arts {
-                let rest=fitted(art,rig).unwrap_or_else(|e|
+                let surface_fit=super::super::surface::fitted(art,&ty).unwrap_or_else(|e|
+                    panic!("surface attachment {} against {}: {e}",art.name,path.display()));
+                let rest=surface_fit.rest.clone();
+                let _=fitted(art,rig).unwrap_or_else(|e|
                     panic!("{} against {}: {e}",art.name,path.display()));
                 assert!(triangles_safe(&art.base.positions,&rest),
                     "unsafe real-stock rest pose {} on {}",art.name,path.display());
@@ -332,10 +335,12 @@ mod tests{
                         Affine3A::from_translation(rig.head_pivot)
                         *Affine3A::from_quat(Quat::from_rotation_z(angle*0.6))
                         *Affine3A::from_translation(-rig.head_pivot);
-                    let posed:Vec<Vec3>=rest.iter().enumerate().map(|(i,p)|
-                        art.influences[i].iter().fold(Vec3::ZERO,|acc,(slot,w,_)|
-                            acc+bones[*slot].transform_point3(*p)* *w)
-                    ).collect();
+                    let skins:Vec<_>=ty.meshes.iter().map(|mesh|{
+                        let mut p=Vec::new();let mut n=Vec::new();
+                        human::skin(mesh,&bones,&mut p,&mut n);(p,n)
+                    }).collect();
+                    let mut posed=Vec::new();
+                    assert!(surface_fit.pose(&skins,&mut posed),"surface attachment failed during actual human pose");
                     assert!(triangles_safe(&rest,&posed),
                         "unsafe real-stock animation {} on {} angle={angle}",
                         art.name,path.display());

@@ -10,7 +10,7 @@ use omsi_render::{AlphaMode,MaterialId,MeshId,Renderer,Scene};
 use omsi_sim::feature_audit::{record,ResultKind,Role};
 use omsi_sim::human::{self,Rig};
 use serde::Deserialize;
-use std::{fs,path::{Path,PathBuf}};
+use std::{fs,path::{Path,PathBuf},sync::Arc};
 
 const MAX_NPCS:usize=12;
 const MAX_NEW_FRAME:usize=2;
@@ -20,6 +20,7 @@ const MAX_BINDING_BYTES:u64=3_000_000;
 const MAX_VERTICES:usize=36_000;
 const VERTEX_BUDGET:usize=120_000;
 mod fit;
+mod surface;
 
 #[derive(Debug,Deserialize)]
 struct TextureRef {file:String}
@@ -43,7 +44,7 @@ struct Art {
     influences:Vec<Vec<(usize,f32,Vec3)>>,
     diffuse:omsi_texture::Image,
 }
-struct LivePart {which:usize,mesh:MeshId,instance:usize,rest:Vec<Vec3>,positions:Vec<Vec3>,normals:Vec<Vec3>,reported:bool}
+struct LivePart {which:usize,mesh:MeshId,instance:usize,fitted:Arc<surface::Fitted>,model:usize,positions:Vec<Vec3>,normals:Vec<Vec3>,reported:bool,rejected:bool}
 #[derive(Default)]
 pub(super) struct Renders {
     loaded:bool,
@@ -51,6 +52,10 @@ pub(super) struct Renders {
     materials:Vec<MaterialId>,
     live:HashMap<u32,Vec<LivePart>>,
     spare:HashMap<usize,Vec<LivePart>>,
+    // Own the human Arc while cached: its address cannot be recycled for a
+    // different model. Fits and failures are cached so a rejected model does
+    // not rescan geometry and flood game.log on every animation frame.
+    fits:HashMap<(usize,usize),(Arc<human::HumanType>,Result<Arc<surface::Fitted>,String>)>,
     pub new_this_frame:usize,
     reported_missing:bool,
 }
@@ -352,12 +357,16 @@ impl Renders {
         if self.live.contains_key(&p.id) {
             let wanted=candidates(p.id,strong).into_iter()
                 .filter_map(|name|self.art.iter().position(|a|a.name==name))
+                .filter(|idx|!self.fits.get(&(Arc::as_ptr(&p.ty) as usize,*idx)).is_some_and(|(_,fit)|fit.is_err()))
                 .collect::<Vec<_>>();
             let actual=self.live.get(&p.id).unwrap().iter().map(|part|part.which).collect::<Vec<_>>();
-            if actual!=wanted {self.hide(p.id,renderer,scene);}
+            let changed_model=self.live.get(&p.id).unwrap().iter()
+                .any(|part|part.model!=Arc::as_ptr(&p.ty) as usize);
+            if actual!=wanted || changed_model {self.hide(p.id,renderer,scene);}
         }
         if !self.live.contains_key(&p.id) {
             if self.new_this_frame>=MAX_NEW_FRAME||self.live.len()>=MAX_NPCS{return;}
+            self.new_this_frame+=1; // Failed fits consume the same bounded work budget.
             let names=candidates(p.id,strong);
             let mut parts=Vec::new();
             let mut triangles=0usize;
@@ -365,29 +374,45 @@ impl Renders {
                 let Some((idx,art))=self.art.iter().enumerate().find(|(_,a)|a.name==name) else {continue;};
                 triangles+=art.base.indices.len()/3;
                 if triangles>VERTEX_BUDGET/3 {break;}
-                let rest=match fit::fitted(art,&p.ty.rig){
-                    Ok(rest)=>rest,
+                let model=Arc::as_ptr(&p.ty) as usize;
+                let key=(model,idx);
+                if self.fits.len()>=24 && !self.fits.contains_key(&key){self.fits.clear();}
+                let fitted=self.fits.entry(key).or_insert_with(||{
+                    let fit=surface::fitted(art,&p.ty).map(Arc::new);
+                    record(Role::Client,"winter_clothing",
+                        if fit.is_ok(){ResultKind::Executed}else{ResultKind::Blocked},
+                        "actual_human_surface_fit",
+                        &format!("model={} garment={} method=body_triangle_attachment clearance_mm={} max_correction_m={:.3} result={}",
+                            p.ty.def.path.display(),name,
+                            if art.kind=="torso"{18}else if art.kind=="hat"{12}else{7},
+                            fit.as_ref().map(|f|f.max_correction).unwrap_or(0.0),
+                            fit.as_ref().map(|_|"ready".to_string()).unwrap_or_else(|e|e.clone())));
+                    (p.ty.clone(),fit)
+                }).1.clone();
+                let fitted=match fitted {
+                    Ok(fitted)=>fitted,
                     Err(reason)=>{
-                        record(Role::Client,"winter_clothing",ResultKind::Blocked,"stock_rig_fit_rejected",
-                            &format!("person={} model={} garment={} reason={reason}",p.id,p.ty.def.path.display(),name));
+                        let _=reason; // Detailed reason was logged once above.
                         continue;
                     }
                 };
                 let part=if let Some(mut reuse)=self.spare.get_mut(&idx).and_then(|v|v.pop()){
                     // The GPU instance was last skinned to another passenger. Its
                     // cached vertex buffers cannot be reused without an upload.
-                    reuse.rest=rest;
+                    reuse.fitted=fitted;
+                    reuse.model=model;
                     reuse.positions.clear();
                     reuse.normals.clear();
                     reuse.reported=false;
+                    reuse.rejected=false;
                     reuse
                 }else{
                     let mesh=renderer.add_mesh(scene,&art.base);
                     let instance=renderer.add_instance(scene,mesh,at,xf,vec![self.materials[idx]]);
                     // Never display raw MakeHuman rest vertices for even one frame.
                     renderer.set_params(scene,instance,&[],false,&[]);
-                    LivePart{which:idx,mesh,instance,rest,
-                        positions:Vec::new(),normals:Vec::new(),reported:false}
+                    LivePart{which:idx,mesh,instance,fitted,model,
+                        positions:Vec::new(),normals:Vec::new(),reported:false,rejected:false}
                 };
                 parts.push(part);
             }
@@ -397,32 +422,26 @@ impl Renders {
                     p.id,p.ty.def.path.display(),
                     parts.iter().map(|part|self.art[part.which].name.as_str()).collect::<Vec<_>>().join(",")));
             self.live.insert(p.id,parts);
-            self.new_this_frame+=1;
         }
-        let Some(bones)=st.skin_bones.as_ref() else {return;};
+        if st.skins.is_empty(){return;}
         let Some(parts)=self.live.get_mut(&p.id) else{return;};
         for part in parts {
             let art=&self.art[part.which];
             if pose_due||part.positions.is_empty() {
                 part.positions.clear();part.normals.clear();
-                for (i,rest) in part.rest.iter().enumerate() {
-                    let mut pt=Vec3::ZERO;let mut normal=Vec3::ZERO;
-                    for (slot,weight,_) in &art.influences[i] {
-                        let bone=&bones[*slot];
-                        pt+=bone.transform_point3(*rest)* *weight;
-                        normal+=bone.transform_vector3(art.base.normals[i])* *weight;
-                    }
-                    part.positions.push(pt);
-                    part.normals.push(normal.normalize_or(Vec3::Z));
-                }
-                if !fit::triangles_safe(&part.rest,&part.positions){
+                if !part.fitted.pose(&st.skins,&mut part.positions){
                     renderer.set_params(scene,part.instance,&[],false,&[]);
-                    record(Role::Client,"winter_clothing",ResultKind::Blocked,"animated_triangle_distortion_rejected",
-                        &format!("person={} garment={} pose=invalid_or_stretched",p.id,art.name));
+                    if !part.rejected {
+                        record(Role::Client,"winter_clothing",ResultKind::Blocked,"animated_triangle_distortion_rejected",
+                            &format!("person={} garment={} model={} method=body_triangle_attachment pose=invalid_or_stretched",p.id,art.name,p.ty.def.path.display()));
+                        part.rejected=true;
+                    }
                     // Try again on next valid pose; do not upload broken geometry.
                     part.positions.clear();
                     continue;
                 }
+                part.rejected=false;
+                part.normals.resize(part.positions.len(),Vec3::Z);
                 // Recompute triangle normals in posed space: normals inherited
                 // from the MakeHuman T-pose would shade rotated sleeves black.
                 for i in (0..part.positions.len()).step_by(3){
@@ -439,7 +458,7 @@ impl Renders {
                     && part.positions.iter().all(|v|v.is_finite()) {
                 part.reported=true;
                 record(Role::Client,"winter_clothing",ResultKind::Completed,"real_mesh_uploaded_and_instance_visible",
-                    &format!("person={} temperature_c={:.1} stock_model={} asset_file={} vertices={} original_diffuse_texture=true bone_deformed=true",
+                    &format!("person={} temperature_c={:.1} stock_model={} asset_file={} vertices={} original_diffuse_texture=true method=actual_posed_body_surface visual_approval=false",
                         p.id,temp,p.ty.def.path.display(),
                         winter_install_root(root).join(&art.name).join("garment.obj").display(),
                         part.positions.len()));
