@@ -142,7 +142,14 @@ fn parse_obj(buf:&[u8],binding:&Binding)->Result<(MeshData,Vec<Vec<(usize,f32,Ve
                 let slot=if name=="HAND_L"{human::hand_slot(0)}else if name=="HAND_R"{human::hand_slot(1)}else{slot};
                 inf.push((slot,*weight,Vec3::from_array(*anchor)));
             }
-            if inf.is_empty(){return Err("empty skin binding".into());}
+            // Artist-provided skin weights are not guaranteed to sum to one.
+            // Without normalization even an IDENTITY pose rescales vertices
+            // differently, tearing sleeve seams on larger stock humans.
+            let sum: f32=inf.iter().map(|(_,weight,_)|*weight).sum();
+            if !sum.is_finite() || sum<=1.0e-5 {
+                return Err("zero or nonfinite total skin weight".into());
+            }
+            for (_,weight,_) in &mut inf {*weight/=sum;}
             skin.push(inf);
         }
     }}
@@ -425,6 +432,11 @@ mod tests {
             assert!(!art.base.positions.is_empty(),"{name}: no geometry");
             assert_eq!(art.base.positions.len(),art.influences.len(),"{name}: missing bone weights");
             assert_eq!(art.base.positions.len(),art.base.uvs.len(),"{name}: missing UVs");
+            for weights in &art.influences {
+                let sum: f32=weights.iter().map(|(_,w,_)|*w).sum();
+                assert!((sum-1.0).abs()<1.0e-5,
+                    "{name}: unnormalized vertex would tear under identity pose");
+            }
             assert!(art.base.positions.iter().all(|p|p.is_finite()),"{name}: invalid geometry");
             assert!(!art.diffuse.rgba.is_empty(),"{name}: missing authentic texture");
             eprintln!("WINTER ASSET OK name={} triangles={} texture={}x{}",
