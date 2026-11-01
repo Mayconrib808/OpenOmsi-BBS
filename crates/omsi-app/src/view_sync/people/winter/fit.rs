@@ -271,6 +271,81 @@ mod tests{
             }
         }
     }
+    #[test] fn actual_installed_stock_humans_fit_without_triangle_explosions(){
+        // Opt-in integration gate using the *real* licensed OMSI .hum/.o3d
+        // files, not synthetic mannequin coordinates. A public CI runner
+        // cannot redistribute or invent the user's installed stock humans.
+        // This is NUMERICAL validation, never an in-game visual sign-off.
+        let Some(files)=std::env::var_os("OPENOMSI_WINTER_STOCK_HUMANS") else {
+            eprintln!("STOCK_HUMAN_NUMERIC_QA_SKIPPED: set OPENOMSI_WINTER_STOCK_HUMANS to one or more installed .hum paths");
+            return;
+        };
+        let asset_base=std::env::var("OPENOMSI_WINTER_TEST_ASSETS")
+            .expect("stock-human QA needs OPENOMSI_WINTER_TEST_ASSETS");
+        let humans:Vec<_>=std::env::split_paths(&files).collect();
+        assert!(!humans.is_empty(),"no stock .hum files supplied");
+        let root=std::path::Path::new(&asset_base).join("bcs-assets").join("WinterClothes");
+        let names=["elvs_hooded_sweat_jacket1","toigo_fisherman_sweater",
+            "mindfront_knitted_sweater_01","elvs_slouchy_beanie1",
+            "mindfront_knitted_hat_01","toigo_gloves_short","toigo_gloves_medium"];
+        let arts:Vec<_>=names.iter().map(|name|
+            super::super::load_asset_candidate(&root,name)
+                .unwrap_or_else(|e|panic!("asset {name}: {e}")).0
+        ).collect();
+        use glam::Affine3A;
+        use omsi_sim::human;
+        let mut checked=0;
+        for path in humans {
+            assert!(path.is_file(),"missing licensed OMSI human: {}",path.display());
+            let ty=human::HumanType::load(&path)
+                .unwrap_or_else(|e|panic!("could not load {}: {e:#}",path.display()));
+            let rig=&ty.rig;
+            for art in &arts {
+                let rest=fitted(art,rig).unwrap_or_else(|e|
+                    panic!("{} against {}: {e}",art.name,path.display()));
+                assert!(triangles_safe(&art.base.positions,&rest),
+                    "unsafe real-stock rest pose {} on {}",art.name,path.display());
+                // Exercise the same weighted bone slots as the game on the
+                // actual measured stock joints. This cannot replace a real
+                // screenshot of walking, sitting, looking and arm movement.
+                for angle in [0.0_f32,0.12,0.25] {
+                    let mut bones=[Affine3A::IDENTITY;human::SLOTS];
+                    for side in 0..2 {
+                        let sign=if side==0{-1.0}else{1.0};
+                        let upper=Affine3A::from_translation(rig.shoulder[side])
+                            *Affine3A::from_quat(Quat::from_rotation_y(sign*angle))
+                            *Affine3A::from_translation(-rig.shoulder[side]);
+                        let fore=upper
+                            *Affine3A::from_translation(rig.elbow[side])
+                            *Affine3A::from_quat(Quat::from_rotation_y(-sign*angle*0.8))
+                            *Affine3A::from_translation(-rig.elbow[side]);
+                        let hand=fore
+                            *Affine3A::from_translation(rig.wrist[side])
+                            *Affine3A::from_quat(Quat::from_rotation_z(sign*angle*0.5))
+                            *Affine3A::from_translation(-rig.wrist[side]);
+                        bones[human::slot_of(if side==0{human::BONE_OA_L}else{human::BONE_OA_R}).unwrap()]=upper;
+                        bones[human::slot_of(if side==0{human::BONE_UA_L}else{human::BONE_UA_R}).unwrap()]=fore;
+                        bones[human::hand_slot(side)]=hand;
+                    }
+                    bones[human::slot_of(human::BONE_HEAD).unwrap()]=
+                        Affine3A::from_translation(rig.head_pivot)
+                        *Affine3A::from_quat(Quat::from_rotation_z(angle*0.6))
+                        *Affine3A::from_translation(-rig.head_pivot);
+                    let posed:Vec<Vec3>=rest.iter().enumerate().map(|(i,p)|
+                        art.influences[i].iter().fold(Vec3::ZERO,|acc,(slot,w,_)|
+                            acc+bones[*slot].transform_point3(*p)* *w)
+                    ).collect();
+                    assert!(triangles_safe(&rest,&posed),
+                        "unsafe real-stock animation {} on {} angle={angle}",
+                        art.name,path.display());
+                }
+                checked+=1;
+                eprintln!("STOCK_HUMAN_NUMERIC_FIT_OK human={} garment={} height_m={:.3}",
+                    path.display(),art.name,rig.head_top);
+            }
+        }
+        eprintln!("STOCK_HUMAN_NUMERIC_QA_COMPLETE: {checked} actual human/garment combinations; IN_GAME_VISUAL_QA_STILL_REQUIRED");
+    }
     #[test] fn giant_disconnected_triangles_are_never_accepted(){
         let rest=[Vec3::ZERO,Vec3::X*0.03,Vec3::Y*0.03];
         let bad=[Vec3::ZERO,Vec3::X*0.9,Vec3::Y*0.03];
