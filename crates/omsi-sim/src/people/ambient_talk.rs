@@ -3,6 +3,7 @@
 //! No scanning on ordinary frames, no audio on a dedicated host or LAN mirror,
 //! no changes to tickets, destination planning, or inspector behaviour.
 use super::*;
+use crate::feature_audit::{record,Role,ResultKind};
 
 const CONVERSATION_PAUSE: f64 = 42.0;
 const RESPONSE_AFTER: f64 = 2.4;
@@ -45,6 +46,8 @@ impl PeopleSim {
             self.voice_said.insert(path, self.time);
             self.last_chat = self.time;
             self.demand_audit.conversation_lines += 1;
+            record(Role::Host,"passenger_conversations",ResultKind::Completed,"audio_queued",
+                &format!("person={} reply={} voice_file={} audio_status=queued_not_yet_played",person.id,response,path.display()));
             return true;
         }
         false
@@ -63,7 +66,12 @@ impl PeopleSim {
             if let Some(i) = self.people.iter().position(|p| {
                 p.id == id && matches!(p.place, Place::Bus(bus, _) if p.is_local_seated_passenger(bus))
             }) {
-                let _ = self.ambient_voice(i, true);
+                let played=self.ambient_voice(i, true);
+                if !played {record(Role::Host,"passenger_conversations",ResultKind::Blocked,"reply_voice_missing",
+                    &format!("speaker={} audio_status=not_queued",id));}
+            } else {
+                record(Role::Host,"passenger_conversations",ResultKind::Blocked,"reply_passenger_left",
+                    &format!("speaker={} audio_status=not_queued",id));
             }
             return;
         }
@@ -82,6 +90,8 @@ impl PeopleSim {
             .collect();
         if seated.len() < 2 {
             self.demand_audit.conversation_without_pairs += 1;
+            record(Role::Host,"passenger_conversations",ResultKind::NoOpportunity,"insufficient_or_distant_passengers",
+                &format!("seated={} max_sample={}",seated.len(),RIDER_SAMPLE_LIMIT));
             return
         }
         let first = (self.rand() as usize) % seated.len();
@@ -96,10 +106,16 @@ impl PeopleSim {
         }
         // Pick both participants rather than always taking the lowest person id.
         let other = nearby[(self.rand() as usize) % nearby.len()];
+        record(Role::Host,"passenger_conversations",ResultKind::Executed,"pair_selected",
+            &format!("speaker={} partner={} bus={:?} distance_m={:.2}",
+                self.people[speaker].id,self.people[other].id,bus,
+                (self.people[speaker].position-self.people[other].position).length()));
         if self.ambient_voice(speaker, false) {
             self.ambient_talk_reply = Some((self.people[other].id, self.time + RESPONSE_AFTER));
         } else {
             self.demand_audit.conversation_without_clips += 1;
+            record(Role::Host,"passenger_conversations",ResultKind::Blocked,"voice_clip_unavailable",
+                &format!("speaker={} partner={} audio_status=not_queued",self.people[speaker].id,self.people[other].id));
         }
     }
 }
