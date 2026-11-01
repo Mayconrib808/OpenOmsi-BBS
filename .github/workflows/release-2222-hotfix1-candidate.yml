@@ -189,7 +189,7 @@ jobs:
           @'
           import json,hashlib
           from pathlib import Path
-          p=Path("build/release2222")
+          p=Path("build/release2222-hotfix1")
           r=json.loads((p/"build-report.json").read_text())
           s=json.loads((p/"coop-spec.json").read_text())
           exe=(p/"Atualizar-Bridge.exe").read_bytes()
