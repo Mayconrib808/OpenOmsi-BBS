@@ -84,19 +84,24 @@ impl TrafficSim {
         { return false; }
         let Some((lead, who)) = scene.lead else { return false; };
         if !self.different_stopped_bus_ahead(i, who, lead.gap, scene.obstacle_len) { return false; }
+        let audit_block=|reason:&'static str|{
+            crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
+                crate::feature_audit::ResultKind::Blocked,reason,
+                &format!("bus={} blocker={:?} from_lane={} gap={:.1}m",car.id,who,st.lane,lead.gap));
+        };
         let ahead_gap = lead.gap;
         // Complete the first S-curve before the front corner reaches the bus.
-        if !(23.0..=70.0).contains(&ahead_gap) { return false; }
+        if !(23.0..=70.0).contains(&ahead_gap) { audit_block("unsafe_gap");return false; }
         let lane = &self.net.lanes[st.lane];
-        if lane.no_overtaking || !self.net.crossings[st.lane].is_empty() { return false; }
+        if lane.no_overtaking || !self.net.crossings[st.lane].is_empty() { audit_block("no_overtaking_or_junction");return false; }
         // Passing on the overtaking side (left on a right-hand-traffic map).
         let target = if self.net.left_hand { lane.right } else { lane.left };
         let Some(target) = target.filter(|&l| self.open_to(i,l)
             && self.net.parallel(st.lane,l)
             && self.net.crossings[l].is_empty()
-            && !self.net.lanes[l].no_overtaking) else { return false; };
+            && !self.net.lanes[l].no_overtaking) else { audit_block("no_safe_parallel_lane");return false; };
         // Don't overtake across a mandatory route lane change or before a stop.
-        if st.route.get(st.route_index + 1).is_some_and(|&l| self.net.parallel(st.lane,l)) { return false; }
+        if st.route.get(st.route_index + 1).is_some_and(|&l| self.net.parallel(st.lane,l)) { audit_block("route_requires_lane_change");return false; }
         let first = (ahead_gap - 8.0).clamp(15.0, 28.0);
         let leave = ahead_gap + scene.obstacle_len + st.front + st.rear + 10.0;
         let back = 28.0;
@@ -104,20 +109,20 @@ impl TrafficSim {
         let s_target = self.net.beside_s(st.lane,target,st.s);
         if lane.length() - st.s < total || self.net.lanes[target].length() - s_target < total
             || self.net.crossings[target].len() > 0
-        { return false; }
+        { audit_block("insufficient_return_distance");return false; }
         let (p,h) = lane.at(st.s);
         let q = self.net.lanes[target].at(s_target).0;
-        if (q.z-p.z).abs() > 0.7 { return false; }
+        if (q.z-p.z).abs() > 0.7 { audit_block("height_mismatch");return false; }
         let h = (h as f64).to_radians();
         let offset = (q-p).truncate().dot(DVec2::new(h.cos(), -h.sin())) as f32;
         let right_side = self.net.left_hand;
         if !offset.is_finite() || !(2.3..=5.4).contains(&offset.abs())
-            || (offset > 0.0) != right_side { return false; }
+            || (offset > 0.0) != right_side { audit_block("unsafe_lane_offset");return false; }
         // Reserve the entire overtake and return region before beginning; another
         // vehicle already occupying it, or a parked object, vetoes the manoeuvre.
         if !self.lane_clear(i,target,s_target,st.rear+15.0,total+20.0,&ts.by_lane)
             || !self.can_merge(i,target,s_target,&ts.by_lane)
-        { return false; }
+        { audit_block("adjacent_lane_occupied_or_merge_blocked");return false; }
         let net = &self.net;
         let path = |d:f32| {
             let centre = st.way_point(net,d);
@@ -127,7 +132,7 @@ impl TrafficSim {
                 else { offset * (1.0-bus_lane_smooth((d-leave)/back)) };
             centre + DVec3::new(dir.y,-dir.x,0.0)*lateral as f64
         };
-        if self.ghost_blocked(i,&path,total,&ts.feet,&[],&[]).is_some() { return false; }
+        if self.ghost_blocked(i,&path,total,&ts.feet,&[],&[]).is_some() { audit_block("predicted_collision");return false; }
         let at = st.odometer + leave;
         let current = st.lateral;
         let odo = st.odometer;
@@ -137,6 +142,10 @@ impl TrafficSim {
         car.state.lateral_target = offset;
         car.state.lateral_ramp = (current,offset,odo,first);
         car.stopped = 0.0;
+        crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
+            crate::feature_audit::ResultKind::Executed,"maneuver_started",
+            &format!("bus={} overtaken_bus={:?} target_lane={} source_lane={} gap_m={:.1} return_at_odometer={:.1}",
+                car.id,who,target,source_lane,ahead_gap,at));
         log::info!("FEATURE AUDIT ai_bus_overtaking performed car={} overtaken_car={:?} target_lane={} source_lane={}",car.id,who,target,source_lane);
         true
     }
