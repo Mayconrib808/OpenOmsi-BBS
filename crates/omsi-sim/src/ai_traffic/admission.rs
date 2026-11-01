@@ -17,6 +17,7 @@
 //! road: a client draws what the host sends (`TrafficSim::mirror`).
 
 use super::*;
+use crate::feature_audit::{record,Role,ResultKind};
 use std::collections::{BTreeMap, VecDeque};
 
 /// The kinds of vehicles put on the road, each with a budget of its own.
@@ -265,18 +266,24 @@ impl Admission {
             };
             match verdict {
                 Verdict::Admit => {
+                    record(Role::Host,"dynamic_traffic",ResultKind::Completed,"spawn_admitted",
+                        &format!("ticket={} class={:?} lane={} pos=({:.1},{:.1},{:.1}) budget=accepted",r.ticket,r.class,r.lane,r.pos.x,r.pos.y,r.pos.z));
                     self.admitted += 1;
                     budgets.take(r.class);
                     self.entrances.remove(&entrance(r.lane, r.s));
                     admitted.push(r);
                 }
                 Verdict::Deny(d) => {
+                    record(if host {Role::Host}else{Role::Client},"dynamic_traffic",ResultKind::Blocked,"spawn_denied",
+                        &format!("ticket={} class={:?} lane={} pos=({:.1},{:.1},{:.1}) reason={:?}",r.ticket,r.class,r.lane,r.pos.x,r.pos.y,r.pos.z,d));
                     self.denied[d as usize] += 1;
                     if d != Denial::AtCapacity {
                         self.refused(r.lane, r.s, now);
                     }
                 }
                 Verdict::Retry(why) => {
+                    record(Role::Host,"dynamic_traffic",ResultKind::Blocked,"spawn_retry",
+                        &format!("ticket={} class={:?} lane={} pos=({:.1},{:.1},{:.1}) reason={:?} previous_tries={}",r.ticket,r.class,r.lane,r.pos.x,r.pos.y,r.pos.z,why,r.tries));
                     self.retried[why as usize] += 1;
                     self.refused(r.lane, r.s, now);
                     let mut r = r;
