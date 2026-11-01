@@ -937,9 +937,9 @@ func runSetupGUI(dir string, smoke bool) error {
                     {"2.2.2-hotfix.2",5,"🧥 2.2.2.2 • ROUPAS E LOGS"},
                     {"2.2.2-hotfix.1",6,"🧥 2.2.2.2 • ROUPAS E LOGS"},
                     {"2.2.2",7,"🧥 2.2.2.2 • ROUPAS E LOGS"},
-                    {"2.2.1.9",15,"🧥 2.2.2.2 • ROUPAS E LOGS"},
-                    {"2.2.0.8",16,"🧥 2.2.2.2 • ROUPAS E LOGS"},
-                    {"",16,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.1.9",12,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"2.2.0.8",13,"🧥 2.2.2.2 • ROUPAS E LOGS"},
+                    {"",13,"🧥 2.2.2.2 • ROUPAS E LOGS"},
                 }{
                     sections:=selectLogSections(tc.from)
                     if len(sections)!=tc.want{return fmt.Errorf("changelog from %q expected %d chapters, got %d",tc.from,tc.want,len(sections))}
