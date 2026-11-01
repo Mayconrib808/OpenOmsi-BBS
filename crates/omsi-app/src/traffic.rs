@@ -153,6 +153,9 @@ impl Traffic {
             ("cars_yield_to_buses",self.optional_features.cars_yield_to_buses),
             ("illegal_parking",self.optional_features.illegal_parking),
             ("dynamic_traffic",true),
+            ("passenger_conversations",self.optional_features.passenger_ambient_talk),
+            ("winter_clothing",self.optional_features.weather_clothing),
+            ("bcs_events",self.optional_features.bcs_event_scenes),
         ] {omsi_sim::feature_audit::heartbeat(role,name,enabled);}
         if self.sim.time - self.last_feature_report >= 60.0 {
             self.last_feature_report = self.sim.time;
