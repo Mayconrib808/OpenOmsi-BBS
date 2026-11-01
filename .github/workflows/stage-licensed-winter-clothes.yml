@@ -1,0 +1,55 @@
+name: Stage real CC0 and CC-BY winter garments (no deployment)
+on:
+  push:
+    branches: [feat/winter-artist-assets]
+    paths:
+      - scripts/stage_real_winter_clothes.py
+      - .github/workflows/stage-licensed-winter-clothes.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: licensed-winter-assets-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  artist-made-models:
+    name: Verify ${{ matrix.pack }} real meshes and credits
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        pack: [shirts01, shirts02, gloves01, hats03]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Download and verify real MakeHuman model archive
+        shell: bash
+        run: |
+          python scripts/stage_real_winter_clothes.py --pack "${{ matrix.pack }}" --out "staging/${{ matrix.pack }}"
+      - name: Verify no missing geometry or attribution
+        shell: bash
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          name = "${{ matrix.pack }}"
+          root=Path("staging")/name
+          m=json.loads((root/"manifest.json").read_text(encoding="utf8"))
+          assert m["release_approved"] is False, "Never auto-release unmatched assets"
+          assert m["authors_and_licenses"]
+          assert all(a["creator"] and a["license"] and
+                     any(g["triangles_est"]>0 for g in a["geometry"])
+                     for a in m["authors_and_licenses"].values())
+          assert (root/"CREDITS_AND_LICENSES.txt").is_file()
+          print("Source garments verified, not yet rigged / packaged in Setup")
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: licensed-winter-clothes-${{ matrix.pack }}-SOURCES-ONLY
+          path: staging/${{ matrix.pack }}/
+          if-no-files-found: error
+          compression-level: 6
+          retention-days: 21
