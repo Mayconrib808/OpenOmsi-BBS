@@ -1,0 +1,10 @@
+{
+  "commit": "dd84699fb88924d910499484527f6ff28051fa2c",
+  "run_id": 41271935702,
+  "workflow": ".github/workflows/build-winter-safety-native.yml",
+  "version": "0.3.46-coop.15-2.2.2.2-hotfix.1",
+  "protocol": 15,
+  "windows_gameplay_tested": false,
+  "paired_gameplay_tested": false,
+  "winter_overlay_fail_closed": true
+}
