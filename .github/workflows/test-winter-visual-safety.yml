@@ -4,6 +4,7 @@ on:
     branches: [fix/winter-visual-mesh-qa-gate]
     paths:
       - crates/omsi-app/src/view_sync/people/winter.rs
+      - crates/omsi-app/src/view_sync/people/winter/fit.rs
       - .github/workflows/test-winter-visual-safety.yml
   workflow_dispatch: {}
 permissions:
@@ -48,4 +49,6 @@ jobs:
           OPENOMSI_WINTER_TEST_ASSETS: ${{ github.workspace }}/test-assets
         run: |
           cargo test --locked -p omsi-app winter::tests:: -- --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked -p omsi-app winter::fit::tests:: -- --nocapture
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
