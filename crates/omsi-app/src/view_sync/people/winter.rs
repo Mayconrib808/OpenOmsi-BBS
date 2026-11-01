@@ -238,8 +238,10 @@ fn load_asset(root:&Path,name:&str)->Result<Art,String>{
     // at compilation, never taken from a user's runtime environment.
     // Live rendering still requires weather_clothing=true from the launcher;
     // all invalid rig fits and stretched posed triangles remain fail-closed.
-    const TEST_CHANNEL: bool = matches!(option_env!("OPENOMSI_WINTER_TEST_PREVIEW"),Some("1"));
-    if !approved && !TEST_CHANNEL {
+    // Compile-time environment is embedded into the binary, but string comparison
+    // must be performed as a normal expression on stable Rust (not const eval).
+    let test_channel = option_env!("OPENOMSI_WINTER_TEST_PREVIEW") == Some("1");
+    if !approved && !test_channel {
         return Err("stock-rig fitting not visually approved; garment withheld from stable renderer".into());
     }
     Ok(art)
