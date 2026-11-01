@@ -1,0 +1,8 @@
+{
+  "version": "2.2.2.2-hotfix.1",
+  "sequence": 2026103106,
+  "candidate_run_id": 41275207490,
+  "candidate_commit": "ba006dde24e76766e47057ac1080963982ea3dfe",
+  "installer_sha256": "8ad6657da5ad9390bf29ddeec90d2b6d2c2bcf75749a8ff25d4defa7fbb3ba13",
+  "installer_size": 24631296
+}
