@@ -102,12 +102,18 @@ fn garment_fit(art:&Art,target:&FitTarget)->Result<Vec<Vec3>,String>{
                     point_band(p,1,width*0.91,width*0.07,0.50)];
         let mid:Vec<Vec3>=p.iter().copied().filter(|v|v.x.abs()<width*0.2).collect();
         if mid.len()<10{return Err("cannot locate source torso".into());}
+        // Anchor the authored torso HEM near the actual passenger waist.
+        // The old median-Z anchor was around 65 cm ABOVE the hem on the
+        // hooded jacket. Mapping it to the stock waist dragged the coat down
+        // to shin level (min z ~= 0.11 m on a 1.75 m adult).
         let src_waist=Vec3::new(0.0,
             percentile(mid.iter().map(|v|v.y).collect(),0.5),
-            percentile(mid.iter().map(|v|v.z).collect(),0.5)-0.16);
+            percentile(mid.iter().map(|v|v.z).collect(),0.02)+0.08);
         let sh_height=(src_sh[0].z+src_sh[1].z)*0.5;
         let target_sh_height=(target.shoulder[0].z+target.shoulder[1].z)*0.5;
-        let sz=((target_sh_height-target.waist.z)/(sh_height-src_waist.z).max(0.15)).clamp(0.58,1.4);
+        // Stock torso is much shorter than the MakeHuman garment's source
+        // coordinate range. A 0.58 minimum scale was too large here.
+        let sz=((target_sh_height-target.waist.z)/(sh_height-src_waist.z).max(0.15)).clamp(0.30,1.4);
         let sx=(target.shoulder[1].x.abs()/src_sh[1].x.abs().max(0.10)).clamp(0.50,1.4);
         let sy=(target.scale*0.9).clamp(0.65,1.18);
         for (i,v) in p.iter().enumerate() {
@@ -199,6 +205,13 @@ mod tests{
                 let min=posed.iter().fold(Vec3::splat(f32::MAX),|a,v|a.min(*v));
                 let max=posed.iter().fold(Vec3::splat(f32::MIN),|a,v|a.max(*v));
                 assert!((max-min).max_element()<2.5,"{name} exploded extent");
+                if art.kind=="torso" {
+                    // A coat is not a black column reaching the passenger's
+                    // shins. Leave room for low sleeve cuffs on bent arms.
+                    assert!(min.z>=t.waist.z-0.45*size,
+                        "{name} fell below the human waist into the legs: min={} waist={}",
+                        min.z,t.waist.z);
+                }
                 eprintln!("FIT_OK asset={} scale={} arm_drop={} extent={:?}",name,size,arm_drop,max-min);
             }
         }
