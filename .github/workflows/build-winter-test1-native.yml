@@ -77,7 +77,16 @@ jobs:
           $sha=(Get-FileHash staging/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           git archive --format=tar.gz --prefix=openomsi-test1/ -o staging/openomsi-source.tar.gz HEAD
           if($LASTEXITCODE -ne 0){throw 'Source archive failed'}
-          & ./staging/openomsi.exe --version | Out-File staging/version.txt -Encoding utf8
+          # The native game was already smoke-tested in target/release.
+          # Staging holds only the EXE and may not contain its runtime DLLs.
+          # Running staging/openomsi.exe would silently set LASTEXITCODE=1;
+          # pwsh returns that failure AFTER a successful Write-Host.
+          & ./target/release/openomsi.exe --version | Out-File staging/version.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native version smoke test failed in build directory' }
+          $versionText=Get-Content staging/version.txt -Raw
+          if ($versionText -notmatch [regex]::Escape($env:OPENOMSI_VERSION)) {
+            throw 'Native version does not match experimental release'
+          }
           $source=(Get-FileHash staging/openomsi-source.tar.gz -Algorithm SHA256).Hash.ToLowerInvariant()
           $info=[ordered]@{
             bridge_release_target='2.2.2.2-test.1'
