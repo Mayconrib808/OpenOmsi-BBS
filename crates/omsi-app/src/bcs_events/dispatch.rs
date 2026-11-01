@@ -66,6 +66,10 @@ impl Dispatcher {
             if let (Some((key,event,service,patient)),Some(context))=(intent,input.context) {
                 if self.seen != Some(key) && input.dt > 0.0 {
                     self.seen = Some(key);
+                    omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Host,"bcs_events",
+                        omsi_sim::feature_audit::ResultKind::Executed,"event_accepted",
+                        &format!("event={} instance={} service={:?} patient={:?} bus_pos=({:.1},{:.1},{:.1})",
+                            event,key.instance,service,patient,input.bus.x,input.bus.y,input.bus.z));
                     log::info!("BCS response: accepted {:?} incident event={} instance={} patient={:?}",service,event,key.instance,patient);
                     self.medical = Some(Medical { key,context:context.into(),patient,event,service,
                         vehicle:None,bus_at:None,age:0.0,retry:0.0,completed:false,arrived:false,
@@ -84,6 +88,10 @@ impl Dispatcher {
             || moved
             || scene.age > 180.0
         {
+            omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Host,"bcs_events",
+                omsi_sim::feature_audit::ResultKind::Blocked,"incident_cancelled",
+                &format!("event={} service={:?} context_ok={} source_ok={} moved={} timeout={}",
+                    scene.event,scene.service,input.context==Some(scene.context.as_str()),source_ok,moved,scene.age>180.0));
             log::warn!("BCS response: {:?} event={} cancelled context_ok={} source_ok={} rider_ok={} moved={} age={:.1}s",scene.service,scene.event,input.context==Some(scene.context.as_str()),source_ok,scene.patient.is_none_or(|p|input.riders.contains(&p)),moved,scene.age);
             self.cancel(traffic);
             return None;
@@ -104,7 +112,12 @@ impl Dispatcher {
         if scene.vehicle.is_none() && scene.retry <= 0.0 && input.speed.abs() < 1.0 && dt > 0.0 {
             scene.retry = 0.5;
             let result = match models.model(scene.service) {
-                Some(model) => traffic
+                Some(model) => {
+                    omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Host,"bcs_events",
+                        omsi_sim::feature_audit::ResultKind::Evaluated,"model_selected",
+                        &format!("event={} service={:?} model_file={} bus_pos=({:.1},{:.1},{:.1})",
+                            scene.event,scene.service,model.ty.def.path.display(),input.bus.x,input.bus.y,input.bus.z));
+                    traffic
                     .dispatch_incident_vehicle(
                         world,
                         model.ty,
@@ -115,7 +128,8 @@ impl Dispatcher {
                     .map(|id| {
                         traffic.sim.set_response_signals(id, model.signals);
                         id
-                    }),
+                    })
+                },
                 None => Err(format!("{:?} responder model not loaded or installed",scene.service)),
             };
             match result {
@@ -123,12 +137,19 @@ impl Dispatcher {
                     scene.vehicle = Some(id);
                     scene.bus_at = Some(input.bus);
                     self.last_problem = None;
+                    omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Host,"bcs_events",
+                        omsi_sim::feature_audit::ResultKind::Executed,"vehicle_spawned",
+                        &format!("event={} service={:?} vehicle={} bus_pos=({:.1},{:.1},{:.1})",
+                            scene.event,scene.service,id,input.bus.x,input.bus.y,input.bus.z));
                     log::info!(
                         "BCS response: {:?} vehicle {id} dispatched for passenger {:?}",
                         scene.service, scene.patient
                     );
                 }
                 Err(problem) => {
+                    omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Host,"bcs_events",
+                        omsi_sim::feature_audit::ResultKind::Failed,"dispatch_error",
+                        &format!("event={} service={:?} reason={}",scene.event,scene.service,problem));
                     if self.last_problem.as_ref() != Some(&problem) {
                         log::warn!("BCS response pending: {problem}");
                         self.last_problem = Some(problem);
@@ -144,6 +165,10 @@ impl Dispatcher {
             if traffic.sim.response_on_scene(id) {
                 if !scene.arrived {
                     scene.arrived = true;
+                    omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Host,"bcs_events",
+                        omsi_sim::feature_audit::ResultKind::Completed,"vehicle_physically_arrived",
+                        &format!("event={} service={:?} vehicle={} at_bus=({:.1},{:.1},{:.1})",
+                            scene.event,scene.service,id,input.bus.x,input.bus.y,input.bus.z));
                     log::info!("BCS response: {:?} vehicle {id} physically on scene", scene.service);
                 }
                 if dt > 0.0 && transfer_ready(scene.completed, input.speed) {
@@ -154,6 +179,10 @@ impl Dispatcher {
             } else if !scene.stalled_reported {
                 if let Some(car) = traffic.sim.cars.iter().find(|c| c.id == id && c.stopped >= 2.0) {
                     scene.stalled_reported = true;
+                    omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Host,"bcs_events",
+                        omsi_sim::feature_audit::ResultKind::Blocked,"response_vehicle_stalled",
+                        &format!("event={} vehicle={} reason={} lane={} bus_distance_m={:.1}",
+                            scene.event,id,car.why.0,car.state.lane,(car.vehicle.position-input.bus).length()));
                     log::warn!("BCS response: {:?} vehicle {id} stopped before arrival: reason {}, bus distance {:.1} m, lane {}, s {:.1}, response {:?}", scene.service,car.why.0, (car.vehicle.position - input.bus).length(), car.state.lane, car.state.s, car.response);
                 }
             }
