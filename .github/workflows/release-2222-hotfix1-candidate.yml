@@ -139,7 +139,7 @@ jobs:
           d=Path("native")
           sha=lambda f:hashlib.sha256(f.read_bytes()).hexdigest()
           commit="dd84699fb88924d910499484527f6ff28051fa2c"
-          version="0.3.46-coop.15-2.2.2.2"
+          version="0.3.46-coop.15-2.2.2.2-hotfix.1"
           assert version in (d/"version.txt").read_text(encoding="utf-8-sig")
           info=dict(commit=commit,build_commit=commit,run_id=41271935702,
               upstream_commit="17be22987d7c01c813a1473e7696fc71fb3b1d89",
