@@ -155,7 +155,18 @@ def main():
  helpfile=out/'native-help.txt';helpfile.write_text(cli.stdout+cli.stderr)
  subprocess.run(['python',str(ROOT/'scripts/build_2203.py'),'--tests-only'],env=dict(os.environ,OPENOMSI_FUEL_CLI_HELP=str(helpfile)),check=True)
  previews=out/'setup-previews'
- subprocess.run([str((package/'Setup.exe').resolve()),'--gui-smoke'],cwd=package,env=dict(os.environ,BRIDGE_SETUP_PREVIEWS=str(previews)),timeout=60,check=True)
+ try:
+  subprocess.run([str((package/'Setup.exe').resolve()),'--gui-smoke'],cwd=package,env=dict(os.environ,BRIDGE_SETUP_PREVIEWS=str(previews)),timeout=60,check=True)
+ except (subprocess.CalledProcessError,subprocess.TimeoutExpired):
+  diagnostic=package/'app'/'setup-v1.1.3.log'
+  print('SETUP GUI SMOKE FAILED. Native Setup diagnostics:',flush=True)
+  if diagnostic.exists():
+   print(diagnostic.read_text(encoding='utf-8',errors='replace')[-12000:],flush=True)
+  else:
+   print('Missing expected diagnostic file: '+str(diagnostic),flush=True)
+   for path in sorted(package.rglob('*setup*.log')):print('Found log:',path,flush=True)
+  print('Generated GUI previews:',[p.name for p in previews.glob('*')] if previews.exists() else 'none',flush=True)
+  raise
  subprocess.run(['python',str(ROOT/'scripts/test_setup_update_service_windows.py'),str(package)],check=True)
  embedded=build.SOURCE/'bridge_update_payload.zip';assert not embedded.exists()
  try:
