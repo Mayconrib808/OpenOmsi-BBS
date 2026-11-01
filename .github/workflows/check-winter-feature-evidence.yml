@@ -1,0 +1,41 @@
+name: Verify feature evidence for Bridge winter candidate
+on:
+  push:
+    branches: [feat/winter-artist-assets]
+    paths:
+      - .github/workflows/check-winter-feature-evidence.yml
+      - crates/omsi-sim/src/feature_audit.rs
+      - crates/omsi-sim/src/lib.rs
+      - crates/omsi-sim/src/people/**
+      - crates/omsi-sim/src/ai_traffic/**
+      - crates/omsi-app/src/bcs_events/**
+      - crates/omsi-app/src/traffic.rs
+      - crates/omsi-app/src/view_sync/people.rs
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: winter-feature-evidence-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows-check:
+    runs-on: windows-2022
+    timeout-minutes: 65
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: winter-feature-evidence
+      - name: Check app and simulate source
+        shell: pwsh
+        run: |
+          cargo check --locked -p omsi-app
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test audit counts and traffic decisions
+        shell: pwsh
+        run: |
+          cargo test --locked -p omsi-sim feature_audit -- --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          cargo test --locked -p omsi-sim ambient_talk -- --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
