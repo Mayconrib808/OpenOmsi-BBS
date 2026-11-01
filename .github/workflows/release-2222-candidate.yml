@@ -53,7 +53,7 @@ jobs:
           if ($head -ne $r.head_sha) { throw 'Native source archive mismatch' }
       - uses: actions/download-artifact@v4
         with:
-          name: OpenOMSI-2.2.2.2-native-windows-candidate
+          name: OpenOMSI-2.2.2.2-native-windows-CANDIDATE
           run-id: 41260601016
           github-token: ${{ github.token }}
           path: tested-native
