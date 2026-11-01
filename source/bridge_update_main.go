@@ -23,9 +23,10 @@ import (
 var automaticBridgePayload []byte
 
 func automaticUpdateMessage(text string, failed bool) {
-	flags := uintptr(0x40)
+	// Bring fatal updater errors to the foreground even when Setup has exited.
+    flags := uintptr(0x40 | 0x10000 | 0x40000) // MB_ICONINFORMATION | MB_SETFOREGROUND | MB_TOPMOST
 	if failed {
-		flags = 0x10
+		flags = 0x10 | 0x10000 | 0x40000
 	}
 	syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW").Call(0, uintptr(unsafe.Pointer(winPtr(text))), uintptr(unsafe.Pointer(winPtr("Atualizar OpenOMSI BCS Bridge"))), flags)
 }
@@ -50,8 +51,14 @@ func elevateAutomaticUpdate() error {
 		return fmt.Errorf("não foi possível iniciar o atualizador")
 	}
 	defer syscall.CloseHandle(syscall.Handle(info.Process))
-	_, err = syscall.WaitForSingleObject(syscall.Handle(info.Process), syscall.INFINITE)
-	return err
+	status,err := syscall.WaitForSingleObject(syscall.Handle(info.Process),syscall.INFINITE)
+    if err!=nil{return err}
+    if status!=syscall.WAIT_OBJECT_0{return fmt.Errorf("elevated updater did not complete (wait status %d)",status)}
+    var code uint32
+    ok,_,last:=setupKernel.NewProc("GetExitCodeProcess").Call(info.Process,uintptr(unsafe.Pointer(&code)))
+    if ok==0{return fmt.Errorf("cannot read elevated updater result: %v",last)}
+    if code!=0{return fmt.Errorf("o atualizador elevado falhou (código %d). Consulte app/setup-v1.1.3.log",code)}
+    return nil
 }
 
 func main() {
@@ -95,11 +102,36 @@ func main() {
 	} else {
 		dir, c, err = automaticBridgeUpdateTarget(newWindowsRegistry(), saved.Root, steamRootsForBridgeUpdate())
 	}
-	if err == nil {
+	// The parent Setup must receive a concrete startup/preflight result before
+    // it exits. This avoids the observed download -> vanished Setup -> no update.
+    if opts.handoff != "" {
+        preflight:=err
+        if preflight==nil {preflight=checkUpdateHostClosed(dir)}
+        if preflight==nil {
+            running,e:=gamesRunning()
+            if e!=nil{preflight=e}else if running{
+                preflight=fmt.Errorf("feche BCS, OMSI e openOMSI antes de atualizar")
+            }
+        }
+        if preflight==nil && filepath.IsAbs(c.Root) {
+            jar,e:=installedBCSJar(c.Root)
+            if e!=nil{preflight=e}else if jar!=""{preflight=checkBCSClosedForUpdate(jar)}
+        }
+        if ackErr:=announceBridgeUpdateHandoff(opts.handoff,preflight);ackErr!=nil{
+            preflight=fmt.Errorf("não foi possível confirmar o início do atualizador: %w",ackErr)
+            automaticUpdateMessage(preflight.Error(),true)
+        }
+        if dir!=""{logSetup(dir,"automatic-update-preflight",preflight)}
+        if preflight!=nil{os.Exit(1)}
+    }
+    if dir!=""{logSetup(dir,"automatic-update-start",err)}
+    if err == nil {
 		err = waitForSetupUpdate(uint32(opts.wait), dir)
+        logSetup(dir,"automatic-update-setup-exited",err)
 	}
 	if err == nil {
 		err = checkUpdateHostClosed(dir)
+        logSetup(dir,"automatic-update-host-check",err)
 	}
 	if err == nil {
 		var running bool
@@ -114,6 +146,7 @@ func main() {
 	var payload map[string][]byte
 	if err == nil {
 		payload, err = readAutomaticBridgePayload(automaticBridgePayload)
+        logSetup(dir,"automatic-update-payload-read",err)
 	}
 	if err == nil {
 		var coop map[string][]byte
@@ -125,10 +158,12 @@ func main() {
 				payload[name] = data
 			}
 		}
+        logSetup(dir,"automatic-update-coop-download",err)
 	}
 	var state bcsNextTripPreparation
 	if err == nil {
 		state, err = installAutomaticBridgeUpdate(dir, c, payload, checkBCSClosedForUpdate)
+        logSetup(dir,"automatic-update-install",err)
 	}
 	if dir != "" {
 		if f, e := os.OpenFile(filepath.Join(appDir(dir), "setup-v1.1.3.log"), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); e == nil {
@@ -140,13 +175,15 @@ func main() {
 	// only when filesystem permissions actually require it; no registry writes
 	// or company setup are part of this update.
 	if err != nil && (errors.Is(err, os.ErrPermission) || errors.Is(err, syscall.ERROR_ACCESS_DENIED)) && !isElevated() && !opts.apply {
-		if elevationErr := elevateAutomaticUpdate(); elevationErr != nil && elevationErr != syscall.Errno(1223) {
-			automaticUpdateMessage(elevationErr.Error(), true)
+		if elevationErr := elevateAutomaticUpdate(); elevationErr != nil {
+            logSetup(dir,"automatic-update-elevation",elevationErr)
+            automaticUpdateMessage(elevationErr.Error(), true)
 		}
 		return
 	}
 	if err != nil {
-		if errors.Is(err, errBridgeSetupStillOpen) {
+		if dir!=""{logSetup(dir,"automatic-update-failed",err)}
+        if errors.Is(err, errBridgeSetupStillOpen) {
 			err = fmt.Errorf("%s", localText(c.Language,
 				"O Setup desta instalação ainda está concluindo uma operação. Aguarde ou cancele essa operação e execute a atualização novamente.",
 				"This installation's Setup is still completing an operation. Wait or cancel that operation, then run the update again.",
@@ -163,8 +200,9 @@ func main() {
 	}
 	if opts.reopen || bridgeVersion == "2.2.2" {
 		if e := startBridgeUpdateProcess(filepath.Join(dir, "Setup.exe"), dir); e != nil {
+            logSetup(dir,"automatic-update-reopen-failed",e)
 			automaticUpdateMessage(e.Error(), true)
-		}
+		}else{logSetup(dir,"automatic-update-reopen",nil)}
 		return
 	}
 	automaticUpdateMessage(localText(c.Language,
@@ -175,11 +213,14 @@ func main() {
 
 func automaticUpdateElevationArguments() string {
 	args := []string{"--apply"}
-	for _, arg := range os.Args[1:] {
-		if arg != "--apply" {
-			args = append(args, arg)
-		}
-	}
+	for i:=1;i<len(os.Args);i++{
+        arg:=os.Args[i]
+        if arg=="--apply"{continue}
+        // The Setup parent already received this acknowledgement. The
+        // elevated helper must not reuse its deleted one-time marker.
+        if arg=="--handoff-ready"{i++;continue}
+        args=append(args,arg)
+    }
 	for i, arg := range args {
 		args[i] = syscall.EscapeArg(arg)
 	}
