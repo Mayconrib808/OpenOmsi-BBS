@@ -137,10 +137,11 @@ impl Dispatcher {
                     scene.vehicle = Some(id);
                     scene.bus_at = Some(input.bus);
                     self.last_problem = None;
+                    let actual_pos=traffic.sim.cars.iter().find(|car|car.id==id).map(|car|car.vehicle.position);
                     omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Host,"bcs_events",
                         omsi_sim::feature_audit::ResultKind::Executed,"vehicle_spawned",
-                        &format!("event={} service={:?} vehicle={} bus_pos=({:.1},{:.1},{:.1})",
-                            scene.event,scene.service,id,input.bus.x,input.bus.y,input.bus.z));
+                        &format!("event={} service={:?} vehicle={} vehicle_position={:?} target_bus_pos=({:.1},{:.1},{:.1}) behavior=dispatch_in_progress",
+                            scene.event,scene.service,id,actual_pos,input.bus.x,input.bus.y,input.bus.z));
                     log::info!(
                         "BCS response: {:?} vehicle {id} dispatched for passenger {:?}",
                         scene.service, scene.patient

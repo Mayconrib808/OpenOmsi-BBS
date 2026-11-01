@@ -93,10 +93,11 @@ impl TrafficSim {
         { return false; }
         let Some((lead, who)) = scene.lead else { return false; };
         if !self.different_stopped_bus_ahead(i, who, lead.gap, scene.obstacle_len) { return false; }
+        let overtaken_id=who.and_then(|j|self.cars.get(j)).map(|blocked|blocked.id);
         let audit_block=|reason:&'static str|{
             crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
                 crate::feature_audit::ResultKind::Blocked,reason,
-                &format!("bus={} blocker={:?} from_lane={} gap={:.1}m",car.id,who,st.lane,lead.gap));
+                &format!("bus_id={} overtaken_bus_id={:?} from_lane={} gap={:.1}m",car.id,overtaken_id,st.lane,lead.gap));
         };
         let ahead_gap = lead.gap;
         // Complete the first S-curve before the front corner reaches the bus.
@@ -154,8 +155,8 @@ impl TrafficSim {
         crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
             crate::feature_audit::ResultKind::Executed,"maneuver_started",
             &format!("bus={} overtaken_bus={:?} target_lane={} source_lane={} gap_m={:.1} return_at_odometer={:.1}",
-                car.id,who,target,source_lane,ahead_gap,at));
-        log::info!("FEATURE AUDIT ai_bus_overtaking performed car={} overtaken_car={:?} target_lane={} source_lane={}",car.id,who,target,source_lane);
+                car.id,overtaken_id,target,source_lane,ahead_gap,at));
+        log::info!("FEATURE AUDIT ai_bus_overtaking performed bus_id={} overtaken_bus_id={:?} target_lane={} source_lane={}",car.id,overtaken_id,target,source_lane);
         true
     }
 }
