@@ -44,17 +44,18 @@ def main():
     previous=embedded_payload((a.baseline/'Atualizar-Bridge.exe').read_bytes())
     expected_setup=hashlib.sha256((out/'runtime/Setup.exe').read_bytes()).hexdigest()
     old=None;updater=None;target=None
-    with tempfile.TemporaryDirectory(prefix='bridge-one-click-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='bridge-one-click-',dir=out.parent) as temporary:
         folder=Path(temporary);target=folder/'Bridge with spaces'
-        shutil.copytree(out/'runtime',target,copy_function=os.link)
-        # Keep current assets hard-linked read-only by policy: only these two
-        # fixture files are deliberately changed, by unlinking their links first.
+        # Use independent files, including when a runner's system temp/cache
+        # and checkout reside on different volumes. Hard links fail with
+        # WinError 17 across C: and D: and can share fixture writes with inputs.
+        shutil.copytree(out/'runtime',target)
         setup=target/'Setup.exe';setup.unlink();setup.write_bytes(previous['Setup.exe'])
         game=target/'OpenOmsi Coop 0.3.41/programa/openomsi.exe';game.unlink();game.write_bytes(b'old game fixture')
         note=target/'company-user-setting.txt';note.write_text('preserve company preferences\n')
         cache=folder/'cache';roaming=folder/'roaming';cache.mkdir();roaming.mkdir()
         parts=cache/'OpenOmsi-BBS/Coop-0.3.41';parts.mkdir(parents=True)
-        for part in (out/'coop-assets').glob('*.bin'):os.link(part,parts/part.name)
+        for part in (out/'coop-assets').glob('*.bin'):shutil.copy2(part,parts/part.name)
         ready=cache/'OpenOmsi-BBS/Updates'/('.bridge-handoff-'+uuid.uuid4().hex+'.signal')
         ready.parent.mkdir(parents=True)
         env=dict(os.environ,LOCALAPPDATA=str(cache),APPDATA=str(roaming))
