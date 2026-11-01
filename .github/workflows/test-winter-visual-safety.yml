@@ -1,0 +1,51 @@
+name: Guard winter clothing until in-game rigging QA
+on:
+  push:
+    branches: [fix/winter-visual-mesh-qa-gate]
+    paths:
+      - crates/omsi-app/src/view_sync/people/winter.rs
+      - .github/workflows/test-winter-visual-safety.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  validate-unreleased-meshes:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: winter-visual-safety
+      - name: Restore authentic converted garment assets for security/rig-fit QA
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-Bridge-WinterClothes-REAL-ARTIST-MODELS-TEST-ONLY
+          run-id: 41257972400
+          github-token: ${{ github.token }}
+          path: test-assets
+      - name: Verify garments are NOT cleared for live visual rendering
+        shell: pwsh
+        run: |
+          $meta=Get-Content test-assets/winter-candidate-manifest.json -Raw | ConvertFrom-Json
+          if ($meta.release_approved -or $meta.gameplay_visual_tested -or $meta.rigged_on_stock_passengers) { throw 'Unproven mesh was marked safe' }
+          $files=Get-ChildItem test-assets/bcs-assets/WinterClothes -Filter skin_binding.json -Recurse
+          if ($files.Count -lt 7) { throw "Missing staged garment bindings" }
+          foreach($file in $files) {
+            $binding=Get-Content $file.FullName -Raw | ConvertFrom-Json
+            if ($binding.fitted_to_stock_omsi_human -or $binding.released) { throw "Unexpected production approval: $($file.FullName)" }
+          }
+      - name: Check Rust app and compile time skin safety
+        shell: pwsh
+        run: |
+          cargo check --locked -p omsi-app
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Test original textures, OBJ parsing, and fail-closed visual gate
+        shell: pwsh
+        env:
+          OPENOMSI_WINTER_TEST_ASSETS: ${{ github.workspace }}/test-assets
+        run: |
+          cargo test --locked -p omsi-app winter::tests:: -- --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
