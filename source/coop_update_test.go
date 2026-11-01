@@ -180,6 +180,38 @@ func TestCoop2215DownloadSupportsMoreThanEightVerifiedChunks(t *testing.T) {
 	}
 }
 
+// 2.2.2.2 ships a signed ~261 MiB Coop ZIP in 17 authenticated 16 MiB chunks.
+// Previous binaries incorrectly rejected the ZIP before any download because
+// they capped the transfer at 256 MiB / 16 chunks.
+func TestCoop2222DownloadAllowsSeventeenAuthenticatedChunks(t *testing.T) {
+ data, spec := coopFixture(t)
+ spec.Parts = nil
+ parts := map[string][]byte{}
+ chunkSize := (len(data)+16)/17
+ for start := 0; start < len(data); start += chunkSize {
+  end := start+chunkSize
+  if end > len(data) {end=len(data)}
+  chunk := data[start:end]
+  digest := fmt.Sprintf("%x",sha256.Sum256(chunk))
+  spec.Parts=append(spec.Parts,coopDistributionPart{SHA256:digest,Size:int64(len(chunk))})
+  parts["/packages/"+digest+".bin"]=chunk
+ }
+ if len(spec.Parts)!=17 {t.Fatalf("fixture must have 17 parts; got %d",len(spec.Parts))}
+ server:=httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+  if p,ok:=parts[r.URL.Path];ok{_,_=w.Write(p)}else{http.NotFound(w,r)}
+ }))
+ defer server.Close()
+ result,err:=downloadCoopDistribution(context.Background(),server.Client(),server.URL,spec,t.TempDir(),nil)
+ if err!=nil||!bytes.Equal(result,data){t.Fatalf("17-part authenticated download failed: %v",err)}
+ if _,err:=readCoopDistribution(result,spec);err!=nil{t.Fatalf("authenticated ZIP rejected: %v",err)}
+ tooMany:=spec
+ tooMany.Parts=append(append([]coopDistributionPart(nil),spec.Parts...),make([]coopDistributionPart,16)...)
+ if _,err:=downloadCoopDistribution(context.Background(),server.Client(),server.URL,tooMany,t.TempDir(),nil);err==nil{t.Fatal("33-part bundle was not rejected")}
+ tooLarge:=spec
+ tooLarge.Size=(512<<20)+1
+ if _,err:=downloadCoopDistribution(context.Background(),server.Client(),server.URL,tooLarge,t.TempDir(),nil);err==nil{t.Fatal("over-512 MiB bundle was not rejected")}
+}
+
 func TestCoopArchiveRejectsMissingForeignAndCorruptFiles(t *testing.T) {
 	data, spec := coopFixture(t)
 	if files, err := readCoopDistribution(data, spec); err != nil || len(files) != 3 {

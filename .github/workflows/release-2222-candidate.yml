@@ -9,6 +9,8 @@ on:
       - source/setup_changelog_windows.go
       - source/setup_gui_windows.go
       - source/company_gateway.go
+      - source/coop_update.go
+      - source/coop_update_test.go
       - docs/releases/2.2.2.2.md
       - build-support/release2222/native-build.json
       - build-support/release2222/launcher-build.json

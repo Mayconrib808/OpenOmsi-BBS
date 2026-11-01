@@ -124,7 +124,7 @@ func downloadCoopDistribution(ctx context.Context, client *http.Client, origin s
 	if err != nil {
 		return nil, err
 	}
-	if !coopDigestValid(spec.SHA256) || spec.Size < 1 || spec.Size > 256<<20 || len(spec.Parts) == 0 || len(spec.Parts) > 16 {
+	if !coopDigestValid(spec.SHA256) || spec.Size < 1 || spec.Size > 512<<20 || len(spec.Parts) == 0 || len(spec.Parts) > 32 {
 		return nil, fmt.Errorf("distribuição do Cooperativo inválida")
 	}
 	var expectedSize int64
