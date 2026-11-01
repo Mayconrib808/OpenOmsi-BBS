@@ -247,7 +247,7 @@ mod tests{
                     .unwrap_or_else(|e|panic!("{name}: {e}"));
                 let rest=garment_fit(&art,&target)
                     .unwrap_or_else(|e|panic!("{name} rest: {e}"));
-                for angle in [0.0_f32,0.12,0.25] {
+                for angle in [-0.45_f32,-0.25,0.0,0.12,0.25,0.45,0.65] {
                     let mut bones=[Affine3A::IDENTITY;human::SLOTS];
                     for side in 0..2 {
                         let sign=if side==0{-1.0}else{1.0};
@@ -309,7 +309,7 @@ mod tests{
                 // Exercise the same weighted bone slots as the game on the
                 // actual measured stock joints. This cannot replace a real
                 // screenshot of walking, sitting, looking and arm movement.
-                for angle in [0.0_f32,0.12,0.25] {
+                for angle in [-0.45_f32,-0.25,0.0,0.12,0.25,0.45,0.65] {
                     let mut bones=[Affine3A::IDENTITY;human::SLOTS];
                     for side in 0..2 {
                         let sign=if side==0{-1.0}else{1.0};
