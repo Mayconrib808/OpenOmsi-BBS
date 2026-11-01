@@ -115,6 +115,11 @@ fn parse_obj(buf:&[u8],binding:&Binding)->Result<(MeshData,Vec<Vec<(usize,f32,Ve
     if vertices.len()!=binding.per_vertex_weights.len() || faces.is_empty(){
         return Err("OBJ and skin bindings disagree".into());
     }
+    let (source_min,source_max)=vertices.iter().copied().fold(
+        (Vec3::splat(f32::MAX),Vec3::splat(f32::MIN)),
+        |(lo,hi),p|(lo.min(p),hi.max(p)));
+    let source_half_width=source_min.x.abs().max(source_max.x.abs()).max(0.01);
+    let source_height=(source_max.z-source_min.z).max(0.01);
     let mut averaged=vec![Vec3::ZERO;vertices.len()];
     for face in &faces {for k in 1..face.len()-1 {
         let a=vertices[face[0].0];let b=vertices[face[k].0];let c=vertices[face[k+1].0];
@@ -150,6 +155,42 @@ fn parse_obj(buf:&[u8],binding:&Binding)->Result<(MeshData,Vec<Vec<(usize,f32,Ve
                 return Err("zero or nonfinite total skin weight".into());
             }
             for (_,weight,_) in &mut inf {*weight/=sum;}
+            if binding.garment_kind=="torso" {
+                // The converted MakeHuman binding used horizontal position to
+                // assign sleeve bones. On the genuine hooded jacket this also
+                // incorrectly skinned the LOWER HEM to the upper arms, making
+                // a 3 cm triangle stretch to 20+ cm on tall OMSI humans.
+                // Preserve the sleeve ends at the outer arm, but gradually
+                // rebind inner/lower torso vertices to MAIN. Apply this once
+                // to the actual skin weights, not only the rest-fit vertices,
+                // so walking and seated animations use the same correction.
+                let source=vertices[vertex];
+                let xr=source.x.abs()/source_half_width;
+                let zr=(source.z-source_min.z)/source_height;
+                let x_gate=((xr-0.20)/0.42).clamp(0.0,1.0);
+                let z_gate=((zr-0.22)/0.25).clamp(0.0,1.0);
+                let outer_gate=((xr-0.58)/0.04).clamp(0.0,1.0);
+                let arm_gate=outer_gate.max(x_gate*z_gate);
+                let main_slot=human::slot_of(human::BONE_MAIN)
+                    .ok_or("main human bone absent")?;
+                let mut redirected=0.0;
+                for (slot,weight,_) in &mut inf {
+                    if *slot!=main_slot {
+                        let old=*weight;
+                        *weight*=arm_gate;
+                        redirected+=old-*weight;
+                    }
+                }
+                if redirected>0.0 {
+                    if let Some((_,weight,_))=inf.iter_mut().find(|(slot,_,_)|*slot==main_slot) {
+                        *weight+=redirected;
+                    } else {
+                        let anchor=binding.reference_anchors_m.get("MAIN")
+                            .copied().map(Vec3::from_array).unwrap_or(Vec3::ZERO);
+                        inf.push((main_slot,redirected,anchor));
+                    }
+                }
+            }
             skin.push(inf);
         }
     }}
