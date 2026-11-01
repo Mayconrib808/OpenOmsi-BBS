@@ -108,8 +108,34 @@ func newCompanyGateway(ctx context.Context, cfg companyHostConfig, session Compa
 		break
 	}
 	if g.reserveUDP == nil {
+		// On some Windows runners the automatic TCP ephemeral range is wholly
+		// excluded from UDP, so repeated :0 attempts cannot produce a shared
+		// TCP+UDP port. Try unprivileged loopback ports below the usual dynamic
+		// range as a fallback; always reserve BOTH sockets before accepting one.
+		const minPort, portSpan = 30000, 12000
+		seed := int(time.Now().UnixNano() % portSpan)
+		for attempt := 0; attempt < 48; attempt++ {
+			port := minPort + (seed+attempt*331)%portSpan
+			files, listenErr := net.Listen("tcp4", "127.0.0.1:"+strconv.Itoa(port))
+			if listenErr != nil {
+				err = listenErr
+				continue
+			}
+			udp, listenErr := net.ListenUDP("udp4", &net.UDPAddr{IP: net.IPv4(127, 0, 0, 1), Port: port})
+			if listenErr != nil {
+				_ = files.Close()
+				err = listenErr
+				continue
+			}
+			g.reserveFiles, g.reserveUDP = files, udp
+			g.backendPort = port
+			g.backendUDP = udp.LocalAddr().(*net.UDPAddr)
+			break
+		}
+	}
+	if g.reserveUDP == nil {
 		g.Close()
-		return nil, fmt.Errorf("nenhuma porta TCP/UDP compartilhada disponível após 32 tentativas: %w", err)
+		return nil, fmt.Errorf("nenhuma porta TCP/UDP compartilhada disponível após 32 tentativas dinâmicas e 48 alternativas: %w", err)
 	}
 	g.reserveWeb, err = net.Listen("tcp4", "127.0.0.1:0")
 	if err != nil {
