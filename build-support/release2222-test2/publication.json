@@ -1,0 +1,12 @@
+{
+  "version": "2.2.2.2-test.2",
+  "sequence": 2026110102,
+  "candidate_run_id": 41351927542,
+  "candidate_commit": "0173441ee859bdf60588d1c1e455ebacefbfb528",
+  "installer_sha256": "bc9bad30bc65ded33411ce4019ac38899115ad1d17cc2edb24b34eb670d6abc2",
+  "installer_size": 24652800,
+  "coop_archive_sha256": "c8bc74e4e591e3135e1e0a5259d33746d33d42d605765de4c9034326d09a140a",
+  "candidate_workflow": ".github/workflows/package-2222-test2-wait.yml",
+  "candidate_artifact_id": 13101494159,
+  "candidate_artifact_sha256": "723d1f60d37074ad91e74d0874d8453bbbea3fdb6cb402e39d8af211000dc029"
+}

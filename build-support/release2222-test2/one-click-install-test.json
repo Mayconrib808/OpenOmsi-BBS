@@ -1,0 +1,14 @@
+{
+  "status": "passed",
+  "actual_executable": "Atualizar-Bridge.exe",
+  "invocations": 1,
+  "running_old_setup_replaced": true,
+  "startup_acceptance_required": true,
+  "coop_extraction_exercised": true,
+  "windows_crlf_acceptance_tested": true,
+  "managed_files_verified": 329,
+  "unmanaged_preferences_preserved": true,
+  "setup_reopened": true,
+  "setup_sha256": "76593527a52739d14cce58515a8f23dbc146df16641da6786850e382a969ebab",
+  "windows_gameplay_tested": false
+}
