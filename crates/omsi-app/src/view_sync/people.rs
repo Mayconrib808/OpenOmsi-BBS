@@ -27,6 +27,7 @@ use std::sync::Arc;
 
 mod animation;
 pub(crate) mod extras;
+mod winter;
 mod avatars;
 pub(crate) use avatars::{set_hour, speak};
 
@@ -62,6 +63,8 @@ pub(crate) struct PeopleView {
     pub(crate) extra_config: extras::Config,
     shelter_cursor: usize,
     extra_renders: extras::Renders,
+    winter_renders: winter::Renders,
+    winter_enabled: bool,
     extra_hands: HashMap<usize,Arc<extras::HandRest>>,
     pub(crate) mirror_hz: Option<f32>,
     /// The people are drawn with the avatars of "Character models: High quality" (this
@@ -98,6 +101,8 @@ impl PeopleView {
             extra_config: extras::Config::of(&crate::settings::Settings::load()),
             shelter_cursor: 0,
             extra_renders: Default::default(),
+            winter_renders: Default::default(),
+            winter_enabled: crate::settings::Settings::load().optional_features.weather_clothing,
             extra_hands: Default::default(),
             mirror_hz: None,
             avatars: avatars::enabled(),
@@ -226,6 +231,7 @@ impl PeopleView {
     /// (`tkey`) dressed alike (`variant`).
     fn retire_meshes(&mut self, id: u32, tkey: usize, variant: usize) {
         self.extra_renders.retire(id,&mut self.hidden);
+        self.winter_renders.retire(id,&mut self.hidden);
         let person = self.people.remove(&id);
         // (an avatar's meshes go to the next person drawn with the same avatar)
         let (tkey, variant) = match person.as_ref().and_then(|p| p.avatar.as_ref()) {
@@ -242,6 +248,7 @@ impl PeopleView {
     /// Person `from` is called `to` from now on.
     fn rename(&mut self, from: u32, to: u32) {
         self.extra_renders.rename(from,to);
+        self.winter_renders.rename(from,to);
         if let Some(m) = self.people.remove(&from) {
             self.people.insert(to, m);
         }
@@ -640,6 +647,7 @@ impl PeopleView {
             }
         }
         self.extra_renders.new_this_frame=0;
+        self.winter_renders.new_this_frame=0;
         let cosmetic_time=frame.time;
         let buses: HashMap<_, _> = if enhanced {
             frame.buses.iter().map(|b| (b.id, b)).collect()
@@ -803,6 +811,9 @@ impl PeopleView {
                 renderer.set_interior(scene, *inst, st.lit * 0.5);
             }
             self.extra_renders.draw(p,&st.extra,at,xf,enhanced&&extra_config.umbrellas&&(p.position-from).length_squared()<extras::VISUAL_DISTANCE_SQ,renderer,scene);
+            self.winter_renders.draw(p,st,at,xf,(p.position-from).length_squared(),
+                self.winter_enabled,extras::winter_temperature(),extras::winter_snow(),
+                &world.root,renderer,scene,go);
             if p.hidden.is_some() && omsi_cfg::flags::OMSI_DEBUG_FOOT.is_set() && self.sync_frame % 30 == 0 {
                 log::info!("avatar drawn at ({:.2}, {:.2}, {:.2}) heading {:.0} place {:?} go {}", at.x, at.y, at.z, heading, matches!(p.place, Place::Ground), go);
             }

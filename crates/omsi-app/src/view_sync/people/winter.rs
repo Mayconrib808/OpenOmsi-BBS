@@ -3,14 +3,14 @@
 //! No fallback generated primitives; missing / malformed assets disable this visual only.
 use super::{PersonFrame,PersonView};
 use crate::scene::World;
-use glam::{Affine3A,DVec3,Mat4,Vec2,Vec3};
+use glam::{DVec3,Mat4,Vec2,Vec3};
 use hashbrown::HashMap;
 use omsi_geometry::MeshData;
 use omsi_render::{AlphaMode,MaterialId,MeshId,Renderer,Scene};
 use omsi_sim::feature_audit::{record,ResultKind,Role};
 use omsi_sim::human::{self,Rig};
 use serde::Deserialize;
-use std::{fs,path::{Path,PathBuf}};
+use std::{fs,path::Path};
 
 const MAX_NPCS:usize=12;
 const MAX_NEW_FRAME:usize=2;
@@ -191,7 +191,7 @@ fn fitted(art:&Art,rig:&Rig)->Vec<Vec3>{
                     target_bone(rig,name).map(|x|x.1).unwrap_or(rig.waist)
                 }
             };
-            let source=if art.kind=="gloves" {Vec3::new(if target.x<0.0{-centre.x.abs()}else{centre.x.abs()},centre.y,centre.z)}
+            let source=if art.kind=="gloves" {Vec3::new(if target.x<0.0{-src_max.x.abs()*0.87}else{src_max.x.abs()*0.87},centre.y,centre.z)}
                 else if art.kind=="hat" {centre} else {*src_ref};
             let scale=if art.kind=="gloves" {0.57} else {rig.scale.clamp(0.75,1.25)};
             mapped+=(target+(*p-source)*scale)* *w;
