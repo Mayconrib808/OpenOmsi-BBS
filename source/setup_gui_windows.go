@@ -944,7 +944,7 @@ func runSetupGUI(dir string, smoke bool) error {
                 }{
                     sections:=selectLogSections(tc.from)
                     if len(sections)!=tc.want{return fmt.Errorf("changelog from %q expected %d chapters, got %d",tc.from,tc.want,len(sections))}
-                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[4].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
+                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[5].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
                         return fmt.Errorf("changelog from %q has missing or wrong cumulative sections",tc.from)
                     }
                 }
