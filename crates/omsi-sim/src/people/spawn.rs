@@ -511,6 +511,21 @@ impl PeopleSim {
         self.next_id += 1;
         // (the meshes and instances come when the view catches up: `view_sync::apply_people`)
         self.bodies.ops.push(BodyOp::Spawn { id, ty: ty.clone(), variant, position });
+        if self.optional_features.weather_clothing && kind.is_none()
+            && self.climate_temp_c <= 15.0 {
+            let name=variant.checked_sub(1).and_then(|i|ty.variants.get(i))
+                .map(|v|v.name.as_str()).unwrap_or("original");
+            let tagged=super::clothing::clothing_score(name,
+                super::clothing::Climate::new(self.climate_temp_c,self.climate_rain,self.climate_snow))
+                .is_some_and(|score|score>0);
+            crate::feature_audit::record(if self.mirror {crate::feature_audit::Role::Client}
+                    else {crate::feature_audit::Role::Host},"winter_clothing",
+                if tagged {crate::feature_audit::ResultKind::Executed}
+                else {crate::feature_audit::ResultKind::NoOpportunity},
+                if tagged {"installed_cti_variant_chosen"}else{"no_matching_cti_asset"},
+                &format!("person={} temperature_c={:.1} rain={} snow={} stock_model={} outfit={} cti_variant={} source_mesh=original_human proposed_artist_asset=not_yet_fitted",
+                    id,self.climate_temp_c,self.climate_rain,self.climate_snow,ty.def.path.display(),name,variant));
+        }
         if debug_pax() {
             log::info!(
                 "pax #{id} ({}) appears at ({:.1}, {:.1}, {:.1}): {}{}",
