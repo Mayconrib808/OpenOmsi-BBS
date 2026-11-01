@@ -341,6 +341,23 @@ mod tests {
         assert_eq!(candidates(2,false).len(),1);
         assert_eq!(candidates(2,true).len(),3);
     }
+    #[test] fn authored_bundle_is_readable_by_the_real_game_loader(){
+        let Ok(base)=std::env::var("OPENOMSI_WINTER_TEST_ASSETS") else{return};
+        let root=std::path::Path::new(&base).join("bcs-assets").join("WinterClothes");
+        for name in [
+            "elvs_hooded_sweat_jacket1","toigo_fisherman_sweater","mindfront_knitted_sweater_01",
+            "elvs_slouchy_beanie1","mindfront_knitted_hat_01","toigo_gloves_short","toigo_gloves_medium"
+        ] {
+            let art=load_asset(&root,name).unwrap_or_else(|error|panic!("{name}: {error}"));
+            assert!(!art.base.positions.is_empty(),"{name}: no geometry");
+            assert_eq!(art.base.positions.len(),art.influences.len(),"{name}: missing bone weights");
+            assert_eq!(art.base.positions.len(),art.base.uvs.len(),"{name}: missing UVs");
+            assert!(art.base.positions.iter().all(|p|p.is_finite()),"{name}: invalid geometry");
+            assert!(!art.diffuse.rgba.is_empty(),"{name}: missing authentic texture");
+            eprintln!("WINTER ASSET OK name={} triangles={} texture={}x{}",
+                name,art.base.indices.len()/3,art.diffuse.width,art.diffuse.height);
+        }
+    }
     #[test] fn all_model_names_are_safe(){
         for n in candidates(10,true){assert!(allowed_texture_name(n));}
         assert!(!allowed_texture_name("../evil.png"));
