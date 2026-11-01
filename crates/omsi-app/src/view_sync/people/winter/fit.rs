@@ -70,20 +70,25 @@ fn garment_fit(art:&Art,target:&FitTarget)->Result<Vec<Vec3>,String>{
     } else if art.kind=="gloves" {
         // The genuine MakeHuman glove pieces point toward negative Y and
         // lie on either side of the mesh. Turn each into OMSI wrist->hand axis.
-        for v in p {
-            let side=if v.x<0.0{0}else{1};
+        let mut roots=[Vec3::ZERO;2];
+        let mut rotations=[Quat::IDENTITY;2];
+        for side in 0..2 {
             let sign=if side==0{-1.0}else{1.0};
             let half:Vec<Vec3>=p.iter().copied().filter(|a|a.x*sign>0.0).collect();
             if half.len()<8{return Err("one glove side missing".into());}
-            let root=Vec3::new(
+            roots[side]=Vec3::new(
                 percentile(half.iter().map(|a|a.x).collect(),0.5),
                 percentile(half.iter().map(|a|a.y).collect(),0.95),
                 percentile(half.iter().map(|a|a.z).collect(),0.5),
             );
             let axis=(target.wrist[side]-target.elbow[side]).normalize_or_zero();
             if axis.length_squared()<0.2{return Err("invalid stock wrist direction".into());}
-            let rotation=Quat::from_rotation_arc(Vec3::NEG_Y,axis);
-            out.push(target.wrist[side]+rotation*((*v-root)*(target.scale*0.85).clamp(0.60,1.12)));
+            rotations[side]=Quat::from_rotation_arc(-Vec3::Y,axis);
+        }
+        let scale=(target.scale*0.85).clamp(0.60,1.12);
+        for v in p {
+            let side=if v.x<0.0{0}else{1};
+            out.push(target.wrist[side]+rotations[side]*((*v-roots[side])*scale));
         }
     } else {
         // The MakeHuman torso is near x=0, shoulders at about .35 of the half
