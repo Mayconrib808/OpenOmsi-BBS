@@ -35,7 +35,7 @@ struct Art {
     influences:Vec<Vec<(usize,f32,Vec3)>>,
     diffuse:omsi_texture::Image,
 }
-struct LivePart {which:usize,mesh:MeshId,instance:usize,rest:Vec<Vec3>,positions:Vec<Vec3>,normals:Vec<Vec3>}
+struct LivePart {which:usize,mesh:MeshId,instance:usize,rest:Vec<Vec3>,positions:Vec<Vec3>,normals:Vec<Vec3>,reported:bool}
 #[derive(Default)]
 pub(super) struct Renders {
     loaded:bool,
@@ -264,6 +264,15 @@ impl Renders {
         }
         self.setup(root,renderer,scene);
         if self.art.is_empty(){return;}
+        // Clothes must change while a session is running when the weather crosses
+        // 15C or 5C; no respawn/teleport of the passenger is allowed.
+        if self.live.contains_key(&p.id) {
+            let wanted=candidates(p.id,strong).into_iter()
+                .filter_map(|name|self.art.iter().position(|a|a.name==name))
+                .collect::<Vec<_>>();
+            let actual=self.live.get(&p.id).unwrap().iter().map(|part|part.which).collect::<Vec<_>>();
+            if actual!=wanted {self.hide(p.id,renderer,scene);}
+        }
         if !self.live.contains_key(&p.id) {
             if self.new_this_frame>=MAX_NEW_FRAME||self.live.len()>=MAX_NPCS{return;}
             let names=candidates(p.id,strong);
@@ -275,12 +284,12 @@ impl Renders {
                 if triangles>VERTEX_BUDGET/3 {break;}
                 let rest=fitted(art,&p.ty.rig);
                 let part=if let Some(mut reuse)=self.spare.get_mut(&idx).and_then(|v|v.pop()){
-                    reuse.rest=rest;reuse
+                    reuse.rest=rest;reuse.reported=false;reuse
                 }else{
                     let mesh=renderer.add_mesh(scene,&art.base);
                     let instance=renderer.add_instance(scene,mesh,at,xf,vec![self.materials[idx]]);
                     LivePart{which:idx,mesh,instance,rest,
-                        positions:Vec::new(),normals:Vec::new()}
+                        positions:Vec::new(),normals:Vec::new(),reported:false}
                 };
                 parts.push(part);
             }
@@ -313,6 +322,15 @@ impl Renders {
             renderer.set_transform(scene,part.instance,at,xf);
             renderer.set_params(scene,part.instance,&[],true,&[]);
             renderer.set_interior(scene,part.instance,st.lit*0.5);
+            if !part.reported && part.positions.len()==art.base.positions.len()
+                    && part.positions.iter().all(|v|v.is_finite()) {
+                part.reported=true;
+                record(Role::Client,"winter_clothing",ResultKind::Completed,"real_mesh_uploaded_and_instance_visible",
+                    &format!("person={} temperature_c={:.1} stock_model={} asset_file={} vertices={} original_diffuse_texture=true bone_deformed=true",
+                        p.id,temp,p.ty.def.path.display(),
+                        root.join("bcs-assets").join("WinterClothes").join(&art.name).join("garment.obj").display(),
+                        part.positions.len()));
+            }
         }
     }
 }
