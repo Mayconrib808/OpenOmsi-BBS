@@ -1,0 +1,109 @@
+name: Build opt-in winter clothes TEST 1 native Windows candidate
+on:
+  push:
+    branches: [release/winter-test1-native]
+    paths:
+      - .github/workflows/build-winter-test1-native.yml
+      - crates/omsi-app/src/view_sync/people/winter.rs
+      - crates/omsi-app/src/view_sync/people/winter/fit.rs
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: build-winter-test1-native
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.2-test.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: winter-test1-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.2-native-windows-CANDIDATE
+          run-id: 41262425543
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Preserve the exact approved P15 assets and licensed clothing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip='previous/OpenOMSI-2.2.2.2-native-windows-candidate.zip'
+          if((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant() -ne (Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()) { throw 'Damaged original native candidate' }
+          Expand-Archive -LiteralPath $zip -DestinationPath staging -Force
+          $info=Get-Content staging/BUILD-INFO.json -Raw | ConvertFrom-Json
+          if($info.source_commit -ne '50db8c40d1b64b5a8c1d2ddcb250d1ae05be807d') { throw 'Source baseline mismatch' }
+          foreach($file in Get-ChildItem staging/bcs-assets/WinterClothes -Filter skin_binding.json -Recurse){
+            $binding=Get-Content $file.FullName -Raw | ConvertFrom-Json
+            if($binding.fitted_to_stock_omsi_human -or $binding.released) { throw "Experimental visual approval falsely granted: $($file.Name)" }
+          }
+      - name: Run production safety and seven real asset geometry tests without preview switch
+        shell: pwsh
+        env:
+          OPENOMSI_WINTER_TEST_ASSETS: ${{ github.workspace }}/staging
+        run: |
+          Remove-Item Env:OPENOMSI_WINTER_TEST_PREVIEW -ErrorAction SilentlyContinue
+          cargo test --locked -p omsi-app winter::tests:: -- --nocapture
+          if($LASTEXITCODE -ne 0){throw 'Stable safety gate failed'}
+          cargo test --locked -p omsi-app winter::fit::tests:: -- --nocapture
+          if($LASTEXITCODE -ne 0){throw 'Authentic garment fit regressions'}
+      - name: Compile explicitly experimental opt-in game binary
+        shell: pwsh
+        env:
+          OPENOMSI_WINTER_TEST_PREVIEW: '1'
+        run: |
+          cargo build --locked --release -p omsi-app
+          if($LASTEXITCODE -ne 0){throw 'Experimental native compile failed'}
+          & ./target/release/openomsi.exe --version
+          if($LASTEXITCODE -ne 0){throw 'Native CLI failed'}
+      - name: Package exact game, server and source with provenance
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Copy-Item target/release/openomsi.exe staging/openomsi.exe -Force
+          $sha=(Get-FileHash staging/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          git archive --format=tar.gz --prefix=openomsi-test1/ -o staging/openomsi-source.tar.gz HEAD
+          if($LASTEXITCODE -ne 0){throw 'Source archive failed'}
+          & ./staging/openomsi.exe --version | Out-File staging/version.txt -Encoding utf8
+          $source=(Get-FileHash staging/openomsi-source.tar.gz -Algorithm SHA256).Hash.ToLowerInvariant()
+          $info=[ordered]@{
+            bridge_release_target='2.2.2.2-test.1'
+            native_version=$env:OPENOMSI_VERSION
+            source_commit='${{ github.sha }}'
+            exe_sha256=$sha
+            winter_source_run_id=41257972400
+            winter_preview_compiled=$true
+            winter_visual_approved=$false
+            weather_clothing_opt_in_required=$true
+            native_audit_included=$true
+            gameplay_visual_tested=$false
+            paired_gameplay_tested=$false
+            status='TEST_CANDIDATE_NOT_PUBLISHED'
+          }
+          $info|ConvertTo-Json|Set-Content -Encoding utf8 staging/BUILD-INFO.json
+          Compress-Archive -Path staging/openomsi.exe,staging/openomsi-source.tar.gz,staging/version.txt,staging/BUILD-INFO.json,staging/bcs-assets -DestinationPath OpenOMSI-winter-test1-native.zip -CompressionLevel Optimal
+          $sum=(Get-FileHash OpenOMSI-winter-test1-native.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Encoding ascii OpenOMSI-winter-test1-native.zip.sha256 "$sum  OpenOMSI-winter-test1-native.zip"
+          Write-Host "TEST-NATIVE built SHA256=$sha source_sha256=$source"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.2-Test1-native-windows-CANDIDATE
+          path: |
+            OpenOMSI-winter-test1-native.zip
+            OpenOMSI-winter-test1-native.zip.sha256
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error
