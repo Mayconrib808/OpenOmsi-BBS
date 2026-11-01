@@ -53,6 +53,10 @@ impl TrafficSim {
             let at = self.net.beside_s(st.lane, pass.target_lane, st.s);
             if !self.lane_clear(i, pass.target_lane, at, st.rear + 12.0,
                 st.front + 35.0, &ts.by_lane) {
+                crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
+                    crate::feature_audit::ResultKind::Blocked,"maneuver_cancelled_new_obstacle",
+                    &format!("bus={} target_lane={} odometer={:.1} return_at={:.1}",
+                        self.cars[i].id,pass.target_lane,st.odometer,pass.return_at));
                 self.cars[i].bus_lane_pass = None;
                 self.cars[i].state.lateral_target = 0.0;
                 return;
@@ -64,6 +68,10 @@ impl TrafficSim {
         } else {
             st.lateral_target = 0.0;
             if st.lateral.abs() < 0.12 {
+                crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
+                    crate::feature_audit::ResultKind::Completed,"bus_returned_to_original_lane",
+                    &format!("bus={} source_lane={} pass_target_lane={} odometer={:.1}",
+                        self.cars[i].id,st.lane,pass.target_lane,st.odometer));
                 self.cars[i].bus_lane_pass = None;
             }
         }
