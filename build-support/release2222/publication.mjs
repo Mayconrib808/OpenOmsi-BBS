@@ -45,7 +45,7 @@ if(process.argv[2]==='prepare'){
   if(report.version!=='2.2.2.2'||report.sequence!==2026103105||report.update_origin!==origin
       ||report.updater_sha256!==installer.sha256||sha(binary)!==installer.sha256||binary.length!==installer.size
       ||report.coop_archive_sha256!==spec.sha256||report.native_version!=='0.3.46-coop.15-2.2.2.2'
-      ||report.native_candidate_run!==41260601016||report.native_build_commit!=='d69e4272c9541f55ece1fc49261e09a1d63ef300'
+      ||report.native_candidate_run!==41262425543||report.native_build_commit!=='50db8c40d1b64b5a8c1d2ddcb250d1ae05be807d'
       ||report.complete_hosts_unchanged!==true||report.complete_hosts_rebuilt!==false
       ||report.p14_server_unchanged!==true||report.custom_sounds_unchanged!==true
       ||report.bridge_regressions_tested!==true||report.setup_changelog_ui_tested!==true

@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: d69e4272c9541f55ece1fc49261e09a1d63ef300
+          ref: 50db8c40d1b64b5a8c1d2ddcb250d1ae05be807d
           path: native-source
           persist-credentials: false
       - uses: actions/setup-go@v5
@@ -43,19 +43,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41260601016 | ConvertFrom-Json
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41262425543 | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect pinned native source CI' }
           for ($i=0; $i -lt 280 -and $r.status -ne 'completed'; $i++) {
             Start-Sleep -Seconds 15
-            $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41260601016 | ConvertFrom-Json
+            $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41262425543 | ConvertFrom-Json
           }
-          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne 'd69e4272c9541f55ece1fc49261e09a1d63ef300' -or $r.path -ne '.github/workflows/stage-2222-native.yml') { throw 'Unapproved or incomplete native candidate' }
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '50db8c40d1b64b5a8c1d2ddcb250d1ae05be807d' -or $r.path -ne '.github/workflows/stage-2222-fast-native.yml') { throw 'Unapproved or incomplete native candidate' }
+          # The optimized successful run is two workflow-only commits after the original tested source.
+          # Never substitute a different native source: Rust files and assets must be untouched.
+          $diff=gh api "repos/$env:GITHUB_REPOSITORY/compare/d69e4272c9541f55ece1fc49261e09a1d63ef300...50db8c40d1b64b5a8c1d2ddcb250d1ae05be807d" | ConvertFrom-Json
+          if ($LASTEXITCODE -ne 0 -or $diff.status -ne 'ahead' -or $diff.ahead_by -ne 2 -or $diff.behind_by -ne 0) { throw 'Fast-path source relationship not approved' }
+          $allowed=@('.github/workflows/stage-2222-fast-native.yml','.github/workflows/check-2222-desktop-launcher.yml')
+          foreach($file in $diff.files) { if($allowed -notcontains $file.filename) { throw "Native source changed since independent test: $($file.filename)" } }
+          if($diff.files.Count -ne 2) { throw 'Unexpected native source diff count' }
           $head=(git -C native-source rev-parse HEAD).Trim()
           if ($head -ne $r.head_sha) { throw 'Native source archive mismatch' }
       - uses: actions/download-artifact@v4
         with:
           name: OpenOMSI-2.2.2.2-native-windows-CANDIDATE
-          run-id: 41260601016
+          run-id: 41262425543
           github-token: ${{ github.token }}
           path: tested-native
       - name: Verify exact rebuilt 2.2.2.2 desktop lobby
@@ -117,7 +124,7 @@ jobs:
           New-Item -ItemType Directory -Force native | Out-Null
           Expand-Archive -LiteralPath $zip -DestinationPath native -Force
           $details=Get-Content native/BUILD-INFO.json -Raw | ConvertFrom-Json
-          if ($details.source_commit -ne 'd69e4272c9541f55ece1fc49261e09a1d63ef300' -or $details.bridge_release_target -ne '2.2.2.2') { throw 'Wrong candidate source or version' }
+          if ($details.source_commit -ne '50db8c40d1b64b5a8c1d2ddcb250d1ae05be807d' -or $details.bridge_release_target -ne '2.2.2.2') { throw 'Wrong candidate source or version' }
           $nativeDigest=(Get-FileHash native/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($nativeDigest -ne $details.exe_sha256) { throw 'Native executable checksum mismatch' }
           if (-not (Test-Path native/bcs-assets/Vehicles/OpenOMSI_BCS/Fire/model/Fire.obj)) { throw '3D fire vehicle missing from native build' }
@@ -132,10 +139,10 @@ jobs:
           from pathlib import Path
           d=Path("native")
           sha=lambda f:hashlib.sha256(f.read_bytes()).hexdigest()
-          commit="d69e4272c9541f55ece1fc49261e09a1d63ef300"
+          commit="50db8c40d1b64b5a8c1d2ddcb250d1ae05be807d"
           version="0.3.46-coop.15-2.2.2.2"
           assert version in (d/"version.txt").read_text(encoding="utf-8-sig")
-          info=dict(commit=commit,build_commit=commit,run_id=41260601016,
+          info=dict(commit=commit,build_commit=commit,run_id=41262425543,
               upstream_commit="17be22987d7c01c813a1473e7696fc71fb3b1d89",
               version=version,native_sha256=sha(d/"openomsi.exe"),
               source_sha256=sha(d/"openomsi-source.tar.gz"),
@@ -149,7 +156,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $meta=Get-Content native/SOURCE.json -Raw | ConvertFrom-Json
-          if ($meta.version -ne '0.3.46-coop.15-2.2.2.2' -or $meta.run_id -ne 41260601016) { throw 'Mismatched P15 client/server candidate' }
+          if ($meta.version -ne '0.3.46-coop.15-2.2.2.2' -or $meta.run_id -ne 41262425543) { throw 'Mismatched P15 client/server candidate' }
           node --test native-source/launcher/tests/optional-features.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'New settings not represented in source UI' }
       - name: Validate compulsory cumulative changelog, including the 2.2.2.1 Hotfix 2
@@ -178,8 +185,8 @@ jobs:
           s=json.loads((p/"coop-spec.json").read_text())
           exe=(p/"Atualizar-Bridge.exe").read_bytes()
           assert r["version"]=="2.2.2.2" and r["sequence"]==2026103105
-          assert r["native_candidate_run"]==41260601016
-          assert r["native_build_commit"]=="d69e4272c9541f55ece1fc49261e09a1d63ef300"
+          assert r["native_candidate_run"]==41262425543
+          assert r["native_build_commit"]=="50db8c40d1b64b5a8c1d2ddcb250d1ae05be807d"
           assert r["desktop_launcher_unchanged"] is False
           assert r["desktop_launcher_commit"]=="4dd5bb79d91f522ee452aba0854676a3d0fd716c"
           assert r["desktop_launcher_run"]==41260965494
