@@ -6,7 +6,6 @@ const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
 const json=path=>JSON.parse(readFileSync(path,'utf8').replace(/^\uFEFF/,''));
 const signed=readFileSync('build-support/release2222/stable.json');
 const oldSigned=readFileSync('build-support/release2222/stable-original.json');
-const rollback=decode(readFileSync('build-support/release2221-hotfix2/stable.json'));
 const info=json('build-support/release2222/publication.json');
 const key=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),Buffer.from('5xKCV4uIoc9e0/sGeF9s9+cd5m5rwPOdyqslWqxPRrs=','base64')]),format:'der',type:'spki'});
 function decode(raw) {
@@ -15,7 +14,8 @@ function decode(raw) {
   if(!verify(null,payload,key,Buffer.from(obj.signature,'base64')))throw Error('Invalid publisher signature');
   return JSON.parse(payload);
 }
-const current=decode(oldSigned),release=decode(signed);
+const current=decode(oldSigned),release=decode(signed),rollback=decode(readFileSync('build-support/release2221-hotfix2/stable.json'));
+
 if(current.version!=='2.2.2.2'||current.sequence!==2026103105)throw Error('Expected previously deployed signed 2.2.2.2 baseline');
 if(rollback.version!=='2.2.2.1-hotfix.2'||rollback.sequence!==2026103104)throw Error('Rollback Hotfix 2 manifest mismatch');
 if(release.schema!==1||release.version!=='2.2.2.2'||release.sequence!==2026103105||release.sequence!==current.sequence||release.installer.sha256===current.installer.sha256)throw Error('Expected same-version replacement with different fixed updater');
@@ -39,7 +39,9 @@ async function loadLive(){
   if(!response.ok)throw Error('Cannot fetch signed release feed');
   return Buffer.from(await response.arrayBuffer());
 }
-if(process.argv[2]==='prepare'){
+if(process.argv[2]==='validate-signatures'){
+  console.log('SIGNED PREFLIGHT VERIFIED: original 2.2.2.2, repaired 2.2.2.2 and 2.2.2.1 Hotfix 2 rollback');
+}else if(process.argv[2]==='prepare'){
   const live=await loadLive(),now=decode(live);
   if(!live.equals(oldSigned)||now.version!==current.version||now.sequence!==current.sequence)throw Error('Production not exactly original signed 2.2.2.2; refusing repair overwrite');
   const report=json('approved-new/build-report.json'),spec=json('approved-new/coop-spec.json');
@@ -106,4 +108,4 @@ if(process.argv[2]==='prepare'){
     if(!response.ok||sha(Buffer.from(await response.arrayBuffer()))!==name.slice(0,64))throw Error('Live asset missing/corrupt: '+name);
   }
   console.log('LIVE VERIFIED: Signed repaired 2.2.2.2 updater + original/Hotfix 2 rollback + exact 17 P15 archive parts');
-}else throw Error('Expected prepare or verify-live');
+}else throw Error('Expected validate-signatures, prepare or verify-live');

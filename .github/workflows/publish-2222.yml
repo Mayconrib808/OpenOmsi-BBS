@@ -29,6 +29,8 @@ jobs:
           if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/release-2222-candidate.yml')throw Error('Wrong or failed release candidate');
           fs.appendFileSync(process.env.GITHUB_OUTPUT,'run_id='+p.candidate_run_id+'\n');
           NODE
+      - name: Preflight all three signed manifests before downloading historical assets
+        run: node build-support/release2222/publication.mjs validate-signatures
       - uses: actions/download-artifact@v4
         with:
           name: Bridge-2.2.2.2-CANDIDATE

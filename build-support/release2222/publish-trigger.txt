@@ -1,1 +1,1 @@
-Trigger signed 2.2.2.2 v2 distribution repair using approved candidate run 41267406617. No recompilation. Require production-baseline comparison, Ed25519 validation, historical hashes and rollback checks in publish-2222.yml.
+Signed 2.2.2.2 updater repair; manifest preflight added after original failure. Candidate 41267406617.\n
