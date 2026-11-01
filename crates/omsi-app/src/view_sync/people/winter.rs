@@ -369,6 +369,17 @@ impl Renders {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test] fn converted_makehuman_assets_default_to_unsafe_for_gameplay(){
+        // Old skin_binding.json files described axis/scale conversion but not
+        // fitting to the stock OMSI human rig; neither missing nor one-sided
+        // approval may silently enable the live renderer.
+        let raw=r#"{"garment":"test","garment_kind":"hat","per_vertex_weights":[],"reference_anchors_m":{},"copied_real_textures_and_materials":[]}"#;
+        let b:Binding=serde_json::from_str(raw).unwrap();
+        assert!(!b.fitted_to_stock_omsi_human && !b.released);
+        let only_converted=r#"{"garment":"test","garment_kind":"hat","fitted_to_stock_omsi_human":true,"released":false,"per_vertex_weights":[],"reference_anchors_m":{},"copied_real_textures_and_materials":[]}"#;
+        let b:Binding=serde_json::from_str(only_converted).unwrap();
+        assert!(b.fitted_to_stock_omsi_human && !b.released);
+    }
     #[test] fn accessory_selection_changes_with_temperature(){
         assert_eq!(candidates(2,false).len(),1);
         assert_eq!(candidates(2,true).len(),3);
