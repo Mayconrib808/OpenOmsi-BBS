@@ -49,13 +49,13 @@ if(process.argv[2]==='validate-signatures'){
   if(report.version!=='2.2.2.2-test.1'||report.sequence!==2026103107||report.update_origin!==origin
       ||report.updater_sha256!==installer.sha256||sha(binary)!==installer.sha256||binary.length!==installer.size
       ||report.coop_archive_sha256!==spec.sha256||report.native_version!=='0.3.46-coop.15-2.2.2.2-test.1'
-      ||report.native_candidate_run!==41327386037||report.native_build_commit!=='9717969bd1890f5b03ba072a5526adfb61d919b9'||report.winter_test_preview_opt_in!==true||report.winter_visual_approved!==false
+      ||report.native_candidate_run!==41329114347||report.native_build_commit!=='5d9fcc01dfcef247d8ce82829acefbf9c3619187'||report.winter_test_preview_opt_in!==true||report.winter_visual_approved!==false
       ||report.complete_hosts_unchanged!==true||report.complete_hosts_rebuilt!==false
       ||report.p14_server_unchanged!==true||report.custom_sounds_unchanged!==true
       ||report.bridge_regressions_tested!==true||report.setup_changelog_ui_tested!==true
       ||report.setup_live_update_ui_tested!==true||report.coop_protocol!==15
       ||report.windows_gameplay_tested!==false||report.paired_gameplay_tested!==false
-      ||report.native_build_commit!=='9717969bd1890f5b03ba072a5526adfb61d919b9'
+      ||report.native_build_commit!=='5d9fcc01dfcef247d8ce82829acefbf9c3619187'
       ||report.desktop_launcher_unchanged!==false||report.desktop_launcher_run!==41260965494
       ||report.desktop_launcher_commit!=='4dd5bb79d91f522ee452aba0854676a3d0fd716c')
     throw Error('Candidate incomplete, wrong version, or regression flags missing');

@@ -31,7 +31,7 @@ jobs:
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
-          ref: 9717969bd1890f5b03ba072a5526adfb61d919b9
+          ref: 5d9fcc01dfcef247d8ce82829acefbf9c3619187
           path: native-source
           persist-credentials: false
       - uses: actions/setup-go@v5
@@ -47,13 +47,13 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41327386037 | ConvertFrom-Json
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41329114347 | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect pinned native source CI' }
           for ($i=0; $i -lt 280 -and $r.status -ne 'completed'; $i++) {
             Start-Sleep -Seconds 15
-            $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41327386037 | ConvertFrom-Json
+            $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41329114347 | ConvertFrom-Json
           }
-          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '9717969bd1890f5b03ba072a5526adfb61d919b9' -or $r.path -ne '.github/workflows/build-winter-test1-native.yml') { throw 'Unapproved or incomplete native candidate' }
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '5d9fcc01dfcef247d8ce82829acefbf9c3619187' -or $r.path -ne '.github/workflows/build-winter-test1-native.yml') { throw 'Unapproved or incomplete native candidate' }
           $qa=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/41269757851 | ConvertFrom-Json
           if($LASTEXITCODE -ne 0 -or $qa.status -ne 'completed' -or $qa.conclusion -ne 'success' -or $qa.path -ne '.github/workflows/test-winter-visual-safety.yml') { throw 'Required independent winter safety gate has not passed' }
           $head=(git -C native-source rev-parse HEAD).Trim()
@@ -61,7 +61,7 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: OpenOMSI-2.2.2.2-Test1-native-windows-CANDIDATE
-          run-id: 41327386037
+          run-id: 41329114347
           github-token: ${{ github.token }}
           path: tested-native
       - name: Verify exact rebuilt 2.2.2.2 desktop lobby
@@ -123,7 +123,7 @@ jobs:
           New-Item -ItemType Directory -Force native | Out-Null
           Expand-Archive -LiteralPath $zip -DestinationPath native -Force
           $details=Get-Content native/BUILD-INFO.json -Raw | ConvertFrom-Json
-          if ($details.source_commit -ne '9717969bd1890f5b03ba072a5526adfb61d919b9' -or $details.bridge_release_target -ne '2.2.2.2-test.1') { throw 'Wrong candidate source or version' }
+          if ($details.source_commit -ne '5d9fcc01dfcef247d8ce82829acefbf9c3619187' -or $details.bridge_release_target -ne '2.2.2.2-test.1') { throw 'Wrong candidate source or version' }
           $nativeDigest=(Get-FileHash native/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
           if ($nativeDigest -ne $details.exe_sha256) { throw 'Native executable checksum mismatch' }
           if (-not (Test-Path native/bcs-assets/Vehicles/OpenOMSI_BCS/Fire/model/Fire.obj)) { throw '3D fire vehicle missing from native build' }
@@ -138,10 +138,10 @@ jobs:
           from pathlib import Path
           d=Path("native")
           sha=lambda f:hashlib.sha256(f.read_bytes()).hexdigest()
-          commit="9717969bd1890f5b03ba072a5526adfb61d919b9"
+          commit="5d9fcc01dfcef247d8ce82829acefbf9c3619187"
           version="0.3.46-coop.15-2.2.2.2-test.1"
           assert version in (d/"version.txt").read_text(encoding="utf-8-sig")
-          info=dict(commit=commit,build_commit=commit,run_id=41327386037,
+          info=dict(commit=commit,build_commit=commit,run_id=41329114347,
               upstream_commit="17be22987d7c01c813a1473e7696fc71fb3b1d89",
               version=version,native_sha256=sha(d/"openomsi.exe"),
               source_sha256=sha(d/"openomsi-source.tar.gz"),
@@ -157,7 +157,7 @@ jobs:
         run: |
           $ErrorActionPreference='Stop'
           $meta=Get-Content native/SOURCE.json -Raw | ConvertFrom-Json
-          if ($meta.version -ne '0.3.46-coop.15-2.2.2.2-test.1' -or $meta.run_id -ne 41327386037) { throw 'Mismatched P15 client/server candidate' }
+          if ($meta.version -ne '0.3.46-coop.15-2.2.2.2-test.1' -or $meta.run_id -ne 41329114347) { throw 'Mismatched P15 client/server candidate' }
           node --test native-source/launcher/tests/optional-features.test.mjs
           if ($LASTEXITCODE -ne 0) { throw 'New settings not represented in source UI' }
       - name: Validate compulsory cumulative changelog, including the 2.2.2.1 Hotfix 2
@@ -195,8 +195,8 @@ jobs:
           s=json.loads((p/"coop-spec.json").read_text())
           exe=(p/"Atualizar-Bridge.exe").read_bytes()
           assert r["version"]=="2.2.2.2-test.1" and r["sequence"]==2026103107
-          assert r["native_candidate_run"]==41327386037
-          assert r["native_build_commit"]=="9717969bd1890f5b03ba072a5526adfb61d919b9"
+          assert r["native_candidate_run"]==41329114347
+          assert r["native_build_commit"]=="5d9fcc01dfcef247d8ce82829acefbf9c3619187"
           assert r["desktop_launcher_unchanged"] is False
           assert r["desktop_launcher_commit"]=="4dd5bb79d91f522ee452aba0854676a3d0fd716c"
           assert r["desktop_launcher_run"]==41260965494
