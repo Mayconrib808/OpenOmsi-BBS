@@ -45,6 +45,7 @@ impl TrafficSim {
     /// never allowed to join the neighbouring lane as its permanent new route.
     pub fn advance_bus_lane_pass(&mut self, i: usize, ts: &TickScene) {
         let Some(pass) = self.cars[i].bus_lane_pass else { return; };
+        let car_id = self.cars[i].id;
         let st = &self.cars[i].state;
         // A new car may arrive on the passing lane after the initial plan.
         // Before the moving bus occupies that lane, cancel if the merge is
@@ -56,7 +57,7 @@ impl TrafficSim {
                 crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
                     crate::feature_audit::ResultKind::Blocked,"maneuver_cancelled_new_obstacle",
                     &format!("bus={} target_lane={} odometer={:.1} return_at={:.1}",
-                        self.cars[i].id,pass.target_lane,st.odometer,pass.return_at));
+                        car_id,pass.target_lane,st.odometer,pass.return_at));
                 self.cars[i].bus_lane_pass = None;
                 self.cars[i].state.lateral_target = 0.0;
                 return;
@@ -71,7 +72,7 @@ impl TrafficSim {
                 crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
                     crate::feature_audit::ResultKind::Completed,"bus_returned_to_original_lane",
                     &format!("bus={} source_lane={} pass_target_lane={} odometer={:.1}",
-                        self.cars[i].id,st.lane,pass.target_lane,st.odometer));
+                        car_id,st.lane,pass.target_lane,st.odometer));
                 self.cars[i].bus_lane_pass = None;
             }
         }
