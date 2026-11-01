@@ -116,7 +116,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference='Stop'
-          $zip='tested-native/OpenOMSI-winter-safety-hotfix-native.zip'
+          $zip='tested-native/OpenOMSI-winter-test1-native.zip'
           $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
           $expect=(Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
           if ($digest -ne $expect) { throw 'Native ZIP checksum mismatch' }
