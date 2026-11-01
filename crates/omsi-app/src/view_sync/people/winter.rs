@@ -231,7 +231,7 @@ fn candidates(id:u32,very_cold:bool)->Vec<&'static str>{
     let mut v=vec![coat_name(id)];
     if very_cold {
         v.push(if id%3==0{"elvs_slouchy_beanie1"}else{"mindfront_knitted_hat_01"});
-        v.push("toigo_gloves_short");
+        v.push(if id%2==0{"toigo_gloves_short"}else{"toigo_gloves_medium"});
     }
     v
 }
@@ -250,7 +250,7 @@ impl Renders {
         let asset_root=winter_install_root(root);
         for name in [
             "elvs_hooded_sweat_jacket1","toigo_fisherman_sweater","mindfront_knitted_sweater_01",
-            "elvs_slouchy_beanie1","mindfront_knitted_hat_01","toigo_gloves_short"
+            "elvs_slouchy_beanie1","mindfront_knitted_hat_01","toigo_gloves_short","toigo_gloves_medium"
         ] {
             match load_asset(&asset_root,name) {
                 Ok(art)=>{
