@@ -45,7 +45,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: ea70627ae5620c4811a0d3ba8fce917a8d57ae3f
+        ref: 89f0f88d4d1a7a6dfef1f3066714a29cefb006b8
         path: native-source
         persist-credentials: false
     - uses: dtolnay/rust-toolchain@stable
@@ -84,7 +84,7 @@ jobs:
         out=Path('native');out.mkdir()
         source=Path('native-source')
         commit=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
-        assert commit=='ea70627ae5620c4811a0d3ba8fce917a8d57ae3f'
+        assert commit=='89f0f88d4d1a7a6dfef1f3066714a29cefb006b8'
         shutil.copy2(source/'target/release/openomsi.exe',out/'openomsi.exe')
         shutil.copytree('previous-native/bcs-assets',out/'bcs-assets',ignore=shutil.ignore_patterns('WinterClothes'))
         shutil.copytree(source/'coop-assets',out/'bcs-assets',dirs_exist_ok=True)
@@ -122,7 +122,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: ea70627ae5620c4811a0d3ba8fce917a8d57ae3f
+        ref: 89f0f88d4d1a7a6dfef1f3066714a29cefb006b8
         path: native-source
         persist-credentials: false
     - uses: dtolnay/rust-toolchain@stable
@@ -155,7 +155,7 @@ jobs:
         out=Path('launcher');out.mkdir()
         source=Path('native-source')
         commit=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
-        assert commit=='ea70627ae5620c4811a0d3ba8fce917a8d57ae3f'
+        assert commit=='89f0f88d4d1a7a6dfef1f3066714a29cefb006b8'
         exe=source/'launcher/src-tauri/target/release/openomsi-launcher-app.exe'
         shutil.copy2(exe,out/exe.name)
         info=dict(version='0.3.47-coop.16-2.2.2.4',source_commit=commit,path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe',optional_ui_controls=12,passenger_upstream_controls=3,winter_clothing_removed=True,launcher_sha256=hashlib.sha256(exe.read_bytes()).hexdigest())
