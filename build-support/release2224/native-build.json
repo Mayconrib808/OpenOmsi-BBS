@@ -17,6 +17,8 @@
     "Passenger hailing route fallback and 30 second visual eligibility audit",
     "Former driver and conductor F1/F2, standing/visibility, duplicated requests and idempotent grants",
     "All active OpenOMSI extensions default enabled while explicit disabled choices remain respected",
-    "AI bus greetings detect mod-bus horn triggers and log host-only audio provenance"
-  ]
+    "AI bus greetings detect mod-bus horn triggers and log host-only audio provenance",
+    "Setup SHA256 accepts exactly the 8 known PT-BR V2 voice variants; backups preserve them, corrupt unknown files rejected"
+  ],
+  "run_id": 41528869591
 }
