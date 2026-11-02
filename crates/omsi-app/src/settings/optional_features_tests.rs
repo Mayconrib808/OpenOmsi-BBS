@@ -61,7 +61,7 @@ fn both_settings_writers_preserve_every_independent_switch_and_explicit_false() 
 
 #[test]
 fn upstream_passengers_start_enabled_and_preserve_later_opt_out() {
-    for text in ["", "version=4\npassenger_hailing=0\nweather_clothing=1\n"] {
+    for text in ["", "version=4\nweather_clothing=1\n"] {
         let native=Settings::from_text(text);
         let launcher=omsi_launcher_lib::settings_from_text_on(Some(text),false);
         assert!(native.passenger_hailing&&native.passenger_full_bus_reaction&&native.passenger_connections);
@@ -77,6 +77,13 @@ fn upstream_passengers_start_enabled_and_preserve_later_opt_out() {
         assert!(native.passenger_umbrellas);
         assert_eq!(launcher["passenger_umbrellas"],true);
     }
+    let legacy_off="version=4\npassenger_hailing=0\npassenger_connections=0\npassenger_full_bus_reaction=0\npassenger_door_comments=0\n";
+    let legacy_native=Settings::from_text(legacy_off);
+    let legacy_launcher=omsi_launcher_lib::settings_from_text_on(Some(legacy_off),false);
+    assert!(!legacy_native.passenger_hailing&&!legacy_native.passenger_connections&&!legacy_native.passenger_full_bus_reaction);
+    assert!(!legacy_native.optional_features.passenger_door_comments);
+    assert_eq!(legacy_launcher["passenger_hailing"],false);
+    assert_eq!(legacy_launcher["passenger_door_comments"],false);
     let text="version=4\npassenger_features_0347=1\npassenger_animation=original\npassenger_hailing=0\npassenger_connections=0\npassenger_full_bus_reaction=0\nweather_clothing=1\n";
     let native=Settings::from_text(text);
     assert!(!native.passenger_hailing&&!native.passenger_full_bus_reaction&&!native.passenger_connections);
