@@ -56,11 +56,11 @@ if(process.argv[2]==='validate-signatures'){
   if(report.version!=='2.2.2.4-hotfix.2'||report.sequence!==2026110205||report.update_origin!==origin
       ||report.updater_sha256!==installer.sha256||sha(binary)!==installer.sha256||binary.length!==installer.size
       ||report.coop_archive_sha256!==spec.sha256||report.native_version!=='0.3.47-coop.16-2.2.2.4'
-      ||report.native_candidate_run!==41528869591
-      ||report.native_candidate_commit!=='b15541549872aaee2dcd2d1be645bec978324495'
-      ||report.native_build_commit!=='b15541549872aaee2dcd2d1be645bec978324495'
-      ||report.desktop_launcher_commit!=='b15541549872aaee2dcd2d1be645bec978324495'
-      ||report.desktop_launcher_run!==41528869591
+      ||report.native_candidate_run!==info.candidate_run_id
+      ||report.native_candidate_commit!=='3d91881988bc260115184b5c4a03596f2b25d604'
+      ||report.native_build_commit!=='3d91881988bc260115184b5c4a03596f2b25d604'
+      ||report.desktop_launcher_commit!=='3d91881988bc260115184b5c4a03596f2b25d604'
+      ||report.desktop_launcher_run!==info.candidate_run_id
       ||report.complete_hosts_unchanged!==true||report.complete_hosts_rebuilt!==false
       ||report.p14_server_unchanged!==true||report.p15_server_unchanged!==true||report.new_p16_host_ui_tested!==true||report.custom_sounds_unchanged!==true
       ||report.bridge_regressions_tested!==true||report.setup_changelog_ui_tested!==true
@@ -76,7 +76,7 @@ if(process.argv[2]==='validate-signatures'){
      ||Object.keys(spec.files).some(n=>n.includes('/WinterClothes/')))
     throw Error('Invalid complete runtime or obsolete winter clothing remains');
 
-  if(report.native_candidate_run!==41528869591 || report.desktop_launcher_run!==41528869591
+  if(report.native_candidate_run!==info.candidate_run_id || report.desktop_launcher_run!==info.candidate_run_id
      ||report.updater_sha256!==info.installer_sha256 ||report.installer_size!==info.installer_size
      ||report.coop_archive_sha256!==info.coop_archive_sha256
      ||report.dynamic_p16_version!=='0.3.47-coop.16-2.2.2.4'
