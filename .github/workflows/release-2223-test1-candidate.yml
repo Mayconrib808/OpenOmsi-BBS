@@ -43,7 +43,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: 940a7fe6c06633b588476924e4291a73b932acf0
+        ref: 90a93086762258e41bcad77ad3c9e40a028fd2ca
         path: native-source
         persist-credentials: false
     - uses: dtolnay/rust-toolchain@stable
@@ -80,7 +80,7 @@ jobs:
         out=Path('native');out.mkdir()
         source=Path('native-source')
         commit=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
-        assert commit=='940a7fe6c06633b588476924e4291a73b932acf0'
+        assert commit=='90a93086762258e41bcad77ad3c9e40a028fd2ca'
         shutil.copy2(source/'target/release/openomsi.exe',out/'openomsi.exe')
         shutil.copytree('previous-native/bcs-assets',out/'bcs-assets',ignore=shutil.ignore_patterns('WinterClothes'))
         assert not (out/'bcs-assets/WinterClothes').exists()
@@ -115,7 +115,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-        ref: 940a7fe6c06633b588476924e4291a73b932acf0
+        ref: 90a93086762258e41bcad77ad3c9e40a028fd2ca
         path: native-source
         persist-credentials: false
     - uses: dtolnay/rust-toolchain@stable
@@ -134,7 +134,9 @@ jobs:
     - name: Build actual Tauri launcher
       shell: pwsh
       run: |-
-        cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+        # The upstream desktop-only Cargo.lock predates the pinned tauri fork metadata.
+        # Refresh it while retaining the Git revision pinned in Cargo.toml.
+        cargo build --release --manifest-path launcher/src-tauri/Cargo.toml
         if($LASTEXITCODE -ne 0){throw 'Launcher build failed'}
       working-directory: native-source
     - name: Record exact rebuilt launcher
@@ -146,7 +148,7 @@ jobs:
         out=Path('launcher');out.mkdir()
         source=Path('native-source')
         commit=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
-        assert commit=='940a7fe6c06633b588476924e4291a73b932acf0'
+        assert commit=='90a93086762258e41bcad77ad3c9e40a028fd2ca'
         exe=source/'launcher/src-tauri/target/release/openomsi-launcher-app.exe'
         shutil.copy2(exe,out/exe.name)
         info=dict(version='0.3.46-coop.15-2.2.2.3-test.1',source_commit=commit,path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe',optional_ui_controls=12,passenger_upstream_controls=3,winter_clothing_removed=True,launcher_sha256=hashlib.sha256(exe.read_bytes()).hexdigest())
