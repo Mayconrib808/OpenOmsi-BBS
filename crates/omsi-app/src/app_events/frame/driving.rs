@@ -246,8 +246,33 @@ pub(super) fn player_to_scene(cx: PlayerToSceneCx, dt: f32) {
     // Never tag the visiting driver's mesh as mirrors-only in that situation.
     let delegated = cx.net.coop.drive.owner_active();
     let at_eyes = !delegated && *cx.view.view == "driver" && (cx.ui.photo.is_none() || cx.view.camera.as_ref().is_none_or(|c| (c.position - crate::camera_util::driver_eye(p)).length() < 0.5));
-    let show_driver = delegated || (cx.common.settings.driver && cx.people.on_foot.is_none());
-    p.sync_driver_hands(r, scene, dt, show_driver, at_eyes, cx.common.settings.hands_in_cab);
+    let (show_driver, mirror_only) = driver_visual_flags(
+        delegated, cx.common.settings.driver, cx.people.on_foot.is_some(), at_eyes,
+    );
+    p.sync_driver_hands(r, scene, dt, show_driver, mirror_only, cx.common.settings.hands_in_cab);
+}
+
+// A delegated driver is another player's avatar, not the old owner's
+// optional "my own driver" prop. The remote human is never mirrors-only.
+fn driver_visual_flags(delegated: bool, own_driver_enabled: bool, on_foot: bool, near_driver_eyes: bool) -> (bool, bool) {
+    if delegated { (true, false) }
+    else { (own_driver_enabled && !on_foot, near_driver_eyes) }
+}
+
+#[cfg(test)]
+mod coop13_driver_visibility_regressions {
+    use super::driver_visual_flags;
+    #[test]
+    fn delegated_driver_remains_visible_to_original_owner() {
+        for driver_setting in [false, true] {
+            for near_eyes in [false, true] {
+                assert_eq!(driver_visual_flags(true, driver_setting, true, near_eyes), (true, false));
+            }
+        }
+        assert_eq!(driver_visual_flags(false, false, false, false), (false, false));
+        assert_eq!(driver_visual_flags(false, true, true, false), (false, false));
+        assert_eq!(driver_visual_flags(false, true, false, true), (true, true));
+    }
 }
 
 crate::app::stage_ctx!(
