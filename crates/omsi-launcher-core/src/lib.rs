@@ -2587,17 +2587,9 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
     if !effects_migrated{
         v["passenger_hailing_maps"]=json!(passenger_defaults::migrate_maps(v["passenger_hailing_maps"].as_str().unwrap_or("")));
     }
-    if v["language"].as_str().is_some_and(|l|l.eq_ignore_ascii_case("PTB"))
-        && !text.unwrap_or("").lines().any(|l|l.trim()=="ptbr_passenger_audio=1") {
-        v["passenger_door_comments"]=json!(true);
-        v["passenger_exit_thanks"]=json!(true);
-    }
-    if !text.unwrap_or("").lines().any(|line| line.trim() == "passenger_features_0347=1") {
-        v["passenger_hailing"] = json!(true);
-        v["passenger_full_bus_reaction"] = json!(true);
-        v["passenger_connections"] = json!(true);
-        v["passenger_animation"] = json!("enhanced");
-    }
+    // All current passenger features use enabled defaults above.
+    // Legacy files may contain explicit opt-outs even without the old
+    // migration markers; respect those choices instead of forcing them on.
     v["weather_clothing"] = json!(false);
     v["passenger_connections_enabled"] = json!(false);
 
