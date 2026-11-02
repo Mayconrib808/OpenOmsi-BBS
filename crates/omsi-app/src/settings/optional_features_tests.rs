@@ -71,9 +71,11 @@ fn upstream_passengers_start_enabled_and_preserve_later_opt_out() {
         assert_eq!(launcher["passenger_animation"],"enhanced");
         assert_eq!(launcher["weather_clothing"],false);
         for feature in FEATURES {
-            assert_eq!(native.optional_features.get(feature.key),Some(false));
-            assert_eq!(launcher[feature.key],false);
+            assert_eq!(native.optional_features.get(feature.key),Some(true));
+            assert_eq!(launcher[feature.key],true);
         }
+        assert!(native.passenger_umbrellas);
+        assert_eq!(launcher["passenger_umbrellas"],true);
     }
     let text="version=4\npassenger_features_0347=1\npassenger_animation=original\npassenger_hailing=0\npassenger_connections=0\npassenger_full_bus_reaction=0\nweather_clothing=1\n";
     let native=Settings::from_text(text);
@@ -87,6 +89,36 @@ fn upstream_passengers_start_enabled_and_preserve_later_opt_out() {
     let empty=Settings::from_text(&omsi_launcher_lib::settings_to_text(&serde_json::json!({}),None));
     assert!(empty.passenger_hailing&&empty.passenger_connections&&empty.passenger_full_bus_reaction);
     assert_eq!(empty.passenger_animation,"enhanced");
+}
+
+#[test]
+fn all_bridge_features_start_enabled_but_manual_opt_out_remains_off() {
+    for phone in [false, true] {
+        let launcher=omsi_launcher_lib::settings_from_text_on(None,phone);
+        for feature in FEATURES {
+            assert_eq!(launcher[feature.key],true,"default launcher {}",feature.key);
+            assert_eq!(Settings::from_text("").optional_features.get(feature.key),Some(true));
+        }
+        assert_eq!(launcher["passenger_umbrellas"],true);
+        let mut off=String::from("version=4\\npassenger_effects_221=1\\npassenger_features_0347=1\\n");
+        // Individual opt-outs must not be reset on startup or by either writer.
+        for feature in FEATURES {
+            off.push_str(&format!("{}=0\\n",feature.key));
+        }
+        off.push_str("passenger_umbrellas=0\\npassenger_hailing=0\\npassenger_full_bus_reaction=0\\npassenger_connections=0\\n");
+        let native=Settings::from_text(&off);
+        let launcher=omsi_launcher_lib::settings_from_text_on(Some(&off),phone);
+        assert!(!native.passenger_umbrellas);
+        for feature in FEATURES {
+            assert_eq!(native.optional_features.get(feature.key),Some(false));
+            assert_eq!(launcher[feature.key],false);
+        }
+        assert_eq!(launcher["passenger_umbrellas"],false);
+        let again=Settings::from_text(&omsi_launcher_lib::settings_to_text(&launcher,Some(&off)));
+        for feature in FEATURES {
+            assert_eq!(again.optional_features.get(feature.key),Some(false));
+        }
+    }
 }
 
 #[test]
