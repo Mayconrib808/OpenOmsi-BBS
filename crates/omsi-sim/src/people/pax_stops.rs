@@ -61,6 +61,7 @@ mod hail_range_2212_tests{
     #[test] fn nearby_approach_only(){
         let f=DVec2::Y;
         assert!(PeopleSim::visual_hail_range(DVec3::new(3.,-50.,0.),f));
+        assert!(PeopleSim::visual_hail_range(DVec3::new(3.,-80.,0.),f));
         assert!(!PeopleSim::visual_hail_range(DVec3::new(3.,-100.,0.),f));
         assert!(!PeopleSim::visual_hail_range(DVec3::new(35.,-20.,0.),f));
         assert!(!PeopleSim::visual_hail_range(DVec3::new(0.,30.,0.),f));
@@ -69,7 +70,11 @@ mod hail_range_2212_tests{
 }
 impl PeopleSim { pub(crate) fn visual_hail_range(d: DVec3, forward: DVec2) -> bool {
         d.is_finite()
-            && d.length_squared() <= 60.0 * 60.0
+            && // Passengers leave WaitingForBus and head toward the gather point as
+            // soon as a compatible bus enters the 60 m registration radius.
+            // A 60 m *visual* radius gave the arm no frame to rise.
+            // Signal from 60-90 m while the passenger is still waiting.
+            d.length_squared() <= 90.0 * 90.0
             && d.truncate().dot(forward) <= 12.0
             && (d.x * forward.y - d.y * forward.x).abs() <= 14.0
             && d.z.abs() < 8.0
@@ -95,7 +100,7 @@ impl PeopleSim {
             if p.transfer_from==Some(b.id) {return false;}
             if matches!(b.takes, Takes::Nobody) { return false; }
             let d = b.pos - s.pos;
-            if !Self::visual_hail_range(d,forward) || (b.pos-self.people[i].position).length_squared()>60.0*60.0
+            if !Self::visual_hail_range(d,forward) || (b.pos-self.people[i].position).length_squared()>90.0*90.0
                 || b.fwd().dot(forward) <= 0.0 || b.served.is_some_and(|id| id != stop) { return false; }
             if b.route.as_ref().is_some_and(|r| r.is_last_stop(s)) { return false; }
             // A driver's HOF/IBIS may still be initializing while its timetable
