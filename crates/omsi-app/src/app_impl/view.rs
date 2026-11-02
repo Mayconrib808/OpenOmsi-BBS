@@ -5,7 +5,8 @@ use super::*;
 impl App {
     /// Keep the camera and hit testing attached to the same bus while visiting.
     pub(crate) fn select_cabin_view(&mut self, driver: bool) {
-        if self.session.on_foot.is_some() && self.foot_bus().is_some_and(|b| b != crate::humans::BusId::Player) {
+        if self.session.on_foot.is_some() && self.foot_bus().is_some_and(|b|
+            b != crate::humans::BusId::Player || self.net.coop.drive.owner_active()) {
             self.view = "foot".into();
             self.coop_camera_load_group(driver);
         } else {
