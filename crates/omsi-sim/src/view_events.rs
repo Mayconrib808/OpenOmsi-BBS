@@ -360,6 +360,38 @@ impl crate::people::PeopleSim {
             }),
             }
         }));
+        // Low-frequency gameplay evidence, not a per-person/per-frame log flood.
+        // The old log never recorded whether a waiting passenger found a
+        // compatible bus, which made visual-hailing regressions untestable.
+        static LAST_HAIL_AUDIT_WINDOW: std::sync::atomic::AtomicU64 =
+            std::sync::atomic::AtomicU64::new(u64::MAX);
+        let audit_window = (self.time.max(0.0) / 30.0) as u64;
+        if LAST_HAIL_AUDIT_WINDOW.swap(audit_window, std::sync::atomic::Ordering::Relaxed) != audit_window {
+            let mut waiting_visible = 0usize;
+            let mut bus_near_waiter = 0usize;
+            for (i, person) in self.people.iter().enumerate() {
+                if self.eye.is_some_and(|eye| (person.position-eye.pos).length_squared() > 300.0*300.0) {
+                    continue;
+                }
+                if !self.pax(i).is_some_and(|pax|
+                    pax.inside.is_none() && pax.task == crate::people::pax::Task::WaitingForBus) {
+                    continue;
+                }
+                waiting_visible += 1;
+                if self.last_buses.iter().any(|b|
+                    (b.pos-person.position).length_squared() <= 60.0*60.0) {
+                    bus_near_waiter += 1;
+                }
+            }
+            let matched = out.people.iter().filter(|p| p.hail_target.is_some()).count();
+            let moving = out.people.iter().filter(|p| p.hail_target.is_some() && p.hail_moving).count();
+            let drawable = out.people.iter().filter(|p| p.hail_target.is_some()
+                && p.hail_moving && !p.puppet && p.hidden.is_none()
+                && matches!(p.place, crate::people::Place::Ground)).count();
+            log::info!("PASSENGER_HAIL_AUDIT settings_signal={} settings_full={} waiting_visible_300m={} waiting_near_bus_60m={} compatible_target={} moving_target={} render_candidates={} total_buses={}",
+                self.visual_hailing,self.visual_full_bus_reaction,waiting_visible,bus_near_waiter,
+                matched,moving,drawable,self.last_buses.len());
+        }
     }
 }
 
