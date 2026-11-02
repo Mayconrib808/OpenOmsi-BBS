@@ -85,6 +85,10 @@ fn fixture(name:&str)->(PathBuf,PeopleSim,BusNow,usize) {
     };
     let world = crate::world_data::WorldData::default();
     let mut people = PeopleSim::new(&root, 20);
+    // Bridge options now ship enabled by default. This fixture explicitly
+    // exercises the opt-out behavior, independently of global defaults.
+    people.optional_features.passenger_door_comments = false;
+    people.optional_features.passenger_exit_thanks = false;
     let i = people
         .spawn(
             &world,
