@@ -86,8 +86,11 @@ impl PeopleSim {
         let s = self.stops.get(&stop)?;
         let heading = s.heading.to_radians();
         let forward = DVec2::new(heading.sin(), heading.cos());
-        // Resolve passenger route information once, before scanning candidate buses.
-        let (_, termini) = s.lines.get(p.line?)?;
+        // Some addon stops do not associate a [line] index with every
+        // waiting passenger. Ordinary boarding (bus_for) still accepts an
+        // on-platform service in that case. Visual hailing must not silently
+        // reject those same passengers, or nobody signals at such stops.
+        let line = p.line.and_then(|k| s.lines.get(k));
         buses.iter().filter(|b| {
             if p.transfer_from==Some(b.id) {return false;}
             if matches!(b.takes, Takes::Nobody) { return false; }
@@ -100,10 +103,20 @@ impl PeopleSim {
             // the terminus label being available: that hid all hailing gestures
             // on some addon maps, even for passengers who could board normally.
             // This is cosmetic only; no seat, task or stop reservation changes.
-            b.terminus.as_deref()
-                .and_then(|term| fit(stop, s, p.dest.as_deref(), termini, term, &b.takes))
-                .or_else(|| b.route.as_ref().and_then(|r| r.takes_waiting_for(termini)))
-                .is_some()
+            match line {
+                Some((_, termini)) => b.terminus.as_deref()
+                    .and_then(|term| fit(stop, s, p.dest.as_deref(), termini, term, &b.takes))
+                    .or_else(|| b.route.as_ref().and_then(|r| r.takes_waiting_for(termini)))
+                    .is_some(),
+                None => {
+                    // Same service fallback as bus_for when the map has no
+                    // passenger line entry. Only use a bus able to take this
+                    // passenger from the actual platform side.
+                    let side = self.preferred_entry_side(stop, b, self.people[i].position);
+                    b.cabin.entries.iter().any(|door|
+                        door.point.is_some() && entry_on_platform(side, door.side))
+                }
+            }
         }).min_by(|a,b| (a.pos-self.people[i].position).length_squared()
             .total_cmp(&(b.pos-self.people[i].position).length_squared()))
             .map(|b| (b.id, b.speed.abs() > 0.08, b.pos))
