@@ -8,8 +8,17 @@ pub const FLASH_EVENT: &str = "bbs_greeting_flash";
 const HIGH_VARS: &[&str] = &["lights_fern", "lights_fernlicht", "farol_alto", "farolalto", "luz_alta", "luzalta", "high_beam", "highbeam", "fernlicht"];
 
 pub fn horn_active(v: &VehicleInstance) -> bool {
-    ["cockpit_hupe", "cockpit_hupe_swheel", "cockpit_hupe_volume", "horn", "hupe", "buzina", "buzina_vol", "buzina_volume", "horn_active", "bbs_input_horn"]
-        .iter().any(|name| v.var(name).is_some_and(|n| n > 0.5))
+    let variable_on = ["cockpit_hupe", "cockpit_hupe_swheel", "cockpit_hupe_volume", "horn", "hupe", "buzina", "buzina_vol", "buzina_volume", "horn_active", "bbs_input_horn"]
+        .iter().any(|name| v.var(name).is_some_and(|n| n > 0.5));
+    // Some mod buses expose a momentary horn audio trigger but no persistent
+    // horn state variable. The UI/Coop click may therefore be audible while
+    // FLAG_HORN and AI greeting detection stay silent. Recognize only genuine
+    // press events, not horn_off, stop/release or unrelated model sounds.
+    variable_on || v.host.fired_triggers.iter().any(|event|
+        ["horn", "hupe", "buzina", "cp_horn", "cp_hupe",
+         "cockpit_hupe", "cockpit_hupe_swheel"].iter()
+            .any(|name| event.trim().eq_ignore_ascii_case(name))
+    )
 }
 
 pub fn high_active(v: &VehicleInstance) -> bool {
@@ -452,6 +461,21 @@ mod tests {
         assert_eq!(v.var("lights_fern"),Some(1.0));assert_eq!(v.var("lights_abbl"),Some(1.0));
         for _ in 0..10 {restore_remote_flash(v);step_remote_flash(v,0.1);}
         assert_eq!(v.var("lights_fern"),Some(0.0));assert_eq!(v.light_fade,vec![0.0,0.75]);
+    }
+    #[test] fn trigger_only_mod_buses_are_detected_but_horn_release_is_not() {
+        let (_f, mut sim) = scene();
+        let v=&mut sim.cars[0].vehicle;
+        v.host.fired_triggers.clear();
+        for press in ["horn","HORN","cp_horn","cp_hupe","buzina"] {
+            v.host.fired_triggers.push(press.into());
+            assert!(horn_active(v),"{press} press should signal other buses");
+            v.host.fired_triggers.clear();
+        }
+        for release in ["horn_off","horn_release","hupe_off","cp_hupe_off"] {
+            v.host.fired_triggers.push(release.into());
+            assert!(!horn_active(v),"{release} must not falsely retrigger a greeting");
+            v.host.fired_triggers.clear();
+        }
     }
     #[test] fn brazilian_horn_beam_and_standard_complex_ibis_are_read() {
         let (_f,mut sim)=scene();let v=&mut sim.cars[0].vehicle;
