@@ -598,8 +598,12 @@ impl App {
                     h.exact_fare = self.settings.exact_fare;
         h.optional_features = self.settings.optional_features;
         h.transfer_percent = if self.settings.passenger_connections { self.settings.passenger_transfer_percent } else { 0.0 };
-        h.visual_hailing = self.settings.passenger_hailing && self.settings.passenger_animation == "enhanced";
-        h.visual_full_bus_reaction = self.settings.passenger_full_bus_reaction && self.settings.passenger_animation == "enhanced";
+        // These settings enable cosmetic arm/look gestures over EITHER the
+        // original OMSI skeleton or enhanced IK. Tying them to the full
+        // passenger_animation mode disabled the target calculation completely
+        // for players who selected original animations.
+        h.visual_hailing = self.settings.passenger_hailing;
+        h.visual_full_bus_reaction = self.settings.passenger_full_bus_reaction;
                     h.bad_driving = self.settings.pax_bad_driving;
                     h.boarding = self.settings.boarding.clone();
                     h.stand_chance = self.settings.standing_chance;
