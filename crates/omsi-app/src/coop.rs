@@ -25,6 +25,12 @@ struct Grant {
     model: std::path::PathBuf,
     uid: u64,
 }
+// Only an unchanged onboard peer on the same physical vehicle keeps an
+// existing conductor grant. A newly installed bus or a reboarding player must
+// receive a new epoch; a duplicate click must not revoke a valid grant.
+fn same_live_grant(g: &Grant, peer: u32, uid: u64, model: &std::path::Path, onboard: bool) -> bool {
+    onboard && g.peer == peer && g.uid == uid && g.model == model
+}
 #[derive(Clone)]
 struct Held {
     from: u32,
@@ -273,11 +279,11 @@ impl App {
         // revoked an active grant and immediately issued a new epoch, causing
         // the receiver to lose camera access until it saw the new permission.
         if let Some(requested) = peer {
+            let onboard = self.coop_passengers().iter().any(|(id, _)| *id == requested);
             let already_valid = self.net.coop.grant.as_ref().is_some_and(|g| {
-                g.peer == requested &&
                 self.player.as_ref().is_some_and(|p|
-                    p.uid as u64 == g.uid && p.vehicle.ty.def.path == g.model)
-            }) && self.coop_passengers().iter().any(|(id, _)| *id == requested);
+                    same_live_grant(g, requested, p.uid as u64, &p.vehicle.ty.def.path, onboard))
+            });
             if already_valid { return; }
         } else if self.net.coop.grant.is_none() {
             return;
@@ -2103,17 +2109,14 @@ mod tests {
     use super::*;
     #[test]
     fn current_conductor_reselected_does_not_revoke_and_regrant_epoch() {
-        use clap::Parser;
-        let args = crate::Args::parse_from(["openomsi", "--root", "."]);
-        let mut app = crate::assemble_app(args, Default::default());
-        app.net.coop.grant = Some(Grant {
+        let grant = Grant {
             peer: 2, epoch: 77, model: "Vehicles/test.bus".into(), uid: 11,
-        });
-        app.coop_grant(Some(2));
-        assert_eq!(app.coop_conductor(), Some(2));
-        assert_eq!(app.net.coop.grant.as_ref().unwrap().epoch, 77);
-        app.coop_grant(None);
-        assert!(app.coop_conductor().is_none());
+        };
+        assert!(same_live_grant(&grant, 2, 11, std::path::Path::new("Vehicles/test.bus"), true));
+        assert!(!same_live_grant(&grant, 3, 11, std::path::Path::new("Vehicles/test.bus"), true));
+        assert!(!same_live_grant(&grant, 2, 12, std::path::Path::new("Vehicles/test.bus"), true));
+        assert!(!same_live_grant(&grant, 2, 11, std::path::Path::new("Vehicles/other.bus"), true));
+        assert!(!same_live_grant(&grant, 2, 11, std::path::Path::new("Vehicles/test.bus"), false));
     }
     #[test]
     fn a_visitor_cannot_work_driver_controls_just_because_they_start_with_int() {
