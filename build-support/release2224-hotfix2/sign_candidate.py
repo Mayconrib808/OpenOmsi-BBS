@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 VERSION = "2.2.2.4-hotfix.2"
 SEQUENCE = 2026110205
-NATIVE_COMMIT = "b15541549872aaee2dcd2d1be645bec978324495"
+NATIVE_COMMIT = "3d91881988bc260115184b5c4a03596f2b25d604"
 BASE = "https://openomsi-bbs-updates.maycongamesmaximo.workers.dev"
 PUBLIC = "5xKCV4uIoc9e0/sGeF9s9+cd5m5rwPOdyqslWqxPRrs="
 sha = lambda b: hashlib.sha256(b).hexdigest()
