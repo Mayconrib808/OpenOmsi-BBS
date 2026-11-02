@@ -1,0 +1,48 @@
+name: Repair P16 company host without rebuilding the game
+on:
+  push:
+    branches: [fix/2224-host-p16-repair]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  repair:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.2
+          cache: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.2-CANDIDATE
+          run-id: 41538116149
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Verify candidate hashes and extract isolated P16 managers
+        run: python scripts/package_p16_host_repair.py candidate repair --server-output native
+      - name: Test exact reported P16 status, real server handshake and host regressions
+        shell: pwsh
+        run: |
+          $env:OPENOMSI_GATEWAY_TEST_SERVER = (Resolve-Path native/openomsi.exe).Path
+          $env:OPENOMSI_GATEWAY_TEST_PROTOCOL = '16'
+          python scripts/build_2203.py --tests-only
+          if ($LASTEXITCODE -ne 0) { throw 'Host/server regression failed' }
+      - name: Verify actual shipped host controls and PS5 preference migration
+        shell: pwsh
+        run: |
+          python scripts/test_complete_host_ui.py repair/app/hosts-p16 --protocol 16 --server native/openomsi.exe --report repair/validacao/native-p16-controls-retested.json
+          if ($LASTEXITCODE -ne 0) { throw 'Actual Windows host UI regression failed' }
+          python scripts/test_p16_host_repair.py repair
+          if ($LASTEXITCODE -ne 0) { throw 'Actual Windows migration failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Correcao_HostAgent_P16_Bridge_2.2.2.4
+          path: repair/
+          if-no-files-found: error
+          retention-days: 30

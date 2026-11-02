@@ -1,0 +1,33 @@
+CORRECAO DO GERENCIADOR P16 - Bridge 2.2.2.4
+
+1. Extraia TODO este ZIP na pasta da Bridge usada pelo servidor da empresa,
+   junto do HostAgent.exe antigo e do Setup.exe.
+   No caso do log recebido: F:\OpenOmsi Bridge\OpenOmsi_BBS_2.1.1 Host
+2. Execute Abrir-Servidor-P16.cmd. O agente antigo recebe um pedido local
+   de encerramento. Os programas de outras instalacoes nao sao encerrados.
+3. No novo painel, clique em Salvar e iniciar agente.
+4. Inicie uma viagem pelo BCS.
+
+Passe a abrir o servidor por Abrir-Servidor-P16.cmd. O HostAgent.exe antigo
+da raiz e os atalhos antigos continuam pertencendo ao protocolo anterior.
+Se iniciar com o Windows estava marcado, Salvar e iniciar agente atualiza
+a inicializacao automatica para o novo HostAgent.
+
+O servidor P16 e suas quatro DLLs ja precisam estar instalados. Este ZIP
+nao troca o jogo, as DLLs, os sons, os mapas ou os executaveis P14/P15.
+As configuracoes originais nao sao sobrescritas: o P16 usa um arquivo
+separado, preservando mapas, portas, chaves, voz, senhas e outras opcoes.
+Uma configuracao P16 anterior recebe um backup antes do ajuste.
+
+CHANGELOG - Correcao do gerenciador P16 (02/11/2026)
+- Inclui HostAgent e CompanyHost compativeis com o protocolo 16 da 0.3.47.
+- Corrige a abertura do gerenciador que recusava o servidor novo.
+- Importa preferencias para um perfil P16 separado e conserva campos extras.
+- Mantem os controles de voz, radio, alcance, lista publica, identificador
+  da maquina, senha administrativa por mapa e ajuste de hora por admins.
+- Mantem a espera de ate 60 minutos na inicializacao dos mapas.
+
+Validacao: hashes do pacote candidato verificados; teste Windows dos seis
+controles, troca de mapa, salvar/reabrir, valores false e campos extras.
+Veja os relatorios em validacao. Uma sessao real no seu PC continua sendo
+a verificacao final; o pacote nao declara esse teste como realizado.

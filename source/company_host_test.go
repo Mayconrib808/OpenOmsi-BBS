@@ -158,6 +158,21 @@ func TestCompanyHostRejectsInvalidPorts(t *testing.T) {
 	}
 }
 
+// Exact status observed in HostAgent(4).zip: the old manager rejected the
+// running 0.3.47 server after its tunnel connected successfully.
+func TestCompanyHostAcceptsReported0347P16Build(t *testing.T) {
+	status := hostTestStatus()
+	status.Version = "0.3.47-coop.16-2.2.2.4 (b155415 2026-11-02 18:29)"
+	status.Protocol = 16
+	if err := validateCompanyHostStatus(status, hostTestSession(), hostTestFleet()); err != nil {
+		t.Fatal("reported P16 server must be accepted by the P16 companion:", err)
+	}
+	status.Protocol = 17
+	if err := validateCompanyHostStatus(status, hostTestSession(), hostTestFleet()); err == nil {
+		t.Fatal("an unsupported future protocol must still be rejected")
+	}
+}
+
 func TestCompanyHostFleetIsRestrictedToSessionPackages(t *testing.T) {
 	p := CompanyProfile{Packages: []CompanyPackage{
 		{ID: "bus", Files: []CompanyFile{{Path: hostTestFleet()[1]}, {Path: hostTestFleet()[0]}}},
