@@ -59,9 +59,37 @@ mod service_intent_2212_tests{
     }
 }
 impl PeopleSim {
+    pub fn connection_history(&self,id:u32,owner:u32)->(u8,Option<u64>) {
+        let Some(p)=self.people.iter().find(|p|p.id==id&&!p.remote).and_then(|p|
+            if let State::Pax(p)=&p.state{Some(p.as_ref())}else{None}) else{return (0,None)};
+        (p.transfer_count,p.transfer_from.map(|b|match b {BusId::Player=>remote_bus_id(owner),BusId::Ai(id)=>id}))
+    }
+    pub fn mirror_connection_history(&mut self,id:u32,count:u8,previous:Option<u64>,owner:u32) {
+        let previous=previous.map(|id|if id==remote_bus_id(owner){BusId::Player}else{BusId::Ai(id)});
+        self.mirror_connection_history.insert(id,(count.min(2),previous));
+    }
+
+    /// Same upstream recognition with authoritative host intent for a mirror waiter.
+    pub fn visual_mirror_hail_bus(&self, i: usize, buses: &[BusNow]) -> Option<(BusId, bool, DVec3)> {
+        let p = &self.people[i];
+        if !p.remote || p.puppet.is_some() { return None; }
+        let (stop, _) = self.mirror_wait.get(&p.id)?;
+        let s = self.stops.get(stop)?;
+        let h = s.heading.to_radians();
+        let forward = DVec2::new(h.sin(), h.cos());
+        buses.iter().filter(|b| !matches!(b.takes, Takes::Nobody)
+            && Self::visual_hail_range(b.pos-s.pos, forward)
+            && (b.pos-p.position).length_squared() <= 60.0*60.0
+            && b.fwd().dot(forward)>0. && b.served.is_none_or(|id| id==*stop)
+            && self.mirror_bus_fit(p.id,b,p.position)==Some(true))
+            .min_by(|a,b| (a.pos-p.position).length_squared().total_cmp(&(b.pos-p.position).length_squared()))
+            .map(|b| (b.id,b.speed.abs()>0.08,b.pos))
+    }
+
     /// Exact individual service preference, supplied only by the authoritative host.
     pub fn mirror_bus_fit(&self,id:u32,bn:&BusNow,position:DVec3)->Option<bool>{
         let (stop,key,line,dest)=self.mirror_hail_intent.get(&id)?;
+        if self.mirror_connection_history.get(&id).is_some_and(|(_,b)|*b==Some(bn.id)){return Some(false)}
         if key.is_some() && line.is_none(){return Some(false)}
         if self.mirror_wait.get(&id)?.0!=*stop{return None}
         let s=self.stops.get(stop)?;
@@ -112,8 +140,8 @@ impl PeopleSim {
     /// a free waiting place and new world id (never trusts either from the client).
     pub fn adopt_returned_connection(&mut self, world: &dyn World, kind: usize,
         stop: i64, line_key: Option<u64>, destination: Option<String>, peer: u32,
-        position: DVec3, heading: f64) -> Option<u32> {
-        if !position.is_finite() || !heading.is_finite() { return None; }
+        position: DVec3, heading: f64, transfer_count: u8) -> Option<u32> {
+        if !position.is_finite() || !heading.is_finite() || !(1..=2).contains(&transfer_count) { return None; }
         let s = self.stops.get(&stop)?;
         if (s.gather - position).length() > 40.0 { return None; }
         let dest = destination?.trim().to_string();
@@ -136,7 +164,7 @@ impl PeopleSim {
         pax.dest = Some(dest);
         pax.line = Some(line);
         pax.transfer_from = Some(BusId::Ai(remote_bus_id(peer)));
-        pax.transfer_count = 1;
+        pax.transfer_count = transfer_count;
         pax.ride_km = self.rand_f() as f32 * 19.0 + 1.0;
         pax.pos = sp.pos;
         pax.yaw = sp.face.to_radians();
@@ -160,7 +188,8 @@ impl PeopleSim {
             if self.mirror_hail_intent.get(&id).is_some_and(|old|old.0==stop && old.1==key && old.3==dest && (key.is_none()||old.2.is_some())){return}
             let line=key.and_then(|key|self.stops.get(&stop)?.lines.iter().position(|(_,terms)|Self::hail_line_key(terms)==key));
             self.mirror_hail_intent.insert(id,(stop,key,line,dest));
-        }else{self.mirror_hail_intent.remove(&id);}
+        }else{self.mirror_hail_intent.remove(&id);
+        self.mirror_connection_history.remove(&id);}
     }
 
     /// Is person `id` (one drawn for another game) here?
@@ -347,6 +376,7 @@ impl PeopleSim {
         self.claimed.clear();
         self.mirror_wait.clear();
         self.mirror_hail_intent.clear();
+        self.mirror_connection_history.clear();
     }
 
     /// The human type of a file relative to a content root (`Humans/…/x.hum`).
@@ -414,6 +444,7 @@ impl PeopleSim {
             None => {
                 self.mirror_wait.remove(&id);
         self.mirror_hail_intent.remove(&id);
+        self.mirror_connection_history.remove(&id);
             }
         }
         match pose.aboard {
@@ -443,6 +474,7 @@ impl PeopleSim {
         self.claimed.remove(&id);
         self.mirror_wait.remove(&id);
         self.mirror_hail_intent.remove(&id);
+        self.mirror_connection_history.remove(&id);
     }
 
     /// A remote person this frame: they stand where the host put them.
@@ -497,6 +529,9 @@ impl PeopleSim {
             .unwrap_or_else(||self.draw_dest(stop));
         pax.dest = dest;
         pax.line = line;
+        let (count,previous)=self.mirror_connection_history.remove(&id).unwrap_or((2,None));
+        pax.transfer_count=count;
+        pax.transfer_from=previous;
         pax.ride_km = self.rand_f() as f32 * 19.0 + 1.0;
         pax.pos = self.people[i].position;
         pax.yaw = self.people[i].heading.to_radians();

@@ -1,4 +1,6 @@
 //! Local hailing wrist motion. Timing is animation tuning, not a national average.
+// Adapted from Mayconrib808/OpenOmsi-BBS; copyright (c) 2026 Mayconrib808.
+// Original MIT notice: docs/optional-passengers/MAYCON-LICENSE.txt.
 
 #[derive(Default)]
 pub struct HailWrist {
@@ -44,13 +46,23 @@ mod tests {
         for frame in 0..360 {
             let angle = wrist.advance(true, 1.0 / 120.0, 4);
             let high = angle > 0.26;
-            if high && !above { peaks += 1; }
+            if high && !above {
+                peaks += 1;
+            }
             above = high;
-            if frame > 30 && angle.abs() < 1e-6 { held_frames += 1; }
+            if frame > 30 && angle.abs() < 1e-6 {
+                held_frames += 1;
+            }
             assert!((0.0..=0.30001).contains(&angle));
         }
-        assert!(peaks >= 5, "wrist only made {peaks} flexions in three seconds");
-        assert!(held_frames > 25, "the wrist never held still between groups");
+        assert!(
+            peaks >= 5,
+            "wrist only made {peaks} flexions in three seconds"
+        );
+        assert!(
+            held_frames > 25,
+            "the wrist never held still between groups"
+        );
     }
 
     #[test]
@@ -59,7 +71,9 @@ mod tests {
         for hz in [30, 60, 120] {
             let mut w = HailWrist::default();
             let mut angle = 0.0;
-            for _ in 0..hz { angle = w.advance(true, 1.0 / hz as f32, 3); }
+            for _ in 0..hz {
+                angle = w.advance(true, 1.0 / hz as f32, 3);
+            }
             assert_eq!(w.advance(true, 0.0, 3), angle);
             assert_eq!(w.advance(true, f32::NAN, 3), angle);
             values.push(angle);

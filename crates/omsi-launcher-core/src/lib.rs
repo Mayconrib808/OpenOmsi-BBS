@@ -26,12 +26,12 @@ mod ticket_chance_2211_tests{
 mod passenger_221_tests {
     #[test]
     fn direct_bcs_start_preserves_explicit_legacy_opt_out() {
-        let old="version=4\npassenger_animation=original\npassenger_umbrellas=0\npassenger_hailing=0\nboarding=walk\n";
+        let old="passenger_features_0347=1\nversion=4\npassenger_animation=original\npassenger_umbrellas=0\npassenger_hailing=0\nboarding=walk\n";
         let settings=super::settings_from_text_on(Some(old),false);
         assert_eq!(settings["passenger_animation"],"original");
         assert_eq!(settings["passenger_umbrellas"],false);assert_eq!(settings["passenger_hailing"],false);
         assert_eq!(settings["boarding"],"walk");
-        let off="version=4\npassenger_effects_221=1\npassenger_animation=original\npassenger_umbrellas=0\npassenger_hailing=0\npassenger_hailing_maps=\n";
+        let off="passenger_features_0347=1\nversion=4\npassenger_effects_221=1\npassenger_animation=original\npassenger_umbrellas=0\npassenger_hailing=0\npassenger_hailing_maps=\n";
         let settings=super::settings_from_text_on(Some(off),false);
         assert_eq!(settings["passenger_animation"],"original");
         assert_eq!(settings["passenger_umbrellas"],false);assert_eq!(settings["passenger_hailing"],false);
@@ -2318,7 +2318,7 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
         v[key] = json!(1.0);
     }
     // Human posing; the original OMSI behavior remains the default.
-    v["passenger_animation"] = json!("original");
+    v["passenger_animation"] = json!("enhanced");
     v["ticket_chance_enabled"]=json!(false);
     v["ticket_chance_percent"]=json!(-1.0);
     v["passenger_transfer_percent"]=json!(20.0);
@@ -2326,7 +2326,9 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
     v["illegal_parking_frequency"]=json!(0.8);
     for feature in omsi_cfg::optional_features::FEATURES { v[feature.key] = json!(false); }
     v["passenger_umbrellas"]=json!(false);
-    v["passenger_hailing"]=json!(false);
+    v["passenger_hailing"]=json!(true);
+    v["passenger_full_bus_reaction"]=json!(true);
+    v["passenger_connections"]=json!(true);
     v["passenger_hailing_maps"]=json!(passenger_defaults::MAPS);
     v["passenger_effects_221"]=json!(true);
     v["photo_mode"] = json!("simple");
@@ -2437,7 +2439,7 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
             "photo_mode" => v[&k] = json!(if val.eq_ignore_ascii_case("advanced") { "advanced" } else { "simple" }),
             "ticket_chance_enabled" => v[&k]=json!(b(val)),
             "ticket_chance_percent" => v[&k]=json!(val.parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(-1.0).clamp(-1.0,100.0)),
-            "passenger_umbrellas" | "passenger_hailing" => v[&k]=json!(b(val)),
+            "passenger_umbrellas" | "passenger_hailing" | "passenger_full_bus_reaction" | "passenger_connections" => v[&k]=json!(b(val)),
             "passenger_transfer_percent" => v[&k]=json!(val.parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(20.0).clamp(0.0,100.0)),
             "illegal_parking_frequency" => v[&k]=json!(val.parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(0.8).clamp(0.0,5.0)),
             "passenger_hailing_maps" => v[&k]=json!(val),
@@ -2558,6 +2560,15 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
     if !effects_migrated{
         v["passenger_hailing_maps"]=json!(passenger_defaults::migrate_maps(v["passenger_hailing_maps"].as_str().unwrap_or("")));
     }
+    if !text.unwrap_or("").lines().any(|line| line.trim() == "passenger_features_0347=1") {
+        v["passenger_hailing"] = json!(true);
+        v["passenger_full_bus_reaction"] = json!(true);
+        v["passenger_connections"] = json!(true);
+        v["passenger_animation"] = json!("enhanced");
+    }
+    v["weather_clothing"] = json!(false);
+    v["passenger_connections_enabled"] = json!(false);
+
     v
 }
 
@@ -2932,12 +2943,13 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
     text.push_str(&format!("auto_announce={}\n", b("auto_announce", false)));
     text.push_str(&format!("triple_left_angle_deg={}\ntriple_right_angle_deg={}\ntriple_eye_height_mm={}\n", f("triple_left_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_right_angle_deg", 45.0).clamp(0.0, 90.0), f("triple_eye_height_mm", 0.0).clamp(-500.0, 500.0)));
     text.push_str(&format!("photo_mode={}\n", if v.get("photo_mode").and_then(|x| x.as_str()) == Some("advanced") { "advanced" } else { "simple" }));
-    text.push_str(&format!("passenger_animation={}\n", if v.get("passenger_animation").and_then(|x| x.as_str()) == Some("enhanced") { "enhanced" } else { "original" }));
+    text.push_str(&format!("passenger_animation={}\n", if v.get("passenger_animation").and_then(|x| x.as_str()) != Some("original") { "enhanced" } else { "original" }));
     text.push_str(&format!("ticket_chance_enabled={}\nticket_chance_percent={}\n",b("ticket_chance_enabled",false),v.get("ticket_chance_percent").and_then(|x|x.as_f64()).filter(|x|x.is_finite()).unwrap_or(-1.0).clamp(-1.0,100.0)));
     text.push_str(&format!("passenger_transfer_percent={}\n",f("passenger_transfer_percent",20.0).clamp(0.0,100.0)));
     text.push_str(&format!("illegal_parking_frequency={}\n",f("illegal_parking_frequency",0.8).clamp(0.0,5.0)));
     for feature in omsi_cfg::optional_features::FEATURES { text.push_str(&format!("{}={}\n", feature.key, b(feature.key, false))); }
-    text.push_str(&format!("passenger_effects_221=1\npassenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n",b("passenger_umbrellas",false),b("passenger_hailing",false),v.get("passenger_hailing_maps").and_then(|x|x.as_str()).unwrap_or(passenger_defaults::MAPS).replace(['\r','\n'],"")));
+    text.push_str(&format!("passenger_features_0347=1\npassenger_connections={}\npassenger_full_bus_reaction={}\n",b("passenger_connections",true),b("passenger_full_bus_reaction",true)));
+    text.push_str(&format!("passenger_effects_221=1\npassenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n",b("passenger_umbrellas",false),b("passenger_hailing",true),v.get("passenger_hailing_maps").and_then(|x|x.as_str()).unwrap_or(passenger_defaults::MAPS).replace(['\r','\n'],"")));
     text.push_str(&format!("character_models={}\n", if v.get("character_models").and_then(|x| x.as_str()) == Some("improved") { "improved" } else { "original" }));
     text.push_str(&format!("units={}\n", units_setting(v.get("units").and_then(|x| x.as_str()).unwrap_or("metric"))));
     text.push_str(&format!(

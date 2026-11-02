@@ -371,8 +371,9 @@ const gameplay = {
         { type: 'select', key: 'passenger_animation', label: 'Passenger animations', options: [['original', 'Original OMSI'], ['enhanced', 'Natural (procedural)']] },
         { type: 'slider', key: 'passenger_transfer_percent', label: 'Connection chance', min: 0, max: 100, step: 1, def: 20, store: round, format: (v) => Math.round(v)+'%', help: 'Probability for eligible transfers; default 20%' },
         { type: 'toggle', key: 'passenger_umbrellas', label: 'Passenger umbrellas', help: 'Takes effect when the game starts the next time', when: (s) => s.passenger_animation === 'enhanced' },
+        { type: 'toggle', key: 'passenger_connections', label: 'Passenger connections between lines', help: 'Takes effect when the game starts the next time' },
+        { type: 'toggle', key: 'passenger_full_bus_reaction', label: 'Passengers react to full buses', help: 'Takes effect when the game starts the next time' },
         { type: 'toggle', key: 'passenger_hailing', label: 'Passengers signal approaching buses', help: 'Takes effect when the game starts the next time', when: (s) => s.passenger_animation === 'enhanced' },
-        { type: 'custom', id: 'passenger-maps', when: (s) => s.passenger_animation === 'enhanced' && s.passenger_hailing },
         // (drawn on this computer only; the avatars are downloaded once, about 310 MB)
         { type: 'select', key: 'character_models', label: 'Character models', options: [['original', 'Original'], ['improved', 'High quality (improved)']], help: 'High quality draws the people with the Microsoft Rocketbox avatars and their living faces, on this computer only: servers and other players keep their own. They are downloaded once (about 310 MB).' },
         { type: 'toggle', key: 'exact_fare', label: 'Passengers pay the exact fare' },

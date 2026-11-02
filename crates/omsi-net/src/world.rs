@@ -451,14 +451,16 @@ pub enum Desc {
 
 /// Optional descriptor suffix; legacy clients still read the unchanged first four fields.
 #[derive(Debug,Clone,PartialEq,Eq)]
-pub struct PersonIntent { pub stop:i64,pub line:Option<u64>,pub dest:Option<String> }
+pub struct PersonIntent { pub stop:i64,pub line:Option<u64>,pub dest:Option<String>, pub transfers:u8, pub previous_bus:Option<u64> }
 impl PersonIntent {
     fn decode(parts:&[&str])->Option<Self>{
         if parts.get(4).copied()!=Some("i1") || parts.len()<8{return None}
         let stop=parts[5].parse().ok()?;
         let line=if parts[6]=="-" {None}else{Some(parts[6].parse::<u64>().ok()?)};
         let dest=crate::clean_text(parts[7],180);
-        Some(Self{stop,line,dest:(!dest.trim().is_empty()).then(||dest.trim().to_string())})
+        let transfers=match parts.get(8) { Some(value)=>value.parse::<u8>().ok().filter(|n|*n<=2)?, None=>2 };
+        let previous_bus=match parts.get(9).copied() { None|Some("-")=>None,Some(value)=>Some(value.parse().ok()?) };
+        Some(Self{stop,line,dest:(!dest.trim().is_empty()).then(||dest.trim().to_string()),transfers,previous_bus})
     }
 }
 impl Desc {
@@ -467,7 +469,7 @@ impl Desc {
             Desc::Person { id, file, intent } => {
                 let mut text=format!("DESC|p|{id}|{}", crate::clean_text(file, 260));
                 if let Some(i)=intent {
-                    text.push_str(&format!("|i1|{}|{}|{}",i.stop,i.line.map_or("-".into(),|v|v.to_string()),crate::clean_text(i.dest.as_deref().unwrap_or(""),180)));
+                    text.push_str(&format!("|i1|{}|{}|{}|{}|{}",i.stop,i.line.map_or("-".into(),|v|v.to_string()),crate::clean_text(i.dest.as_deref().unwrap_or(""),180),i.transfers,i.previous_bus.map_or("-".into(),|v|v.to_string())));
                 }
                 text
             }
@@ -519,12 +521,28 @@ mod tests {
         let legacy="DESC|p|25|Humans/Generic/m1.hum";
         let old=Desc::decode(&legacy.split('|').collect::<Vec<_>>()).unwrap();
         assert_eq!(old.encode(),legacy);
-        let now=Desc::Person{id:25,file:"Humans/Generic/m1.hum".into(),intent:Some(PersonIntent{stop:123,line:Some(7),dest:Some("Terminal Central".into())})};
+        let now=Desc::Person{id:25,file:"Humans/Generic/m1.hum".into(),intent:Some(PersonIntent{stop:123,line:Some(7),dest:Some("Terminal Central".into()),transfers:1,previous_bus:Some((1<<40)|7)})};
         let encoded=now.encode();
         assert_eq!(Desc::decode(&encoded.split('|').collect::<Vec<_>>()),Some(now));
         // A legacy decoder only consumes these unchanged fields.
         assert_eq!(encoded.split('|').take(4).collect::<Vec<_>>().join("|"),legacy);
         assert!(matches!(Desc::decode(&"DESC|p|25|Humans/Generic/m1.hum|i1|bad|999999|bad".split('|').collect::<Vec<_>>()),Some(Desc::Person{intent:None,..})));
+    }
+    #[test]
+    fn connection_history_defaults_conservatively_for_legacy_and_rejects_invalid_counts() {
+        let legacy="DESC|p|25|Humans/Generic/m1.hum|i1|123|7|Terminal";
+        let Some(Desc::Person{intent:Some(intent),..})=Desc::decode(&legacy.split('|').collect::<Vec<_>>()) else{panic!("legacy descriptor")};
+        assert_eq!(intent.transfers,2);
+        for count in [0,1,2] {
+            let wire=format!("{legacy}|{count}|1099511627783");
+            let Some(Desc::Person{intent:Some(intent),..})=Desc::decode(&wire.split('|').collect::<Vec<_>>()) else{panic!("history lost")};
+            assert_eq!(intent.transfers,count);
+            assert_eq!(intent.previous_bus,Some((1<<40)|7));
+        }
+        for count in ["3","255","-1","bad"] {
+            let wire=format!("{legacy}|{count}|-");
+            assert!(matches!(Desc::decode(&wire.split('|').collect::<Vec<_>>()),Some(Desc::Person{intent:None,..})));
+        }
     }
     #[test]
     fn a_frame_round_trips_in_spandau_coordinates() {

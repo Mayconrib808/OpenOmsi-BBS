@@ -60,32 +60,33 @@ fn both_settings_writers_preserve_every_independent_switch_and_explicit_false() 
 }
 
 #[test]
-fn fresh_and_legacy_settings_do_not_silently_enable_optional_additions() {
-    for text in [
-        "",
-        "version=2\n",
-        "version=4\npassenger_umbrellas=0\npassenger_hailing=0\n",
-    ] {
-        let native = Settings::from_text(text);
-        let launcher = omsi_launcher_lib::settings_from_text_on(Some(text), false);
+fn upstream_passengers_start_enabled_and_preserve_later_opt_out() {
+    for text in ["", "version=4\npassenger_hailing=0\nweather_clothing=1\n"] {
+        let native=Settings::from_text(text);
+        let launcher=omsi_launcher_lib::settings_from_text_on(Some(text),false);
+        assert!(native.passenger_hailing&&native.passenger_full_bus_reaction&&native.passenger_connections);
+        assert_eq!(native.passenger_animation,"enhanced");
+        assert!(!native.optional_features.weather_clothing);
+        for key in ["passenger_hailing","passenger_full_bus_reaction","passenger_connections"] {assert_eq!(launcher[key],true);}
+        assert_eq!(launcher["passenger_animation"],"enhanced");
+        assert_eq!(launcher["weather_clothing"],false);
         for feature in FEATURES {
-            assert_eq!(native.optional_features.get(feature.key), Some(false));
-            assert_eq!(launcher[feature.key], false);
+            assert_eq!(native.optional_features.get(feature.key),Some(false));
+            assert_eq!(launcher[feature.key],false);
         }
-        assert!(!native.passenger_umbrellas && !native.passenger_hailing);
-        assert_eq!(launcher["passenger_umbrellas"], false);
-        assert_eq!(launcher["passenger_hailing"], false);
     }
-    assert_eq!(Settings::default().passenger_animation, "original");
-    let empty_saved = omsi_launcher_lib::settings_to_text(&serde_json::json!({}), None);
-    let empty_native = Settings::from_text(&empty_saved);
-    assert!(!empty_native.passenger_hailing && !empty_native.passenger_umbrellas);
-    assert_eq!(empty_native.passenger_animation, "original");
-    let legacy =
-        "version=4\npassenger_animation=original\npassenger_umbrellas=1\npassenger_hailing=1\n";
-    let native = Settings::from_text(legacy);
-    assert_eq!(native.passenger_animation, "original");
-    assert!(native.passenger_umbrellas && native.passenger_hailing);
+    let text="version=4\npassenger_features_0347=1\npassenger_animation=original\npassenger_hailing=0\npassenger_connections=0\npassenger_full_bus_reaction=0\nweather_clothing=1\n";
+    let native=Settings::from_text(text);
+    assert!(!native.passenger_hailing&&!native.passenger_full_bus_reaction&&!native.passenger_connections);
+    assert_eq!(native.passenger_animation,"original");
+    assert!(!native.optional_features.weather_clothing);
+    let launcher=omsi_launcher_lib::settings_from_text_on(Some(&native.to_text()),false);
+    let restored=Settings::from_text(&omsi_launcher_lib::settings_to_text(&launcher,Some(text)));
+    assert_eq!(restored.passenger_animation,"original");
+    assert!(!restored.passenger_hailing&&!restored.passenger_connections&&!restored.passenger_full_bus_reaction);
+    let empty=Settings::from_text(&omsi_launcher_lib::settings_to_text(&serde_json::json!({}),None));
+    assert!(empty.passenger_hailing&&empty.passenger_connections&&empty.passenger_full_bus_reaction);
+    assert_eq!(empty.passenger_animation,"enhanced");
 }
 
 #[test]
@@ -94,7 +95,7 @@ fn every_optional_control_and_help_has_catalog_text_in_all_supported_languages()
         HELP,
         HOST_HELP,
         "Passenger umbrellas",
-        "Signal buses on this map",
+        "Passengers react to full buses",
         "Passengers signal approaching buses",
         "Connection chance",
         "Probability for eligible transfers; default 20%",

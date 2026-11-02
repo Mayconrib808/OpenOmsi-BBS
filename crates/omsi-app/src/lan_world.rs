@@ -302,8 +302,7 @@ impl LanWorld {
                 describe_left -= 1;
                 if returning { v.return_described.insert(id); }
                 lan.send_desc_up(&Desc::Person {
-                    intent: p.waiting.and_then(|_| h.hail_intent(p.id)).map(|(stop, line, dest)|
-                        nw::PersonIntent { stop, line, dest }),
+                    intent: p.waiting.and_then(|_| person_intent(h,p.id,lan.my_id)),
                     id,
                     file: Humans::type_file(&p.ty),
                 });
@@ -447,7 +446,7 @@ impl LanWorld {
                 if stop != intent.stop { continue; }
                 let Some(kind) = h.type_by_file(file) else { continue; };
                 if let Some(host_id) = h.adopt_returned_connection(&*world.data(), kind, stop,
-                    intent.line, intent.dest.clone(), *peer, DVec3::new(x, y, z), heading as f64) {
+                    intent.line, intent.dest.clone(), *peer, DVec3::new(x, y, z), heading as f64, intent.transfers) {
                     up.returned.insert(pid);
                     adopted.push(pid);
                     lan.acknowledge_return(*peer, pid);
@@ -1331,6 +1330,9 @@ impl Mirror {
                 _=>None,
             };
             h.mirror_hail_intent(*id,intent);
+            if let Some(Desc::Person{intent:Some(i),..})=m.descs.get(&(true,*id)) {
+                h.mirror_connection_history(*id,i.transfers,i.previous_bus,lan.my_id);
+            }
             if m.drawn_people.contains(id) {
 
                 if h.has_mirror(*id) {
@@ -1400,7 +1402,7 @@ fn gather_people(view: &mut View, h: &Humans, table: Option<&omsi_net::traffic_t
         if !view.described.contains_key(&key) {
             view.described.insert(key, 0);
             g.descs.push(Desc::Person {
-                intent: person_intent(h,p.id),
+                intent: person_intent(h,p.id,1),
                 id: p.id,
                 file: Humans::type_file(&p.ty),
             });
@@ -1546,9 +1548,10 @@ fn person_pose(a: &PersonState, b: &PersonState, k: f64) -> MirrorPose {
 }
 
 /// What a person asked for is (the cars are told with their rows: `traffic_table`).
-fn person_intent(h:&Humans,id:u32)->Option<nw::PersonIntent>{
+fn person_intent(h:&Humans,id:u32,owner:u32)->Option<nw::PersonIntent>{
     let (stop,line,dest)=h.hail_intent(id)?;
-    Some(nw::PersonIntent{stop,line,dest})
+    let (transfers,previous_bus)=h.connection_history(id,owner);
+    Some(nw::PersonIntent{stop,line,dest,transfers,previous_bus})
 }
 fn describe(humans: Option<&Humans>, r: EntityRef) -> Option<Desc> {
     if !r.person {
@@ -1556,7 +1559,7 @@ fn describe(humans: Option<&Humans>, r: EntityRef) -> Option<Desc> {
     }
     let p = humans?.lan_people_by_id(r.id)?;
     Some(Desc::Person {
-        intent: person_intent(humans?,r.id),
+        intent: person_intent(humans?,r.id,1),
         id: r.id,
         file: Humans::type_file(&p),
     })

@@ -3,7 +3,7 @@ use std::fmt::Display;
 use omsi_cfg::template::Index;
 use std::sync::{Arc, Mutex, OnceLock};
 
-pub static TABLES: &str = include_str!("../../omsi-app/locales/app.yml");
+pub static TABLES: &str = concat!(include_str!("../../omsi-app/locales/app.yml"), "\n", include_str!("../../omsi-app/locales/passengers-0347.yml"));
 
 static PINNED: OnceLock<&'static str> = OnceLock::new();
 

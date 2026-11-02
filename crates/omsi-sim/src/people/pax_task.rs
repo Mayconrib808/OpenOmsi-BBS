@@ -3,6 +3,19 @@
 use super::*;
 use super::pax_stops::entry_on_platform;
 
+fn connection_walkable(from: DVec3, to: DVec3, height: impl Fn(f64, f64, f64) -> Option<f64>) -> bool {
+    if !from.is_finite() || !to.is_finite() || (to - from).length_squared() > 80.0 * 80.0 { return false; }
+    let steps = ((to - from).truncate().length() / 2.0).ceil().clamp(1.0, 40.0) as usize;
+    let mut z = from.z;
+    for step in 1..=steps {
+        let point = from.lerp(to, step as f64 / steps as f64);
+        let Some(next) = height(point.x, point.y, z) else { return false; };
+        if !next.is_finite() || (next - z).abs() > 0.6 || (next - point.z).abs() > 1.0 { return false; }
+        z = next;
+    }
+    (z - to.z).abs() <= 0.6
+}
+
 impl PeopleSim {
     /// sub_62e42c: a new task and what it starts with.
     pub fn set_task(&mut self, i: usize, t: Task, buses: &[BusNow], bus_ix: &HashMap<BusId, usize>, world: &dyn World) {
@@ -733,16 +746,19 @@ impl PeopleSim {
     /// Reuse this person and its network id instead of spawning a second passenger.
     fn try_connection(&mut self, i: usize, at: DVec3, heading: f64, from_stop: Option<i64>, from_bus: BusId,
         buses: &[BusNow], bus_ix: &HashMap<BusId, usize>, world: &dyn World) -> bool {
+        if self.people[i].remote || (self.mirror && !self.return_capable) { return false; }
         let percent = self.transfer_percent;
+        if percent <= 0.0 || !percent.is_finite() || from_stop.is_none() { return false; }
         let count = self.pax(i).map_or(0, |p|p.transfer_count);
-        if percent <= 0.0 || !percent.is_finite() || count >= 2 || from_stop.is_none() { return false; }
+        if count >= 2 { return false; }
         if self.rand_f() * 100.0 >= percent.clamp(0.0,100.0) as f64 {
-            if from_bus == BusId::Player { log::info!("Passenger connection: chance_percent={percent:.0} outcome=not_drawn"); }
+            if from_bus == BusId::Player { log::debug!("Passenger connection: chance_percent={percent:.0} outcome=not_drawn"); }
             return false;
         }
         let mut candidates: Vec<_> = self.stops.iter().filter_map(|(id,s)| {
             if (s.pos.z-at.z).abs() > 2.0 || (s.pos-at).length_squared() > 80.0*80.0 { return None; }
-            if world.collision().ray_blocked(at+DVec3::Z*0.9,s.gather+DVec3::Z*0.9,0.1,0.6) { return None; }
+            // Check cheaper service availability before sampling up to 40 ground
+            // positions and tracing a collision ray at a busy interchange.
             let serves = |bn: &BusNow, dest: &str, terms: &HashSet<String>| {
                 !matches!(bn.takes,Takes::Nobody)
                     && !bn.route.as_ref().is_some_and(|r|r.is_last_stop(s))
@@ -768,11 +784,13 @@ impl PeopleSim {
                     });
                     if !other_service { continue; }
                 }
-                if !ready && self.due_dests.as_ref().is_some_and(|d|
-                    d.get(id).is_none_or(|set|!set.contains(dest.trim()))) { continue; }
+                if !ready && !self.due_dests.as_ref().is_some_and(|d|
+                    d.get(id).is_some_and(|set|set.contains(dest.trim()))) { continue; }
                 choices.push((dest.clone(),line,f64::from(*weight),ready));
             }
             if choices.is_empty() { return None; }
+            if !connection_walkable(at, s.gather, |x, y, z| world.walk_height_near(x, y, z)) { return None; }
+            if world.collision().ray_blocked(at+DVec3::Z*0.9,s.gather+DVec3::Z*0.9,0.1,0.6) { return None; }
             let ready=choices.iter().any(|c|c.3);
             if ready { choices.retain(|c|c.3); }
             Some((*id,ready,(s.pos-at).length_squared(),choices))
@@ -795,11 +813,11 @@ impl PeopleSim {
             p.interior=0.0;p.vel=DVec2::ZERO;p.t_state=0.0;p.state=State::Pax(Box::new(next));
             self.set_task(i,Task::WalkingToBusstop,buses,bus_ix,world);
             if from_bus==BusId::Player {
-                log::info!("Passenger connection: chance_percent={percent:.0} outcome=walking from_stop={from_stop:?} to_stop={stop} destination={dest:?} bus_ready={ready}");
+                log::debug!("Passenger connection: chance_percent={percent:.0} outcome=walking from_stop={from_stop:?} to_stop={stop} destination={dest:?} bus_ready={ready}");
             }
             return true;
         }
-        if from_bus==BusId::Player { log::info!("Passenger connection: chance_percent={percent:.0} outcome=no_reachable_onward_service from_stop={from_stop:?}"); }
+        if from_bus==BusId::Player { log::debug!("Passenger connection: chance_percent={percent:.0} outcome=no_reachable_onward_service from_stop={from_stop:?}"); }
         false
     }
 
@@ -978,13 +996,14 @@ mod connection_tests {
         assert_eq!(h.pax(i).unwrap().task,Task::InBusToExit,"normal alighting resumes when the test hold is released");
         std::fs::remove_dir_all(root).unwrap();
     }
-    fn fixture(name:&str)->(std::path::PathBuf,PeopleSim,crate::world_data::WorldData,usize) {
+    fn fixture(name:&str)->(std::path::PathBuf,PeopleSim,super::upstream_connection_tests::FlatWorld,usize) {
         let root=std::env::temp_dir().join(format!("connection-{name}-{}",std::process::id()));
         let dir=root.join("Humans/Test");std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("person.hum"),"[model]\nmodel.cfg\n").unwrap();
         std::fs::write(dir.join("model.cfg"),"").unwrap();
         let mut h=PeopleSim::new(&root,20);h.map_humans_done=true;h.transfer_percent=100.;
-        let world=crate::world_data::WorldData::default();
+        let world=super::upstream_connection_tests::FlatWorld::default();
+        h.due_dests=Some(HashMap::from([(1,HashSet::from(["Cidade".into()])),(2,HashSet::from(["Cidade".into()]))]));
         let i=h.spawn(&world,DVec3::ZERO,0.,State::Pax(Box::new(Pax::new(1.1,0.5)))).unwrap();
         (root,h,world,i)
     }
@@ -1013,7 +1032,8 @@ mod connection_tests {
         let mut h=PeopleSim::new(&root,20);
         h.map_humans_done=true;
         assert!(!h.types.is_empty());
-        let world=crate::world_data::WorldData::default();
+        let world=super::upstream_connection_tests::FlatWorld::default();
+        h.due_dests=Some(HashMap::from([(1,HashSet::from(["Cidade".into()])),(2,HashSet::from(["Cidade".into()]))]));
         let i=h.spawn(&world,DVec3::ZERO,0.,State::Pax(Box::new(Pax::new(1.1,0.5)))).unwrap();
         h.stops.insert(1,stop(DVec3::ZERO));h.stops.insert(2,stop(DVec3::X*10.));
         let id=h.people[i].id;let n=h.people.len();let ix=HashMap::new();
@@ -1073,7 +1093,7 @@ mod connection_tests {
         let original=bus(&root,BusId::Player,"Destino",DVec3::new(8.,0.,0.));
         assert_eq!(h.visual_hail_bus(i,&[original.clone()]),None);
         let mut other=original.clone();other.id=BusId::Ai(2);
-        assert_eq!(h.visual_hail_bus(i,&[original,other]),Some((BusId::Ai(2),false)));
+        assert_eq!(h.visual_hail_bus(i,&[original,other]),Some((BusId::Ai(2),false,DVec3::new(8.,0.,0.))));
         std::fs::remove_dir_all(root).unwrap();
     }
 
@@ -1086,23 +1106,40 @@ mod connection_tests {
         let key=PeopleSim::hail_line_key(&s.lines[0].1);
         h.stops.insert(2,s);
         assert!(h.adopt_returned_connection(&world,0,2,Some(key+1),
-            Some("Cidade".into()),7,DVec3::new(10.,0.,0.),0.).is_none());
+            Some("Cidade".into()),7,DVec3::new(10.,0.,0.),0.,2).is_none());
         assert!(h.adopt_returned_connection(&world,0,2,Some(key),
-            Some("Cidade".into()),7,DVec3::new(100.,0.,0.),0.).is_none());
+            Some("Cidade".into()),7,DVec3::new(100.,0.,0.),0.,2).is_none());
         let id=h.adopt_returned_connection(&world,0,2,Some(key),
-            Some("Cidade".into()),7,DVec3::new(10.,0.,0.),0.).unwrap();
+            Some("Cidade".into()),7,DVec3::new(10.,0.,0.),0.,2).unwrap();
         let pax=h.people.iter().find(|p|p.id==id).and_then(|p|
             if let State::Pax(x)=&p.state {Some(x.as_ref())}else{None}).unwrap();
         assert_eq!(pax.task,Task::WaitingForBus);
         assert_eq!(pax.stop,Some(2));
         assert_eq!(pax.dest.as_deref(),Some("Cidade"));
+        assert_eq!(pax.transfer_count,2,"host handback must not reset the upstream lifetime cap");
         assert_eq!(pax.transfer_from,Some(BusId::Ai(remote_bus_id(7))));
         assert!(h.stops[&2].taken[0]);
         assert!(h.adopt_returned_connection(&world,0,2,Some(key),
-            Some("Cidade".into()),7,DVec3::new(10.,0.,0.),0.).is_none());
+            Some("Cidade".into()),7,DVec3::new(10.,0.,0.),0.,2).is_none());
         std::fs::remove_dir_all(root).unwrap();
     }
 
+    #[test]
+    fn upstream_connections_require_client_handback_capability_and_ignore_mirrors() {
+        let (root,mut h,world,i)=fixture("authority");
+        h.stops.insert(2,stop(DVec3::X*10.));
+        h.mirror=true;
+        let seed=h.rng;
+        assert!(!h.try_connection(i,DVec3::ZERO,0.,Some(1),BusId::Player,&[],&HashMap::new(),&world));
+        assert_eq!(h.rng,seed);
+        h.return_capable=true;
+        assert!(h.try_connection(i,DVec3::ZERO,0.,Some(1),BusId::Player,&[],&HashMap::new(),&world));
+        h.people[i].remote=true;
+        let seed=h.rng;
+        assert!(!h.try_connection(i,DVec3::ZERO,0.,Some(1),BusId::Player,&[],&HashMap::new(),&world));
+        assert_eq!(h.rng,seed);
+        std::fs::remove_dir_all(root).unwrap();
+    }
     #[test]
     fn cooperative_client_drops_only_a_confirmed_waiting_connection() {
         let (root,mut h,_,i)=fixture("client-return");
@@ -1152,3 +1189,7 @@ mod connection_tests {
         std::fs::remove_dir_all(root).unwrap();
     }
 }
+
+#[cfg(test)]
+#[path = "upstream_connection_tests.rs"]
+mod upstream_connection_tests;

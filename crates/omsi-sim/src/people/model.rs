@@ -443,6 +443,8 @@ pub struct PeopleSim {
     pub exact_fare: bool,
     /// Optional share of alighting passengers who make a connection (host authority).
     pub transfer_percent: f32,
+    pub visual_hailing: bool,
+    pub visual_full_bus_reaction: bool,
     pub bad_driving: bool,
     /// How passengers board (`boarding` in the settings): `auto` - pay and take the
     /// ticket by themselves after a moment; `pay` - wait at the desk for the driver to
@@ -495,6 +497,7 @@ pub struct PeopleSim {
     pub claimed: HashMap<u32, f64>,
     /// The host's people waiting at a stop (client): (stop, waiting place).
     pub mirror_wait: HashMap<u32, (i64, usize)>,
+    pub mirror_connection_history: HashMap<u32,(u8,Option<BusId>)>,
     pub mirror_hail_intent: HashMap<u32,(i64,Option<u64>,Option<usize>,Option<String>)>,
     /// How the player's bus is driven, for its riders' complaints.
     pub comfort: RideComfort,

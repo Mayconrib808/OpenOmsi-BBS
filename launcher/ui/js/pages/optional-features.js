@@ -8,14 +8,12 @@ export const OPTIONAL_FEATURE_ROWS = [
   { type: 'toggle', key: 'passenger_exit_thanks', label: 'Passengers thank the driver when alighting', help: restart },
   { type: 'toggle', key: 'extra_traffic_density', label: 'Extra traffic on wide roads', help: host },
   { type: 'toggle', key: 'ai_bus_greetings', label: 'AI bus greetings', help: host },
-  { type: 'toggle', key: 'passenger_connections_enabled', label: 'Passenger connections between lines', help: restart },
   { type: 'toggle', key: 'ai_driver_wave', label: 'AI bus drivers wave when greeting', help: host },
   { type: 'toggle', key: 'passenger_ambient_talk', label: 'Optional passenger conversations inside buses', help: restart },
   { type: 'toggle', key: 'ai_bus_overtaking', label: 'AI buses safely pass other stopped buses', help: host },
   { type: 'toggle', key: 'cars_yield_to_buses', label: 'Cars change lanes for buses leaving stops', help: host },
   { type: 'toggle', key: 'illegal_parking', label: 'Temporary illegally parked AI cars', help: host },
   { type: 'toggle', key: 'independent_passenger_demand', label: 'Independent passenger demand at each stop', help: host },
-  { type: 'toggle', key: 'weather_clothing', label: 'Weather-appropriate passenger clothing', help: host },
 ];
 
 export const optionalRows = (traffic) => OPTIONAL_FEATURE_ROWS.filter((row) =>

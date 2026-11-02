@@ -1,16 +1,12 @@
 //! Optional local cosmetics. No boarding decisions or network messages are changed.
 use super::*;
 use glam::{Affine3A,Quat};
-use omsi_sim::human::{accessory_arm,accessory_head,accessory_hail_arm,grip_centres,hand_slot};
-use std::sync::atomic::{AtomicBool,AtomicU32,Ordering};
+use omsi_sim::human::{accessory_arm,accessory_head,grip_centres,hand_slot};
+use std::sync::atomic::{AtomicBool,Ordering};
 mod geometry;
 mod water;
 pub(super) const VISUAL_DISTANCE_SQ:f64=300.*300.;
 static RAIN:AtomicBool=AtomicBool::new(false);
-static WINTER_TEMP:AtomicU32=AtomicU32::new(22.0f32.to_bits());
-static WINTER_SNOW:AtomicBool=AtomicBool::new(false);
-pub(super) fn winter_temperature()->f32{f32::from_bits(WINTER_TEMP.load(Ordering::Relaxed))}
-pub(super) fn winter_snow()->bool{WINTER_SNOW.load(Ordering::Relaxed)}
 pub(super) fn raining() -> bool { RAIN.load(Ordering::Relaxed) }
 
 #[derive(Default)]
@@ -40,21 +36,16 @@ impl Cover {
 }
 
 pub(crate) fn weather(w:&omsi_content::weather::Weather){RAIN.store(w.precip.first().copied().unwrap_or(0.).round() as i32==1&&w.precip.get(1).copied().unwrap_or(0.)>0.,Ordering::Relaxed);
- WINTER_TEMP.store(if w.temp.0.is_finite(){w.temp.0.clamp(-55.,55.).to_bits()}else{22.0f32.to_bits()},Ordering::Relaxed);
- WINTER_SNOW.store(w.snow,Ordering::Relaxed);
 }
 pub(crate) fn map_key(s:&str)->String{omsi_launcher_lib::passenger_defaults::map_key(s)}
 pub(crate) fn map_enabled(list:&str,map:&str)->bool{let key=map_key(map);list.split(';').any(|s|!s.trim().is_empty()&&map_key(s)==key)}
 #[derive(Clone,Default)]
-pub(crate) struct Config{pub umbrellas:bool,pub hail:bool,pub maps:String}
-impl Config{pub fn of(s:&crate::settings::Settings)->Self{Self{umbrellas:s.passenger_umbrellas,hail:s.passenger_hailing,maps:s.passenger_hailing_maps.clone()}}}
+pub(crate) struct Config{pub umbrellas:bool}
+impl Config{pub fn of(s:&crate::settings::Settings)->Self{Self{umbrellas:s.passenger_umbrellas}}}
 #[derive(Default)]
 pub(super) struct State{
  cover: Cover,
- look:omsi_sim::human::HailLook,
- wrist:omsi_sim::human::HailWrist,
- full_gate:omsi_sim::human::FullBusHail<omsi_sim::people::BusId>,
- pub open:f32,pub arm:f32,pub hail:f32,pub carried:bool,pub grip:Vec3,pub hail_side:usize,
+ pub open:f32,pub arm:f32,pub carried:bool,pub grip:Vec3,
  wet:f32,pub wetness:f32,pub time:f32,pub cap:Vec3,pub size:f32,pub raise:f32,pub cap_rotation:Quat,initialized:bool,pub rest:Option<Arc<HandRest>>,
 }
 pub(super) struct HandVertex{mesh:usize,index:usize,pos:Vec3,nrm:Vec3,original:Vec3,original_nrm:Vec3}
@@ -77,7 +68,7 @@ impl HandRest{
 impl State{
  pub fn probe_due(&self, at: DVec3, now: std::time::Instant) -> bool { self.cover.due(at, now) }
  pub fn sample_cover(&mut self, at: DVec3, covered: bool, now: std::time::Instant) { self.cover.sample(at, covered, now); }
- pub fn advance(&mut self,p:&PersonFrame,ty:&HumanType,dt:f32,time:f64,c:&Config,enabled:bool,near:bool,hail_map:bool,bones:&mut[Affine3A;omsi_sim::human::SLOTS]){
+ pub fn advance(&mut self,p:&PersonFrame,ty:&HumanType,dt:f32,time:f64,c:&Config,enabled:bool,near:bool,bones:&mut[Affine3A;omsi_sim::human::SLOTS]){
  let outside=matches!(p.place,Place::Ground);let ordinary=p.hidden.is_none()&&!p.puppet;
  let eligible=enabled&&ordinary&&near;
  let raining=RAIN.load(Ordering::Relaxed);
@@ -100,24 +91,6 @@ impl State{
  let carry=eligible&&c.umbrellas&&self.carried&&(outside||!matches!(p.facts.activity,omsi_sim::human::Activity::Sit|omsi_sim::human::Activity::Pay));
  self.arm+=(if carry{1.}else{0.}-self.arm).clamp(-dt*3.,dt*3.);
  if !enabled||!c.umbrellas {self.open=0.;self.arm=0.;}
- // Recognition comes from the simulation's cosmetic early-approach check.
- // Keep the arm raised continuously while the bus moves; never hail a parked bus.
- let ask=eligible&&c.hail&&hail_map&&outside&&p.hail_moving&&p.hail_target.is_some();
- let full_ok=p.hail_bus.map_or(true,|bus|self.full_gate.allow(bus,p.hail_full,ask,dt));
- let hail=ask&&full_ok;
- let starting_hail=self.hail<=0.001&&hail;
- self.hail+=(if hail{1.}else{0.}-self.hail).clamp(-dt*2.8,dt*2.8);
- if !enabled||!c.hail||!hail_map {self.hail=0.;}
- let wrist_wave=self.wrist.advance(self.hail>0.001,dt,p.id);
- let torso_slot=omsi_sim::human::slot_of(omsi_sim::human::BONE_MAIN).unwrap();
- let waiting_forward=bones[torso_slot].transform_vector3(Vec3::Y);
- let gaze=if outside && eligible && c.hail && hail_map {
-    p.hail_target.and_then(|bus|omsi_sim::human::hail_look_target(p.position,p.heading,bus))
- }else{None};
- let gaze_amount=self.hail*self.hail*(3.-2.*self.hail);
- self.look.advance(&ty.rig,bones,gaze,gaze_amount,dt);
- // Choose the free hand once per request; do not swap arms as the bus passes.
- if starting_hail{self.hail_side=if self.arm>0.05||gaze.is_some_and(|v|v.x>0.){0}else{1};}else if self.arm>0.05{self.hail_side=0;}
  let scale=ty.rig.scale.clamp(0.55,1.5);self.size=(0.96+(p.id%7)as f32*0.012)*scale.sqrt();
  let head=accessory_head(&ty.rig,bones);
  if self.arm>0.001{
@@ -137,22 +110,16 @@ impl State{
  self.cap=self.grip+rotation*Vec3::Z*(0.84*scale);
  self.cap_rotation=rotation;
  }
- if self.hail>0.001{
- let side=self.hail_side;
- let ease=self.hail; // The arm IK owns its phase; do not ease it twice.
- // Boarding request observed in Brazilian reference photographs: arm extended
- // in the waiting pose's streetward direction, around shoulder height.
- accessory_hail_arm(&ty.rig,bones,side,waiting_forward,ease,wrist_wave);
- }
+
  }
  pub fn skin(&self,bones:&[Affine3A;omsi_sim::human::SLOTS],skins:&mut[(Vec<Vec3>,Vec<Vec3>)]){
  let Some(rest)=&self.rest else{return};
- for side in 0..2{let carry=side==1&&self.arm>0.05;let point=side==self.hail_side&&self.hail>0.05;if !carry&&!point{continue}
+ for side in 0..2{let carry=side==1&&self.arm>0.05;if !carry{continue}
  let b=bones[hand_slot(side)];
  for v in &rest.vertices[side]{let Some((pos,nrm))=skins.get_mut(v.mesh)else{continue};
  // Hailing uses the model's relaxed open hand; only the umbrella hand curls.
- let (mut p,n)=if point{(v.original,v.original_nrm)}else{(v.pos,v.nrm)};
- let blend=if point{self.hail}else{self.arm};p=v.original.lerp(p,blend.clamp(0.,1.));
+ let (mut p,n)=(v.pos,v.nrm);
+ let blend=self.arm;p=v.original.lerp(p,blend.clamp(0.,1.));
  pos[v.index]=b.transform_point3(p);nrm[v.index]=b.transform_vector3(n).normalize_or(Vec3::Z);
  }
  }

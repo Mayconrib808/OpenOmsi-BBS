@@ -110,7 +110,7 @@ pub(super) fn option_set(app: &mut App, verb: &str, arg: &str, v: f32) -> Option
             app.settings.pax_density = v;
             Some(("pax_density", v.to_string()))
         }
-        "pax_transfer_percent" => {app.settings.passenger_transfer_percent=v.round().clamp(0.0,100.0);if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=h.optional_features.connection_percent(app.settings.passenger_transfer_percent);}Some(("passenger_transfer_percent",app.settings.passenger_transfer_percent.to_string()))}
+        "pax_transfer_percent" => {app.settings.passenger_transfer_percent=v.round().clamp(0.0,100.0);if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=if app.settings.passenger_connections {app.settings.passenger_transfer_percent}else{0.};}Some(("passenger_transfer_percent",app.settings.passenger_transfer_percent.to_string()))}
         "ticket_chance_percent" => {app.settings.ticket_chance_percent=v.round().clamp(-1.0,100.0);Some(("ticket_chance_percent",app.settings.ticket_chance_percent.to_string()))}
         "volume" => {
             app.settings.volume = v;
@@ -405,6 +405,8 @@ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "ticket_chance_enabled"=>s.ticket_chance_enabled,
         "pax_umbrellas"=>s.passenger_umbrellas,
         "pax_hailing"=>s.passenger_hailing,
+        "passenger_full_bus_reaction"=>s.passenger_full_bus_reaction,
+        "passenger_connections"=>s.passenger_connections,
         "pax_hailing_map"=>crate::view_sync::people::extras::map_enabled(&s.passenger_hailing_maps,&app.args.map),
         "navigator" => if app.vr_active() { app.vr_nav_profile().enabled } else { app.menus.navigator.as_ref().is_some_and(|n| n.enabled) },
         "nav_ai" => app.menus.navigator.as_ref().map_or(s.nav_ai, |n| n.show_ai),
@@ -511,7 +513,9 @@ pub(super) fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static 
         "pax_natural"=>{app.settings.passenger_animation=if on{"enhanced"}else{"original"}.into();Some(("passenger_animation",app.settings.passenger_animation.clone()))},
         "ticket_chance_enabled"=>{app.settings.ticket_chance_enabled=on;Some(("ticket_chance_enabled",bit))},
         "pax_umbrellas"=>{app.settings.passenger_umbrellas=on;Some(("passenger_umbrellas",bit))},
-        "pax_hailing"=>{app.settings.passenger_hailing=on;Some(("passenger_hailing",bit))},
+        "pax_hailing"=>{app.settings.passenger_hailing=on;if let Some(h)=app.session.humans.as_mut(){h.visual_hailing=on&&app.settings.passenger_animation=="enhanced";}Some(("passenger_hailing",bit))},
+        "passenger_full_bus_reaction"=>{app.settings.passenger_full_bus_reaction=on;if let Some(h)=app.session.humans.as_mut(){h.visual_full_bus_reaction=on&&app.settings.passenger_animation=="enhanced";}Some(("passenger_full_bus_reaction",bit))},
+        "passenger_connections"=>{app.settings.passenger_connections=on;if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=if on {app.settings.passenger_transfer_percent}else{0.};}Some(("passenger_connections",bit))},
         "pax_hailing_map"=>{
             let key=crate::view_sync::people::extras::map_key(&app.args.map);
             let mut maps:Vec<String>=app.settings.passenger_hailing_maps.split(';').filter(|s|!s.trim().is_empty()).map(str::to_string).filter(|s|crate::view_sync::people::extras::map_key(s)!=key).collect();

@@ -1,0 +1,30 @@
+{
+  "upstream_repository": "openOMSI-org/openOMSI",
+  "upstream_tag": "v0.3.47",
+  "upstream_commit": "8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6",
+  "pull_requests": [
+    3427,
+    3428,
+    3429
+  ],
+  "native_base": "176f9a140b4b7b929464a639176ee012a86868de",
+  "whole_engine_upgrade": false,
+  "original_files_sha256": {
+    "crates/omsi-sim/src/human/gesture.rs": "dc88980730ff7f163f945d95bb30f39088766b34b8c1d836b01b041524527399",
+    "crates/omsi-sim/src/human/hail_look.rs": "967e6e42290f9ca78660711f3c415f1f5dada85cfb7922c92f75fd0c48e0795a",
+    "crates/omsi-sim/src/human/hail_motion.rs": "cb63ef7981c0f0bc5dca0c391993a8decb2685fe8bee8fdaf4cf3f8c67974ccf",
+    "crates/omsi-sim/src/people/pax_task.rs": "736a10b02596bb51a0dbf04b993c84897b8fc74fe3ee7e28dc18c123b1563528",
+    "crates/omsi-sim/src/people/pax_stops.rs": "c6d233d08f1e56b3f55fadbec7140666ce57ce187540fc3b0a123aff95eb26f8",
+    "crates/omsi-sim/src/view_events.rs": "ce19992ac4eaf8f378ca196efb5a2e5da6947699d2de01339d87f565648c8c18"
+  },
+  "modifications": [
+    "retain existing umbrella helpers and use free hand",
+    "preserve exact host service intent for remote waiting passengers",
+    "ownership/capability guards before original connection RNG",
+    "P15 descriptor history preserves max two transfers and previous bus",
+    "enable three options plus Natural on first migration",
+    "remove abandoned winter rendering"
+  ],
+  "paired_gameplay_tested": false,
+  "visual_approved": false
+}

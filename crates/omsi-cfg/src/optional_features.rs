@@ -66,10 +66,6 @@ pub const FEATURES: &[Feature] = &[
         label: "AI bus greetings",
     },
     Feature {
-        key: "passenger_connections_enabled",
-        label: "Passenger connections between lines",
-    },
-    Feature {
         key: "ai_driver_wave",
         label: "AI bus drivers wave when greeting",
     },
@@ -92,10 +88,6 @@ pub const FEATURES: &[Feature] = &[
     Feature {
         key: "independent_passenger_demand",
         label: "Independent passenger demand at each stop",
-    },
-    Feature {
-        key: "weather_clothing",
-        label: "Weather-appropriate passenger clothing",
     },
 ];
 
