@@ -2349,8 +2349,8 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
     v["passenger_transfer_percent"]=json!(20.0);
     // The temporary illegal-parking frequency is a percentage (0..5), not a fixed 0.8 setting.
     v["illegal_parking_frequency"]=json!(0.8);
-    for feature in omsi_cfg::optional_features::FEATURES { v[feature.key] = json!(false); }
-    v["passenger_umbrellas"]=json!(false);
+    for feature in omsi_cfg::optional_features::FEATURES { v[feature.key] = json!(true); }
+    v["passenger_umbrellas"]=json!(true);
     v["passenger_hailing"]=json!(true);
     v["passenger_full_bus_reaction"]=json!(true);
     v["passenger_connections"]=json!(true);
@@ -2930,10 +2930,10 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
     text.push_str(&format!("ticket_chance_enabled={}\nticket_chance_percent={}\n",b("ticket_chance_enabled",false),v.get("ticket_chance_percent").and_then(|x|x.as_f64()).filter(|x|x.is_finite()).unwrap_or(-1.0).clamp(-1.0,100.0)));
     text.push_str(&format!("passenger_transfer_percent={}\n",f("passenger_transfer_percent",20.0).clamp(0.0,100.0)));
     text.push_str(&format!("illegal_parking_frequency={}\n",f("illegal_parking_frequency",0.8).clamp(0.0,5.0)));
-    for feature in omsi_cfg::optional_features::FEATURES { text.push_str(&format!("{}={}\n", feature.key, b(feature.key, false))); }
+    for feature in omsi_cfg::optional_features::FEATURES { text.push_str(&format!("{}={}\n", feature.key, b(feature.key, true))); }
     if v["language"].as_str().is_some_and(|l|l.eq_ignore_ascii_case("PTB")) {text.push_str("ptbr_passenger_audio=1\n");}
     text.push_str(&format!("passenger_features_0347=1\npassenger_connections={}\npassenger_full_bus_reaction={}\n",b("passenger_connections",true),b("passenger_full_bus_reaction",true)));
-    text.push_str(&format!("passenger_effects_221=1\npassenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n",b("passenger_umbrellas",false),b("passenger_hailing",true),v.get("passenger_hailing_maps").and_then(|x|x.as_str()).unwrap_or(passenger_defaults::MAPS).replace(['\r','\n'],"")));
+    text.push_str(&format!("passenger_effects_221=1\npassenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n",b("passenger_umbrellas",true),b("passenger_hailing",true),v.get("passenger_hailing_maps").and_then(|x|x.as_str()).unwrap_or(passenger_defaults::MAPS).replace(['\r','\n'],"")));
     text.push_str(&format!("character_models={}\n", if v.get("character_models").and_then(|x| x.as_str()) == Some("improved") { "improved" } else { "original" }));
     text.push_str(&format!("units={}\n", units_setting(v.get("units").and_then(|x| x.as_str()).unwrap_or("metric"))));
     text.push_str(&format!(
