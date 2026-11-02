@@ -768,6 +768,9 @@ impl PeopleView {
                     f.live = false;
                 }
             }
+            // The upstream 0.3.47 hail state lives on PersonView, not on extras::State.
+            // Keep the optional visual effect active until its pose finishes fading.
+            let hail_active = st.hail_strength > 0.001 || st.full_look_strength > 0.001;
             let PersonView { skins, skin_bones, pose_changed, face, extra, .. } = &mut **st;
             *pose_changed = false;
             if bones.iter().any(|b| !b.is_finite()) && !skins.is_empty() {
@@ -776,7 +779,7 @@ impl PeopleView {
             }
             // (the same bones as the mesh was made with: nothing to skin or upload - unless
             // the face moves, or has just gone back to rest)
-            if extra.arm<0.001 && extra.hail<0.001 && !face_now && !(face_was && !near) && skins.len() == ty.meshes.len() && skin_bones.as_ref().is_some_and(|b| b.iter().zip(&bones).all(|(a, c)| a.abs_diff_eq(*c, 1e-6))) {
+            if extra.arm<0.001 && !hail_active && !face_now && !(face_was && !near) && skins.len() == ty.meshes.len() && skin_bones.as_ref().is_some_and(|b| b.iter().zip(&bones).all(|(a, c)| a.abs_diff_eq(*c, 1e-6))) {
                 return;
             }
             skins.resize_with(ty.meshes.len(), Default::default);
