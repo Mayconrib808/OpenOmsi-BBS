@@ -14,13 +14,14 @@ pub(crate) struct CharacterState {
     pub chosen: String,
     pub error: String,
     applied_driver: Option<(u64, String)>,
+    last_missing_figure_retry: Option<std::time::Instant>,
 }
 
 impl Default for CharacterState {
     fn default() -> Self {
         Self { open:false, choices:Vec::new(), query:String::new(), page:0,
             chosen:catalog::saved_choice().unwrap_or_default(), error:String::new(),
-            applied_driver:None }
+            applied_driver:None, last_missing_figure_retry:None }
     }
 }
 
@@ -104,6 +105,14 @@ impl App {
         // every remote avatar at DRIVER_SEAT gets suppressed as "already drawn"
         // even though nothing is actually visible at the wheel.
         let missing_delegated_figure = self.net.coop.drive.owner_active() && p.driver.is_none();
+        // Model or mesh loading can legitimately lag behind handover. Retry,
+        // but never perform a potentially expensive GPU mesh reconstruction
+        // on every frame when the chosen human model is unavailable.
+        if missing_delegated_figure && self.net.coop.character.last_missing_figure_retry
+            .is_some_and(|t| t.elapsed() < std::time::Duration::from_secs(3)) { return; }
+        if missing_delegated_figure {
+            self.net.coop.character.last_missing_figure_retry = Some(std::time::Instant::now());
+        }
         if self.net.coop.character.applied_driver.as_ref()==Some(&key)
             && !missing_delegated_figure {return};
         let (Some(world),Some(renderer),Some(scene))=(self.world.as_deref(),self.renderer.as_ref(),self.scene.as_mut()) else {return};
@@ -120,6 +129,7 @@ impl App {
             if let Some(mut old)=p.driver.take() {old.hide(renderer,scene);}
             p.driver=Some(new);
             self.net.coop.character.applied_driver=Some(key);
+            self.net.coop.character.last_missing_figure_retry = None;
             if missing_delegated_figure {
                 log::info!("COOP13 driver figure restored on original owner's machine");
             }
