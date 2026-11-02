@@ -472,17 +472,17 @@ var approvedPassengerVoiceV2Digests = map[string]string{
 	"OpenDoor_3.wav": "48aaf1808e202482cb8372800be8829235da7423aab82f9dd5c085d3101fb236",
 }
 
-func approvedPassengerVoiceV2File(dir, name string) bool {
+// Recognize only the exact eight independently hashed, user-approved WAVs.
+func approvedPassengerVoiceV2Digest(name, actualSHA256 string) bool {
 	const prefix = "OpenOmsi Coop 0.3.41/programa/bcs-assets/PassengerVoices/pt-BR/"
-	if !strings.HasPrefix(name, prefix) {
-		return false
-	}
+	if !strings.HasPrefix(name, prefix) { return false }
 	part := strings.TrimPrefix(name, prefix)
-	if strings.Contains(part, "/") || strings.Contains(part, "\\") {
-		return false
-	}
+	if strings.ContainsAny(part, "/\\") { return false }
 	expected, ok := approvedPassengerVoiceV2Digests[part]
-	if !ok { return false }
+	return ok && expected == actualSHA256
+}
+
+func approvedPassengerVoiceV2File(dir, name string) bool {
 	path := filepath.Join(dir, filepath.FromSlash(name))
 	file, err := os.Open(path)
 	if err != nil { return false }
@@ -491,6 +491,6 @@ func approvedPassengerVoiceV2File(dir, name string) bool {
 	if err != nil || !info.Mode().IsRegular() || info.Size() > (512<<10) { return false }
 	fileHash := sha256.New()
 	if _, err := io.Copy(fileHash, file); err != nil { return false }
-	return fmt.Sprintf("%x", fileHash.Sum(nil)) == expected
+	return approvedPassengerVoiceV2Digest(name, fmt.Sprintf("%x", fileHash.Sum(nil)))
 }
 
