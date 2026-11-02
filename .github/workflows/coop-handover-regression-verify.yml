@@ -38,6 +38,17 @@ jobs:
         run: |
           cargo test --locked --release -p omsi-app --lib current_conductor_reselected -- --nocapture
           if ($LASTEXITCODE -ne 0) { throw 'Conductor grant/revoke epoch regression' }
+      - name: Test Bridge defaults, launcher opt-out and horn-response simulation
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-cfg --lib optional_features
+          if ($LASTEXITCODE -ne 0) { throw 'Feature default test failed' }
+          cargo test --locked --release -p omsi-launcher-core --lib
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher feature defaults or persistence failed' }
+          cargo test --locked --release -p omsi-app --lib optional_features_tests
+          if ($LASTEXITCODE -ne 0) { throw 'Native and launcher settings roundtrip regression' }
+          cargo test --locked --release -p omsi-sim --lib greetings
+          if ($LASTEXITCODE -ne 0) { throw 'AI horn and greeting regression' }
       - name: Build actual Windows P16 game executable
         shell: pwsh
         run: |
