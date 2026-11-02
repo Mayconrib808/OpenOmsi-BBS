@@ -1107,6 +1107,34 @@ mod connection_tests {
     }
 
     #[test]
+    fn passengers_signal_before_the_60_metre_boarding_task_transition() {
+        // In the old implementation the visual range started at the same
+        // distance where pax_tick switches WaitingForBus to ToBus. The
+        // gesture never had enough time to become visible.
+        let (root, mut people, _world, i) = fixture("hail-before-boarding");
+        people.stops.insert(2, stop(DVec3::ZERO));
+        {
+            let pax = people.pax_mut(i).unwrap();
+            pax.stop = Some(2);
+            pax.line = Some(0);
+            pax.dest = Some("Cidade".into());
+            pax.task = Task::WaitingForBus;
+        }
+        people.people[i].position = DVec3::ZERO;
+        let mut vehicle = bus(&root, BusId::Player, "Destino", DVec3::new(0., -80., 0.));
+        vehicle.speed = 8.;
+        assert!(people.visual_hail_bus(i, &[vehicle.clone()]).is_some(),
+            "waiting passenger should signal 20 metres before normal 60m bus recognition");
+        vehicle.pos = DVec3::new(0., -110., 0.);
+        assert!(people.visual_hail_bus(i, &[vehicle.clone()]).is_none());
+        vehicle.pos = DVec3::new(0., -45., 0.);
+        people.pax_mut(i).unwrap().task = Task::ToBus;
+        assert!(people.visual_hail_bus(i, &[vehicle]).is_none(),
+            "must not signal while already moving to board");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn cooperative_host_reclaims_only_a_valid_waiting_connection() {
         let (root,mut h,world,_) = fixture("host-reclaim");
         let mut s=stop(DVec3::new(10.,0.,0.));
