@@ -953,9 +953,13 @@ impl Settings {
                 _ => {}
             }
         }
-        // The 0.3.47 and PT-BR additions now start enabled in Settings::default.
+        // The 0.3.47 and PT-BR toggles now start enabled in Settings::default.
         // An explicit saved 0 always wins, including in legacy settings files.
-        // Do not unconditionally flip it back to 1 during a first-run migration.
+        // Keep the existing one-time enhanced-pose migration (a mode, not a
+        // bool switch) until the user's config receives the 0.3.47 marker.
+        if !text.lines().any(|line| line.trim() == "passenger_features_0347=1") {
+            s.passenger_animation = "enhanced".into();
+        }
         s.optional_features.weather_clothing = false;
         s.optional_features.passenger_connections_enabled = false;
         if !theme.0 && theme.1 == Some(true) { s.ui_theme = "light".into(); }
