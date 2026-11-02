@@ -66,10 +66,11 @@ pub(crate) fn panel(app: &crate::App) -> Panel {
         children.push(note(text("Seu amigo está dirigindo. Esta viagem continua vinculada ao seu BCS; mantenha o jogo aberto.",
             "Your friend is driving. This trip stays on your BCS; keep the game open.",
             "Dein Freund fährt. Die Fahrt bleibt in deinem BCS; Spiel geöffnet lassen.")));
-        children.push(note(text("Você agora é passageiro. Peça ao motorista atual a função de cobrador.",
-            "You are now a passenger. Ask the current driver for conductor permission.",
-            "Du bist jetzt Fahrgast. Bitte den Fahrer um die Kassiererrolle.")));
-        children.push(button("request", text("Solicitar função de cobrador", "Request conductor role", "Kassiererrolle anfragen"), None));
+        children.push(note(text("Você agora é passageiro. A função de cobrador e as câmeras só estão disponíveis a bordo após autorização.",
+            "You are now a passenger. Conductor controls and cameras require boarding and authorization.",
+            "Du bist nun Fahrgast. Kassiererbedienung und Kameras benötigen Einstieg und Erlaubnis.")));
+        // The onboard section below owns the one and only "request" action.
+        // Do not expose a request while walking outside the bus.
     } else if app.net.coop.drive.visitor_active() {
         children.push(note(text("Você é o motorista autorizado deste ônibus. A viagem do BCS pertence a quem a iniciou.",
             "You are this bus's authorized driver. The BCS trip belongs to its original driver.",
