@@ -2587,9 +2587,12 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
     if !effects_migrated{
         v["passenger_hailing_maps"]=json!(passenger_defaults::migrate_maps(v["passenger_hailing_maps"].as_str().unwrap_or("")));
     }
-    // All current passenger features use enabled defaults above.
-    // Legacy files may contain explicit opt-outs even without the old
-    // migration markers; respect those choices instead of forcing them on.
+    // All passenger boolean features use enabled defaults. Old explicit 0
+    // always stays off, even without a migration marker. Preserve the
+    // established one-time migration for the animation MODE, however.
+    if !text.unwrap_or("").lines().any(|line| line.trim() == "passenger_features_0347=1") {
+        v["passenger_animation"] = json!("enhanced");
+    }
     v["weather_clothing"] = json!(false);
     v["passenger_connections_enabled"] = json!(false);
 
