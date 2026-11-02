@@ -93,6 +93,13 @@ def main():
  for path in a.native.glob('*.dll'):
   rel=COOP+'/programa/'+path.name
   assert rel in files and sha(path.read_bytes())==sha(files[rel]),'Native DLL differs from retained package: '+path.name
+ # Each Windows executable needs its own app-local DLLs. The previous
+ # 2.2.2.4 P16 directory omitted these and exited 0xc0000135 on Windows.
+ p16_dependencies=('steam_api64.dll','msvcp140.dll','vcruntime140.dll','vcruntime140_1.dll')
+ for dll in p16_dependencies:
+  retained='app/server-dinamico-p15/'+dll
+  assert retained in files, 'Missing trusted P15 runtime: '+dll
+  files['app/server-dinamico-p16/'+dll]=files[retained]
  companion=out/'p16-companion-test'/'app/hosts-p16';companion.mkdir(parents=True)
  companion_env=dict(os.environ,GOOS='windows',GOARCH='386',GO386='sse2',CGO_ENABLED='0',GOTOOLCHAIN='local',GO111MODULE='off',GOEXPERIMENT='')
  for name in ('HostAgent.exe','CompanyHost.exe'):
@@ -166,6 +173,14 @@ def main():
  assert all(sha(payload[name])==old['components_sha256'][name]for name in('HostAgent.exe','CompanyHost.exe'))
  # One cumulative Bridge suite, with the real new native CLI flags as evidence.
  cli=subprocess.run([str((package/game).resolve()),'--help'],capture_output=True,text=True,timeout=60);assert cli.returncode==0
+ # Smoke-test the real installed P16 directory (not the native build folder).
+ p16_home=package/'app/server-dinamico-p16'
+ for dll in p16_dependencies:
+  installed=p16_home/dll
+  assert installed.is_file() and sha(installed.read_bytes())==sha(files['app/server-dinamico-p15/'+dll]),dll
+ p16_help=subprocess.run([str((p16_home/'openomsi.exe').resolve()),'--help'],cwd=p16_home,capture_output=True,text=True,timeout=60)
+ assert p16_help.returncode==0, 'P16 packaged executable failed to start: '+p16_help.stderr[-2000:]
+ assert '--server' in (p16_help.stdout+p16_help.stderr), 'P16 server CLI flag missing'
  helpfile=out/'native-help.txt';helpfile.write_text(cli.stdout+cli.stderr)
  subprocess.run(['python',str(ROOT/'scripts/build_2203.py'),'--tests-only'],env=dict(os.environ,OPENOMSI_FUEL_CLI_HELP=str(helpfile),OPENOMSI_GATEWAY_TEST_SERVER=str((a.native/'openomsi.exe').resolve()),OPENOMSI_GATEWAY_TEST_PROTOCOL='16'),check=True)
  previews=out/'setup-previews'
