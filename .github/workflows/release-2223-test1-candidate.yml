@@ -90,8 +90,7 @@ jobs:
         (out/'version.txt').write_text(result.stdout)
         sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
         info=dict(commit=commit,build_commit=commit,run_id=int(os.environ['GITHUB_RUN_ID']),upstream_commit='17be22987d7c01c813a1473e7696fc71fb3b1d89',version='0.3.46-coop.15-2.2.2.3-test.1',native_sha256=sha(out/'openomsi.exe'),source_sha256=sha(out/'openomsi-source.tar.gz'),winter_clothing_removed=True,passenger_upstream_tag='v0.3.47',passenger_upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6',windows_gameplay_tested=False,paired_gameplay_tested=False,gameplay_visual_tested=False)
-        for name in ['SOURCE.json','BUILD-INFO.json']:(out/name).write_text(json.dumps(info,indent=2)+'
-        ')
+        for name in ['SOURCE.json','BUILD-INFO.json']:(out/name).write_text(json.dumps(info,indent=2)+'\n')
         '@ | python -
         if($LASTEXITCODE -ne 0){throw 'Native provenance/CLI/assets failed'}
     - uses: actions/upload-artifact@v4
@@ -151,8 +150,7 @@ jobs:
         exe=source/'launcher/src-tauri/target/release/openomsi-launcher-app.exe'
         shutil.copy2(exe,out/exe.name)
         info=dict(version='0.3.46-coop.15-2.2.2.3-test.1',source_commit=commit,path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe',optional_ui_controls=12,passenger_upstream_controls=3,winter_clothing_removed=True,launcher_sha256=hashlib.sha256(exe.read_bytes()).hexdigest())
-        (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2)+'
-        ')
+        (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2)+'\n')
         '@ | python -
         if($LASTEXITCODE -ne 0){throw 'Launcher inventory failed'}
     - uses: actions/upload-artifact@v4
