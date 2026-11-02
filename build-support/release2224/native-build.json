@@ -1,5 +1,5 @@
 {
-  "commit": "89f0f88d4d1a7a6dfef1f3066714a29cefb006b8",
+  "commit": "a610e06011ddeefc441997b3398a188d9bfddbb1",
   "workflow": ".github/workflows/release-2224-candidate.yml",
   "version": "0.3.47-coop.16-2.2.2.4",
   "protocol": 16,
@@ -14,6 +14,9 @@
   "fix_notes": [
     "P16 app-local runtime dependencies",
     "Passenger visual hailing without optional HOF stop line entry",
-    "Passenger hailing route fallback and 30 second visual eligibility audit"
+    "Passenger hailing route fallback and 30 second visual eligibility audit",
+    "Former driver and conductor F1/F2, standing/visibility, duplicated requests and idempotent grants",
+    "All active OpenOMSI extensions default enabled while explicit disabled choices remain respected",
+    "AI bus greetings detect mod-bus horn triggers and log host-only audio provenance"
   ]
 }
