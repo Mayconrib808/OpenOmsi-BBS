@@ -57,9 +57,9 @@ if(process.argv[2]==='validate-signatures'){
       ||report.updater_sha256!==installer.sha256||sha(binary)!==installer.sha256||binary.length!==installer.size
       ||report.coop_archive_sha256!==spec.sha256||report.native_version!=='0.3.47-coop.16-2.2.2.4'
       ||report.native_candidate_run!==info.candidate_run_id
-      ||report.native_candidate_commit!=='a610e06011ddeefc441997b3398a188d9bfddbb1'
-      ||report.native_build_commit!=='a610e06011ddeefc441997b3398a188d9bfddbb1'
-      ||report.desktop_launcher_commit!=='a610e06011ddeefc441997b3398a188d9bfddbb1'
+      ||report.native_candidate_commit!=='b15541549872aaee2dcd2d1be645bec978324495'
+      ||report.native_build_commit!=='b15541549872aaee2dcd2d1be645bec978324495'
+      ||report.desktop_launcher_commit!=='b15541549872aaee2dcd2d1be645bec978324495'
       ||report.desktop_launcher_run!==info.candidate_run_id
       ||report.complete_hosts_unchanged!==true||report.complete_hosts_rebuilt!==false
       ||report.p14_server_unchanged!==true||report.p15_server_unchanged!==true||report.new_p16_host_ui_tested!==true||report.custom_sounds_unchanged!==true
