@@ -1,5 +1,5 @@
 {
-  "commit": "ea70627ae5620c4811a0d3ba8fce917a8d57ae3f",
+  "commit": "89f0f88d4d1a7a6dfef1f3066714a29cefb006b8",
   "workflow": ".github/workflows/release-2224-candidate.yml",
   "version": "0.3.47-coop.16-2.2.2.4",
   "protocol": 16,
@@ -10,5 +10,10 @@
   "passenger_upstream_commit": "8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6",
   "brazilian_passenger_recordings": 8,
   "windows_gameplay_tested": false,
-  "paired_gameplay_tested": false
+  "paired_gameplay_tested": false,
+  "fix_notes": [
+    "P16 app-local runtime dependencies",
+    "Passenger visual hailing without optional HOF stop line entry",
+    "Passenger hailing route fallback and 30 second visual eligibility audit"
+  ]
 }
