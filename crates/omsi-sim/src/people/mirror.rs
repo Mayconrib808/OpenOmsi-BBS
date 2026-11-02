@@ -79,7 +79,7 @@ impl PeopleSim {
         let forward = DVec2::new(h.sin(), h.cos());
         buses.iter().filter(|b| !matches!(b.takes, Takes::Nobody)
             && Self::visual_hail_range(b.pos-s.pos, forward)
-            && (b.pos-p.position).length_squared() <= 60.0*60.0
+            && (b.pos-p.position).length_squared() <= 90.0*90.0
             && b.fwd().dot(forward)>0. && b.served.is_none_or(|id| id==*stop)
             && self.mirror_bus_fit(p.id,b,p.position)==Some(true))
             .min_by(|a,b| (a.pos-p.position).length_squared().total_cmp(&(b.pos-p.position).length_squared()))
@@ -94,14 +94,22 @@ impl PeopleSim {
         if self.mirror_wait.get(&id)?.0!=*stop{return None}
         let s=self.stops.get(stop)?;
         if bn.served.is_some_and(|v|v!=*stop) || bn.route.as_ref().is_some_and(|r|r.is_last_stop(s)){return Some(false)}
-        let Some(term)=bn.terminus.as_deref() else{return Some(false)};
-        if !matches!(at_stop(*stop,s,Some(term),&bn.takes),AtStop::Serves){return Some(false)}
+        // Mirrors used to reject a passenger whenever the driver's terminus
+        // had not been initialized, even with a matching route/line already
+        // transmitted by the host. Keep host line intent authoritative, but
+        // do not require the optional HOF label to be populated.
+        let term=bn.terminus.as_deref();
         let side=self.preferred_entry_side(*stop,bn,position);
         if !bn.cabin.entries.iter().any(|d|d.point.is_some() && entry_on_platform(side,d.side)){return Some(false)}
+        let route_match=line.and_then(|k|s.lines.get(k))
+            .is_some_and(|(_,termini)|bn.route.as_ref().and_then(|r|r.takes_waiting_for(termini)).is_some());
+        let stop_served=term.is_some_and(|t|matches!(at_stop(*stop,s,Some(t),&bn.takes),AtStop::Serves));
+        if !stop_served && !route_match{return Some(false)}
         Some(match line.and_then(|k|s.lines.get(k)){
-            Some((_,termini))=>fit(*stop,s,dest.as_deref(),termini,term,&bn.takes)
-                .or_else(||bn.route.as_ref().and_then(|r|r.takes_waiting_for(termini))).is_some(),
-            None=>line.is_none(),
+            Some((_,termini))=>term
+                .and_then(|t|fit(*stop,s,dest.as_deref(),termini,t,&bn.takes))
+                .is_some() || route_match,
+            None=>line.is_none() && stop_served,
         })
     }
     /// Stable identity of the termini, independent of HashMap loading/line order.
