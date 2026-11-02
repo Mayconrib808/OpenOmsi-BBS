@@ -1,5 +1,5 @@
 {
-  "commit": "fc7b61e6165a1b51d39632307a27b63df7622cb7",
+  "commit": "3d91881988bc260115184b5c4a03596f2b25d604",
   "workflow": ".github/workflows/release-2224-candidate.yml",
   "version": "0.3.47-coop.16-2.2.2.4",
   "protocol": 16,
