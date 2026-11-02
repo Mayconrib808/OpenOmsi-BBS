@@ -269,6 +269,10 @@ impl App {
     }
 
     pub(crate) fn coop_grant(&mut self, peer: Option<u32>) {
+        // Re-clicking "Current conductor" must be idempotent. The old flow
+        // revoked an active grant and immediately issued a new epoch, causing
+        // the receiver to lose camera access until it saw the new permission.
+        if self.coop_conductor() == peer { return; }
         // The former owner no longer authorizes any controls during handover.
         if peer.is_some() && self.net.coop.drive.owner_active() { return; }
         self.coop_release_held();
@@ -1475,9 +1479,14 @@ impl App {
     }
 
     fn coop_camera_choose(&mut self, driver: bool, delta: i32) {
-        let Some(bus) = self.foot_bus().filter(|b| *b != BusId::Player) else { return };
-        let friend = matches!(bus, BusId::Ai(id) if crate::humans::remote_bus_player(id).is_some());
-        if driver && (!friend || (!self.net.coop.remote.is_some_and(|(_, e, _)| e != 0) && !self.net.coop.drive.visitor_active())) {
+        // The former owner still stands in BusId::Player after handing
+        // authority to a visitor; it is a PASSENGER at that point, not a
+        // local driver. Allow the authorized passenger cameras on that bus.
+        let Some(bus) = self.foot_bus().filter(|b|
+            *b != BusId::Player || self.net.coop.drive.owner_active()) else { return };
+        let friend = self.net.coop.drive.owner_active() ||
+            matches!(bus, BusId::Ai(id) if crate::humans::remote_bus_player(id).is_some());
+        if driver && (!friend || !self.net.coop.remote.is_some_and(|(_, e, _)| e != 0)) {
             self.coop_notice("Somente cobradores autorizados usam as câmeras F1.",
                 "Only authorized conductors may use F1 cameras.",
                 "Nur autorisierte Kassierer dürfen F1-Kameras verwenden.");
