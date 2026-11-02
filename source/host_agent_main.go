@@ -6,14 +6,13 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"syscall"
 )
 
 func init() { companyRuntimePackageChecksDisabled = true }
 func main() {
 	executable, _ := os.Executable()
-	dir := filepath.Dir(executable)
+	dir := p16HostPackageDir(executable)
 	var background, smoke bool
 	var path string
 	flag.BoolVar(&background, "background", false, "Run the host agent without the configuration window")

@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.3"
+const changelogSeenVersion = "2.2.2.4"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -447,6 +447,22 @@ func release2221LogSection() logSection {
     }
 }
 
+func engine0347LogSection() logSection {
+ return logSection{
+  label:logT("🚌 2.2.2.4 • OPENOMSI 0.3.47","🚌 2.2.2.4 • OPENOMSI 0.3.47","🚌 2.2.2.4 • OPENOMSI 0.3.47"),accent:logAccent(85,190,255),
+  entries:[]logEntry{
+   {logT("Oito áudios em Português (Brasil)","Eight Brazilian Portuguese recordings","Acht brasilianisch-portugiesische Aufnahmen"),
+    logT("Incluídas as oito gravações fornecidas: três pedidos de porta, duas reclamações de ponto perdido e três agradecimentos/despedidas. Em PT-BR, o passageiro pronto para descer reclama uma vez ao passar do ponto. Com a frente aberta e a saída fechada, pede após dois segundos; quem espera junto à entrada também pede se houver vaga. Áudio normalizado e pedidos com alcance ampliado no ônibus. A primeira migração PT-BR ativa as falas; o silêncio de passageiros e escolhas posteriores continuam respeitados.","Includes the eight supplied recordings: three door requests, two missed-stop complaints and three thanks/farewells. In PT-BR, a rider ready to alight complains once after passing the stop. A closed exit with an open entrance prompts a request after two seconds; a waiting rider by the entrance asks only when capacity is available. Audio is normalized and requests have cabin-wide reach. First PT-BR migration enables these reactions; passenger mute and later choices are preserved.","Enthält acht bereitgestellte Aufnahmen: drei Türbitten, zwei Beschwerden über verpasste Haltestellen und drei Dankes-/Abschiedsaufnahmen. Bei PT-BR beschwert sich ein aussteigebereiter Fahrgast einmal nach der verpassten Haltestelle. Offener Einstieg und geschlossener Ausstieg lösen nach zwei Sekunden eine Bitte aus; Einsteigende bitten nur bei freier Kapazität. Normalisierte Lautstärke und größere Reichweite im Bus. Erste PT-BR-Migration aktiviert die Reaktionen; Stummschaltung und spätere Entscheidungen bleiben erhalten.")},
+   {logT("Motor e lobby realmente na 0.3.47","Game engine and lobby upgraded to 0.3.47","Spiel und Lobby auf 0.3.47 aktualisiert"),
+    logT("A 2.2.2.3 trouxe as três rotinas de passageiros, mas ainda usava a base 0.3.46. Esta versão integra a base completa da 0.3.47 e recompila jogo, launcher e servidor com a mesma origem. O lobby recebe a versão real da API do launcher.","2.2.2.3 backported the three passenger routines while retaining the 0.3.46 base. This release integrates the full 0.3.47 base and rebuilds game, launcher and server from the same source. The lobby receives the actual launcher API version.","2.2.2.3 übernahm die drei Fahrgastroutinen auf Basis 0.3.46. Jetzt wird die vollständige Basis 0.3.47 integriert; Spiel, Launcher und Server stammen aus derselben Quelle. Die Lobby erhält die tatsächliche Version der Launcher-API.")},
+   {logT("Servidor compatível P16","Matching P16 server","Passender P16-Server"),
+    logT("O jogo 0.3.47 utiliza protocolo 16. Um host P16 separado acompanha a atualização; os executáveis completos dos hosts antigos e os servidores P14/P15 são preservados. Preferências privadas são copiadas para o host P16 sem sobrescrever o arquivo antigo. Todos os jogadores da mesma sessão precisam usar a versão compatível.","0.3.47 uses protocol 16. A separate P16 host is included; complete legacy host executables and P14/P15 servers are retained. Private preferences are copied to the P16 host without overwriting old files. Players in one session need matching versions.","0.3.47 nutzt Protokoll 16. Ein separater P16-Host wird ergänzt; bisherige vollständige Hosts und P14/P15-Server bleiben erhalten. Private Einstellungen werden in separate P16-Dateien kopiert. Alle Spieler einer Sitzung benötigen kompatible Versionen.")},
+   {logT("Correções anteriores preservadas","Previous fixes retained","Bisherige Korrekturen bleiben erhalten"),
+    logT("Continuam as três opções de passageiros ativadas na primeira migração, as conexões cooperativas, as correções de troca de motorista, câmera, skins e áudio, e a remoção das roupas extras. O atualizador x64 mantém restauração em disco e verificação completa da instalação. A validação visual no jogo e a sessão real com dois PCs ainda dependem de teste.","Retains first-migration passenger defaults, cooperative connections, driver transfer, camera, skins and audio fixes, and removal of extra clothes. The x64 updater keeps disk rollback and complete installation verification. Visual gameplay and a real two-PC session still require testing.","Erhält aktive Fahrgastoptionen bei erster Migration, Koop-Anschlüsse, Fahrerwechsel-, Kamera-, Skin- und Audiokorrekturen sowie die Entfernung zusätzlicher Kleidung. Der x64-Updater behält Datenträgersicherung und vollständige Prüfung. Sichtprüfung im Spiel und echte Zwei-PC-Sitzung stehen aus.")},
+  },
+ }
+}
+
 func passengers0347LogSection() logSection {
     return logSection{
         label:logT("🚌 2.2.2.3 • VERSÃO FINAL","🚌 2.2.2.3 • FINAL","🚌 2.2.2.3 • FINAL"),accent:logAccent(85,190,255),
@@ -474,8 +490,10 @@ func logSections() []logSection {
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    if from==changelogSeenVersion{return []logSection{passengers0347LogSection()}}
-    result:=[]logSection{passengers0347LogSection()}
+    if from==changelogSeenVersion{return []logSection{engine0347LogSection()}}
+    result:=[]logSection{engine0347LogSection()}
+    if from=="2.2.2.3"{return result}
+    result=append(result,passengers0347LogSection())
     // The unpublished 2.2.2.3 test candidate already included these passenger changes.
     // Its cumulative update should show the final release chapter only.
     if from=="2.2.2.2-test.2" || from=="2.2.2.3-test.1"{return result}

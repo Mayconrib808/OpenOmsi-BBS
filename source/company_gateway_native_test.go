@@ -140,7 +140,22 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 			if err != nil {
 				t.Fatal("official datagram not received", prefix, err)
 			}
+
 			text := string(buffer[:n])
+			if protocol >= 16 && strings.HasPrefix(text, "REALM|") {
+				realm := strings.TrimSpace(strings.TrimPrefix(text, "REALM|"))
+				if len(realm) != 64 {
+					t.Fatal("invalid P16 realm", realm)
+				}
+				mac := hmac.New(sha256.New, []byte(strings.Repeat("a", 64)))
+				mac.Write([]byte(realm))
+				for i, peer := range clients {
+					if peer == c {
+						_, _ = c.Write([]byte(hellos[i] + "|||" + hex.EncodeToString(mac.Sum(nil)) + "|wait-v1"))
+					}
+				}
+				continue
+			}
 			if strings.HasPrefix(text, "REJECT|") || strings.HasPrefix(text, "BYE|") {
 				t.Fatal("official server rejected a private bus", text)
 			}
@@ -166,7 +181,7 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 			t.Fatal(fields)
 		}
 		welcomeFields := 12
-		if protocol == 14 {
+		if protocol >= 14 {
 			welcomeFields = 13
 		}
 		if protocol >= 7 && (len(fields) != welcomeFields || len(fields[11]) != 32) {
@@ -175,7 +190,7 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 		if protocol >= 7 {
 			secrets[i] = fields[11]
 		}
-		if protocol == 14 && fields[12] != fmt.Sprintf("%016x", i+1) {
+		if protocol >= 14 && fields[12] != fmt.Sprintf("%016x", i+1) {
 			t.Fatal("native client nonce was lost", fields[12])
 		}
 		info := fmt.Sprintf("INFO|%d|Driver%d|%s||810|Centro|12|2.5|0|00000000|810/Tour||", ids[i], i, buses[i])
@@ -230,7 +245,7 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 		_, _ = back.Write([]byte(hellos[0] + "|" + challenge + "|" + proof))
 		fields := strings.Split(string(readUntil(back, "WELCOME|")), "|")
 		welcomeFields := 12
-		if protocol == 14 {
+		if protocol >= 14 {
 			welcomeFields = 13
 		}
 		if companyGatewayID(fields[2]) != ids[0] || len(fields) != welcomeFields || fields[11] != secrets[0] {

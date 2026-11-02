@@ -9,21 +9,22 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 )
 
 type hostMapOptions struct {
-	Enabled      bool   `json:"enabled"`
-	Port         int    `json:"port"`
-	WebPort      int    `json:"web_port"`
-	MaxPlayers   int    `json:"max_players"`
-	Traffic      int    `json:"traffic"`
-	Passengers   bool   `json:"passengers"`
-	MaxPeople    int    `json:"max_people,omitempty"`
-	Timetable    bool   `json:"timetable"`
-	IdleMinutes  int    `json:"idle_minutes"`
-	MetarStation string `json:"metar_station,omitempty"`
+	Enabled           bool   `json:"enabled"`
+	Port              int    `json:"port"`
+	WebPort           int    `json:"web_port"`
+	MaxPlayers        int    `json:"max_players"`
+	Traffic           int    `json:"traffic"`
+	Passengers        bool   `json:"passengers"`
+	MaxPeople         int    `json:"max_people,omitempty"`
+	Timetable         bool   `json:"timetable"`
+	IdleMinutes       int    `json:"idle_minutes"`
+	MetarStation      string `json:"metar_station,omitempty"`
 	Voice             bool   `json:"voice"`
 	VoiceRadio        bool   `json:"voice_radio"`
 	VoiceRange        int    `json:"voice_range"`
@@ -56,7 +57,11 @@ func hostRandomCode() string {
 	return hex.EncodeToString(b)
 }
 func hostAgentSettingsPath(packageDir string) string {
-	return filepath.Join(companyHostDataDir(packageDir), "HostAgent.local.json")
+	name := "HostAgent.local.json"
+	if runningP16Host() {
+		name = "HostAgent-P16.local.json"
+	}
+	return filepath.Join(companyHostDataDir(packageDir), name)
 }
 
 // The host adapts official servers independently of their version numbers.
@@ -66,7 +71,7 @@ func hostUseBundledServer(c *hostAgentConfig, packageDir string) {
 	if c.UseCustomServer {
 		return
 	}
-	path := filepath.Join(packageDir, "app", "server", "openomsi.exe")
+	path := managedHostServerPath(packageDir)
 	if st, err := os.Stat(path); err == nil && st.Mode().IsRegular() {
 		c.Server = path
 	}
@@ -77,12 +82,17 @@ func hostUseBundledServer(c *hostAgentConfig, packageDir string) {
 // should report that path instead of silently switching to another server.
 func hostSelectServer(c *hostAgentConfig, packageDir, selected string) {
 	c.Server = strings.Trim(strings.TrimSpace(selected), `"`)
-	bundled := filepath.Join(packageDir, "app", "server", "openomsi.exe")
+	bundled := managedHostServerPath(packageDir)
 	c.UseCustomServer = !strings.EqualFold(filepath.Clean(c.Server), filepath.Clean(bundled))
 }
 func defaultHostAgentConfig() hostAgentConfig {
-	return hostAgentConfig{Schema: 1, Language: "pt", HostKey: hostRandomCode() + hostRandomCode(), RoomID: hostRandomCode(), ControlKey: hostRandomCode(), ControlPort: 27199, Maps: map[string]hostMapOptions{},
+	c := hostAgentConfig{Schema: 1, Language: "pt", HostKey: hostRandomCode() + hostRandomCode(), RoomID: hostRandomCode(), ControlKey: hostRandomCode(), ControlPort: 27199, Maps: map[string]hostMapOptions{},
 		Company: CompanyProfile{SchemaVersion: 1, CompanyID: "transfort-br", CompanyName: "Transfort - BR", OpenOMSIVersion: "0.3.46", Protocol: 15, Clock: &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: -480}}}
+	if runningP16Host() {
+		c.Company.Protocol = 16
+		c.Company.OpenOMSIVersion = "0.3.47"
+	}
+	return c
 }
 func defaultHostMapOptions(c hostAgentConfig) hostMapOptions {
 	port, web := 27015, 27025
@@ -121,12 +131,20 @@ func loadHostAgentConfig(path string) (hostAgentConfig, error) {
 	if c.Maps == nil {
 		c.Maps = map[string]hostMapOptions{}
 	}
-	var rawRoot struct { Maps map[string]map[string]json.RawMessage `json:"maps"` }
+	var rawRoot struct {
+		Maps map[string]map[string]json.RawMessage `json:"maps"`
+	}
 	_ = json.Unmarshal(b, &rawRoot)
 	for id, m := range c.Maps {
-		if _, exists := rawRoot.Maps[id]["voice"]; !exists { m.Voice = true }
-		if _, exists := rawRoot.Maps[id]["voice_radio"]; !exists { m.VoiceRadio = true }
-		if m.VoiceRange == 0 { m.VoiceRange = 135 }
+		if _, exists := rawRoot.Maps[id]["voice"]; !exists {
+			m.Voice = true
+		}
+		if _, exists := rawRoot.Maps[id]["voice_radio"]; !exists {
+			m.VoiceRadio = true
+		}
+		if m.VoiceRange == 0 {
+			m.VoiceRange = 135
+		}
 		m.MetarStation = strings.ToUpper(strings.TrimSpace(m.MetarStation))
 		m.MaxPeople = hostMapMaxPeople(m)
 		c.Maps[id] = m
@@ -143,6 +161,10 @@ func saveHostAgentConfig(path string, c hostAgentConfig) error {
 		return err
 	}
 	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return err
+	}
+	data, err = preservePrivateHostFields(path, data, reflect.TypeOf(c))
 	if err != nil {
 		return err
 	}
@@ -189,7 +211,9 @@ func validateHostAgentConfig(c hostAgentConfig, running bool) error {
 				"Live weather: enter the airport's four-letter ICAO code, e.g. SBBH, or leave empty for BBS weather.",
 				"Live-Wetter: vier Buchstaben des ICAO-Codes eingeben, z. B. SBBH, oder für BBS-Wetter leer lassen."))
 		}
-		if m.VoiceRange < 5 || m.VoiceRange > 1000 { return fmt.Errorf("%s: alcance de voz de 5 a 1000 metros", s.Name) }
+		if m.VoiceRange < 5 || m.VoiceRange > 1000 {
+			return fmt.Errorf("%s: alcance de voz de 5 a 1000 metros", s.Name)
+		}
 		if m.AdminPassword != "" && (len(m.AdminPassword) < 12 || len(m.AdminPassword) > 128 || strings.ContainsAny(m.AdminPassword, "\r\n")) {
 			return fmt.Errorf("%s: senha de administrador precisa ter 12 a 128 caracteres", s.Name)
 		}

@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 )
@@ -30,7 +31,7 @@ func companyHostLocalSettingsPath() string {
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(companyHostDataDir(filepath.Dir(executable)), "CompanyHost.local.json")
+	return filepath.Join(companyHostDataDir(p16HostPackageDir(executable)), companyHostPrivateName())
 }
 
 func loadCompanyHostLocalOptions(path string) (companyHostOptions, bool) {
@@ -54,13 +55,13 @@ func loadCompanyHostLocalOptions(path string) (companyHostOptions, bool) {
 }
 
 func loadPreviousCompanyHostOptions(packageDir string) (companyHostOptions, bool) {
-	managed := filepath.Join(companyHostDataDir(packageDir), "CompanyHost.local.json")
+	managed := filepath.Join(companyHostDataDir(packageDir), companyHostPrivateName())
 	if options, found := loadCompanyHostLocalOptions(managed); found {
 		return options, true
 	}
 	// Import the previous beside-executable format when this installation still
 	// has it. Future upgrades use the managed path and need no new prompts.
-	return loadCompanyHostLocalOptions(filepath.Join(packageDir, "CompanyHost.local.json"))
+	return loadCompanyHostLocalOptions(filepath.Join(packageDir, companyHostPrivateName()))
 }
 
 func writeCompanyHostFileAtomic(path string, data []byte) error {
@@ -96,6 +97,10 @@ func writeCompanyHostFileAtomic(path string, data []byte) error {
 
 func saveCompanyHostLocalOptions(path string, options companyHostOptions) error {
 	text, err := json.MarshalIndent(options, "", "  ")
+	if err != nil {
+		return err
+	}
+	text, err = preservePrivateHostFields(path, text, reflect.TypeOf(options))
 	if err != nil {
 		return err
 	}
@@ -251,4 +256,100 @@ func companyHostSharePath(profilePath, requested, companyID, packageDir string) 
 		}
 	}
 	return filepath.Clean(requested), nil
+}
+
+// P16 is an additional source-built host, isolated from retained complete P15
+// executables and their private files. Existing P15/P14 hosts stay byte-exact.
+func p16HostPackageDir(executable string) string {
+	dir := filepath.Dir(executable)
+	if strings.EqualFold(filepath.Base(dir), "hosts-p16") && strings.EqualFold(filepath.Base(filepath.Dir(dir)), "app") {
+		return filepath.Dir(filepath.Dir(dir))
+	}
+	return dir
+}
+func runningP16Host() bool {
+	executable, err := os.Executable()
+	return err == nil && !strings.EqualFold(p16HostPackageDir(executable), filepath.Dir(executable))
+}
+func companyHostPrivateName() string {
+	if runningP16Host() {
+		return "CompanyHost-P16.local.json"
+	}
+	return "CompanyHost.local.json"
+}
+func managedHostServerPath(dir string) string {
+	if runningP16Host() {
+		return filepath.Join(dir, "app", "server-dinamico-p16", "openomsi.exe")
+	}
+	return filepath.Join(dir, "app", "server", "openomsi.exe")
+}
+
+// Keep fields from newer private host configurations without exporting them in
+// public CompanyProfile files. Known omitted fields remain omitted (false and
+// deleted maps must never be resurrected by the compatibility merge).
+func preservePrivateHostFields(path string, current []byte, kind reflect.Type) ([]byte, error) {
+	previous, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return current, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	if len(previous) > 4<<20 {
+		return nil, fmt.Errorf("host preferences exceed size limit")
+	}
+	var old, next any
+	if err = json.Unmarshal(previous, &old); err != nil {
+		return nil, err
+	}
+	if err = json.Unmarshal(current, &next); err != nil {
+		return nil, err
+	}
+	var merge func(any, any, reflect.Type)
+	merge = func(a, b any, typ reflect.Type) {
+		for typ.Kind() == reflect.Pointer {
+			typ = typ.Elem()
+		}
+		from, aok := a.(map[string]any)
+		to, bok := b.(map[string]any)
+		if !aok || !bok {
+			return
+		}
+		if typ.Kind() == reflect.Map {
+			for key, value := range to {
+				merge(from[key], value, typ.Elem())
+			}
+			return
+		}
+		if typ.Kind() != reflect.Struct {
+			return
+		}
+		known := map[string]reflect.Type{}
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			if field.PkgPath != "" {
+				continue
+			}
+			name := strings.Split(field.Tag.Get("json"), ",")[0]
+			if name == "-" {
+				continue
+			}
+			if name == "" {
+				name = field.Name
+			}
+			known[name] = field.Type
+		}
+		for key, value := range from {
+			field, exists := known[key]
+			if !exists {
+				to[key] = value
+				continue
+			}
+			if current, exists := to[key]; exists {
+				merge(value, current, field)
+			}
+		}
+	}
+	merge(old, next, kind)
+	return json.MarshalIndent(next, "", "  ")
 }

@@ -575,3 +575,41 @@ func TestSelectingIncludedServerRestoresAutomaticPackageUpdates(t *testing.T) {
 		t.Fatal("included server did not follow the new package")
 	}
 }
+
+func TestPrivateHostSaveKeepsOpaquePreferencesAndHonorsFalseAndDeletion(t *testing.T) {
+	c := hostConfigFixture(t)
+	path := filepath.Join(t.TempDir(), "HostAgent-P16.local.json")
+	raw, _ := json.Marshal(c)
+	var original map[string]any
+	json.Unmarshal(raw, &original)
+	original["future_private"] = map[string]any{"keep": 42}
+	original["use_custom_server"] = true
+	original["company"].(map[string]any)["future_company"] = "keep"
+	id := c.Company.Sessions[0].ID
+	maps := original["maps"].(map[string]any)
+	maps[id].(map[string]any)["future_map"] = "keep"
+	maps["deleted"] = map[string]any{"voice": true}
+	raw, _ = json.Marshal(original)
+	os.WriteFile(path, raw, 0600)
+	c.UseCustomServer = false
+	opts := c.Maps[id]
+	opts.Voice = false
+	opts.VoiceRadio = false
+	opts.PublicServer = false
+	opts.RequireHardwareID = false
+	c.Maps[id] = opts
+	if err := saveHostAgentConfig(path, c); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ = os.ReadFile(path)
+	var got map[string]any
+	json.Unmarshal(raw, &got)
+	if got["future_private"].(map[string]any)["keep"] != float64(42) || got["company"].(map[string]any)["future_company"] != "keep" {
+		t.Fatal(string(raw))
+	}
+	savedMaps := got["maps"].(map[string]any)
+	saved := savedMaps[id].(map[string]any)
+	if saved["future_map"] != "keep" || saved["voice"] != false || saved["voice_radio"] != false || saved["public_server"] != false || saved["require_hardware_id"] != false || savedMaps["deleted"] != nil || got["use_custom_server"] != nil {
+		t.Fatal(string(raw))
+	}
+}

@@ -56,3 +56,11 @@ func peDePeAdapterPath(root string) string {
 
 func samePath(a, b string) bool { return strings.EqualFold(filepath.Clean(a), filepath.Clean(b)) }
 func fileExists(p string) bool  { fi, e := os.Stat(p); return e == nil && !fi.IsDir() }
+
+func preferredHostAgentExecutable(dir string) string {
+	path := filepath.Join(dir, "app", "hosts-p16", "HostAgent.exe")
+	if fileExists(path) {
+		return path
+	}
+	return filepath.Join(dir, "HostAgent.exe")
+}

@@ -169,6 +169,9 @@ func migrateDynamicHostSettings(data []byte, dir string, standalone bool, availa
 // Invoked only after authenticated payload files were written and verified.
 // Both settings files are planned first and rolled back together on any error.
 func activateUpdatedDynamicHost(dir string, payload map[string][]byte) (err error) {
+	if len(payload["app/server-dinamico-p16/openomsi.exe"]) > 0 {
+		return activateP16HostSidecar(dir, payload)
+	}
 	var available []int
 	for protocol, relative := range map[int]string{14: managedDynamicServer, 15: managedDynamicP15Server} {
 		server, ok := payload[relative]
@@ -337,6 +340,88 @@ func activateUpdatedDynamicHost(dir string, payload map[string][]byte) (err erro
 			return err
 		}
 		written++
+	}
+	return nil
+}
+
+// Add isolated P16 settings without overwriting a retained P15 host's private
+// preferences. Existing P16 settings are left alone on subsequent updates.
+func activateP16HostSidecar(dir string, payload map[string][]byte) (err error) {
+ var created []string
+ defer func(){if err!=nil {for _,path:=range created {_=os.Remove(path)}}}()
+	const server = "app/server-dinamico-p16/openomsi.exe"
+	if len(payload[server]) == 0 {
+		return nil
+	}
+	var marker struct {
+		Protocol     int    `json:"protocol"`
+		NativeSHA256 string `json:"native_sha256"`
+	}
+	if json.Unmarshal(payload["app/server-dinamico-p16/BBS-DYNAMIC-SERVER.json"], &marker) != nil || marker.Protocol != 16 || marker.NativeSHA256 != fmt.Sprintf("%x", sha256.Sum256(payload[server])) {
+		return fmt.Errorf("P16 server metadata does not match authenticated runtime")
+	}
+	for _, name := range []string{"HostAgent", "CompanyHost"} {
+		target := filepath.Join(managedDataDir(dir), name+"-P16.local.json")
+		if _, e := os.Lstat(target); e == nil {
+			continue
+		} else if !os.IsNotExist(e) {
+			return e
+		}
+		var old []byte
+		for _, base := range []string{managedDataDir(dir), dir} {
+			data, e := os.ReadFile(filepath.Join(base, name+".local.json"))
+			if e == nil {
+				old = data
+				break
+			}
+			if !os.IsNotExist(e) {
+				return e
+			}
+		}
+		if old == nil {
+			continue
+		}
+		if len(old) > 4<<20 {
+			return fmt.Errorf("host preferences exceed size limit")
+		}
+		var doc map[string]json.RawMessage
+		if json.Unmarshal(old, &doc) != nil {
+			return fmt.Errorf("invalid legacy host preferences")
+		}
+		selected := hostJSONString(doc, "server")
+		managed := false
+		for _, rel := range []string{"app/server/openomsi.exe", managedDynamicServer, managedDynamicP15Server, server} {
+			if samePath(selected, filepath.Join(dir, filepath.FromSlash(rel))) {
+				managed = true
+			}
+		}
+		if !managed {
+			continue
+		} // Deliberately selected independent servers remain independent.
+		key, _ := hostJSONField(doc, "server")
+		doc[key], _ = json.Marshal(filepath.Join(dir, filepath.FromSlash(server)))
+		if name == "HostAgent" {
+			key, _ = hostJSONField(doc, "use_custom_server")
+			doc[key] = json.RawMessage("true")
+			key, raw := hostJSONField(doc, "company")
+			var company map[string]json.RawMessage
+			if json.Unmarshal(raw, &company) != nil {
+				return fmt.Errorf("invalid host company preferences")
+			}
+			protocol, _ := hostJSONField(company, "protocol")
+			company[protocol] = json.RawMessage("16")
+			version, _ := hostJSONField(company, "openomsi_version")
+			company[version], _ = json.Marshal("0.3.47")
+			doc[key], _ = json.Marshal(company)
+		}
+		data, e := json.MarshalIndent(doc, "", "  ")
+		if e != nil {
+			return e
+		}
+		if e = writeSetupAtomic(target, append(data, '\n')); e != nil {
+			return e
+		}
+        created=append(created,target)
 	}
 	return nil
 }

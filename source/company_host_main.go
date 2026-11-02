@@ -34,7 +34,7 @@ func interactiveCompanyHost(reader *bufio.Reader) (companyHostOptions, error) {
 	fmt.Println("OpenOmsi + BBS — servidor com relógio da empresa")
 	fmt.Println("Cole os caminhos completos. Não precisa digitar comandos do CMD nem editar o relógio do Windows.")
 	executable, _ := os.Executable()
-	if previous, found := loadPreviousCompanyHostOptions(filepath.Dir(executable)); found {
+	if previous, found := loadPreviousCompanyHostOptions(p16HostPackageDir(executable)); found {
 		fmt.Printf("Configuração anterior:\nServidor: %s\nOMSI 2: %s\nPerfil: %s\nSessão: %s\n", previous.Server, previous.Root, previous.Profile, previous.Session)
 		choice, err := companyHostInput(reader, "Enter para iniciar com estes caminhos; digite n para configurar novamente")
 		if err != nil {
@@ -131,7 +131,7 @@ func main() {
 	flag.Parse()
 	if saved {
 		executable, _ := os.Executable()
-		previous, found := loadPreviousCompanyHostOptions(filepath.Dir(executable))
+		previous, found := loadPreviousCompanyHostOptions(p16HostPackageDir(executable))
 		if !found {
 			fmt.Fprintln(os.Stderr, "CompanyHost: configure os caminhos uma vez abrindo o CompanyHost sem argumentos.")
 			os.Exit(2)

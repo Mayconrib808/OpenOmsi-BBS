@@ -227,3 +227,71 @@ func TestDynamicHostP15RequiresItsOwnVerifiedRuntimeAndRetainsAllOptions(t *test
 		t.Fatal("P15 controls were dropped")
 	}
 }
+
+func TestP16CompanionClonesPreferencesWithoutChangingReleasedP15(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LOCALAPPDATA", t.TempDir())
+	const server = "app/server-dinamico-p16/openomsi.exe"
+	binary := []byte("MZ-p16-runtime")
+	marker, _ := json.Marshal(map[string]any{"protocol": 16, "native_sha256": fmt.Sprintf("%x", sha256.Sum256(binary))})
+	payload := map[string][]byte{server: binary, "app/server-dinamico-p16/BBS-DYNAMIC-SERVER.json": marker}
+	if err := os.MkdirAll(managedDataDir(dir), 0700); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"HostAgent", "CompanyHost"} {
+		original := []byte(fmt.Sprintf(`{"server":%q,"use_custom_server":true,"company":{"protocol":15,"openomsi_version":"0.3.46","future_company":"keep"},"maps":{"a":{"voice":false,"voice_radio":false,"voice_range":72,"public_server":false,"require_hardware_id":false,"admin_password":"private-kept"}},"host_key":"keep-key","future":{"opaque":42}}`, filepath.Join(dir, filepath.FromSlash(managedDynamicP15Server))))
+		oldPath := filepath.Join(managedDataDir(dir), name+".local.json")
+		if err := os.WriteFile(oldPath, original, 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := activateUpdatedDynamicHost(dir, payload); err != nil {
+			t.Fatal(err)
+		}
+		retained, _ := os.ReadFile(oldPath)
+		if !bytes.Equal(original, retained) {
+			t.Fatal("released P15 preferences changed")
+		}
+		newPath := filepath.Join(managedDataDir(dir), name+"-P16.local.json")
+		updated, err := os.ReadFile(newPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var a, b map[string]json.RawMessage
+		json.Unmarshal(original, &a)
+		json.Unmarshal(updated, &b)
+		for _, key := range []string{"maps", "future", "host_key"} {
+			var x, y any
+			json.Unmarshal(a[key], &x)
+			json.Unmarshal(b[key], &y)
+			xx, _ := json.Marshal(x)
+			yy, _ := json.Marshal(y)
+			if !bytes.Equal(xx, yy) {
+				t.Fatal("lost private preferences", key)
+			}
+		}
+		if hostJSONString(b, "server") != filepath.Join(dir, filepath.FromSlash(server)) {
+			t.Fatal(string(updated))
+		}
+		if name == "HostAgent" {
+			var company map[string]json.RawMessage
+			json.Unmarshal(b["company"], &company)
+			if string(company["protocol"]) != "16" || hostJSONString(company, "openomsi_version") != "0.3.47" || hostJSONString(company, "future_company") != "keep" {
+				t.Fatal(string(updated))
+			}
+		}
+		if err := os.WriteFile(newPath, []byte("owner later edited these settings"), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if err := activateUpdatedDynamicHost(dir, payload); err != nil {
+			t.Fatal(err)
+		}
+		after, _ := os.ReadFile(newPath)
+		if string(after) != "owner later edited these settings" {
+			t.Fatal("subsequent update overwrote P16 preferences")
+		}
+	}
+	payload[server] = []byte("tampered")
+	if activateUpdatedDynamicHost(dir, payload) == nil {
+		t.Fatal("accepted inconsistent P16 binary metadata")
+	}
+}
