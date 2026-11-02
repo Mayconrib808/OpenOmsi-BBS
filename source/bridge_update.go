@@ -483,6 +483,11 @@ func approvedPassengerVoiceV2Digest(name, actualSHA256 string) bool {
 }
 
 func approvedPassengerVoiceV2File(dir, name string) bool {
+	// Never hash or open unrelated executables in the updater's binary loop.
+	// Check this fixed, exact package subtree before filesystem access.
+	if !strings.HasPrefix(name, "OpenOmsi Coop 0.3.41/programa/bcs-assets/PassengerVoices/pt-BR/") {
+		return false
+	}
 	path := filepath.Join(dir, filepath.FromSlash(name))
 	file, err := os.Open(path)
 	if err != nil { return false }
