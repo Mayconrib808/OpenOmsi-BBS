@@ -33,7 +33,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 120
     env:
-      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.3-
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.3
       OPENOMSI_COOP_GAME_ONLY: '1'
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_RELEASE_DEBUG: '0'
@@ -86,10 +86,10 @@ jobs:
         assert not (out/'bcs-assets/WinterClothes').exists()
         subprocess.run(['git','-C',str(source),'archive','--format=tar.gz','--prefix=openomsi-passengers/','-o','../native/openomsi-source.tar.gz','HEAD'],check=True)
         result=subprocess.run([str((source/'target/release/openomsi.exe').resolve()),'--version'],capture_output=True,text=True,check=True)
-        assert '0.3.46-coop.15-2.2.2.3-' in result.stdout
+        assert '0.3.46-coop.15-2.2.2.3' in result.stdout
         (out/'version.txt').write_text(result.stdout)
         sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
-        info=dict(commit=commit,build_commit=commit,run_id=int(os.environ['GITHUB_RUN_ID']),upstream_commit='17be22987d7c01c813a1473e7696fc71fb3b1d89',version='0.3.46-coop.15-2.2.2.3-',native_sha256=sha(out/'openomsi.exe'),source_sha256=sha(out/'openomsi-source.tar.gz'),winter_clothing_removed=True,passenger_upstream_tag='v0.3.47',passenger_upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6',windows_gameplay_tested=False,paired_gameplay_tested=False,gameplay_visual_tested=False)
+        info=dict(commit=commit,build_commit=commit,run_id=int(os.environ['GITHUB_RUN_ID']),upstream_commit='17be22987d7c01c813a1473e7696fc71fb3b1d89',version='0.3.46-coop.15-2.2.2.3',native_sha256=sha(out/'openomsi.exe'),source_sha256=sha(out/'openomsi-source.tar.gz'),winter_clothing_removed=True,passenger_upstream_tag='v0.3.47',passenger_upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6',windows_gameplay_tested=False,paired_gameplay_tested=False,gameplay_visual_tested=False)
         for name in ['SOURCE.json','BUILD-INFO.json']:(out/name).write_text(json.dumps(info,indent=2)+'\n')
         '@ | python -
         if($LASTEXITCODE -ne 0){throw 'Native provenance/CLI/assets failed'}
@@ -105,7 +105,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 120
     env:
-      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.3-
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.3
       OPENOMSI_COOP_GAME_ONLY: '1'
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_RELEASE_DEBUG: '0'
@@ -151,7 +151,7 @@ jobs:
         assert commit=='90a93086762258e41bcad77ad3c9e40a028fd2ca'
         exe=source/'launcher/src-tauri/target/release/openomsi-launcher-app.exe'
         shutil.copy2(exe,out/exe.name)
-        info=dict(version='0.3.46-coop.15-2.2.2.3-',source_commit=commit,path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe',optional_ui_controls=12,passenger_upstream_controls=3,winter_clothing_removed=True,launcher_sha256=hashlib.sha256(exe.read_bytes()).hexdigest())
+        info=dict(version='0.3.46-coop.15-2.2.2.3',source_commit=commit,path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe',optional_ui_controls=12,passenger_upstream_controls=3,winter_clothing_removed=True,launcher_sha256=hashlib.sha256(exe.read_bytes()).hexdigest())
         (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2)+'\n')
         '@ | python -
         if($LASTEXITCODE -ne 0){throw 'Launcher inventory failed'}
@@ -223,7 +223,7 @@ jobs:
         p=Path('build/release2223-final')
         r=json.loads((p/'build-report.json').read_text())
         t=json.loads((p/'one-click-install-test.json').read_text())
-        assert r['version']=='2.2.2.3-' and r['winter_clothing_removed']
+        assert r['version']=='2.2.2.3' and r['winter_clothing_removed']
         assert r['complete_hosts_unchanged'] and not r['complete_hosts_rebuilt'] and r['p14_server_unchanged']
         assert r['updater_architecture']=='amd64' and r['rollback_storage']=='disk'
         assert t['status']=='passed' and t['invocations']==1 and t['full_previous_runtime_replaced_bytes']>200<<20
