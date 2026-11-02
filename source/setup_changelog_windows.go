@@ -476,7 +476,9 @@ func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
     if from==changelogSeenVersion{return []logSection{passengers0347LogSection()}}
     result:=[]logSection{passengers0347LogSection()}
-    if from=="2.2.2.2-test.2"{return result}
+    // The unpublished 2.2.2.3 test candidate already included these passenger changes.
+    // Its cumulative update should show the final release chapter only.
+    if from=="2.2.2.2-test.2" || from=="2.2.2.3-test.1"{return result}
     result=append(result,winterTest2LogSection())
     if from=="2.2.2.2-test.1"{return result}
     result=append(result,winterTest1LogSection())
