@@ -193,7 +193,17 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	_, _ = verifyPackageForUpdate(dir, payload)
 
 	files := map[string][]byte{}
+	preservedVoiceV2 := map[string]bool{}
 	for name, data := range payload {
+		// Respect the owner's approved Brazilian voice rebalance. The base
+		// 2.2.2.4 signed package still ships its original WAV files; overwriting
+		// a verified V2 user voice patch would regress audible speech again.
+		// Recognize ONLY the eight exact known V2 SHA-256 digests: arbitrary
+		// files never bypass the signed update integrity checks.
+		if approvedPassengerVoiceV2File(dir, name) {
+			preservedVoiceV2[name] = true
+			continue
+		}
 		files[name] = data
 	}
 	// In P15, the standard app/server path must use the same authenticated
@@ -312,6 +322,12 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	// exists in the first place.
 	traceAutomaticUpdate(dir, "install-verify-written-files")
 	for name, expected := range payload {
+		if preservedVoiceV2[name] {
+			if !approvedPassengerVoiceV2File(dir, name) {
+				return state, fmt.Errorf("a voz brasileira personalizada foi alterada durante a instalação: %s", name)
+			}
+			continue
+		}
 		equal, e := installedUpdateFileEquals(filepath.Join(dir, filepath.FromSlash(name)), expected)
 		if e != nil {
 			return state, e
@@ -439,3 +455,42 @@ func restoreUpdateRollback(source, destination string) error {
 	}
 	return replaceSetupAtomicFile(name, destination)
 }
+
+
+// The exact eight user-approved V2 WAV files, distributed as the optional
+// Correcao_Vozes_PTBR_2.2.2.4_V2_mais_alta.zip. Keep them if present in an
+// installed Bridge. This never trusts an arbitrary replacement or network
+// download: a signed upgrade can still repair any other voice file.
+var approvedPassengerVoiceV2Digests = map[string]string{
+	"ExitThanks_1.wav": "55d24033269764c01f34f5e584b737182c041dd37f3eb1e0bfc3c008e7c184e8",
+	"ExitThanks_2.wav": "2481870d31818cfc47ed64be63e40b7085199d7b296db73348d47acd683728fb",
+	"ExitThanks_3.wav": "7f5c625b5c7ef05c484e382e072d536dde59846be6b8d5b5366bfbbef3d4199b",
+	"MissedStop_1.wav": "814a84c321db0aea89ac85c63eda68c808464941c69e7df37d33e2a869066890",
+	"MissedStop_2.wav": "69b509b818714030e34b7f3cb9083d1b459cd19ca37961c154302700f83206b4",
+	"OpenDoor_1.wav": "287ed8845e1d159e8659954bfcb5ec7c9e5488f2dcf864319d8efe266892628c",
+	"OpenDoor_2.wav": "18e1e2afe67216a7859f69350c33f2d30db29431f21dffa180a1bd5c55eb4372",
+	"OpenDoor_3.wav": "48aaf1808e202482cb8372800be8829235da7423aab82f9dd5c085d3101fb236",
+}
+
+func approvedPassengerVoiceV2File(dir, name string) bool {
+	const prefix = "OpenOmsi Coop 0.3.41/programa/bcs-assets/PassengerVoices/pt-BR/"
+	if !strings.HasPrefix(name, prefix) {
+		return false
+	}
+	part := strings.TrimPrefix(name, prefix)
+	if strings.Contains(part, "/") || strings.Contains(part, "\\") {
+		return false
+	}
+	expected, ok := approvedPassengerVoiceV2Digests[part]
+	if !ok { return false }
+	path := filepath.Join(dir, filepath.FromSlash(name))
+	file, err := os.Open(path)
+	if err != nil { return false }
+	defer file.Close()
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() || info.Size() > (512<<10) { return false }
+	fileHash := sha256.New()
+	if _, err := io.Copy(fileHash, file); err != nil { return false }
+	return fmt.Sprintf("%x", fileHash.Sum(nil)) == expected
+}
+
