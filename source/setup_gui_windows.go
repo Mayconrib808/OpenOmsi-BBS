@@ -928,21 +928,21 @@ func runSetupGUI(dir string, smoke bool) error {
                 // never replay one the user already acknowledged. 2.2.2.1
                 // had no working tour, so Hotfix 3 -> Hotfix 1 shows BOTH.
                 for _, tc := range []struct{from string; want int; newest string}{
-                    {"2.2.2.2-test.1",2,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2.2-test.2",1,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2.2-hotfix.1",3,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2.2",4,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2.1-hotfix.2",5,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2.1-hotfix.1",6,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2.1",7,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2-hotfix.3",8,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2-hotfix.2",9,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2-hotfix.1",10,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2",11,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.1.9",16,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.0.8",17,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"",17,"🚌 2.2.2.3-test.1 • TESTE"},
-                    {"2.2.2.3-test.1",1,"🚌 2.2.2.3-test.1 • TESTE"},
+                    {"2.2.2.2-test.1",2,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2.2-test.2",1,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2.2-hotfix.1",3,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2.2",4,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2.1-hotfix.2",5,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2.1-hotfix.1",6,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2.1",7,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2-hotfix.3",8,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2-hotfix.2",9,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2-hotfix.1",10,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2",11,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.1.9",16,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.0.8",17,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"",17,"🚌 2.2.2.3 • VERSÃO FINAL"},
+                    {"2.2.2.3-test.1",1,"🚌 2.2.2.3 • VERSÃO FINAL"},
                 }{
                     sections:=selectLogSections(tc.from)
                     if len(sections)!=tc.want{return fmt.Errorf("changelog from %q expected %d chapters, got %d",tc.from,tc.want,len(sections))}
