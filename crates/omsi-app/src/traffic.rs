@@ -171,6 +171,15 @@ impl Traffic {
                 self.sim.street_density(),self.sim.street_density_map(),self.sim.unsched_factor,
                 self.sim.group_curves,extended);
             log::info!(
+                "FEATURE AUDIT ai_bus_greeting_settings host_authoritative={} mirror={} ai_bus_greetings={} ai_driver_wave={} nearby_ai_buses={} action={}",
+                !self.sim.mirror, self.sim.mirror,
+                self.optional_features.ai_bus_greetings, self.optional_features.ai_driver_wave,
+                self.sim.cars.iter().filter(|c| c.is_bus() && !c.is_rail()).count(),
+                if self.sim.mirror {"check_host_game_log_for_horn"}
+                else if !self.optional_features.ai_bus_greetings {"host_sound_disabled"}
+                else {"await_player_horn_or_flash"},
+            );
+            log::info!(
                 "FEATURE AUDIT traffic mirror={} total_ai={} ai_bus_overtaking={} cars_yield_to_buses={} illegal_parking={} frequency_percent={:.1} parked_events_active={} extra_traffic_density={} extended_day_groups={} extended_road_rules={} weekday={} public_holiday={} stock_group_curves={}",
                 self.sim.mirror, self.sim.cars.len(), self.optional_features.ai_bus_overtaking,
                 self.optional_features.cars_yield_to_buses, self.optional_features.illegal_parking,
