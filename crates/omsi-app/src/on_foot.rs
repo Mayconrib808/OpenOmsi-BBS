@@ -944,7 +944,25 @@ impl App {
     /// The bus the player on foot is in (standing or sitting), if any.
     pub(crate) fn foot_bus(&self) -> Option<BusId> {
         let f = self.session.on_foot.as_ref()?;
-        f.seat.map(|s| s.0).or(f.inside.map(|i| i.0))
+        if let Some(bus) = f.seat.map(|s| s.0).or(f.inside.map(|i| i.0)) {
+            return Some(bus);
+        }
+        // A former driver is already a passenger in their own delegated bus.
+        // Some add-on interiors briefly lose the on-foot "inside" marker while
+        // walking between seats. Recover it from the same real cabin bounds as
+        // coop_peer_inside, rather than requiring the cashier to sit down.
+        // Never grant on-foot controls to somebody on the pavement.
+        if self.net.coop.drive.owner_active() {
+            let v = &self.player.as_ref()?.vehicle;
+            let local = v.body_rotation().inverse().transform_vector3(
+                (f.pos - v.position).as_vec3()).to_array();
+            if local[2].abs() <= 5.0 && omsi_lan::passenger::inside(
+                &omsi_lan::spawn::footprint_of(v, omsi_lan::spawn::BUS_BOX), local,
+            ) {
+                return Some(BusId::Player);
+            }
+        }
+        None
     }
 
     /// The pose other players see of this one on foot (None at the wheel).
