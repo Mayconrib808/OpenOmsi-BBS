@@ -585,3 +585,29 @@ func TestRecoveryUpdateNeverWritesThroughLinkedSubdirectory(t *testing.T) {
 		t.Fatal("preflight failure changed Setup")
 	}
 }
+
+func TestUpdateRollbackCopiesLargeOldFileToDiskAndRestores(t *testing.T) {
+	root := t.TempDir()
+	original := filepath.Join(root, "component.exe")
+	old := bytes.Repeat([]byte("old-runtime-data"), 1<<20)
+	if err := os.WriteFile(original, old, 0644); err != nil {
+		t.Fatal(err)
+	}
+	backup := filepath.Join(root, "rollback", "component.exe")
+	if err := copyUpdateRollback(original, backup); err != nil {
+		t.Fatal(err)
+	}
+	replacement := []byte("new-runtime")
+	if err := writeSetupAtomic(original, replacement); err != nil {
+		t.Fatal(err)
+	}
+	if same, err := installedUpdateFileEquals(original, replacement); err != nil || !same {
+		t.Fatal(same, err)
+	}
+	if err := restoreUpdateRollback(backup, original); err != nil {
+		t.Fatal(err)
+	}
+	if same, err := installedUpdateFileEquals(original, old); err != nil || !same {
+		t.Fatal(same, err)
+	}
+}

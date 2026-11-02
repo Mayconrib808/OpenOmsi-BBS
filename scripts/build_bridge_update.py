@@ -74,9 +74,13 @@ def main():
             if args.components:
                 args.components.mkdir(parents=True,exist_ok=True)
                 shutil.copy2(payload,args.components/'payload.zip')
-            subprocess.run([args.go,'vet','-unsafeptr=false',*UPDATER_SOURCES],cwd=SOURCE,env=env,check=True)
+            # The bundled native game already requires Windows x64. Keep the small
+            # Setup/adapter x86, but give the cumulative installer a 64-bit address
+            # space; a real old runtime plus replacement assets exhausted x86.
+            updater_env=dict(env,GOARCH='amd64')
+            subprocess.run([args.go,'vet','-unsafeptr=false',*UPDATER_SOURCES],cwd=SOURCE,env=updater_env,check=True)
             updater = args.output.parent/'Atualizar-Bridge.exe'
-            subprocess.run([args.go,'build','-trimpath','-buildvcs=false','-ldflags=-s -w -H=windowsgui','-o',str(updater),*UPDATER_SOURCES],cwd=SOURCE,env=env,check=True)
+            subprocess.run([args.go,'build','-trimpath','-buildvcs=false','-ldflags=-s -w -H=windowsgui','-o',str(updater),*UPDATER_SOURCES],cwd=SOURCE,env=updater_env,check=True)
         finally:
             payload.unlink(missing_ok=True)
         instructions = f'''OpenOMSI BCS Bridge {build.VERSION}

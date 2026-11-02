@@ -70,7 +70,7 @@ func withCoopUpdateProgress(language string, task func(context.Context, func(int
 		return nil, fmt.Errorf("não foi possível abrir a janela de atualização: %v", err)
 	}
 	defer coopUpdateUser.NewProc("DestroyWindow").Call(window)
-	text := localText(language, "Preparando OpenOmsi Coop 0.3.38...", "Preparing OpenOmsi Coop 0.3.38...", "OpenOmsi Coop 0.3.38 wird vorbereitet...")
+	text := localText(language, "Preparando atualização...", "Preparing update...", "Update wird vorbereitet...")
 	label, _, _ := coopUpdateUser.NewProc("CreateWindowExW").Call(0, uintptr(unsafe.Pointer(winPtr("STATIC"))), uintptr(unsafe.Pointer(winPtr(text))), 0x50000000, 24, 24, 500, 55, window, 0, instance, 0)
 	font, _, _ := syscall.NewLazyDLL("gdi32.dll").NewProc("GetStockObject").Call(17)
 	coopUpdateUser.NewProc("SendMessageW").Call(label, 0x0030, font, 1)
@@ -109,13 +109,19 @@ func withCoopUpdateProgress(language string, task func(context.Context, func(int
 		mutex.Lock()
 		d, t := done, total
 		mutex.Unlock()
-		if t > 0 {
+		if d < 0 {
+			// Installing is atomic/rollback protected. Do not close its UI halfway.
+			coopUpdateCancel = nil
+			text = localText(language, "Instalando e verificando arquivos. Aguarde...", "Installing and verifying files. Please wait...", "Dateien werden installiert und geprüft. Bitte warten...")
+			coopUpdateUser.NewProc("SetWindowTextW").Call(label, uintptr(unsafe.Pointer(winPtr(text))))
+			coopUpdateUser.NewProc("SendMessageW").Call(bar, 0x0402, 100, 0)
+		} else if t > 0 {
 			percent := d * 100 / t
 			text = fmt.Sprintf(localText(language, "Baixando Cooperativo: %.1f / %.1f MB (%d%%)", "Downloading Cooperative: %.1f / %.1f MB (%d%%)", "Coop herunterladen: %.1f / %.1f MB (%d%%)"), float64(d)/(1<<20), float64(t)/(1<<20), percent)
 			coopUpdateUser.NewProc("SetWindowTextW").Call(label, uintptr(unsafe.Pointer(winPtr(text))))
 			coopUpdateUser.NewProc("SendMessageW").Call(bar, 0x0402, uintptr(percent), 0)
 		}
-		if ctx.Err() != nil {
+		if ctx.Err() != nil && d >= 0 {
 			coopUpdateUser.NewProc("SetWindowTextW").Call(label, uintptr(unsafe.Pointer(winPtr(localText(language, "Cancelando...", "Cancelling...", "Abbrechen...")))))
 		}
 		time.Sleep(30 * time.Millisecond)

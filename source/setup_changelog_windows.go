@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.2-test.2"
+const changelogSeenVersion = "2.2.2.3-test.1"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -447,6 +447,22 @@ func release2221LogSection() logSection {
     }
 }
 
+func passengers0347LogSection() logSection {
+    return logSection{
+        label:logT("🚌 2.2.2.3-test.1 • TESTE","🚌 2.2.2.3-test.1 • TEST","🚌 2.2.2.3-test.1 • TEST"),accent:logAccent(85,190,255),
+        entries:[]logEntry{
+            {logT("Roupas de frio removidas","Winter clothes removed","Winterkleidung entfernt"),
+             logT("Removido o desenho das roupas extras que deformavam os passageiros. A opção antiga é ignorada, mesmo se estava ativada.","Removed the additional clothes that deformed passengers. The old switch is ignored even when saved on.","Die zusätzlichen, verformten Kleidungsmodelle wurden entfernt. Die alte Einstellung wird auch bei gespeichertem Ein ignoriert.")},
+            {logT("Passageiros da 0.3.47","Passengers from 0.3.47","Fahrgäste aus 0.3.47"),
+             logT("Usamos as rotinas originais dos PRs #3427, #3428 e #3429: sinalização com braço e olhar, reação visual a ônibus cheio e conexões entre linhas com caminhada verificada. As três opções e as animações naturais são ativadas na primeira migração; depois, sua escolha é preservada. A chance de conexão continua em 20%.","Uses original PRs #3427, #3428 and #3429: arm/gaze hailing, full-bus visual reactions and onward connections with checked walking ground. First migration enables all three and Natural animation; subsequent choices are preserved. Connection chance remains 20%.","Originalroutinen aus PR #3427, #3428 und #3429: Winken/Blick, Reaktion auf volle Busse und geprüfte Fußwege zum Anschluss. Die erste Migration aktiviert alle drei und natürliche Animationen; spätere Einstellungen bleiben erhalten. Anschlusschance: 20%." )},
+            {logT("Conexões no cooperativo","Cooperative connections","Anschlüsse im Koop"),
+             logT("A lógica original de escolha e caminhada é integrada à autoridade do multiplayer. O cliente mantém o passageiro até a confirmação do host; o histórico acompanha a transferência para manter o limite de duas conexões e excluir o ônibus anterior. Requer cliente e servidor desta versão. A viagem real com dois PCs ainda precisa ser validada.","Original selection/walking logic is integrated with multiplayer ownership. The client retains the passenger until the host acknowledges handback. Transfer history preserves the two-connection lifetime limit and excludes the previous bus. Requires matching client/server. Real paired gameplay remains unverified.","Originale Auswahl und Fußwege nutzen die Multiplayer-Zuständigkeit. Der Client behält den Fahrgast bis zur Host-Bestätigung. Der Verlauf erhält die Grenze von zwei Anschlüssen und schließt den vorherigen Bus aus. Gleiche Client-/Serverversion erforderlich. Ein realer Test mit zwei PCs steht aus.")},
+            {logT("Atualizador: instalação completa","Updater: complete installation","Updater: vollständige Installation"),
+             logT("O instalador passa a ser x64 e guarda a cópia de restauração em disco, reduzindo o uso de memória ao substituir arquivos grandes. A janela permanece aberta durante a instalação e verificação. O teste substitui todo um runtime anterior; falhas fatais passam a ser registradas no log do Setup. A correção no seu computador ainda precisa ser confirmada.","The installer is now x64 and keeps rollback files on disk, reducing memory when replacing large files. Progress remains visible during install and verification. The test replaces an entire old runtime; fatal errors are captured in Setup logs. Confirmation on your computer is still needed.","Der Installer nutzt x64 und legt Sicherungen auf Datenträger ab, um beim Austausch großer Dateien Speicher zu sparen. Fortschritt bleibt bei Installation und Prüfung sichtbar. Der Test ersetzt eine komplette alte Laufzeit; fatale Fehler landen im Setup-Protokoll. Bestätigung auf Ihrem PC steht aus.")},
+        },
+    }
+}
+
 func logSections() []logSection {
     if shownLogSections!=nil{return shownLogSections}
     return allLogSections()
@@ -458,8 +474,10 @@ func logSections() []logSection {
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    if from==changelogSeenVersion{return []logSection{winterTest2LogSection()}}
-    result:=[]logSection{winterTest2LogSection()}
+    if from==changelogSeenVersion{return []logSection{passengers0347LogSection()}}
+    result:=[]logSection{passengers0347LogSection()}
+    if from=="2.2.2.2-test.2"{return result}
+    result=append(result,winterTest2LogSection())
     if from=="2.2.2.2-test.1"{return result}
     result=append(result,winterTest1LogSection())
     if from=="2.2.2.2-hotfix.1"{return result}

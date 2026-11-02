@@ -1,0 +1,260 @@
+name: Build 2.2.2.3 TEST 1 - upstream passengers, no winter clothes, full-runtime update
+'on':
+  push:
+    branches:
+    - fix/2223-test1-upstream-passengers
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: release-2223-test1-candidate
+  cancel-in-progress: false
+jobs:
+  updater:
+    name: Windows x64 updater process and lock regressions
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/setup-go@v5
+      with:
+        go-version: 1.23.2
+        cache: false
+    - name: Test actual shipped updater source list
+      shell: pwsh
+      run: |-
+        python scripts/test_2222_test2_updater.py
+        if($LASTEXITCODE -ne 0){throw 'Updater tests failed'}
+  native:
+    name: Original 0.3.47 passenger algorithms and matching Coop client/server
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.3-test.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: f1b9c620cf15fc1155958aaf08efe40f40dffc7b
+        path: native-source
+        persist-credentials: false
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: native-source
+        key: winter-test1-native
+    - name: Test original passenger algorithms and Coop ownership regressions
+      shell: pwsh
+      run: |-
+        cargo test --locked --release -p omsi-sim -p omsi-net --lib
+        if($LASTEXITCODE -ne 0){throw 'Simulation/network regressions failed'}
+        cargo test --locked --release -p omsi-app --lib settings::optional_features_tests
+        if($LASTEXITCODE -ne 0){throw 'Native settings or app test compilation failed'}
+      working-directory: native-source
+    - name: Build matching P15 client/server without winter render code
+      shell: pwsh
+      run: |-
+        cargo build --locked --release -p omsi-app
+        if($LASTEXITCODE -ne 0){throw 'Native build failed'}
+      working-directory: native-source
+    - uses: actions/download-artifact@v4
+      with:
+        name: OpenOMSI-2.2.2.2-Test2-native-windows-CANDIDATE
+        run-id: 41345899315
+        github-token: ${{ github.token }}
+        path: previous-native
+    - name: Archive exact source, verify CLI and retain emergency assets
+      shell: pwsh
+      run: |-
+        @'
+        import hashlib,json,os,shutil,subprocess
+        from pathlib import Path
+        out=Path('native');out.mkdir()
+        source=Path('native-source')
+        commit=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
+        assert commit=='f1b9c620cf15fc1155958aaf08efe40f40dffc7b'
+        shutil.copy2(source/'target/release/openomsi.exe',out/'openomsi.exe')
+        shutil.copytree('previous-native/bcs-assets',out/'bcs-assets',ignore=shutil.ignore_patterns('WinterClothes'))
+        assert not (out/'bcs-assets/WinterClothes').exists()
+        subprocess.run(['git','-C',str(source),'archive','--format=tar.gz','--prefix=openomsi-passengers/','-o','../native/openomsi-source.tar.gz','HEAD'],check=True)
+        result=subprocess.run([str((source/'target/release/openomsi.exe').resolve()),'--version'],capture_output=True,text=True,check=True)
+        assert '0.3.46-coop.15-2.2.2.3-test.1' in result.stdout
+        (out/'version.txt').write_text(result.stdout)
+        sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+        info=dict(commit=commit,build_commit=commit,run_id=int(os.environ['GITHUB_RUN_ID']),upstream_commit='17be22987d7c01c813a1473e7696fc71fb3b1d89',version='0.3.46-coop.15-2.2.2.3-test.1',native_sha256=sha(out/'openomsi.exe'),source_sha256=sha(out/'openomsi-source.tar.gz'),winter_clothing_removed=True,passenger_upstream_tag='v0.3.47',passenger_upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6',windows_gameplay_tested=False,paired_gameplay_tested=False,gameplay_visual_tested=False)
+        for name in ['SOURCE.json','BUILD-INFO.json']:(out/name).write_text(json.dumps(info,indent=2)+'
+        ')
+        '@ | python -
+        if($LASTEXITCODE -ne 0){throw 'Native provenance/CLI/assets failed'}
+    - uses: actions/upload-artifact@v4
+      with:
+        name: OpenOMSI-2.2.2.3-Test1-native-CANDIDATE
+        path: native/
+        compression-level: 0
+        retention-days: 30
+        if-no-files-found: error
+  launcher:
+    name: Build matching Tauri launcher with upstream passenger controls
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.3-test.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        ref: f1b9c620cf15fc1155958aaf08efe40f40dffc7b
+        path: native-source
+        persist-credentials: false
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: native-source/launcher/src-tauri -> target
+        key: 2222-desktop-launcher
+    - name: Verify real UI controls and both settings writers
+      shell: pwsh
+      run: |-
+        node --experimental-vm-modules --test launcher/tests/optional-features.test.mjs launcher/tests/upstream-passengers.test.mjs
+        if($LASTEXITCODE -ne 0){throw 'Launcher controls failed'}
+        cargo test --locked --release -p omsi-launcher-core --lib
+        if($LASTEXITCODE -ne 0){throw 'Launcher settings regressions failed'}
+      working-directory: native-source
+    - name: Build actual Tauri launcher
+      shell: pwsh
+      run: |-
+        cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+        if($LASTEXITCODE -ne 0){throw 'Launcher build failed'}
+      working-directory: native-source
+    - name: Record exact rebuilt launcher
+      shell: pwsh
+      run: |-
+        @'
+        import hashlib,json,shutil,subprocess
+        from pathlib import Path
+        out=Path('launcher');out.mkdir()
+        source=Path('native-source')
+        commit=subprocess.check_output(['git','-C',str(source),'rev-parse','HEAD'],text=True).strip()
+        assert commit=='f1b9c620cf15fc1155958aaf08efe40f40dffc7b'
+        exe=source/'launcher/src-tauri/target/release/openomsi-launcher-app.exe'
+        shutil.copy2(exe,out/exe.name)
+        info=dict(version='0.3.46-coop.15-2.2.2.3-test.1',source_commit=commit,path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe',optional_ui_controls=12,passenger_upstream_controls=3,winter_clothing_removed=True,launcher_sha256=hashlib.sha256(exe.read_bytes()).hexdigest())
+        (out/'BUILD-INFO.json').write_text(json.dumps(info,indent=2)+'
+        ')
+        '@ | python -
+        if($LASTEXITCODE -ne 0){throw 'Launcher inventory failed'}
+    - uses: actions/upload-artifact@v4
+      with:
+        name: OpenOMSI-2.2.2.3-Test1-launcher-CANDIDATE
+        path: launcher/
+        compression-level: 0
+        retention-days: 30
+        if-no-files-found: error
+  bridge:
+    name: Cumulative installer and first full-runtime replacement
+    needs:
+    - native
+    - launcher
+    - updater
+    runs-on: windows-2022
+    timeout-minutes: 75
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/setup-go@v5
+      with:
+        go-version: 1.23.2
+        cache: false
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: actions/download-artifact@v4
+      with:
+        name: OpenOMSI-2.2.2.3-Test1-native-CANDIDATE
+        path: native
+    - uses: actions/download-artifact@v4
+      with:
+        name: OpenOMSI-2.2.2.3-Test1-launcher-CANDIDATE
+        path: launcher
+    - uses: actions/download-artifact@v4
+      with:
+        name: OpenOMSI-2.2.2-native-Windows
+        path: prior-native
+        run-id: 41157142308
+        github-token: ${{ github.token }}
+    - uses: actions/download-artifact@v4
+      with:
+        name: Bridge-2.2.1.9-hotfix3-candidate
+        path: baseline
+        run-id: 40901236438
+        github-token: ${{ github.token }}
+    - uses: actions/download-artifact@v4
+      with:
+        name: Bridge-2.2.1.9-hotfix2-candidate
+        path: parts
+        run-id: 40765546864
+        github-token: ${{ github.token }}
+    - name: Stage retained DLLs and build cumulative updater
+      shell: pwsh
+      run: |-
+        Get-ChildItem prior-native -Filter '*.dll' | Copy-Item -Destination native
+        python scripts/build_2223_test1.py --baseline baseline --parts parts --native native --launcher launcher --output build/release2223-test1
+        if($LASTEXITCODE -ne 0){throw 'Build, UI, inventory or real full-runtime first update failed'}
+    - name: Validate first-attempt full runtime replacement and retained hosts
+      shell: pwsh
+      run: |-
+        @'
+        import json
+        from pathlib import Path
+        p=Path('build/release2223-test1')
+        r=json.loads((p/'build-report.json').read_text())
+        t=json.loads((p/'one-click-install-test.json').read_text())
+        assert r['version']=='2.2.2.3-test.1' and r['winter_clothing_removed']
+        assert r['complete_hosts_unchanged'] and not r['complete_hosts_rebuilt'] and r['p14_server_unchanged']
+        assert r['updater_architecture']=='amd64' and r['rollback_storage']=='disk'
+        assert t['status']=='passed' and t['invocations']==1 and t['full_previous_runtime_replaced_bytes']>200<<20
+        assert t['updater_architecture']=='amd64' and t['setup_reopened']
+        assert not r['windows_gameplay_tested'] and not r['paired_gameplay_tested']
+        print('CANDIDATE BUILT AND AUTOMATED TESTS PASSED. Manual gameplay and signed publication pending.')
+        '@ | python -
+        if($LASTEXITCODE -ne 0){throw 'Candidate inventory invalid'}
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: Bridge-2223-Test1-FAILURE-DIAGNOSTICS
+        path: |-
+          build/release2223-test1/one-click-install-setup.log
+          build/release2223-test1/runtime/app/setup-v1.1.3.log
+          build/release2223-test1/setup-previews/*
+        if-no-files-found: warn
+        retention-days: 14
+    - uses: actions/upload-artifact@v4
+      with:
+        name: Bridge-2.2.2.3-Test1-CANDIDATE
+        path: |-
+          build/release2223-test1/Atualizar-Bridge.exe
+          build/release2223-test1/build-report.json
+          build/release2223-test1/coop-spec.json
+          build/release2223-test1/coop_bundle_manifest.go
+          build/release2223-test1/coop-assets/*
+          build/release2223-test1/native-help.txt
+          build/release2223-test1/one-click-install-test.json
+          build/release2223-test1/one-click-install-setup.log
+          build/release2223-test1/setup-previews/*
+        compression-level: 0
+        retention-days: 30
+        if-no-files-found: error

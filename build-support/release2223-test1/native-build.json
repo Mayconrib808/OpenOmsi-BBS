@@ -1,0 +1,11 @@
+{
+  "commit": "f1b9c620cf15fc1155958aaf08efe40f40dffc7b",
+  "workflow": ".github/workflows/release-2223-test1-candidate.yml",
+  "version": "0.3.46-coop.15-2.2.2.3-test.1",
+  "protocol": 15,
+  "winter_clothing_removed": true,
+  "passenger_upstream_tag": "v0.3.47",
+  "passenger_upstream_commit": "8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6",
+  "windows_gameplay_tested": false,
+  "paired_gameplay_tested": false
+}

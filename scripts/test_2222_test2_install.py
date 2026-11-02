@@ -51,7 +51,23 @@ def main():
         # WinError 17 across C: and D: and can share fixture writes with inputs.
         shutil.copytree(out/'runtime',target)
         setup=target/'Setup.exe';setup.unlink();setup.write_bytes(previous['Setup.exe'])
-        game=target/'OpenOmsi Coop 0.3.41/programa/openomsi.exe';game.unlink();game.write_bytes(b'old game fixture')
+        # Exercise the real failed case: every large existing game/server/launcher/
+        # source/asset differs, at its full original size. The old test changed only
+        # a tiny game marker, so it retained almost no rollback data in memory.
+        changed_bytes=0
+        for name in spec['files']:
+            path=target/name
+            if path.is_file() and path.stat().st_size:
+                changed_bytes+=path.stat().st_size
+                with path.open('r+b') as f:
+                    f.seek(-1,2);last=f.read(1);f.seek(-1,2);f.write(bytes([last[0]^1]))
+        assert changed_bytes>200<<20,'fixture must replace a full previous runtime'
+        # Assert the shipped installer is actually x64, not just the unit tests.
+        import struct
+        pe=(out/'Atualizar-Bridge.exe').read_bytes()
+        pe_offset=struct.unpack_from('<I',pe,0x3c)[0]
+        assert struct.unpack_from('<H',pe,pe_offset+4)[0]==0x8664,'installer must be x64'
+        del pe
         note=target/'company-user-setting.txt';note.write_text('preserve company preferences\n')
         cache=folder/'cache';roaming=folder/'roaming';cache.mkdir();roaming.mkdir()
         parts=cache/'OpenOmsi-BBS/Coop-0.3.41';parts.mkdir(parents=True)
@@ -87,6 +103,8 @@ def main():
                 'invocations':1,'running_old_setup_replaced':True,
                 'startup_acceptance_required':True,'coop_extraction_exercised':True,
                 'windows_crlf_acceptance_tested':True,
+                'full_previous_runtime_replaced_bytes':changed_bytes,
+                'rollback_storage':'disk','updater_architecture':'amd64',
                 'managed_files_verified':len(spec['files']),
                 'unmanaged_preferences_preserved':True,'setup_reopened':True,
                 'setup_sha256':expected_setup,'windows_gameplay_tested':False,

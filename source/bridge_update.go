@@ -139,29 +139,42 @@ func updatedHostManifest(previous []byte, setup []byte) []byte {
 // Older versions can be identified by their existing changelog marker or the
 // package's local host inventory. No network, registry or user data is required.
 func previousBridgeChangelogVersion(dir string) string {
-    if marker, err := os.ReadFile(filepath.Join(appDir(dir), "changelog-seen.txt")); err == nil {
-        seen := strings.TrimSpace(string(marker))
-        switch seen {
-        case "2.2.2", "2.2.2-hotfix.1", "2.2.2-hotfix.2", "2.2.2-hotfix.3", "2.2.2.1", "2.2.2.1-hotfix.1", "2.2.2.1-hotfix.2", "2.2.2.2", "2.2.2.2-hotfix.1", "2.2.2.2-test.1", "2.2.2.2-test.2":
-            return seen
-        }
-    }
-    if raw, err := os.ReadFile(filepath.Join(dir,"docs","HOST-PESSOAL-2.2.0.3.json")); err == nil {
-        var m struct { Version string `json:"version"` }
-        if json.Unmarshal(raw,&m)==nil && len(m.Version)>0 && len(m.Version)<70 {
-            // 2.2.2.1 shipped with the previous launcher and never displayed
-            // its changelog. If no acknowledged marker exists, treat that
-            // release as unseen so users still receive BOTH its notes and
-            // the new Hotfix 1 when they update.
-            if strings.TrimSpace(m.Version)=="2.2.2.1" {return "2.2.2-hotfix.3"}
-            return strings.TrimSpace(m.Version)
-        }
-    }
-    return "" // Older installs without a version marker show all known changes.
+	if marker, err := os.ReadFile(filepath.Join(appDir(dir), "changelog-seen.txt")); err == nil {
+		seen := strings.TrimSpace(string(marker))
+		switch seen {
+		case "2.2.2", "2.2.2-hotfix.1", "2.2.2-hotfix.2", "2.2.2-hotfix.3", "2.2.2.1", "2.2.2.1-hotfix.1", "2.2.2.1-hotfix.2", "2.2.2.2", "2.2.2.2-hotfix.1", "2.2.2.2-test.1", "2.2.2.2-test.2", "2.2.2.3-test.1":
+			return seen
+		}
+	}
+	if raw, err := os.ReadFile(filepath.Join(dir, "docs", "HOST-PESSOAL-2.2.0.3.json")); err == nil {
+		var m struct {
+			Version string `json:"version"`
+		}
+		if json.Unmarshal(raw, &m) == nil && len(m.Version) > 0 && len(m.Version) < 70 {
+			// 2.2.2.1 shipped with the previous launcher and never displayed
+			// its changelog. If no acknowledged marker exists, treat that
+			// release as unseen so users still receive BOTH its notes and
+			// the new Hotfix 1 when they update.
+			if strings.TrimSpace(m.Version) == "2.2.2.1" {
+				return "2.2.2-hotfix.3"
+			}
+			return strings.TrimSpace(m.Version)
+		}
+	}
+	return "" // Older installs without a version marker show all known changes.
+}
+
+var automaticUpdateTrace func(string, string, error)
+
+func traceAutomaticUpdate(dir, stage string) {
+	if automaticUpdateTrace != nil {
+		automaticUpdateTrace(dir, stage, nil)
+	}
 }
 
 func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byte, checkClosed func(string) error) (state bcsNextTripPreparation, err error) {
-    fromVersion := previousBridgeChangelogVersion(dir)
+	traceAutomaticUpdate(dir, "install-validate-payload")
+	fromVersion := previousBridgeChangelogVersion(dir)
 	if len(payload) < 2 || len(payload["Setup.exe"]) == 0 || len(payload["PeDePeAdapter/openomsi.exe"]) == 0 {
 		return state, fmt.Errorf("atualizador incompleto")
 	}
@@ -216,7 +229,14 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 		return state, e
 	}
 
-	previous := map[string][]byte{}
+	// Keep rollback on the target volume, never one complete old runtime in RAM.
+	traceAutomaticUpdate(dir, "install-prepare-disk-rollback")
+	backupRoot, e := os.MkdirTemp(dir, ".bridge-rollback-")
+	if e != nil {
+		return state, e
+	}
+	defer os.RemoveAll(backupRoot)
+	previous := map[string]string{}
 	var order []string
 	for name := range files {
 		path := filepath.Join(dir, filepath.FromSlash(name))
@@ -238,15 +258,23 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 		if st, e := os.Lstat(path); e == nil && !st.Mode().IsRegular() {
 			return state, fmt.Errorf("componente não é arquivo regular: %s", name)
 		}
-		b, e := os.ReadFile(path)
+		equal, e := installedUpdateFileEquals(path, files[name])
 		if e != nil && !os.IsNotExist(e) {
 			return state, e
 		}
-		// A cumulative update carries many unchanged assets. Do not retain a
-		// second copy or ask Windows to replace an identical, possibly scanned
-		// executable. Changed files still keep the full rollback behavior.
-		if e==nil && bytes.Equal(b,files[name]){continue}
-		previous[name] = b
+		if equal {
+			continue
+		}
+		if e == nil {
+			backup := filepath.Join(backupRoot, filepath.FromSlash(name))
+			if len(files[name]) > 8<<20 {
+				traceAutomaticUpdate(dir, "install-backup "+name)
+			}
+			if e = copyUpdateRollback(path, backup); e != nil {
+				return state, e
+			}
+			previous[name] = backup
+		}
 		order = append(order, name)
 	}
 	sort.Strings(order)
@@ -259,10 +287,10 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 			name := written[i]
 			path := filepath.Join(dir, filepath.FromSlash(name))
 			var restore error
-			if previous[name] == nil {
+			if previous[name] == "" {
 				restore = os.Remove(path)
 			} else {
-				restore = writeSetupAtomic(path, previous[name])
+				restore = restoreUpdateRollback(previous[name], path)
 			}
 			if restore != nil {
 				err = fmt.Errorf("%w; restauração de %s falhou: %v", err, name, restore)
@@ -270,6 +298,9 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 		}
 	}()
 	for _, name := range order {
+		if len(files[name]) > 8<<20 {
+			traceAutomaticUpdate(dir, "install-write "+name)
+		}
 		if err = writeSetupAtomic(filepath.Join(dir, filepath.FromSlash(name)), files[name]); err != nil {
 			return state, err
 		}
@@ -279,12 +310,13 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	// Verify exactly what this signed payload wrote. Do not require the old base
 	// manifest to be pristine: missing/stale old files are the reason recovery
 	// exists in the first place.
+	traceAutomaticUpdate(dir, "install-verify-written-files")
 	for name, expected := range payload {
-		actual, e := os.ReadFile(filepath.Join(dir, filepath.FromSlash(name)))
+		equal, e := installedUpdateFileEquals(filepath.Join(dir, filepath.FromSlash(name)), expected)
 		if e != nil {
 			return state, e
 		}
-		if !bytes.Equal(actual, expected) {
+		if !equal {
 			return state, fmt.Errorf("falha ao confirmar componente atualizado: %s", name)
 		}
 	}
@@ -292,13 +324,13 @@ func installAutomaticBridgeUpdate(dir string, c Config, payload map[string][]byt
 	if err = activateUpdatedDynamicHost(dir, payload); err != nil {
 		return state, err
 	}
-    // Mark the source version only after all signed runtime files were written
-    // and verified. This is an advisory changelog hint, never a trust check.
-    if fromVersion != "" {
-        if e := os.MkdirAll(appDir(dir), 0755); e == nil {
-            _ = os.WriteFile(filepath.Join(appDir(dir),"changelog-from.txt"),[]byte(fromVersion+"\n"),0644)
-        }
-    }
+	// Mark the source version only after all signed runtime files were written
+	// and verified. This is an advisory changelog hint, never a trust check.
+	if fromVersion != "" {
+		if e := os.MkdirAll(appDir(dir), 0755); e == nil {
+			_ = os.WriteFile(filepath.Join(appDir(dir), "changelog-from.txt"), []byte(fromVersion+"\n"), 0644)
+		}
+	}
 	if fileExists(configPath(dir)) {
 		c = readConfig(configPath(dir))
 	}
@@ -334,4 +366,76 @@ func updatedHostManifestForPayload(previous []byte, payload map[string][]byte) [
 		}
 	}
 	return []byte(strings.Join(lines, "\n") + "\n")
+}
+
+// Stream old and installed files through a fixed-size hash/copy buffer. The new
+// signed payload is the only complete runtime retained in memory.
+func installedUpdateFileEquals(path string, expected []byte) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return false, err
+	}
+	if info.Size() != int64(len(expected)) {
+		return false, nil
+	}
+	hash := sha256.New()
+	if _, err = io.Copy(hash, f); err != nil {
+		return false, err
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)) == fmt.Sprintf("%x", sha256.Sum256(expected)), nil
+}
+func copyUpdateRollback(source, destination string) error {
+	if err := os.MkdirAll(filepath.Dir(destination), 0755); err != nil {
+		return err
+	}
+	in, err := os.Open(source)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	out, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(out, in)
+	if err == nil {
+		err = out.Sync()
+	}
+	closeErr := out.Close()
+	if err != nil {
+		return err
+	}
+	return closeErr
+}
+func restoreUpdateRollback(source, destination string) error {
+	// Reuse the atomic replacement/retry policy without reading a large backup.
+	f, err := os.CreateTemp(filepath.Dir(destination), ".bridge-restore-*.tmp")
+	if err != nil {
+		return err
+	}
+	name := f.Name()
+	defer os.Remove(name)
+	in, err := os.Open(source)
+	if err != nil {
+		f.Close()
+		return err
+	}
+	_, err = io.Copy(f, in)
+	in.Close()
+	if err == nil {
+		err = f.Sync()
+	}
+	closeErr := f.Close()
+	if err != nil {
+		return err
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	return replaceSetupAtomicFile(name, destination)
 }

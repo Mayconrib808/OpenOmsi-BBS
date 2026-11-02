@@ -10,8 +10,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -32,20 +32,30 @@ func writeSetupAtomic(path string, b []byte) error {
 		f.Close()
 		return e
 	}
-	if e = f.Sync(); e != nil {f.Close();return e}
+	if e = f.Sync(); e != nil {
+		f.Close()
+		return e
+	}
 	if e = f.Close(); e != nil {
 		return e
 	}
+	return replaceSetupAtomicFile(name, path)
+}
+
+func replaceSetupAtomicFile(name, path string) error {
+	var e error
 	// Windows may retain the executable mapping briefly after Setup exits,
 	// or a scanner may hold the verified replacement. Retry only sharing/lock
 	// and access errors; keep the old file intact until an atomic rename works.
-	deadline:=time.Now().Add(8*time.Second)
+	deadline := time.Now().Add(8 * time.Second)
 	for {
-		e=os.Rename(name,path)
-		if e==nil || runtime.GOOS!="windows" ||
-			!(errors.Is(e,syscall.Errno(5))||errors.Is(e,syscall.Errno(32))||errors.Is(e,syscall.Errno(33))) ||
-			time.Now().After(deadline){return e}
-		time.Sleep(100*time.Millisecond)
+		e = os.Rename(name, path)
+		if e == nil || runtime.GOOS != "windows" ||
+			!(errors.Is(e, syscall.Errno(5)) || errors.Is(e, syscall.Errno(32)) || errors.Is(e, syscall.Errno(33))) ||
+			time.Now().After(deadline) {
+			return e
+		}
+		time.Sleep(100 * time.Millisecond)
 	}
 }
 
