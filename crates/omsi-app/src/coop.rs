@@ -2093,6 +2093,20 @@ mod tests {
     }
     use super::*;
     #[test]
+    fn current_conductor_reselected_does_not_revoke_and_regrant_epoch() {
+        use clap::Parser;
+        let args = crate::Args::parse_from(["openomsi", "--root", "."]);
+        let mut app = crate::assemble_app(args, Default::default());
+        app.net.coop.grant = Some(Grant {
+            peer: 2, epoch: 77, model: "Vehicles/test.bus".into(), uid: 11,
+        });
+        app.coop_grant(Some(2));
+        assert_eq!(app.coop_conductor(), Some(2));
+        assert_eq!(app.net.coop.grant.as_ref().unwrap().epoch, 77);
+        app.coop_grant(None);
+        assert!(app.coop_conductor().is_none());
+    }
+    #[test]
     fn a_visitor_cannot_work_driver_controls_just_because_they_start_with_int() {
         assert!(passenger_event("int_haltewunsch"));
         assert!(bell("campainha"));
