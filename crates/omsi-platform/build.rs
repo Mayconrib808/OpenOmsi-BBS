@@ -17,6 +17,7 @@ fn main() {
     println!("cargo:rustc-env=OPENOMSI_VERSION={}", version(&git));
     println!("cargo:rerun-if-env-changed=OPENOMSI_VERSION");
     println!("cargo:rerun-if-changed=../../VERSION");
+    println!("cargo:rerun-if-changed=../../ENGINE_BASE.json");
     println!("cargo:rerun-if-changed=../../.git/HEAD");
     println!("cargo:rerun-if-changed=../../.git/index");
 }
@@ -27,9 +28,11 @@ fn main() {
 fn version(git: &dyn Fn(&[&str]) -> Option<String>) -> String {
     if let Ok(v) = std::env::var("OPENOMSI_VERSION") {
         if !v.trim().is_empty() {
+            assert!(v.trim().starts_with("0.3.47"),"Engine base is 0.3.47: refusing a different release label");
             return v.trim().to_string();
         }
     }
+    if std::path::Path::new("../../ENGINE_BASE.json").is_file() { return "0.3.47-coop.16-dev".into(); }
     let base = std::fs::read_to_string("../../VERSION").map(|s| s.trim().to_string()).unwrap_or_else(|_| "0.0".into());
     let prefix = format!("v{base}.");
     let pattern = format!("{prefix}*");

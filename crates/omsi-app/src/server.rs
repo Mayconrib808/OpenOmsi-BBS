@@ -15,8 +15,37 @@ use std::path::Path;
 
 pub(crate) use omsi_lan::server_cfg::{enforce_vehicles, player_info, ServerCfg, SERVER_VEHICLES};
 
+/// Announce the server's own bus paints without allocating GPU resources. Only
+/// buses explicitly in server.cfg are indexed; an unrestricted fleet has no finite
+/// advertised catalogue. The launcher remains responsible for authenticated content
+/// checks before offering any remote-only vehicle for driving.
+fn fleet_paints(cfg: &ServerCfg, root: &Path) -> Vec<omsi_net::ws::FleetPaints> {
+    let mut offers = Vec::new();
+    for bus in cfg.vehicles.iter().take(256) {
+        let Some(rel) = omsi_net::vehicle_path(bus) else {
+            log::warn!("server fleet: ignoring invalid bus path {bus:?}");
+            continue;
+        };
+        let path = omsi_cfg::find_in_roots(&rel)
+            .map(|(_, p)| p)
+            .unwrap_or_else(|| omsi_cfg::resolve_path(root, &rel));
+        match omsi_sim::VehicleType::load(root, &path) {
+            Ok(vehicle) => {
+                // Use the same resolved scheme names as the authenticated LISTBUS
+                // transfer. A server build must not depend on launcher-only crates.
+                let paints = vehicle.paint_schemes.iter().take(128).map(|p| p.name.clone()).collect();
+                let content = omsi_lan::mods::fleet_fingerprint(root, &rel).unwrap_or_default();
+                offers.push(omsi_net::ws::FleetPaints { bus: rel, paints, content });
+            }
+            Err(e) => log::warn!("server fleet: cannot load {}: {e}", path.display()),
+        }
+    }
+    log::info!("server fleet: announced {} models and {} paint schemes", offers.len(), offers.iter().map(|o| o.paints.len()).sum::<usize>());
+    offers
+}
+
 /// The server's status as the web gateway tells it (see `omsi_net::ws::ServerInfo`).
-pub(crate) fn info_of(cfg: &ServerCfg) -> omsi_net::ws::ServerInfo {
+pub(crate) fn info_of(cfg: &ServerCfg, root: &Path) -> omsi_net::ws::ServerInfo {
     omsi_net::ws::ServerInfo {
         name: cfg.name.clone(),
         motd: cfg.motd.clone(),
@@ -29,6 +58,8 @@ pub(crate) fn info_of(cfg: &ServerCfg) -> omsi_net::ws::ServerInfo {
         weather: cfg.weather.clone().unwrap_or_default(),
         password: false,
         vehicles: cfg.vehicles.clone(),
+        fleet: fleet_paints(cfg, root),
+        fleet_version: if omsi_cfg::flags::OMSI_NO_LAN_MODS.is_set() || cfg.vehicles.is_empty() { 0 } else { 1 },
         reached_at: String::new(),
         players_public: cfg.share_positions,
         player_list: Vec::new(),
@@ -48,6 +79,9 @@ pub(crate) fn prepare(args: &mut Args, path: &Path) -> Result<ServerCfg> {
     SERVER_MODE.store(true, std::sync::atomic::Ordering::Relaxed);
     let _ = SERVER_ADMIN.set((cfg.admin_password.clone(), cfg.moderator_password.clone(), if cfg.real_time { 1.0 } else { cfg.time_speed }));
     start_administration(&cfg, path);
+    omsi_lan::server_cfg::set_server_speed_limit_kmh(cfg.speed_limit_kmh);
+    log::info!("server: RP speed limit: {}", if cfg.speed_limit_kmh == 0 { "disabled".to_string() } else { format!("{} km/h", cfg.speed_limit_kmh) });
+    omsi_lan::admin::allow_player_teleport(cfg.allow_player_teleport);
     // the machine bans: this server's list beside server.cfg, and the owner's (all my sessions)
     omsi_lan::bans::announce_local_hardware_id();
     omsi_lan::bans::require_hardware_id(cfg.require_hardware_id);
@@ -55,6 +89,10 @@ pub(crate) fn prepare(args: &mut Args, path: &Path) -> Result<ServerCfg> {
     crate::real_time::set_server_real(cfg.real_time);
     let _ = SERVER_VEHICLES.set(cfg.vehicles.clone());
     cfg.apply_to_mods();
+    crate::logmask::keep_whole(cfg.log_addresses);
+    if cfg.log_addresses {
+        log::info!("server: log_addresses = 1: the players' internet addresses are logged whole");
+    }
     args.map = cfg.map.clone();
     args.time = cfg.time.clone();
     if let Some(d) = &cfg.date {
@@ -88,6 +126,7 @@ pub(crate) fn prepare(args: &mut Args, path: &Path) -> Result<ServerCfg> {
         args.offscreen = Some(std::env::temp_dir().join("omsi-server-unused.png"));
     }
     let density = cfg.passenger_density.map(|d| d.to_string()).unwrap_or_else(|| "as settings.cfg".into());
+    log::info!("server: you run this server, not openOMSI: you are responsible for the data your players send it (driver names, network addresses, chat, voice) and for what you keep of it, such as logs and bans");
     log::info!("server '{}': map {}, {} at {}, traffic {}, timetable {}, passengers {} (density {density}), UDP {} / web {}, at most {} players", cfg.name, cfg.map, cfg.date.as_deref().unwrap_or("today"), cfg.time, cfg.traffic, cfg.timetable, cfg.passengers, cfg.port, cfg.web_port, cfg.max_players);
     Ok(cfg)
 }

@@ -143,11 +143,20 @@ impl PeopleSim {
             Task::InBusToExit => {
                 let now = self.time;
                 self.pax_mut(i).unwrap().door_since = Some(now);
+                self.pax_mut(i).unwrap().reaction_stop = None;
+                self.pax_mut(i).unwrap().reaction_exit = None;
+                self.pax_mut(i).unwrap().reaction_missed_spoken = false;
                 let bus = self.pax(i).unwrap().bus.or(self.pax(i).unwrap().inside);
                 let Some(bn) = bus.and_then(|b| bus_ix.get(&b).map(|k| &buses[*k])) else { return };
-                // the stop button
-                if bn.id == BusId::Player {
-                    self.stop_request = true;
+                // the stop button: the player's bus gets it here, a timetable bus its own
+                // request (the app presses `int_haltewunsch` on it)
+                match bn.id {
+                    BusId::Player => self.stop_request = true,
+                    BusId::Ai(id) => {
+                        if !self.ai_stop_requests.contains(&id) {
+                            self.ai_stop_requests.push(id);
+                        }
+                    }
                 }
                 let seat = self.pax(i).unwrap().seat;
                 let all = bn.cabin.all_points();

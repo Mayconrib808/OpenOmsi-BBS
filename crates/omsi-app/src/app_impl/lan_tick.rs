@@ -6,6 +6,12 @@ impl App {
     /// LAN play, once a frame: send our bus, take in the others', and keep a drawn
     /// vehicle for each of them.
     pub(crate) fn tick_lan(&mut self, dt: f32) {
+        let lan_tick_started = std::time::Instant::now();
+        if self.net.lan.is_none() {
+            omsi_lan::commands::set_speed_limit_kmh(0);
+            self.net.speed_limit_welcome = None;
+            self.net.dedicated_teleport = None;
+        }
         let walker = self.walker_pose();
         let figure = self.character_figure();
         let hide_driver_for = if self.net.coop.camera.as_ref().is_some_and(|c| c.driver) {
@@ -40,6 +46,20 @@ impl App {
             }
             return;
         };
+        if lan.role == omsi_net::Role::Client {
+            if !lan.connected {
+                self.net.speed_limit_welcome = None;
+                self.net.dedicated_teleport = None;
+                omsi_lan::commands::set_speed_limit_kmh(0);
+            } else if self.net.speed_limit_welcome != Some(lan.welcomes) {
+                // A welcome is generated on first join and on reconnect. One question per
+                // welcome avoids spamming older hosts that do not implement this policy.
+                self.net.speed_limit_welcome = Some(lan.welcomes);
+                self.net.dedicated_teleport = None;
+                lan.command(1, "speed-limit?");
+                lan.command(1, "tp-policy?");
+            }
+        }
         self.gfx.sim_view.lan.capture_freetex(self.player.as_ref(), &self.args.root);
         let duty = self
             .session.duty
@@ -74,11 +94,15 @@ impl App {
                 }
             }
         }
+        let setup_ms = lan_tick_started.elapsed().as_secs_f64() * 1000.0;
+        let phase = std::time::Instant::now();
         let sent = {
             let traffic = self.session.traffic.as_ref();
             let cars = || traffic.map(|t| t.cars.iter().map(|c| lan::car_footprint(&c.vehicle)).collect()).unwrap_or_default();
             lan::tick_send(lan, &mut self.net.remotes, dt, &config, self.player.as_mut().filter(|p| p.borrowed_from.is_none()).map(|p| &mut p.vehicle), &cars, duty, &frame)
         };
+        let send_ms = phase.elapsed().as_secs_f64() * 1000.0;
+        let phase = std::time::Instant::now();
         self.net.lan_world.tick(
             lan,
             dt,
@@ -91,6 +115,8 @@ impl App {
             &mut self.gfx.sim_view,
             self.player.as_ref().map(|p| p.vehicle.position),
         );
+        let world_ms = phase.elapsed().as_secs_f64() * 1000.0;
+        let phase = std::time::Instant::now();
         if let Some(t) = self.session.traffic.as_mut().filter(|t| t.sim.mirror) {
             let ready: Vec<_> = t.sim.cars.iter().filter(|c| t.has_sound_set(c.id)).map(|c| c.id).collect();
             for c in &mut t.sim.cars {
@@ -98,6 +124,8 @@ impl App {
                 if ready.contains(&c.id) { self.net.remotes.apply_ai_sounds(&mut c.vehicle, c.id, &config.root); }
             }
         }
+        let receive_started = std::time::Instant::now();
+        let mirror_audio_ms = phase.elapsed().as_secs_f64() * 1000.0;
         let updates = lan::tick_receive(
             lan,
             &mut self.net.remotes,
@@ -109,6 +137,8 @@ impl App {
             self.session.traffic.as_ref().map(|t| &t.net),
             &frame,
         );
+        let receive_ms = receive_started.elapsed().as_secs_f64() * 1000.0;
+        let phase = std::time::Instant::now();
         if let (Some(w), Some(r), Some(scene)) = (self.world.as_deref(), self.renderer.as_ref(), self.scene.as_mut()) {
             crate::view_sync::apply_lan(&mut self.net.remotes, &mut self.gfx.sim_view.lan, w, r, scene, self.sound.audio.as_ref(), &frame, dt);
             self.gfx.sim_view.lan.sync_freetex(lan, &self.net.remotes, r, scene, &self.args.root);
@@ -116,6 +146,8 @@ impl App {
         for u in updates {
             self.apply_world_update(u);
         }
+        let apply_ms = phase.elapsed().as_secs_f64() * 1000.0;
+        let phase = std::time::Instant::now();
         let cmds = self.net.lan.as_mut().map(|l| l.take_commands()).unwrap_or_default();
         for (from, text) in cmds {
             self.lan_command(from, &text);
@@ -123,6 +155,15 @@ impl App {
         crate::admin_panel::tick(self);
         crate::player_list::tick(self);
         self.tick_voice(dt);
+        let tail_ms = phase.elapsed().as_secs_f64() * 1000.0;
+        // Log only pathological stalls: per-frame logging would amplify overload.
+        if lan_tick_started.elapsed() >= std::time::Duration::from_secs(1) {
+            log::warn!(
+                "LAN: slow tick {:.0} ms (setup {:.0}, send {:.0}, shared_world {:.0}, mirror_audio {:.0}, receive {:.0}, apply {:.0}, admin_voice {:.0})",
+                lan_tick_started.elapsed().as_secs_f64() * 1000.0,
+                setup_ms, send_ms, world_ms, mirror_audio_ms, receive_ms, apply_ms, tail_ms
+            );
+        }
     }
 
     /// A command another player's game sent ours (`LanSession::command`): read by the session
@@ -138,6 +179,28 @@ impl App {
         if let Some(request) = text.strip_prefix("pax_request ") {
             self.receive_passenger_door_request(from, request);
             return;
+        }
+        // Player-hosted sessions have no dedicated RBAC roles or server.cfg teleport policy.
+        // Keep their historical host-only behavior instead of accepting arbitrary client moves.
+        if text.starts_with("tp-request ") {
+            if let Some(l) = self.net.lan.as_mut().filter(|l| l.role == omsi_net::Role::Host) {
+                if l.peers().any(|p| p.pose.id == from && p.has_info) {
+                    l.command(from, "admin-result 0 rejected In a LAN session only the host moves vehicles on the map");
+                }
+            }
+            return;
+        }
+        // Player-hosted sessions do not advertise dedicated-server capabilities.
+        if text == "tp-policy?" { return; }
+        if from == 1 {
+            if let Some(policy) = text.strip_prefix("tp-policy ") {
+                self.net.dedicated_teleport = match policy.trim() {
+                    "0" => Some(false),
+                    "1" => Some(true),
+                    _ => None,
+                };
+                return;
+            }
         }
         // a plugin's message to the same plugin here (`lan.send`)
         if self.plugin_lan_message(from, text) {
@@ -160,6 +223,15 @@ impl App {
                 }
             }
             // what the session allows of voice chat: asked of the host, told by it
+            Command::SpeedLimitAsked => {
+                if let Some(l) = self.net.lan.as_mut().filter(|l| l.role == omsi_net::Role::Host) {
+                    l.command(from, &format!("speed-limit {}", omsi_lan::server_cfg::server_speed_limit_kmh()));
+                }
+            }
+            Command::SpeedLimit(limit) => {
+                omsi_lan::commands::set_speed_limit_kmh(limit);
+                log::info!("LAN: server RP speed limit: {limit} km/h (0 = off)");
+            }
             Command::VoiceAsked => {
                 let range = self.settings.voice_range;
                 if let Some(l) = self.net.lan.as_mut().filter(|l| l.role == omsi_net::Role::Host) {
@@ -262,7 +334,9 @@ impl crate::Args {
             lan_host: self.lan_host,
             lan_join: self.lan_join.clone(),
             lan_ws_fallback: self.lan_ws_fallback.clone(),
+            allow_server_fleet: self.allow_server_fleet,
             server: self.server.is_some(),
+            mod_fetch_error: None,
             entry: self.entry,
             spawn: self.spawn.clone(),
             hof: self.hof.clone(),

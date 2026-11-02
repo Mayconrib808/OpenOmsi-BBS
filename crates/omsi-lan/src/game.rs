@@ -555,7 +555,7 @@ pub fn start(args: &LanConfig, host: &dyn LanHost) -> Option<LanSession> {
     }
     if session.role == Role::Host && !args.server {
         // the way in over the internet that always works (see `open_public_gateway`)
-        let info = omsi_net::ws::ServerInfo { name: format!("{}'s game", player_name(args)), map: args.map.clone(), max_players: 16, version: host.version(), ..Default::default() };
+        let info = omsi_net::ws::ServerInfo { name: format!("{}'s game", player_name(args)), map: args.map.clone(), max_players: 64, version: host.version(), ..Default::default() };
         open_public_gateway(&session, info, 0, true);
         host.publish_vehicles(Vec::new());
     }
@@ -585,7 +585,7 @@ fn mod_source(args: &LanConfig) -> crate::mods::ModSource {
     crate::mods::ModSource { root: args.root.clone(), map: args.map.clone(), bus: args.bus.clone(), weather: args.weather.clone() }
 }
 
-pub fn share_mods(args: &mut LanConfig, lan: &mut LanSession) {
+pub fn share_mods(args: &mut LanConfig, lan: &mut LanSession) -> Option<crate::mods::Server> {
     match lan.role {
         Role::Host => {
             // (a player's game hosting a session takes the joining players' buses as a server
@@ -594,8 +594,8 @@ pub fn share_mods(args: &mut LanConfig, lan: &mut LanSession) {
             if !args.server {
                 crate::mods::upload::accept(crate::mods::upload::a_hosting_game_takes_uploads());
             }
-            if let (Some(port), Some(key)) = (lan.local_addr().map(|a| a.port()), lan.host_key()) {
-                crate::mods::serve(port, key, &mod_source(args));
+            if let (Some(listener), Some(key)) = (lan.take_mods_listener(), lan.host_key()) {
+                return crate::mods::serve(listener, key, &mod_source(args));
             }
         }
         Role::Client => {
@@ -603,7 +603,7 @@ pub fn share_mods(args: &mut LanConfig, lan: &mut LanSession) {
             omsi_cfg::vfs::record_reads(true);
             let Some(mut host) = lan.host.filter(|_| lan.welcome.is_some()) else {
                 log::info!("LAN mods: no host to ask yet (its mods are not fetched)");
-                return;
+                return None;
             };
             let note = |lan: &mut LanSession, text: String| {
                 lan.warnings.retain(|w| !w.starts_with("Host's mods"));
@@ -612,6 +612,12 @@ pub fn share_mods(args: &mut LanConfig, lan: &mut LanSession) {
             };
             note(lan, "Host's mods: looking what is needed...".into());
             let session = lan.session;
+            let local_fleet = local_fleet::verified(args, lan);
+            if local_fleet { log::info!("LAN: installed fleet matches the announced content; no bus download needed"); }
+            let needs_selected_download = local_fleet::requires_server_download(
+                args.allow_server_fleet, args.bus.is_some(), local_fleet,
+            );
+            let server_only = needs_selected_download && !args.bus.as_deref().is_some_and(|b| local_fleet::installed(&args.root, b));
             // the host's TCP port is not always reachable (a router forwards the UDP session
             // only, or we came in over a WebSocket): the files go through its tunnel then
             let joined_url = crate::gateway::joined_url();
@@ -627,8 +633,12 @@ pub fn share_mods(args: &mut LanConfig, lan: &mut LanSession) {
                         Err(e) => log::warn!("LAN mods: {e}"),
                     },
                     None => {
-                        note(lan, "Host's mods could not be downloaded; playing with what is installed here".into());
-                        return;
+                        let why = "no reachable TCP mod channel or WebSocket relay";
+                        note(lan, format!("Host's mods could not be downloaded: {why}"));
+                        if server_only {
+                            args.mod_fetch_error = Some(why.into());
+                        }
+                        return None;
                     }
                 }
             }
@@ -637,9 +647,14 @@ pub fn share_mods(args: &mut LanConfig, lan: &mut LanSession) {
             let (tx, rx) = std::sync::mpsc::channel::<String>();
             let mut fmap = args.map.clone();
             let froot = args.root.clone();
+            // The old map-fetch path remains available, but selected bus
+            // downloads require an explicit opt-in from the launcher or CLI.
+            let selected_bus = args.bus.clone().filter(|_| needs_selected_download);
+            let selected_paint = args.paint.clone();
+            let selected_requested = selected_bus.is_some();
             let worker = std::thread::spawn(move || {
                 let mut last = Instant::now() - Duration::from_secs(1);
-                let r = crate::mods::fetch(&froot, &mut fmap, host, session, &mut |done, total, file| {
+                let r = crate::mods::fetch_selected(&froot, &mut fmap, host, session, selected_bus.as_deref(), selected_paint.as_deref(), &mut |done, total, file| {
                     if last.elapsed() > Duration::from_millis(500) {
                         last = Instant::now();
                         let pct = if total > 0 { done * 100 / total } else { 100 };
@@ -673,10 +688,14 @@ pub fn share_mods(args: &mut LanConfig, lan: &mut LanSession) {
                 Err(e) => {
                     log::warn!("LAN mods: {e}");
                     note(lan, format!("Host's mods could not be fetched: {e}"));
+                    if selected_requested && server_only {
+                        args.mod_fetch_error = Some(e);
+                    }
                 }
             }
         }
     }
+    None
 }
 
 /// Do `work` (loading a world, which may take minutes on a big map) while the session is
@@ -1775,8 +1794,14 @@ fn new_remote(
         },
         if matched {
             "lamps, switches and sound values follow theirs".to_string()
+        } else if theirs {
+            // The table hash describes the runtime's variable/animation indices;
+            // it is NOT the SHA-256 manifest of the vehicle's files.
+            // Preserve safe name-based schema negotiation, but never blindly
+            // interpret different variable tables as interchangeable indices.
+            format!("sync variable tables differ (remote {:08X}, local {:08X}): safe fallback, not a file-hash mismatch", pose.table, table.hash)
         } else {
-            format!("their vehicle files differ from ours (table {:08X}, ours {:08X}): lights and doors only", pose.table, table.hash)
+            "the exact remote vehicle is not verified here: safe placeholder/stand-in state".to_string()
         }
     );
     let animations = animation_sync::Animations::new(table.animations.clone());
@@ -2394,7 +2419,7 @@ pub fn tick_receive(
         // (a bus another stands in for is still asked for, in the background, when it is time
         // - the one standing in is not made again each time: only once theirs is here)
         if game.remotes.get(&pose.id).is_some_and(|rv| rv.fallback && rv.read_failed.is_none()) && omsi_net::is_fingerprint(&pose.content) && crate::mods::vehicles::retry_due(&pose.content) {
-            crate::mods::vehicles::want(&args.root, pose.id, &pose.content, &pose.bus, &pose.paint);
+            crate::mods::vehicles::want(&args.root, pose.id, &pose.content, &pose.bus, &pose.paint, args.allow_server_fleet);
         }
         // another vehicle than before (the player changed buses), or another paint scheme on
         // it: made again
@@ -2717,15 +2742,32 @@ fn admin_request(lan: &mut LanSession, game: &mut LanGame, password: &str) {
     lan.command(1, "auth?");
 }
 
+/// Recognise private admin commands without case-sensitive password leaks.
+fn admin_chat_arg(text: &str) -> Option<&str> {
+    let text = text.trim();
+    if !text.get(..6)?.eq_ignore_ascii_case("/admin") {
+        return None;
+    }
+    let rest = text.get(6..)?;
+    if rest.chars().next().is_some_and(|c| !c.is_whitespace()) {
+        return None;
+    }
+    Some(rest.trim())
+}
+
 /// Say `text` to everybody.
 pub fn chat_send(lan: &mut LanSession, game: &mut LanGame, text: &str) {
     if text.trim().is_empty() {
         return;
     }
-    // `/admin <password>`: a server's administration (see `admin`), never said aloud
-    if let Some(pw) = text.trim().strip_prefix("/admin ") {
-        admin_request(lan, game, pw.trim());
-        game.chat.push("* asked the server for its administration".into());
+    // Keep every case variant of /admin private: it must never reach lan.say().
+    if let Some(pw) = admin_chat_arg(text) {
+        if pw.is_empty() {
+            game.chat.push("* usage: /admin <password>".into());
+        } else {
+            admin_request(lan, game, pw);
+            game.chat.push("* asked the server for its administration".into());
+        }
         return;
     }
     // `/reconnect`: join the host again after a lost connection (no restart of the game)
@@ -2818,6 +2860,7 @@ thread_local! {
 }
 
 mod remote_type;
+mod local_fleet;
 use remote_type::{remote_type, RemoteType};
 mod tag;
 pub use tag::tag_text;

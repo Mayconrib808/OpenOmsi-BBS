@@ -95,6 +95,9 @@ pub struct VehicleHost {
     pub fired_trigger_vars: Vec<(String, Vec<f32>)>,
     /// `(T.F.name)` triggers of this frame: (trigger, sound file relative to the sound folder).
     pub fired_file_triggers: Vec<(String, String)>,
+    /// How many `(T.F.name)` triggers fired since the vehicle was made (never cleared): a
+    /// key's press is seen to have played a recording, whenever its frame's list is taken.
+    pub file_triggers_fired: u64,
     pub messages: Vec<String>,
     /// The latest `$msg` and the play time (`SimClock::run_time`) it was last said at: OMSI
     /// writes the latest on the screen, and the game shows the player's bus's as a note
@@ -114,9 +117,9 @@ pub struct VehicleHost {
     pub hof: Option<Arc<Hof>>,
     /// The map's ticket pack for `GetTicketName/Value`.
     pub tickets: Option<Arc<omsi_content::tickets::TicketPack>>,
-    /// Coins the driver handed out with `GiveChangeCoin` (currency coin indices), taken by
-    /// the passenger system.
-    pub change_coins: Vec<usize>,
+    /// Coins the driver handed out with `GiveChangeCoin` (currency coin index, the value the
+    /// cash desk's key names for it or 0), taken by the passenger system.
+    pub change_coins: Vec<(usize, f32)>,
     /// The script's `number` string variable (the fleet number): `NrSpecRandom` is
     /// specific to it.
     pub number_var: Option<u32>,
@@ -542,6 +545,7 @@ impl Host for VehicleHost {
         }
         self.record_network_sound(name, Some(file));
         self.fired_file_triggers.push((name.to_string(), file.to_string()));
+        self.file_triggers_fired += 1;
     }
     fn sound_trigger(&mut self, name: &str, _id: NameId) {
         if self.remote_sound_triggers { return; }

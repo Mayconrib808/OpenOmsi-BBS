@@ -468,6 +468,7 @@ fn new_humans(
         h.bad_driving = settings.pax_bad_driving;
         h.boarding = settings.boarding.clone();
         h.stand_chance = settings.standing_chance;
+        h.brazilian_voice_dir = crate::humans::brazilian_voice_dir(&settings.language);
         h.voices = match settings.pax_voices.as_str() { "off" => 2, "tickets" => 1, _ => 0 };
         if let Some(p) = player.as_mut() {
             h.set_cabin(&mut p.vehicle);

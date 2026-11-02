@@ -3,6 +3,7 @@
 use super::*;
 mod bus_info;
 mod freetex;
+mod join_queue;
 
 fn pose(x: f64) -> Pose {
     Pose {
@@ -444,7 +445,9 @@ fn join_targets() {
     assert_eq!(
         parse_join("192.168.1.20").unwrap(),
         JoinTarget::Direct {
-            addrs: vec!["192.168.1.20:27015".parse().unwrap()],
+            addrs: (DEFAULT_PORT..DEFAULT_PORT + PORT_RANGE)
+                .map(|port| SocketAddr::from(([192, 168, 1, 20], port)))
+                .collect(),
             session: None,
             protocol: None
         }
@@ -1367,33 +1370,6 @@ fn a_full_session_turns_the_next_player_away() {
 }
 
 #[test]
-fn too_many_loading_players_wait() {
-    let mut host = LanSession::host(28180, "host", world("m"), true).unwrap();
-    let at = SocketAddr::from((Ipv4Addr::LOCALHOST, host.local_addr().unwrap().port()));
-    let hello = format!("HELLO|{PROTOCOL}|-|p|Vehicles/x.bus|m|1989-05-30|32400||");
-    let players: Vec<UdpSocket> = (0..MAX_JOINING + 1).map(|_| raw()).collect();
-    for p in &players {
-        p.send_to(hello.as_bytes(), at).unwrap();
-    }
-    for _ in 0..10 {
-        host.tick(0.01, &pose(0.0));
-        std::thread::sleep(Duration::from_millis(5));
-    }
-    assert_eq!(host.peer_count(), MAX_JOINING);
-    let mut buf = [0u8; 512];
-    let mut answers = Vec::new();
-    while let Ok((n, _)) = players[MAX_JOINING].recv_from(&mut buf) {
-        answers.push(String::from_utf8_lossy(&buf[..n]).to_string());
-    }
-    assert!(
-        answers
-            .iter()
-            .any(|a| a.starts_with("REJECT") && a.contains("try again")),
-        "{answers:?}"
-    );
-}
-
-#[test]
 fn the_host_checks_and_limits_what_it_relays() {
     let mut host = LanSession::host(27890, "host", world("m"), true).unwrap();
     let port = host.local_addr().unwrap().port();
@@ -1626,3 +1602,5 @@ fn coop14_hotfix_person_channels_remain_limited_and_sender_bound() {
     assert!(host.checked_peer(7, from, MESSAGE_RATE, PeerTraffic::Message).is_some());
     assert!(host.checked_peer(7, from, STATE_RATE, PeerTraffic::State).is_some());
 }
+
+mod join_rejections;

@@ -90,6 +90,9 @@ pub struct Pax {
     pub(crate) door_reaction_wait: f32,
     pub(crate) door_reaction_cooldown: f32,
     pub(crate) reaction_door_was_open: bool,
+    pub(crate) reaction_stop: Option<DVec3>,
+    pub(crate) reaction_exit: Option<usize>,
+    pub(crate) reaction_missed_spoken: bool,
     pub task: Task,
     /// Movement state +0x6c4: 0 stand, 1 to the target, 2 0.7 m short of it, 3 there, 5
     /// along the paths, 6 0.7 m short of the path's end, 7 at the path's end, 9 turning on
@@ -157,6 +160,7 @@ pub struct Pax {
     pub paid: f32,
     pub bad_change: bool,
     pub sub: u8,
+    pub taking_ticket: Option<usize>,
     /// A plugin's say in the ticket (`ticket_hook`), boxed: most passengers have none, and a
     /// `Pax` is cloned several times a frame.
     pub plugin: Option<Box<super::ticket_hook::PluginTicket>>,
@@ -216,7 +220,7 @@ impl Pax {
         Pax {
             responder_hold: false,
             inspector: false,
-            door_reaction_wait: 0.0, door_reaction_cooldown: 0.0, reaction_door_was_open: false,
+            door_reaction_wait: 0.0, door_reaction_cooldown: 0.0, reaction_door_was_open: false, reaction_stop: None, reaction_exit: None, reaction_missed_spoken: false,
             task: Task::Nothing,
             st: 0,
             inside: None,
@@ -256,6 +260,7 @@ impl Pax {
             paid: 0.0,
             bad_change: false,
             sub: 0,
+            taking_ticket: None,
             plugin: None,
             ticket_hold: None,
             door: None,

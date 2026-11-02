@@ -7,7 +7,7 @@ use omsi_plugin::ui::{Anchor,Panel};
 const PER_PAGE: usize=6;
 
 pub(crate) fn panel(app:&crate::App)->Panel {
-    let light = app.settings.is_light_theme();
+    let light = crate::themes::palette(app.settings.is_light_theme());
     let note = |text: &str| super::note(text, light);
     let card = |anchor, x, y, width, alpha, children| super::card(anchor, x, y, width, alpha, light, children);
 

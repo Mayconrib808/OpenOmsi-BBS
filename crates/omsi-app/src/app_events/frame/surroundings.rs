@@ -95,6 +95,7 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
             w, scene, &daylight, cam.position, &vehicles, cone,
             lights::VehicleSmoke::from_setting(&cx.common.settings.vehicle_smoke),
             cx.player.player.is_some(),
+            cx.common.settings.traffic_headlights,
         );
         drop(vehicles);
         if cx.view.cam.flashlight {
@@ -201,14 +202,14 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
                             let id = a.play(
                                 clip,
                                 omsi_audio::mixer::VoiceParams {
-                                    gain: 1.0,
+                                    gain: if line.driver_request {1.5}else{1.0},
                                     pitch: 1.0,
                                     looping: false,
                                     position: Some(line.position.as_vec3()),
-                                    doppler: true,
-                                    range: 3.0,
+                                    doppler: !line.driver_request,
+                                    range: if line.driver_request {18.0}else{3.0},
                                     lowpass_hz: 0.0,
-                                    important: false,
+                                    important: line.driver_request,
                                 },
                             );
                             let accepted=a.is_playing(id);

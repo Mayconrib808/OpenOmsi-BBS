@@ -12,6 +12,7 @@ use super::{button, card, divider, grow_row, note, slider_row, title};
 use crate::coop::text as localized;
 use omsi_plugin::api::Value;
 use omsi_plugin::ui::{Anchor, Panel};
+use omsi_ui::theme::Palette;
 
 #[derive(Default)]
 pub(crate) struct ViewEditor {
@@ -37,17 +38,17 @@ pub(crate) struct ViewValues {
 }
 
 impl ViewEditor {
-    pub(crate) fn panel(&self, app: &crate::App, light: bool) -> Panel {
+    pub(crate) fn panel(&self, app: &crate::App, pal: Palette) -> Panel {
         let mirrors = app.player.as_ref().map(|p| (0..p.vehicle.ty.def.cameras_reflexion.len()).map(|i| p.mirror_offsets.get(i).copied().unwrap_or([0.0; 2])).collect()).unwrap_or_default();
-        self.panel_of(&ViewValues { seat: app.settings.seat, pitch: app.settings.seat_pitch_deg, yaw: app.cam.view_yaw, fov: app.cam.view_fov, mirrors }, light)
+        self.panel_of(&ViewValues { seat: app.settings.seat, pitch: app.settings.seat_pitch_deg, yaw: app.cam.view_yaw, fov: app.cam.view_fov, mirrors }, pal)
     }
 
-    pub(crate) fn panel_of(&self, v: &ViewValues, light: bool) -> Panel {
+    pub(crate) fn panel_of(&self, v: &ViewValues, pal: Palette) -> Panel {
         let cm = |v: f32| format!("{:+.0} cm", v * 100.0);
         let deg = |v: f32| format!("{v:+.1}°");
         let mut c = vec![
             title(localized("Ajustar câmera", "View editor", "Kamera einstellen")),
-            note(localized("Ajuste vendo o resultado na cabine. Alt ou Esc fecha esta janela.", "Adjust the view live in the cab. Alt or Esc closes this panel.", "Änderungen direkt im Fahrerraum sehen. Alt oder Esc schließt das Fenster."), light),
+            note(localized("Ajuste vendo o resultado na cabine. Alt ou Esc fecha esta janela.", "Adjust the view live in the cab. Alt or Esc closes this panel.", "Änderungen direkt im Fahrerraum sehen. Alt oder Esc schließt das Fenster."), pal),
             slider_row("seat0", localized("Esquerda / direita", "Eye left / right", "Links / rechts"), &cm(v.seat[0]), v.seat[0], SEAT, 0.01),
             slider_row("seat1", localized("Frente / trás", "Eye forward / back", "Vor / zurück"), &cm(v.seat[1]), v.seat[1], SEAT, 0.01),
             slider_row("seat2", localized("Altura", "Eye up / down", "Höhe"), &cm(v.seat[2]), v.seat[2], SEAT, 0.01),
@@ -66,10 +67,10 @@ impl ViewEditor {
         }
         c.push(grow_row(vec![button("save", localized("Salvar neste ônibus", "Save for this vehicle", "Für diesen Bus speichern"), Some("save")), button("reset", localized("Restaurar", "Reset", "Zurücksetzen"), Some("restart_alt")), button("close", localized("Fechar", "Close", "Schließen"), Some("close"))]));
         if let Some(said) = &self.said {
-            c.push(note(said, light));
+            c.push(note(said, pal));
         }
         // (at the side, see-through: the view it changes is the picture behind it)
-        card(Anchor::Right, -12.0, 0.0, 440.0, 170, light, c)
+        card(Anchor::Right, -12.0, 0.0, 440.0, 170, pal, c)
     }
 }
 
@@ -95,6 +96,15 @@ pub(crate) fn close(app: &mut crate::App, save: bool) {
     app.menus.game_panels.view = None;
 }
 
+/// Parse only slider IDs made by the mirror editor: m<index>x or m<index>y.
+fn mirror_axis_id(id: &str) -> Option<(usize, usize)> {
+    let rest = id.strip_prefix('m')?;
+    if let Some(index) = rest.strip_suffix('x').and_then(|s| s.parse().ok()) {
+        return Some((index, 0));
+    }
+    rest.strip_suffix('y').and_then(|s| s.parse().ok()).map(|index| (index, 1))
+}
+
 pub(crate) fn change(app: &mut crate::App, id: &str, value: &Value) {
     let Value::Num(v) = value else { return };
     let v = *v as f32;
@@ -108,7 +118,7 @@ pub(crate) fn change(app: &mut crate::App, id: &str, value: &Value) {
         "fov" => app.cam.view_fov = (v >= 20.0).then_some(v),
         m => {
             // a mirror's turn: `m<i>x` across, `m<i>y` up
-            let Some((i, axis)) = m.strip_prefix('m').and_then(|r| Some((r[..r.len() - 1].parse::<usize>().ok()?, r.as_bytes()[r.len() - 1]))) else { return };
+            let Some((i, axis)) = mirror_axis_id(m) else { return };
             let Some(p) = app.player.as_mut() else { return };
             let n = p.vehicle.ty.def.cameras_reflexion.len();
             if i >= n {
@@ -117,7 +127,7 @@ pub(crate) fn change(app: &mut crate::App, id: &str, value: &Value) {
             if p.mirror_offsets.len() < n {
                 p.mirror_offsets.resize(n, [0.0; 2]);
             }
-            p.mirror_offsets[i][if axis == b'x' { 0 } else { 1 }] = v;
+            p.mirror_offsets[i][axis] = v;
         }
     }
 }
@@ -271,5 +281,19 @@ mod tests {
         assert_eq!(stored_in(&text, "vehicles/a.bus", &std), (0.0, None));
         assert_eq!(stored_in(&text, "vehicles/c.bus", &std), (0.0, None));
         assert_eq!(blocks(&text).len(), 2);
+    }
+}
+
+#[cfg(test)]
+mod mirror_axis_tests {
+    use super::mirror_axis_id;
+
+    #[test]
+    fn accepts_only_valid_ascii_mirror_axes() {
+        assert_eq!(mirror_axis_id("m0x"), Some((0, 0)));
+        assert_eq!(mirror_axis_id("m12y"), Some((12, 1)));
+        for invalid in ["", "m", "m0", "m0z", "m🦊", "m0é", "mxy"] {
+            assert_eq!(mirror_axis_id(invalid), None, "{invalid}");
+        }
     }
 }

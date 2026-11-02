@@ -129,7 +129,7 @@ fn shade_vanilla(in: FsIn, puddle_weight: ptr<function, f32>, eye: vec3<f32>) ->
         // detail texturing (setting): procedural grain on the ground and the roads, fading out with distance
         let dist0 = distance(in.world, camera.cam_pos.xyz);
         let k = clamp(1.0 - (dist0 - 25.0) / 120.0, 0.0, 1.0);
-        let nz = detail_noise(world_pattern_xy(in.world));
+        let nz = detail_noise(world_pattern_xy(in.world), k);
         albedo = albedo * (1.0 + (nz - 0.5) * 0.42 * k);
     }
     // ([nomaplighting]: params.y 0.25 - not lit by the map's lamps)
@@ -141,7 +141,7 @@ fn shade_vanilla(in: FsIn, puddle_weight: ptr<function, f32>, eye: vec3<f32>) ->
     let tree_unlamped = camera.sky_color.w > 0.5 && material.params.y > 0.1 && material.params.y < 0.2;
     let map_lamps = select(1.0, 0.0, (material.params.y > 0.2 && material.params.y < 0.3) || lm_only || tree_unlamped);
     let lamp_light = point_lights(in.world, n, map_lamps);
-    // (the headlight, lit at the vertices: see `classic_spot`)
+    // The headlight is lit at the vertices: see `classic_spot`.
     var light = diffuse + lamp_light + in.spot_diffuse + in.spot_ambient;
     // D3D lights the material's diffuse colour with the sun, the light from above and the
     // lamps, and its ambient colour with the ambient light (C) and the headlight's ambient

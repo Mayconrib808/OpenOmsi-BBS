@@ -787,7 +787,7 @@ impl App {
                     .vehicle
                     .host
                     .change_coins
-                    .push(a.index as usize);
+                    .push((a.index as usize, 0.0));
             }
             return true;
         }

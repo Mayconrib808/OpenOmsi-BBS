@@ -42,6 +42,7 @@ impl PeopleSim {
                 position: person.position + DVec3::new(0.0, 0.0, 1.6),
                 speaker: person.id,
                 path: path.clone(),
+                driver_request: false,
             });
             self.voice_said.insert(path.clone(), self.time);
             self.last_chat = self.time;

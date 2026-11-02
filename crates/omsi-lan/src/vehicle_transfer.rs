@@ -286,7 +286,7 @@ pub enum Message {
         desk: u32,
         state: Snapshot,
         sounds: Vec<(String, Option<String>, Option<Vec<f32>>)>,
-        coins: Vec<usize>,
+        coins: Vec<(usize, f32)>,
         ticket: bool,
         change: bool,
         take_change: bool,

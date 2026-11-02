@@ -110,6 +110,7 @@ impl PeopleSim {
             money: None,
             under_bus: hashbrown::HashSet::new(),
             stop_request: false,
+            ai_stop_requests: Vec::new(),
             tickets_sold: 0,
             ticket_cash: 0.0,
             sales: Vec::new(),
@@ -137,6 +138,7 @@ impl PeopleSim {
             delay: 0.0,
             root: root.to_path_buf(),
             voice_lines: Vec::new(),
+            brazilian_voice_dir: None,
             voice_said: HashMap::new(),
             voices: 0,
             last_chat: -1e9,
@@ -297,7 +299,7 @@ impl PeopleSim {
         if debug_pax() {
             log::info!("t={:.1} pax {} says {name}", self.time, self.people[i].label());
         }
-        self.voice_lines.push(VoiceLine { position: self.people[i].position + DVec3::new(0.0, 0.0, 1.6), speaker: self.people[i].id, path });
+        self.voice_lines.push(VoiceLine { position: self.people[i].position + DVec3::new(0.0, 0.0, 1.6), speaker: self.people[i].id, path, driver_request: false });
     }
 
     pub fn rand(&mut self) -> u64 {

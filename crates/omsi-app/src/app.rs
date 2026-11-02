@@ -355,7 +355,7 @@ impl App {
             if surface.config.width != size.width.max(1) || surface.config.height != size.height.max(1) {
                 surface.resize(&renderer, size.width, size.height);
             }
-            surface.set_vsync(&renderer, vsync);
+            surface.set_vsync(&renderer, vsync, (1..1000).contains(&self.settings.max_fps) && !cfg!(target_os = "android"));
             let (sw, sh) = renderer.scene_size(size.width, size.height);
             log::info!(
                 "window: {}x{} pixels (scale factor {:.2}), 3D picture {sw}x{sh}, present mode {:?}",
@@ -603,7 +603,8 @@ impl App {
                     h.bad_driving = self.settings.pax_bad_driving;
                     h.boarding = self.settings.boarding.clone();
                     h.stand_chance = self.settings.standing_chance;
-                    h.voices = match self.settings.pax_voices.as_str() { "off" => 2, "tickets" => 1, _ => 0 };
+                    h.brazilian_voice_dir = crate::humans::brazilian_voice_dir(&self.settings.language);
+        h.voices = match self.settings.pax_voices.as_str() { "off" => 2, "tickets" => 1, _ => 0 };
                     if let Some(p) = self.player.as_mut() {
                         h.set_cabin(&mut p.vehicle);
                         h.ticket_key = ticket_key_name(&self.args.root, &p.bindings);
@@ -843,6 +844,7 @@ impl App {
     /// One loading screen picture (the map, or our bus going to the server): `title`, bar at `shown`.
     fn loading_frame(&mut self, renderer: omsi_render::Renderer, mut scene: Scene, title: &str, shown: f32) {
         let mut reconfigure = false;
+        crate::themes::sync(&self.settings.ui_theme_pack, self.settings.is_light_theme());
         if let (Some(ui), Some(s), Some(win)) = (
             self.ui.as_mut(),
             self.gfx.surface.as_ref(),

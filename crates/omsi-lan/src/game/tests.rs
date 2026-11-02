@@ -174,3 +174,14 @@ fn walking_without_a_bus_keeps_the_players_chosen_character() {
     assert!(pose.bus.is_empty());
     assert!(my_pose(&mut game,None,None,&args,None,0).figure.is_empty());
 }
+
+#[test]
+fn admin_password_command_is_private_for_any_case() {
+    assert_eq!(admin_chat_arg("/admin hunter2"), Some("hunter2"));
+    assert_eq!(admin_chat_arg("/Admin hunter2"), Some("hunter2"));
+    assert_eq!(admin_chat_arg(" /ADMIN    hunter2 "), Some("hunter2"));
+    assert_eq!(admin_chat_arg("/aDmIn\thunter2"), Some("hunter2"));
+    assert_eq!(admin_chat_arg("/admin"), Some(""));
+    assert_eq!(admin_chat_arg("/administrator public"), None);
+    assert_eq!(admin_chat_arg("/reconnect"), None);
+}

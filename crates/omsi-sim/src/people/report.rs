@@ -19,7 +19,7 @@ impl PeopleSim {
 
     /// Money-related events to be handled by the app.
     /// `None` identifies the player's bus; `Some(id)` identifies an AI bus.
-    pub fn take_money_events(&mut self) -> Vec<(Option<u64>, SaleEvent)> {
+    pub fn take_sale_events(&mut self) -> Vec<(Option<u64>, SaleEvent)> {
         std::mem::take(&mut self.sale_events)
             .into_iter()
             .map(|(b, event)| {
@@ -187,6 +187,12 @@ impl PeopleSim {
     /// Door requests for the timetable buses, for the traffic to hand to their scripts.
     pub fn take_ai_requests(&mut self) -> Vec<(u64, DoorWants)> {
         std::mem::take(&mut self.ai_requests)
+    }
+
+    /// Timetable buses whose passenger asked for the next stop, for the traffic to press
+    /// `int_haltewunsch` on.
+    pub fn take_ai_stop_requests(&mut self) -> Vec<u64> {
+        std::mem::take(&mut self.ai_stop_requests)
     }
 
     /// A line for the HUD about something that just happened.

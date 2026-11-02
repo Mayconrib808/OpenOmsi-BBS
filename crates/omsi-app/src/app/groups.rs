@@ -47,6 +47,7 @@ pub(crate) struct VrState {
 #[derive(Default)]
 pub(crate) struct NetState {
     pub(crate) coop: crate::coop::CoopState,
+    pub(crate) room: crate::app_impl::rooms::RoomSwitch,
     /// Other players on foot whose avatars are drawn: their ids and figures (`kind`).
     pub(crate) remote_walkers: Vec<(u32, u64)>,
     /// The player on foot is in this other player's bus (see `lan`: drawn from inside).
@@ -58,6 +59,12 @@ pub(crate) struct NetState {
     /// LAN session, and the other players' buses (drawn and heard like AI vehicles) with the
     /// chat line.
     pub(crate) lan: Option<omsi_net::LanSession>,
+    /// Negotiate once per welcome/reconnect; never poll old servers every 180 frames.
+    pub(crate) speed_limit_welcome: Option<u32>,
+    /// Set only by the dedicated server's teleport capability response.
+    /// None means an older server or a player-hosted LAN session.
+    pub(crate) dedicated_teleport: Option<bool>,
+    pub(crate) mods_server: Option<omsi_lan::mods::Server>,
     pub(crate) remotes: lan::LanGame,
     /// The shared world: the host's traffic and people, sent (host) or mirrored (client).
     pub(crate) lan_world: crate::lan_world::LanWorld,
@@ -416,6 +423,8 @@ pub(crate) struct MenuState {
     /// A value of the open settings window really changed (set by `option_do` and the
     /// like): its list is out of date (see `App::list_adjust`).
     pub(crate) list_dirty: bool,
+    /// Original graphics values until the player confirms or cancels.
+    pub(crate) graphics_before: Option<crate::game_lists::GraphicsBefore>,
     /// The open settings window's page titles, kept for a moment (asked every frame, see
     /// `game_lists::page_titles`).
     pub(crate) page_titles: std::cell::RefCell<crate::game_lists::TitlesCache>,

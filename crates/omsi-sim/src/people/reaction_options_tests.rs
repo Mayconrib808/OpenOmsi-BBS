@@ -2,7 +2,43 @@ use super::*;
 
 #[test]
 fn disabled_reactions_do_not_change_waits_or_rng_and_enabled_thanks_are_cosmetic() {
-    let root = std::env::temp_dir().join(format!("omsi-optional-reactions-{}", std::process::id()));
+    let (root,mut people,bus,i)=fixture("options");
+    let rng = people.rng;
+
+    people.door_reaction(i, &bus, true, 0.25);
+    people.thank_on_exit(usize::MAX);
+    assert_eq!(people.pax(i).unwrap().door_reaction_wait, 4.9);
+    assert_eq!(people.rng, rng);
+    assert!(people.dialog.is_none());
+
+    let selected = (1..1000).find(|&id| exit_thanks_selected(id, 0)).unwrap();
+    people.people[i].id = selected;
+    people.optional_features.passenger_exit_thanks = true;
+    people.thank_on_exit(i);
+    assert_eq!(
+        people.dialog.as_deref(),
+        Some(PassengerDialog::ExitThanks.id())
+    );
+    assert_eq!(
+        people.rng, rng,
+        "cosmetic thanks must not alter boarding/ticket RNG"
+    );
+
+    people.dialog = None;
+    people.last_chat = -100.0;
+    people.optional_features.passenger_door_comments = true;
+    people.door_reaction(i, &bus, true, 0.25);
+    assert!(people.pax(i).unwrap().door_reaction_wait > 4.9);
+    assert_eq!(
+        people.dialog.as_deref(),
+        Some(PassengerDialog::OpenDoor.id())
+    );
+    assert_eq!(people.rng, rng);
+    std::fs::remove_dir_all(root).unwrap();
+}
+
+fn fixture(name:&str)->(PathBuf,PeopleSim,BusNow,usize) {
+    let root = std::env::temp_dir().join(format!("omsi-optional-reactions-{}-{name}", std::process::id()));
     let humans = root.join("Humans/Test");
     std::fs::create_dir_all(&humans).unwrap();
     std::fs::write(humans.join("person.hum"), "[model]\nmodel.cfg\n").unwrap();
@@ -65,36 +101,57 @@ fn disabled_reactions_do_not_change_waits_or_rng_and_enabled_thanks_are_cosmetic
     p.pos = DVec3::ZERO;
     p.door_reaction_wait = 4.9;
     people.time = 100.0;
-    let rng = people.rng;
-
-    people.door_reaction(i, &bus, true, 0.25);
-    people.thank_on_exit(usize::MAX);
-    assert_eq!(people.pax(i).unwrap().door_reaction_wait, 4.9);
-    assert_eq!(people.rng, rng);
-    assert!(people.dialog.is_none());
-
-    let selected = (1..1000).find(|&id| exit_thanks_selected(id, 0)).unwrap();
-    people.people[i].id = selected;
-    people.optional_features.passenger_exit_thanks = true;
-    people.thank_on_exit(i);
-    assert_eq!(
-        people.dialog.as_deref(),
-        Some(PassengerDialog::ExitThanks.id())
-    );
-    assert_eq!(
-        people.rng, rng,
-        "cosmetic thanks must not alter boarding/ticket RNG"
-    );
-
-    people.dialog = None;
-    people.last_chat = -100.0;
-    people.optional_features.passenger_door_comments = true;
-    people.door_reaction(i, &bus, true, 0.25);
-    assert!(people.pax(i).unwrap().door_reaction_wait > 4.9);
-    assert_eq!(
-        people.dialog.as_deref(),
-        Some(PassengerDialog::OpenDoor.id())
-    );
-    assert_eq!(people.rng, rng);
+    (root,people,bus,i)
+}
+fn enable_brazilian(people:&mut PeopleSim,i:usize) {
+    people.optional_features.passenger_door_comments=true;
+    people.brazilian_voice_dir=Some(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../coop-assets/PassengerVoices/pt-BR"));
+    people.last_chat=-100.0;
+    people.pax_mut(i).unwrap().door_reaction_wait=0.0;
+}
+#[test]
+fn closed_rear_door_requests_brazilian_audio_after_two_seconds_and_cancels_when_open() {
+    let (root,mut h,mut bus,i)=fixture("rear");enable_brazilian(&mut h,i);
+    // An unrelated open exit must not silence this passenger's closed rear exit.
+    bus.exit_open.push(true);
+    for _ in 0..7 {h.door_reaction(i,&bus,true,0.25);h.time+=0.25;}
+    assert!(h.voice_lines.is_empty());
+    h.door_reaction(i,&bus,true,0.25);
+    assert_eq!(h.voice_lines.len(),1);
+    assert!(h.voice_lines[0].path.file_name().unwrap().to_str().unwrap().starts_with("OpenDoor_"));
+    assert!(h.voice_lines[0].driver_request);
+    for _ in 0..16 {h.time+=0.25;h.door_reaction(i,&bus,true,0.25);}
+    assert_eq!(h.voice_lines.len(),1,"no per-frame repetition");
+    bus.exit_open[0]=true;h.door_reaction(i,&bus,true,0.25);
+    assert_eq!(h.pax(i).unwrap().door_reaction_wait,0.0);
+    std::fs::remove_dir_all(root).unwrap();
+}
+#[test]
+fn passed_stop_speaks_once_without_prior_stopping_or_opening_the_front_door() {
+    let (root,mut h,mut bus,i)=fixture("missed");enable_brazilian(&mut h,i);
+    h.pax_mut(i).unwrap().reaction_stop=Some(DVec3::ZERO);
+    bus.entry_open[0]=false;bus.speed=5.0;bus.pos=DVec3::new(0.0,-40.0,0.0);
+    h.door_reaction(i,&bus,false,0.25);assert!(h.voice_lines.is_empty(),"still approaching");
+    bus.pos.y=40.0;h.door_reaction(i,&bus,false,0.25);
+    assert_eq!(h.voice_lines.len(),1);
+    assert!(h.voice_lines[0].path.file_name().unwrap().to_str().unwrap().starts_with("MissedStop_"));
+    for _ in 0..200 {h.time+=0.25;h.door_reaction(i,&bus,false,0.25);}
+    assert_eq!(h.voice_lines.len(),1,"one complaint for this missed alighting");
+    std::fs::remove_dir_all(root).unwrap();
+}
+#[test]
+fn boarding_requests_require_a_closed_door_and_available_capacity() {
+    let (root,mut h,mut bus,i)=fixture("boarding");enable_brazilian(&mut h,i);
+    let p=h.pax_mut(i).unwrap();p.task=Task::ToBus;p.inside=None;p.pos=DVec3::ZERO;
+    bus.entry_open[0]=false;
+    h.seats.insert(bus.id,vec![true;bus.cabin.seats.len()]);
+    for _ in 0..16 {h.door_reaction(i,&bus,true,0.25);h.time+=0.25;}
+    assert!(h.voice_lines.is_empty(),"full bus");
+    h.seats.insert(bus.id,vec![false;bus.cabin.seats.len()]);
+    for _ in 0..8 {h.door_reaction(i,&bus,true,0.25);h.time+=0.25;}
+    assert_eq!(h.voice_lines.len(),1,"closed entry with a free place");
+    h.voice_lines.clear();h.voices=2;h.last_chat=-100.0;h.pax_mut(i).unwrap().door_reaction_cooldown=0.0;
+    for _ in 0..12 {h.door_reaction(i,&bus,true,0.25);h.time+=0.25;}
+    assert!(h.voice_lines.is_empty(),"passenger mute is respected");
     std::fs::remove_dir_all(root).unwrap();
 }

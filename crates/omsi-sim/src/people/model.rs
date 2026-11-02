@@ -54,8 +54,10 @@ pub struct DoorWants {
 }
 
 /// Sale events to play money sounds
+#[derive(Debug, PartialEq)]
 pub enum SaleEvent {
     PassengerGaveMoney,
+    PassengerTookTicket(usize),
 }
 
 /// A bus as the passengers know it.
@@ -313,6 +315,10 @@ pub struct PeopleSim {
     pub under_bus: hashbrown::HashSet<u32>,
     /// A rider pressed the stop button for the next stop (the app fires the vehicle trigger `int_haltewunsch`).
     pub stop_request: bool,
+    /// Timetable buses whose passenger asked for the next stop (`int_haltewunsch`, taken by
+    /// the app each frame): a bus's script responds to its own request, so the scripts
+    /// that check `haltewunsch` (e.g. `NSAC_City_2Door.bus`) open the exit.
+    pub ai_stop_requests: Vec<u64>,
     /// Tickets sold at the cash desk this session and what they were worth.
     pub tickets_sold: u32,
     pub ticket_cash: f32,
@@ -366,6 +372,8 @@ pub struct PeopleSim {
     pub root: std::path::PathBuf,
     /// What passengers said since the app last collected it (see `take_voice_lines`).
     pub voice_lines: Vec<VoiceLine>,
+    /// Bundled Brazilian recordings, present only for locale PTB.
+    pub brazilian_voice_dir: Option<std::path::PathBuf>,
     /// When each voice file was last said (seconds of `time`): OMSI keeps such a list
     /// and says a greeting or a complaint only when that
     /// very file has not been heard for 10 s - without it every boarding passenger said
@@ -572,6 +580,8 @@ pub struct VoiceLine {
     /// Who says it (the person's id): their lips move with it.
     pub speaker: u32,
     pub path: std::path::PathBuf,
+    /// A request addressed to the driver, with cabin-wide audibility.
+    pub driver_request: bool,
 }
 
 /// How much of its probability a day ticket keeps at a time of day (seconds): rising from

@@ -107,6 +107,7 @@ mod photo;
 mod depot_bus;
 mod devtools;
 mod telemetry;
+mod themes;
 use omsi_scene::threads;
 use omsi_scene::tiles;
 mod traffic;
@@ -117,6 +118,7 @@ mod ui;
 // the game itself, split by what each part does
 mod app;
 mod applog;
+mod logmask;
 mod app_events;
 mod bus_service;
 mod camera_util;
@@ -254,7 +256,8 @@ pub fn run() -> Result<()> {
         let rest: Vec<String> = std::env::args().skip(2).collect();
         return check::run(&rest, crate::startup::find_root);
     }
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // (the players' internet addresses cut to their network, see `logmask`)
+    logmask::init();
     // a panic goes into the log (which the launcher keeps per session) with where it
     // happened and a backtrace, not only to a terminal that may not be there
     let default_hook = std::panic::take_hook();
@@ -301,6 +304,11 @@ pub fn run() -> Result<()> {
         }
         return open_app_launcher(fatal_message);
     }
+    // Launcher helpers and the launcher itself must not count as a running game.
+    let _cache_activity = omsi_cfg::cache_activity::game(&omsi_launcher_lib::data_dir())?
+        .only_cleanup_when(|| !omsi_launcher_lib::instances::list().iter().any(|game| {
+            game.running && game.pid != std::process::id()
+        }));
     let Some(app) = make_app(args, server_cfg)? else { return Ok(()) };
     // a game session's start goes into the start guard's journal (a version whose sessions
     // keep failing before their first frames is healed at the launcher's next start)
@@ -506,15 +514,23 @@ pub(crate) fn make_app(mut args: Args, server_cfg: Option<server::ServerCfg>) ->
     args.session_settings = startup::SessionSettings::for_session(&settings, &args);
     // the LAN session (offscreen too, so that one game's view of another can be rendered);
     // a joining player's world is the host's (taken over again when the window loads it)
+    let settings_text = std::fs::read_to_string(omsi_launcher_lib::data_dir().join("settings.cfg")).ok();
+    omsi_lan::bans::allow_hardware_id(omsi_launcher_lib::settings_from_text(settings_text.as_deref()).get("hardware_id").and_then(|v| v.as_bool()).unwrap_or(true));
     let mut lan = if args.export_glb.is_none() {
         lan::start(&args.lan_config(), &lan::AppLanHost { args: &args, world: None })
     } else {
         None
     };
+    // Match the actual session admission limit to the dedicated server configuration.
+    if let (Some(cfg), Some(l)) = (server_cfg.as_ref(), lan.as_mut()) {
+        l.set_peer_limit(cfg.max_players);
+    }
     // a dedicated server without its session has nobody to serve: why, and the end (it went
     // on running alone, unreachable, with a warning among the log's lines)
-    if let (Some(cfg), None) = (server_cfg.as_ref(), lan.as_ref()) {
-        eprintln!("server: cannot open the session on UDP port {} (the line above says why): another server or program uses it, or the system refuses it. Stop the other one, or choose another `port` in {}", cfg.port, args.server.as_deref().map(|p| p.display().to_string()).unwrap_or_else(|| "server.cfg".into()));
+    if server_cfg.is_some() && lan.is_none() {
+        // Do not pass the password-bearing server configuration to diagnostics.
+        // The failed bind above already reports the candidate port and socket error.
+        eprintln!("server: cannot open the session (the line above says why): another server or program uses the UDP/TCP port, or the system refuses it. Stop the other one, or choose another `port` in the server configuration.");
         std::process::exit(3);
     }
     // turned away at the door (banned, full, another version): no game to play there
@@ -525,14 +541,18 @@ pub(crate) fn make_app(mut args: Args, server_cfg: Option<server::ServerCfg>) ->
     // the host's mods: served by the host, fetched by a joining player before its world is
     // made (see `lan_mods`)
     lan_mods::remove_stale();
+    let mut mods_server = None;
     if let Some(l) = lan.as_mut() {
         let mut c = args.lan_config();
-        lan::share_mods(&mut c, l);
+        mods_server = lan::share_mods(&mut c, l);
+        if let Some(why) = c.mod_fetch_error.take() {
+            return Err(anyhow::anyhow!("The selected server bus could not be verified or downloaded: {why}"));
+        }
         lan::take_host_map(&mut c, l);
         args.take_lan_config(&c);
     }
     if let (Some(cfg), Some(l)) = (server_cfg.as_ref(), lan.as_ref()) {
-        lan::open_public_gateway(l, server::info_of(cfg), cfg.web_port, cfg.tunnel);
+        lan::open_public_gateway(l, server::info_of(cfg, &args.root), cfg.web_port, cfg.tunnel);
         lan::publish_vehicles(args.root.clone(), cfg.vehicles.clone());
         server::start_public_list(cfg);
         if cfg.tunnel {
@@ -581,6 +601,7 @@ pub(crate) fn make_app(mut args: Args, server_cfg: Option<server::ServerCfg>) ->
     }
     let mut app = assemble_app(args, settings);
     app.net.lan = lan;
+    app.net.mods_server = mods_server;
     app.net.remotes = lan_game;
     // mouse steering as the player left it (the wheel eases to the cursor for a second)
     if app.settings.mouse_steering {
@@ -710,6 +731,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
         },
         menus: MenuState {
             list_dirty: false,
+            graphics_before: None,
             page_titles: Default::default(),
             chooser: None,
             editor: None,
