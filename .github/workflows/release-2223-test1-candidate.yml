@@ -8,7 +8,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: release-2223-test1-candidate
+  group: release-2223-test1-candidate-${{ github.sha }}
   cancel-in-progress: false
 jobs:
   updater:
