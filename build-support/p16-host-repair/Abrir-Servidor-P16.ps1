@@ -4,6 +4,12 @@ $ErrorActionPreference = 'Stop'
 function Set-JsonValue($Object, [string]$Name, $Value) {
     $Object | Add-Member -MemberType NoteProperty -Name $Name -Value $Value -Force
 }
+function Read-SHA256([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    $hash = [Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($hash.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+    finally { $hash.Dispose(); $stream.Dispose() }
+}
 function Read-PrivateJson([string]$Path) {
     if ((Get-Item -LiteralPath $Path).Length -gt 4MB) { throw 'Configuracao privada excede 4 MB.' }
     return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -30,7 +36,7 @@ if (!(Test-Path -LiteralPath (Join-Path $package 'HostAgent.exe')) -or !(Test-Pa
 $manifest = Get-Content -LiteralPath (Join-Path $package 'P16-HOST-REPAIR.json') -Raw | ConvertFrom-Json
 foreach ($entry in $manifest.files.PSObject.Properties) {
     $path = Join-Path $package $entry.Name
-    if (!(Test-Path -LiteralPath $path) -or (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $entry.Value) {
+    if (!(Test-Path -LiteralPath $path) -or (Read-SHA256 $path) -ne $entry.Value) {
         throw ('Arquivo da correcao incompleto ou alterado: ' + $entry.Name)
     }
 }
