@@ -100,12 +100,12 @@ fn all_bridge_features_start_enabled_but_manual_opt_out_remains_off() {
             assert_eq!(Settings::from_text("").optional_features.get(feature.key),Some(true));
         }
         assert_eq!(launcher["passenger_umbrellas"],true);
-        let mut off=String::from("version=4\\npassenger_effects_221=1\\npassenger_features_0347=1\\n");
+        let mut off=String::from("version=4\npassenger_effects_221=1\npassenger_features_0347=1\n");
         // Individual opt-outs must not be reset on startup or by either writer.
         for feature in FEATURES {
-            off.push_str(&format!("{}=0\\n",feature.key));
+            off.push_str(&format!("{}=0\n",feature.key));
         }
-        off.push_str("passenger_umbrellas=0\\npassenger_hailing=0\\npassenger_full_bus_reaction=0\\npassenger_connections=0\\n");
+        off.push_str("passenger_umbrellas=0\npassenger_hailing=0\npassenger_full_bus_reaction=0\npassenger_connections=0\n");
         let native=Settings::from_text(&off);
         let launcher=omsi_launcher_lib::settings_from_text_on(Some(&off),phone);
         assert!(!native.passenger_umbrellas);
