@@ -240,8 +240,14 @@ pub(super) fn player_to_scene(cx: PlayerToSceneCx, dt: f32) {
     // the photo mode keeps the driver's view while its camera flies off, and taken from
     // there every photo showed the bus without its driver)
     // (out of the seat: nobody at the wheel)
-    let at_eyes = *cx.view.view == "driver" && (cx.ui.photo.is_none() || cx.view.camera.as_ref().is_none_or(|c| (c.position - crate::camera_util::driver_eye(p)).length() < 0.5));
-    p.sync_driver_hands(r, scene, dt, cx.common.settings.driver && (cx.people.on_foot.is_none() || cx.net.coop.drive.owner_active()), at_eyes, cx.common.settings.hands_in_cab);
+    // A new real human is driving the delegated bus. They must remain visible
+    // to the old owner even if that owner's local "show my own driver" setting
+    // is off, or the old owner's view is temporarily left in "driver" mode.
+    // Never tag the visiting driver's mesh as mirrors-only in that situation.
+    let delegated = cx.net.coop.drive.owner_active();
+    let at_eyes = !delegated && *cx.view.view == "driver" && (cx.ui.photo.is_none() || cx.view.camera.as_ref().is_none_or(|c| (c.position - crate::camera_util::driver_eye(p)).length() < 0.5));
+    let show_driver = delegated || (cx.common.settings.driver && cx.people.on_foot.is_none());
+    p.sync_driver_hands(r, scene, dt, show_driver, at_eyes, cx.common.settings.hands_in_cab);
 }
 
 crate::app::stage_ctx!(
