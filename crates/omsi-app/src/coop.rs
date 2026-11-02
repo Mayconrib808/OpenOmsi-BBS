@@ -29,7 +29,7 @@ struct Grant {
 // existing conductor grant. A newly installed bus or a reboarding player must
 // receive a new epoch; a duplicate click must not revoke a valid grant.
 fn same_live_grant(g: &Grant, peer: u32, uid: u64, model: &std::path::Path, onboard: bool) -> bool {
-    onboard && g.peer == peer && g.uid == uid && g.model == model
+    onboard && g.peer == peer && g.uid == uid && g.model.as_path() == model
 }
 #[derive(Clone)]
 struct Held {
