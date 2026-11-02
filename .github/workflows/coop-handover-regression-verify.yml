@@ -31,12 +31,12 @@ jobs:
       - name: Test driver handover and conductor camera regression
         shell: pwsh
         run: |
-          cargo test --locked --release -p omsi-app --bin openomsi coop13_ -- --nocapture
+          cargo test --locked --release -p omsi-app --lib coop13_ -- --nocapture
           if ($LASTEXITCODE -ne 0) { throw 'COOP13 former-owner camera and driver transfer regression' }
       - name: Test idempotent conductor permissions
         shell: pwsh
         run: |
-          cargo test --locked --release -p omsi-app --bin openomsi current_conductor_reselected -- --nocapture
+          cargo test --locked --release -p omsi-app --lib current_conductor_reselected -- --nocapture
           if ($LASTEXITCODE -ne 0) { throw 'Conductor grant/revoke epoch regression' }
       - name: Build actual Windows P16 game executable
         shell: pwsh
