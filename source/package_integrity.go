@@ -182,7 +182,11 @@ func verifyPackageWithPolicy(dir string, repairable map[string]bool, activationO
 		if e != nil {
 			return count, e
 		}
-		if !bytes.Equal(h.Sum(nil), expected) && !repairable[strings.ToLower(rel)] {
+		if !bytes.Equal(h.Sum(nil), expected) && !repairable[strings.ToLower(rel)] &&
+			!approvedPassengerVoiceV2Digest(rel, fmt.Sprintf("%x", h.Sum(nil))) {
+			// Only the eight known, user-approved Brazilian V2 WAV hashes
+			// can differ from the original signed package manifest. All
+			// executables, other assets, and arbitrary WAV edits stay strict.
 			return count, fmt.Errorf("SHA256 mismatch: %s", rel)
 		}
 		count++
