@@ -833,7 +833,8 @@ impl App {
                 if pressed && !repeat {
                     let from_free = self.view == "free"
                         || self.session.on_foot.as_ref().is_some_and(|f| f.cam == FootCam::Free);
-                    if !from_free && self.foot_bus().is_some_and(|b|b!=BusId::Player)
+                    if !from_free && self.foot_bus().is_some_and(|b|
+                        b != BusId::Player || self.net.coop.drive.owner_active())
                         && self.net.coop.remote.is_some_and(|(_,epoch,_)|epoch!=0) {
                         self.select_cabin_view(true);
                         return true;
@@ -861,7 +862,10 @@ impl App {
             }
             // (no view from outside the walker: out of the eyes, or the free camera)
             KeyCode::F2 => {
-                if pressed && !repeat && self.foot_bus().is_some_and(|b|b!=BusId::Player) { self.select_cabin_view(false); }
+                if pressed && !repeat && self.foot_bus().is_some_and(|b|
+                    b != BusId::Player || self.net.coop.drive.owner_active()) {
+                    self.select_cabin_view(false);
+                }
                 true
             }
             KeyCode::F3 => true,
