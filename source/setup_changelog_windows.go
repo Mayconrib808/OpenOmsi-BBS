@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.3-test.1"
+const changelogSeenVersion = "2.2.2.3"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -449,7 +449,7 @@ func release2221LogSection() logSection {
 
 func passengers0347LogSection() logSection {
     return logSection{
-        label:logT("🚌 2.2.2.3-test.1 • TESTE","🚌 2.2.2.3-test.1 • TEST","🚌 2.2.2.3-test.1 • TEST"),accent:logAccent(85,190,255),
+        label:logT("🚌 2.2.2.3 • VERSÃO FINAL","🚌 2.2.2.3 • FINAL","🚌 2.2.2.3 • FINAL"),accent:logAccent(85,190,255),
         entries:[]logEntry{
             {logT("Roupas de frio removidas","Winter clothes removed","Winterkleidung entfernt"),
              logT("Removido o desenho das roupas extras que deformavam os passageiros. A opção antiga é ignorada, mesmo se estava ativada.","Removed the additional clothes that deformed passengers. The old switch is ignored even when saved on.","Die zusätzlichen, verformten Kleidungsmodelle wurden entfernt. Die alte Einstellung wird auch bei gespeichertem Ein ignoriert.")},
