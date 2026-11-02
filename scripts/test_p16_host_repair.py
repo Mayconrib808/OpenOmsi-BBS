@@ -32,6 +32,10 @@ with tempfile.TemporaryDirectory() as tmp:
     got=json.loads(target.read_bytes())
     expected=copy.deepcopy(config);expected.update(server=str(server),use_custom_server=True)
     expected['company'].update(protocol=16,openomsi_version='0.3.47')
+    # PowerShell expands RUNNER~1 to runneradmin. Check the actual file identity,
+    # while still requiring every unrelated preference to match byte-for-value.
+    assert os.path.samefile(got['server'],server)
+    expected['server']=got['server']
     assert got==expected, json.dumps({k:dict(actual=got.get(k),expected=expected.get(k)) for k in got.keys()|expected.keys() if got.get(k)!=expected.get(k)},indent=2)
     assert old_path.read_bytes()==original and old_exe.read_bytes()==b'complete released host retained'
     got['maps']['brigadeiro']['voice_range']=210
