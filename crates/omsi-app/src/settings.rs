@@ -953,17 +953,9 @@ impl Settings {
                 _ => {}
             }
         }
-        let migrated = text.lines().any(|line| line.trim() == "passenger_features_0347=1");
-        if !migrated {
-            s.passenger_hailing = true;
-            s.passenger_full_bus_reaction = true;
-            s.passenger_connections = true;
-            s.passenger_animation = "enhanced".into();
-        }
-        if s.language.eq_ignore_ascii_case("PTB") && !text.lines().any(|l|l.trim()=="ptbr_passenger_audio=1") {
-            s.optional_features.passenger_door_comments=true;
-            s.optional_features.passenger_exit_thanks=true;
-        }
+        // The 0.3.47 and PT-BR additions now start enabled in Settings::default.
+        // An explicit saved 0 always wins, including in legacy settings files.
+        // Do not unconditionally flip it back to 1 during a first-run migration.
         s.optional_features.weather_clothing = false;
         s.optional_features.passenger_connections_enabled = false;
         if !theme.0 && theme.1 == Some(true) { s.ui_theme = "light".into(); }
