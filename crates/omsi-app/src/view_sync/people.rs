@@ -84,20 +84,28 @@ pub(crate) struct PeopleView {
     pub(crate) ticket_blocks: Option<crate::money::TicketBlocks>,
 }
 
+// Hailing is an optional gesture layered on the original human skeleton,
+// not a request to enable the full enhanced-IK animation mode. The old
+// `enhanced &&` gate silently disabled EVERY arm signal if players preferred
+// the game's original human animations, even with passenger_hailing=1.
+fn optional_hail_eligible(p: &PersonFrame, camera: DVec3) -> bool {
+    !p.puppet && p.hidden.is_none()
+        && matches!(p.place, Place::Ground)
+        && p.hail_moving && p.hail_target.is_some()
+        && (p.position - camera).length_squared() < 300.0 * 300.0
+}
+
 fn apply_optional_bus_visual(
     p: &PersonFrame,
     st: &mut PersonView,
     ty: &HumanType,
     bones: &mut [glam::Affine3A; omsi_sim::human::SLOTS],
-    enhanced: bool,
+    _enhanced: bool,
     camera: DVec3,
     dt: f32,
 ) {
     if p.hail_target.is_some() || st.hail_strength > 0.001 || st.full_look_strength > 0.001 {
-        let eligible = enhanced && !p.puppet && p.hidden.is_none()
-            && matches!(p.place, Place::Ground)
-            && p.hail_moving && p.hail_target.is_some()
-            && (p.position - camera).length_squared() < 300.0 * 300.0;
+        let eligible = optional_hail_eligible(p, camera);
         let (signal_requested, full_requested) = omsi_sim::human::visual_hail_action(
             p.hail_signal_enabled, p.hail_reaction_enabled, p.hail_full);
         // Keep this gate across temporary target loss; only actual room
@@ -110,13 +118,9 @@ fn apply_optional_bus_visual(
             .clamp(-dt * 2.8, dt * 2.8);
         st.full_look_strength += ((reacting as u8 as f32) - st.full_look_strength)
             .clamp(-dt * 2.8, dt * 2.8);
-        if !enhanced {
-            st.hail_strength = 0.0;
-            st.full_look_strength = 0.0;
-        }
         let wave = st.hail_wrist.advance(st.hail_strength > 0.001, dt, p.id);
         let looking = st.hail_strength.max(st.full_look_strength);
-        if looking > 0.001 && enhanced && !p.puppet {
+        if looking > 0.001 && !p.puppet {
             let target = p.hail_target.and_then(|bus|
                 omsi_sim::human::hail_look_target(p.position, p.heading, bus));
             let torso = omsi_sim::human::slot_of(omsi_sim::human::BONE_MAIN).unwrap();
