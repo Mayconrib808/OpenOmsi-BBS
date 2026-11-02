@@ -206,6 +206,23 @@ impl Greetings {
             let input = self.inputs.entry(bus.id).or_insert_with(|| Input::new(bus));
             input.sample(now, bus).then_some(bus.id)
         }).collect();
+        // One log per real horn/flash edge, never per rendered frame. This
+        // distinguishes a missing horn detection from a disabled host effect,
+        // absence of an eligible AI bus, or client-only traffic mirroring.
+        for signaller in buses.iter().filter(|b| signals.contains(&b.id)) {
+            let ai_nearby = buses.iter().filter(|b|
+                matches!(b.id, BusId::Ai(_)) && nearby(signaller,b)).count();
+            log::info!(
+                "FEATURE AUDIT ai_bus_greeting_input player={:?} kind={} ai_within_65m={} mirror={} sound_enabled={} outcome={}",
+                signaller.id,
+                if signaller.horn {"horn"} else {"flash"},
+                ai_nearby, sim.mirror, signals_enabled,
+                if sim.mirror {"mirror_visual_only"}
+                else if !signals_enabled {"sound_disabled"}
+                else if ai_nearby == 0 {"no_ai_within_65m"}
+                else {"eligible_for_response"},
+            );
+        }
         // Spatial bins bound the search to neighbouring roads, including on large maps.
         let cell = |p: DVec3| ((p.x / RANGE).floor() as i64, (p.y / RANGE).floor() as i64);
         let mut grid: HashMap<(i64,i64),Vec<usize>> = HashMap::new();
@@ -224,8 +241,15 @@ impl Greetings {
                     self.encounters.insert(pair, now);
                     for (k,(bus,other)) in [(a,b),(b,a)].into_iter().enumerate() {
                         let BusId::Ai(id) = bus.id else { continue; };
-                        if now - self.last.get(&id).copied().unwrap_or(f32::MIN) < COOLDOWN
-                            || self.pending.iter().any(|p| p.ai == id) { continue; }
+                        let cooldown = now - self.last.get(&id).copied().unwrap_or(f32::MIN) < COOLDOWN;
+                        let queued = self.pending.iter().any(|p| p.ai == id);
+                        if cooldown || queued {
+                            if response {
+                                log::info!("FEATURE AUDIT ai_bus_greeting_blocked ai_bus={} other={:?} reason={}",
+                                    id,other.id,if cooldown {"cooldown_10s"} else {"response_already_pending"});
+                            }
+                            continue;
+                        }
                         self.pending.push(Pending { ai:id, other:other.id, at:now + 0.15 + k as f32 * 0.25, response });
                     }
                 }
@@ -239,7 +263,12 @@ impl Greetings {
         for (id,other,response) in due {
             let a = buses.iter().find(|b| b.id == BusId::Ai(id));
             let b = buses.iter().find(|b| b.id == other);
-            if !a.zip(b).is_some_and(|(a,b)| if response { nearby(a,b) } else { oncoming(a,b) }) { continue; }
+            if !a.zip(b).is_some_and(|(a,b)| if response { nearby(a,b) } else { oncoming(a,b) }) {
+                if response {
+                    log::info!("FEATURE AUDIT ai_bus_greeting_blocked ai_bus={} other={:?} reason=left_65m_range_before_reply",id,other);
+                }
+                continue;
+            }
             let Some(car) = sim.cars.iter_mut().find(|c| c.id == id) else { continue; };
             self.last.insert(id,now);
             self.waves.insert(id, now);
@@ -247,6 +276,8 @@ impl Greetings {
             // A real visual gesture was scheduled, not merely enabled in settings.
             log::info!("FEATURE AUDIT ai_driver_wave performed ai_bus={} other={:?} response_to_signal={} traffic_mirror={}",id,other,response,sim.mirror);
             if !signals_enabled { continue; }
+            log::info!("FEATURE AUDIT ai_bus_greeting_emitted ai_bus={} other={:?} response_to_signal={} network_capture={} event={}",
+                id,other,response,car.vehicle.host.capture_sound_triggers,HORN_EVENT);
             // Audio is emitted once by the model-aware presentation path below;
             // do not also fire a script trigger that could double the same horn.
             // A reserved sound event uses the existing protocol-14 event channel; clients
