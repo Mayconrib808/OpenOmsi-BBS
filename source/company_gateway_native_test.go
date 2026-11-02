@@ -19,6 +19,25 @@ import (
 	"time"
 )
 
+// This matches crates/omsi-net/src/hardware_id.rs in the pinned 0.3.47
+// engine. Only the 128-bit host-specific digest is sent; the machine ID
+// remains private.
+func p16TestHardwareID(machine, realm string) string {
+	h := sha256.New()
+	_, _ = h.Write([]byte("openOMSI hardware id v2\x00"))
+	_, _ = h.Write([]byte(machine))
+	_, _ = h.Write([]byte{0})
+	_, _ = h.Write([]byte(realm))
+	return hex.EncodeToString(h.Sum(nil)[:16])
+}
+
+func TestP16HardwareIDMatchesUpstream(t *testing.T) {
+	got := p16TestHardwareID(strings.Repeat("a", 32), strings.Repeat("cd", 16))
+	if want := "473ef2cb406242e0d63d71382512cebc"; got != want {
+		t.Fatalf("P16 host-specific hardware ID differs from upstream: got %s, want %s", got, want)
+	}
+}
+
 // Uses the downloaded official executable unchanged. All content below is a
 // synthetic map/bus fixture, with no commercial OMSI assets or real BCS session.
 func TestCompanyGatewayOfficialRuntime(t *testing.T) {
@@ -144,14 +163,19 @@ func TestCompanyGatewayOfficialRuntime(t *testing.T) {
 			text := string(buffer[:n])
 			if protocol >= 16 && strings.HasPrefix(text, "REALM|") {
 				realm := strings.TrimSpace(strings.TrimPrefix(text, "REALM|"))
-				if len(realm) != 64 {
-					t.Fatal("invalid P16 realm", realm)
+				if len(realm) != 32 || strings.ToLower(realm) != realm {
+					t.Fatal("invalid P16 realm (expected 128-bit lowercase hex)", realm)
 				}
-				mac := hmac.New(sha256.New, []byte(strings.Repeat("a", 64)))
-				mac.Write([]byte(realm))
+				if _, err := hex.DecodeString(realm); err != nil {
+					t.Fatal("invalid P16 realm encoding", err)
+				}
+				// Keep the real upstream P16 handshake: hardware ID is SHA-256
+				// over the v2 domain, the private machine ID and the host realm,
+				// truncated to 128 bits. It is NOT a 64-character HMAC.
+				id := p16TestHardwareID(strings.Repeat("a", 32), realm)
 				for i, peer := range clients {
 					if peer == c {
-						_, _ = c.Write([]byte(hellos[i] + "|||" + hex.EncodeToString(mac.Sum(nil)) + "|wait-v1"))
+						_, _ = c.Write([]byte(hellos[i] + "|||" + id + "|wait-v1"))
 					}
 				}
 				continue
