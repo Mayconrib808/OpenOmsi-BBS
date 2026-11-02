@@ -928,27 +928,28 @@ func runSetupGUI(dir string, smoke bool) error {
                 // never replay one the user already acknowledged. 2.2.2.1
                 // had no working tour, so Hotfix 3 -> Hotfix 1 shows BOTH.
                 for _, tc := range []struct{from string; want int; newest string}{
-                    {"2.2.2.2-test.1",3,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2.2-test.2",2,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2.2-hotfix.1",4,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2.2",5,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2.1-hotfix.2",6,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2.1-hotfix.1",7,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2.1",8,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2-hotfix.3",9,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2-hotfix.2",10,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2-hotfix.1",11,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2",12,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.1.9",17,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.0.8",18,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"",18,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2.3-test.1",2,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2.3",1,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
-                    {"2.2.2.4",1,"🚌 2.2.2.4 • OPENOMSI 0.3.47"},
+                    {"2.2.2.2-test.1",4,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.2-test.2",3,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.2-hotfix.1",5,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.2",6,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.1-hotfix.2",7,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.1-hotfix.1",8,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.1",9,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2-hotfix.3",10,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2-hotfix.2",11,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2-hotfix.1",12,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2",13,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.1.9",18,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.0.8",19,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"",19,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.3-test.1",3,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.3",2,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.4",1,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
+                    {"2.2.2.4-hotfix.1",1,"🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2"},
                 }{
                     sections:=selectLogSections(tc.from)
                     if len(sections)!=tc.want{return fmt.Errorf("changelog from %q expected %d chapters, got %d",tc.from,tc.want,len(sections))}
-                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[8].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
+                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[9].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
                         return fmt.Errorf("changelog from %q has missing or wrong cumulative sections",tc.from)
                     }
                 }
