@@ -3,6 +3,7 @@ name: Build 2.2.2.4 - full OpenOMSI 0.3.47 and Brazilian passenger recordings
   push:
     branches:
     - fix/2224-engine0347
+    - fix/2225-p16-runtime-dlls
   workflow_dispatch: {}
 permissions:
   contents: read
