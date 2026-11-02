@@ -379,7 +379,7 @@ impl crate::people::PeopleSim {
                 }
                 waiting_visible += 1;
                 if self.last_buses.iter().any(|b|
-                    (b.pos-person.position).length_squared() <= 60.0*60.0) {
+                    (b.pos-person.position).length_squared() <= 90.0*90.0) {
                     bus_near_waiter += 1;
                 }
             }
@@ -388,7 +388,7 @@ impl crate::people::PeopleSim {
             let drawable = out.people.iter().filter(|p| p.hail_target.is_some()
                 && p.hail_moving && !p.puppet && p.hidden.is_none()
                 && matches!(p.place, crate::people::Place::Ground)).count();
-            log::info!("PASSENGER_HAIL_AUDIT settings_signal={} settings_full={} waiting_visible_300m={} waiting_near_bus_60m={} compatible_target={} moving_target={} render_candidates={} total_buses={}",
+            log::info!("PASSENGER_HAIL_AUDIT settings_signal={} settings_full={} waiting_visible_300m={} waiting_near_bus_90m={} compatible_target={} moving_target={} render_candidates={} total_buses={}",
                 self.visual_hailing,self.visual_full_bus_reaction,waiting_visible,bus_near_waiter,
                 matched,moving,drawable,self.last_buses.len());
         }
