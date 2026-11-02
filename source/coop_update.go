@@ -71,7 +71,13 @@ func existingCoopBundle(dir string, spec coopDistribution) bool {
 		h := sha256.New()
 		_, err = io.Copy(h, file)
 		closeErr := file.Close()
-		if err != nil || closeErr != nil || fmt.Sprintf("%x", h.Sum(nil)) != digest {
+		if err != nil || closeErr != nil {
+			return false
+		}
+		actual := fmt.Sprintf("%x", h.Sum(nil))
+		if actual != digest && !approvedPassengerVoiceV2Digest(name, actual) {
+			// A V2 voice patch is a recognized optional asset, not an
+			// incomplete game. Do not redownload the entire 300 MiB bundle.
 			return false
 		}
 	}
@@ -291,7 +297,8 @@ func createCoopBackup(dir, target string, spec coopDistribution) (err error) {
 		if err != nil {
 			return err
 		}
-		if fmt.Sprintf("%x", h.Sum(nil)) != digest {
+		actual := fmt.Sprintf("%x", h.Sum(nil))
+		if actual != digest && !approvedPassengerVoiceV2Digest(name, actual) {
 			return fmt.Errorf("o arquivo mudou durante o backup: %s", name)
 		}
 	}
@@ -337,7 +344,8 @@ func restoreCoopBackup(dir, backup string, spec coopDistribution) (err error) {
 		if e != nil {
 			return e
 		}
-		if fmt.Sprintf("%x", sha256.Sum256(b)) != digest {
+		actual := fmt.Sprintf("%x", sha256.Sum256(b))
+		if actual != digest && !approvedPassengerVoiceV2Digest(entry.Name, actual) {
 			return fmt.Errorf("backup alterado: %s", entry.Name)
 		}
 		payload[entry.Name] = b
