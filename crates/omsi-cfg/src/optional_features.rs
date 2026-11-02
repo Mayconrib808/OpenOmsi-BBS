@@ -1,7 +1,7 @@
 //! Optional native additions share setting keys in the game and launcher. Missing
-//! keys stay off, including legacy files. Enabling one never enables another.
+//! keys use the Bridge's enabled defaults; an explicit 0 always remains off.
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OptionalFeatures {
     pub bcs_event_scenes: bool,
     pub bcs_inspectors: bool,
@@ -21,6 +21,33 @@ pub struct OptionalFeatures {
     pub independent_passenger_demand: bool,
     /// Prefer tagged clothing variants suited to local weather at spawn time.
     pub weather_clothing: bool,
+}
+
+impl Default for OptionalFeatures {
+    fn default() -> Self {
+        // The twelve user-visible features of the modified OpenOMSI ship
+        // enabled for fresh installs AND old configs without these keys.
+        // Never override a saved 0 (the parser applies explicit values).
+        // weather_clothing was removed due to broken cold-weather outfits;
+        // passenger_connections_enabled is an obsolete separate switch,
+        // superseded by the upstream 0.3.47 passenger_connections setting.
+        Self {
+            bcs_event_scenes: true,
+            bcs_inspectors: true,
+            passenger_door_comments: true,
+            passenger_exit_thanks: true,
+            extra_traffic_density: true,
+            ai_bus_greetings: true,
+            passenger_connections_enabled: false,
+            ai_driver_wave: true,
+            passenger_ambient_talk: true,
+            ai_bus_overtaking: true,
+            cars_yield_to_buses: true,
+            illegal_parking: true,
+            independent_passenger_demand: true,
+            weather_clothing: false,
+        }
+    }
 }
 
 pub struct Feature {
@@ -172,23 +199,25 @@ mod tests {
     use super::*;
 
     #[test]
-    fn options_start_off_are_independent_and_keep_explicit_false() {
+    fn options_start_on_are_independent_and_keep_explicit_false() {
         let mut value = OptionalFeatures::default();
         for feature in FEATURES {
-            assert_eq!(value.get(feature.key), Some(false));
-            value.set(feature.key, true).unwrap();
-            for other in FEATURES {
-                assert_eq!(value.get(other.key), Some(other.key == feature.key));
-            }
+            assert_eq!(value.get(feature.key), Some(true));
             value.set(feature.key, false).unwrap();
+            for other in FEATURES {
+                assert_eq!(value.get(other.key), Some(other.key != feature.key));
+            }
+            value.set(feature.key, true).unwrap();
             assert_eq!(value, OptionalFeatures::default());
         }
         assert_eq!(value.set("unknown_feature", true), None);
         let mut saved = String::new();
         value.write_text(&mut saved);
         for feature in FEATURES {
-            assert!(saved.contains(&format!("{}=0\n", feature.key)));
+            assert!(saved.contains(&format!("{}=1\n", feature.key)));
         }
+        assert!(!value.weather_clothing);
+        assert!(!value.passenger_connections_enabled);
     }
 
     #[test]
@@ -205,6 +234,10 @@ mod tests {
     #[test]
     fn comments_and_traffic_do_not_start_bcs_capture_and_inspectors_do_not_enable_scenes() {
         let mut value = OptionalFeatures::default();
+        for feature in FEATURES {
+            value.set(feature.key, false);
+        }
+        assert!(!value.needs_bcs_capture());
         for feature in FEATURES {
             value.set(feature.key, true);
             assert_eq!(
