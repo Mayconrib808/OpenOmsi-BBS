@@ -95,9 +95,15 @@ impl PeopleSim {
             if !Self::visual_hail_range(d,forward) || (b.pos-self.people[i].position).length_squared()>60.0*60.0
                 || b.fwd().dot(forward) <= 0.0 || b.served.is_some_and(|id| id != stop) { return false; }
             if b.route.as_ref().is_some_and(|r| r.is_last_stop(s)) { return false; }
-            b.terminus.as_deref().is_some_and(|term|
-                fit(stop, s, p.dest.as_deref(), termini, term, &b.takes)
-                    .or_else(|| b.route.as_ref().and_then(|r| r.takes_waiting_for(termini))).is_some())
+            // A driver's HOF/IBIS may still be initializing while its timetable
+            // route is already known. Do not make a valid route match depend on
+            // the terminus label being available: that hid all hailing gestures
+            // on some addon maps, even for passengers who could board normally.
+            // This is cosmetic only; no seat, task or stop reservation changes.
+            b.terminus.as_deref()
+                .and_then(|term| fit(stop, s, p.dest.as_deref(), termini, term, &b.takes))
+                .or_else(|| b.route.as_ref().and_then(|r| r.takes_waiting_for(termini)))
+                .is_some()
         }).min_by(|a,b| (a.pos-self.people[i].position).length_squared()
             .total_cmp(&(b.pos-self.people[i].position).length_squared()))
             .map(|b| (b.id, b.speed.abs() > 0.08, b.pos))
