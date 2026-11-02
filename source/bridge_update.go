@@ -142,7 +142,7 @@ func previousBridgeChangelogVersion(dir string) string {
 	if marker, err := os.ReadFile(filepath.Join(appDir(dir), "changelog-seen.txt")); err == nil {
 		seen := strings.TrimSpace(string(marker))
 		switch seen {
-		case "2.2.2", "2.2.2-hotfix.1", "2.2.2-hotfix.2", "2.2.2-hotfix.3", "2.2.2.1", "2.2.2.1-hotfix.1", "2.2.2.1-hotfix.2", "2.2.2.2", "2.2.2.2-hotfix.1", "2.2.2.2-test.1", "2.2.2.2-test.2", "2.2.2.3-test.1", "2.2.2.3", "2.2.2.4":
+		case "2.2.2", "2.2.2-hotfix.1", "2.2.2-hotfix.2", "2.2.2-hotfix.3", "2.2.2.1", "2.2.2.1-hotfix.1", "2.2.2.1-hotfix.2", "2.2.2.2", "2.2.2.2-hotfix.1", "2.2.2.2-test.1", "2.2.2.2-test.2", "2.2.2.3-test.1", "2.2.2.3", "2.2.2.4", "2.2.2.4-hotfix.1":
 			return seen
 		}
 	}
