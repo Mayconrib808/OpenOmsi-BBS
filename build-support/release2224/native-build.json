@@ -1,5 +1,5 @@
 {
-  "commit": "b15541549872aaee2dcd2d1be645bec978324495",
+  "commit": "fc7b61e6165a1b51d39632307a27b63df7622cb7",
   "workflow": ".github/workflows/release-2224-candidate.yml",
   "version": "0.3.47-coop.16-2.2.2.4",
   "protocol": 16,
@@ -18,7 +18,9 @@
     "Former driver and conductor F1/F2, standing/visibility, duplicated requests and idempotent grants",
     "All active OpenOMSI extensions default enabled while explicit disabled choices remain respected",
     "AI bus greetings detect mod-bus horn triggers and log host-only audio provenance",
-    "Setup SHA256 accepts exactly the 8 known PT-BR V2 voice variants; backups preserve them, corrupt unknown files rejected"
-  ],
-  "run_id": 41528869591
+    "Setup SHA256 accepts exactly the 8 known PT-BR V2 voice variants; backups preserve them, corrupt unknown files rejected",
+    "Passengers signal beginning 60-90 m before 60 m boarding transition; visual arm works with original as well as enhanced human animations",
+    "Host-authorized multiplayer route matches hailing even without a ready terminus label",
+    "PASSENGER_HAIL_AUDIT tracks visible 90m approaches"
+  ]
 }
