@@ -1,9 +1,10 @@
-name: Build 2.2.2.4 - full OpenOMSI 0.3.47 and Brazilian passenger recordings
+name: Build 2.2.2.4-hotfix.1 - P16 runtime and passenger signals
 'on':
   push:
     branches:
     - fix/2224-engine0347
     - fix/2225-p16-runtime-dlls
+    - fix/2224-hotfix1-p16-hail-release
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -224,7 +225,7 @@ jobs:
         p=Path('build/release2224')
         r=json.loads((p/'build-report.json').read_text())
         t=json.loads((p/'one-click-install-test.json').read_text())
-        assert r['version']=='2.2.2.4' and r['winter_clothing_removed']
+        assert r['version']=='2.2.2.4-hotfix.1' and r['winter_clothing_removed']
         assert r['complete_hosts_unchanged'] and not r['complete_hosts_rebuilt'] and r['p14_server_unchanged'] and r['p15_server_unchanged']
         assert r['native_version']=='0.3.47-coop.16-2.2.2.4' and r['coop_protocol']==16 and r['new_p16_host_ui_tested']
         assert r['brazilian_passenger_recordings']==8
@@ -247,7 +248,7 @@ jobs:
         retention-days: 14
     - uses: actions/upload-artifact@v4
       with:
-        name: Bridge-2.2.2.4-Final-CANDIDATE
+        name: Bridge-2.2.2.4-hotfix.1-CANDIDATE
         path: |-
           build/release2224/Atualizar-Bridge.exe
           build/release2224/build-report.json
