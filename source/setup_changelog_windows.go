@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.4"
+const changelogSeenVersion = "2.2.2.4-hotfix.2"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -479,6 +479,27 @@ func passengers0347LogSection() logSection {
     }
 }
 
+func hotfix2224VoiceIntegrityLogSection() logSection {
+    return logSection{
+        label: logT("🔊 2.2.2.4 HOTFIX 2 • ÁUDIO V2", "🔊 2.2.2.4 HOTFIX 2 • V2 VOICES", "🔊 2.2.2.4 HOTFIX 2 • V2-STIMMEN"),
+        accent: logAccent(255,205,75),
+        entries: []logEntry{
+            {logT("✅ Salvar e ativar não rejeita gravações V2", "✅ Save and activate accepts approved V2 voices", "✅ Aktivieren akzeptiert geprüfte V2-Stimmen"),
+             logT("O erro SHA256 mismatch em ExitThanks_1.wav e nas outras gravações brasileiras V2 foi corrigido. O Setup aceita exclusivamente os oito arquivos conhecidos por nome, pasta e SHA-256, sem reduzir a segurança dos demais arquivos. A atualização não altera o volume das suas vozes.",
+                  "Fixes SHA256 mismatch for ExitThanks_1.wav and the seven other approved Brazilian V2 recordings. Only those exact files and hashes are accepted; other corrupt assets remain rejected. Your voice volume is unchanged.",
+                  "Behebt SHA256 mismatch bei ExitThanks_1.wav und den sieben anderen geprüften V2-Aufnahmen. Nur exakte Dateinamen und SHA-256-Werte werden akzeptiert. Die Lautstärke bleibt unverändert.")},
+            {logT("🗄️ Backup e restauração respeitam os áudios", "🗄️ Backups preserve V2 voice audio", "🗄️ Sicherungen erhalten V2-Audio"),
+             logT("O pacote Cooperativo, a verificação de integridade, o backup e a restauração reconhecem os WAVs V2 já instalados e não exigem baixar novamente o pacote inteiro.",
+                  "Cooperative inventory, checksum checks, backup and restore recognize the approved V2 audio without a needless full redownload.",
+                  "Koop-Paketprüfung, Sicherung und Wiederherstellung erkennen die freigegebenen V2-Dateien ohne erneuten Komplett-Download.")},
+            {logT("🚌 Mantidas as melhorias anteriores", "🚌 Previous Hotfix 1 improvements retained", "🚌 Vorherige Hotfix-1-Änderungen bleiben"),
+             logT("Permanece a correção do servidor P16, sinalização dos passageiros, troca de motorista, câmeras do cobrador, resposta da IA à buzina e opções adicionais ativadas por padrão (respeitando escolhas individuais).",
+                  "Retains P16, passenger hailing, conductor cameras, handover visibility, AI horn replies and supported enabled defaults, respecting manual opt-outs.",
+                  "Erhält P16, Haltezeichen, Fahrerwechsel, Schaffnerkameras, KI-Hupantworten und aktivierte Standardoptionen; manuelle Einstellungen bleiben erhalten.")},
+        },
+    }
+}
+
 func logSections() []logSection {
     if shownLogSections!=nil{return shownLogSections}
     return allLogSections()
@@ -490,8 +511,10 @@ func logSections() []logSection {
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    if from==changelogSeenVersion{return []logSection{engine0347LogSection()}}
-    result:=[]logSection{engine0347LogSection()}
+    if from==changelogSeenVersion || from=="2.2.2.4-hotfix.1" || from=="2.2.2.4" {
+        return []logSection{hotfix2224VoiceIntegrityLogSection()}
+    }
+    result:=[]logSection{hotfix2224VoiceIntegrityLogSection(),engine0347LogSection()}
     if from=="2.2.2.3"{return result}
     result=append(result,passengers0347LogSection())
     // The unpublished 2.2.2.3 test candidate already included these passenger changes.
@@ -744,6 +767,7 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     tabTop,tabStep,tabHeight:=152,65,54
     if len(logSections())>8{tabTop,tabStep,tabHeight=141,48,42}
     if len(logSections())>11{tabTop,tabStep,tabHeight=130,33,30}
+    if len(logSections())>15{tabTop,tabStep,tabHeight=118,26,24}
     for i,s:=range logSections(){
         hwnd:=control(logL(g.config.Language,s.label),17,tabTop+i*tabStep,232,tabHeight,logIDSectionBase+i)
         changelogState.buttons=append(changelogState.buttons,hwnd)
