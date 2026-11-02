@@ -1,0 +1,55 @@
+name: Verify Coop handover, former driver camera and conductor role
+'on':
+  push:
+    branches:
+      - fix/2224-coop-handover-role-cameras
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: coop-handover-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  coop:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      OMSI_NO_UPDATE: '1'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: coop-former-driver-2224
+      - name: Test driver handover and conductor camera regression
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-app --bin openomsi coop13_ -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'COOP13 former-owner camera and driver transfer regression' }
+      - name: Test idempotent conductor permissions
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-app --bin openomsi current_conductor_reselected -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Conductor grant/revoke epoch regression' }
+      - name: Build actual Windows P16 game executable
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Windows native executable failed to compile' }
+          & target/release/openomsi.exe --help | Out-File -FilePath help.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native executable help failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Coop-2.2.2.4-handover-fix-CANDIDATE
+          path: |
+            target/release/openomsi.exe
+            help.txt
+          compression-level: 0
+          retention-days: 30
