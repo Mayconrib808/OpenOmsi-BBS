@@ -3586,10 +3586,12 @@ mod passenger_settings_tests;
 #[cfg(test)]
 mod brazilian_audio_migration_tests {
     #[test]
-    fn ptbr_first_migration_enables_recordings_then_retains_explicit_opt_out() {
+    fn ptbr_defaults_enable_recordings_and_retains_explicit_opt_out() {
+        assert_eq!(super::settings_from_text(Some("language=PTB\n"))["passenger_door_comments"],true);
+        assert_eq!(super::settings_from_text(Some("language=PTB\n"))["passenger_exit_thanks"],true);
         let mut settings=super::settings_from_text(Some("language=PTB\npassenger_door_comments=0\npassenger_exit_thanks=0\n"));
-        assert_eq!(settings["passenger_door_comments"],true);
-        assert_eq!(settings["passenger_exit_thanks"],true);
+        assert_eq!(settings["passenger_door_comments"],false);
+        assert_eq!(settings["passenger_exit_thanks"],false);
         settings["passenger_door_comments"]=serde_json::json!(false);
         settings["passenger_exit_thanks"]=serde_json::json!(false);
         let saved=super::settings_to_text(&settings,None);
@@ -3599,7 +3601,7 @@ mod brazilian_audio_migration_tests {
         assert_eq!(back["passenger_exit_thanks"],false);
         for lang in ["ENG","DEU","PTG"] {
             let other=super::settings_from_text(Some(&format!("language={lang}\n")));
-            assert_eq!(other["passenger_door_comments"],false);
+            assert_eq!(other["passenger_door_comments"],true);
         }
     }
 }
