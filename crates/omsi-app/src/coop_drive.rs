@@ -1436,6 +1436,31 @@ mod coop13_regressions {
     }
 
     #[test]
+    fn coop13_former_driver_f1_f2_use_passenger_view_and_keep_wheel_locked() {
+        let args = Args::parse_from(["openomsi", "--root", "."]);
+        let mut app = crate::assemble_app(args, crate::settings::Settings::default());
+        let mut player = crate::spawn::coop13_test_player(bus());
+        player.authority_remote = true;
+        let uid = player.uid;
+        app.player = Some(player);
+        app.start_on_foot(glam::DVec3::ZERO, 0.0);
+        app.session.on_foot.as_mut().unwrap().inside = Some((BusId::Player, glam::Vec3::ZERO));
+        let now = Instant::now();
+        app.net.coop.drive.owner = Some(Owner {
+            peer: 2, token: 11, uid, bus: "Vehicles/test.bus".into(),
+            frozen: true, active: true, seen: now, sent: now,
+            triggers: vec![], motion: None,
+        });
+        app.net.coop.remote = Some((2, 77, now));
+        for key in [KeyCode::F2, KeyCode::F1] {
+            assert!(app.foot_key(key, true, false, false, false));
+            assert_eq!(app.view, "foot", "former owner became driver instead of passenger");
+            assert!(app.session.on_foot.is_some());
+            assert!(app.player.as_ref().unwrap().authority_remote);
+        }
+    }
+
+    #[test]
     fn coop13_former_driver_menus_cannot_reset_remove_or_reclaim_the_bus() {
         let args=Args::parse_from(["openomsi","--root","."]);
         let mut app=crate::assemble_app(args,Default::default());
