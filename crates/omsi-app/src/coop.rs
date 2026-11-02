@@ -272,7 +272,16 @@ impl App {
         // Re-clicking "Current conductor" must be idempotent. The old flow
         // revoked an active grant and immediately issued a new epoch, causing
         // the receiver to lose camera access until it saw the new permission.
-        if self.coop_conductor() == peer { return; }
+        if let Some(requested) = peer {
+            let already_valid = self.net.coop.grant.as_ref().is_some_and(|g| {
+                g.peer == requested &&
+                self.player.as_ref().is_some_and(|p|
+                    p.uid as u64 == g.uid && p.vehicle.ty.def.path == g.model)
+            }) && self.coop_passengers().iter().any(|(id, _)| *id == requested);
+            if already_valid { return; }
+        } else if self.net.coop.grant.is_none() {
+            return;
+        }
         // The former owner no longer authorizes any controls during handover.
         if peer.is_some() && self.net.coop.drive.owner_active() { return; }
         self.coop_release_held();
