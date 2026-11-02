@@ -98,7 +98,14 @@ impl App {
             })
         } else { None };
         let key=(p.uid, borrowed.unwrap_or_else(|| self.net.coop.character.chosen.clone()));
-        if self.net.coop.character.applied_driver.as_ref()==Some(&key) {return};
+        // A visiting driver is rendered by the original owner's DriverFigure.
+        // If that figure was missing/failed during the first handover, the
+        // cached appearance must not skip a reconstruction forever. Otherwise
+        // every remote avatar at DRIVER_SEAT gets suppressed as "already drawn"
+        // even though nothing is actually visible at the wheel.
+        let missing_delegated_figure = self.net.coop.drive.owner_active() && p.driver.is_none();
+        if self.net.coop.character.applied_driver.as_ref()==Some(&key)
+            && !missing_delegated_figure {return};
         let (Some(world),Some(renderer),Some(scene))=(self.world.as_deref(),self.renderer.as_ref(),self.scene.as_mut()) else {return};
         let chosen=(!key.1.is_empty()).then_some(key.1.as_str());
         let p=self.player.as_mut().unwrap();
@@ -113,6 +120,11 @@ impl App {
             if let Some(mut old)=p.driver.take() {old.hide(renderer,scene);}
             p.driver=Some(new);
             self.net.coop.character.applied_driver=Some(key);
+            if missing_delegated_figure {
+                log::info!("COOP13 driver figure restored on original owner's machine");
+            }
+        } else if missing_delegated_figure {
+            log::warn!("COOP13 delegated driver invisible: could not create DriverFigure for this vehicle; model={}",p.vehicle.ty.def.path.display());
         }
     }
 
