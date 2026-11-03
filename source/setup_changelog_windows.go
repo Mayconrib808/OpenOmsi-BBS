@@ -572,9 +572,9 @@ func selectLogSections(from string) []logSection {
     if strings.HasPrefix(from,"2.2.0"){
         earlier:=earlierBridgeLogSection()
         earlier.entries=earlier.entries[1:]
-        return append(append(result,earlier),old...)
+        return append(append(result,earlier),old[1:]...)
     }
-    return append(append(result,earlierBridgeLogSection()),old...)
+    return append(append(result,earlierBridgeLogSection()),old[1:]...)
 }
 
 func logFill(dc uintptr,r guiRect,color uintptr){
