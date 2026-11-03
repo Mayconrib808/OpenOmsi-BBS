@@ -23,6 +23,7 @@ glam.workspace = true
 log.workspace = true
 anyhow.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 hashbrown.workspace = true
 rayon.workspace = true
 parking_lot = { workspace = true }

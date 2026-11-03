@@ -3,6 +3,7 @@ use super::*;
 
 fn view(given_ticket: Option<f32>) -> PlayerBusView {
     PlayerBusView {
+        wheelchair_feedback: Default::default(),
         position: DVec3::ZERO,
         heading: 0.0,
         rot: Mat4::IDENTITY,

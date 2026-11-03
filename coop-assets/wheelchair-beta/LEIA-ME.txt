@@ -1,0 +1,51 @@
+OPENOMSI · CADEIRANTES · BETA 1
+
+Esta beta usa o motor 0.3.47 / Coop 16 com um controlador de acessibilidade próprio.
+
+INSTALAÇÃO
+1. Extraia o ZIP em uma pasta.
+2. Execute Instalar_Beta.cmd e escolha sua pasta do OMSI 2.
+3. Abra INICIAR_BETA.cmd na pasta BridgeWheelchairBeta criada dentro do OMSI 2.
+4. Escolha um mapa e o Torino 2007 OF 1722M do pacote original enviado.
+
+CONTROLES
+Ctrl+Alt+W: cria um passageiro de teste, com o ônibus completamente parado.
+Ctrl+Alt+E: inicia assistência no embarque ou no desembarque solicitado.
+Ctrl+Alt+D: passageiro solicita desembarque.
+Os controles funcionam também com o motorista a pé.
+
+Abra a porta acessível antes de iniciar a assistência. A legenda informa a etapa
+ou o motivo da espera. Aguarde a acomodação e o recolhimento do equipamento antes
+de tentar sair. O desembarque também é solicitado após duas mudanças de parada.
+
+VEÍCULO INCLUÍDO NO PERFIL
+2007 Marcopolo Torino OF 1722M, configurações Manual Real e Auto.
+Esse modelo enviado tem duas portas: a área de cadeira de rodas fica em frente
+à porta TRASEIRA. O perfil usa essa porta real. Ele não inventa uma porta central.
+Em um ônibus de três portas, um perfil próprio pode selecionar a porta do meio.
+O pacote contém somente o perfil adicional; o mod original continua necessário.
+
+OUTROS ÔNIBUS
+As rampas/elevadores nativos são integrados por wheelchair.json ao lado do .bus.
+Um arquivo com o mesmo nome do ônibus e extensão .wheelchair.json tem prioridade.
+O perfil precisa de medidas da porta, trajeto, área reservada e feedback real
+do equipamento. Um botão de sinal sozinho não certifica acessibilidade.
+Esta beta não declara compatibilidade universal com mods não medidos.
+
+VERIFICAÇÃO VISUAL
+A compilação e os testes da simulação são separados do teste visual no seu jogo.
+Confira as mãos nos aros, apoio dos pés, manobra no espaço e encaixe do elevador.
+O teste visual completo em mapas de terceiros e o multiplayer dependem de uma
+sessão real; consulte beta-manifest.json para a validação registrada no pacote.
+
+LOGS
+Os registros de etapas começam com WHEELCHAIR no game.log.
+Recolher_Logs.cmd copia o último game.log para a pasta da beta.
+Ao relatar um problema, inclua o log e o nome exato do ônibus.
+
+REMOÇÃO
+Execute Desinstalar_Beta.cmd. Perfis anteriores são restaurados quando possível;
+arquivos modificados pelo usuário depois da instalação são preservados.
+
+Os fontes e a licença correspondente estão no ZIP de fontes, ou no commit
+indicado em beta-manifest.json. Nenhum arquivo original de ônibus é distribuído.

@@ -130,6 +130,7 @@ impl App {
             let ctrl = self.input.keys.contains(&KeyCode::ControlLeft) || self.input.keys.contains(&KeyCode::ControlRight);
             let alt = self.input.keys.contains(&KeyCode::AltLeft) || self.input.keys.contains(&KeyCode::AltRight);
             let shift_now = self.input.keys.contains(&KeyCode::ShiftLeft) || self.input.keys.contains(&KeyCode::ShiftRight);
+            if pressed && !repeat && ctrl && alt && !shift_now && self.wheelchair_key(code) { return; }
             // On foot as an authorized conductor, Shift+T collects the owner's
             // passenger payment through the acknowledged cooperative protocol.
             // Do not require a local driver vehicle or consume the driver's keys.

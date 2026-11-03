@@ -1,0 +1,55 @@
+name: Wheelchair beta 1 - native Windows test package
+on:
+  push:
+    branches: [beta/wheelchair-boarding-1]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: wheelchair-beta-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      OPENOMSI_VERSION: 0.3.47-coop.16-wheelchair-beta.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '3'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      OMSI_NO_UPDATE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: visual-hail-route-2225
+      - name: Accessibility state machine, mesh validity and simulation regression
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim --lib
+          if ($LASTEXITCODE -ne 0) { throw 'Simulation tests failed' }
+      - name: Build native P16 game and check executable entry point
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Native build failed' }
+          & target/release/openomsi.exe --help | Out-File native-help.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native executable failed to start' }
+      - name: Package isolated accessibility beta with install and rollback
+        shell: pwsh
+        run: |
+          python scripts/package_wheelchair_beta.py --binary target/release/openomsi.exe --out dist
+          if ($LASTEXITCODE -ne 0) { throw 'Beta packaging failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-Cadeirantes-Beta1-Windows-x64
+          path: dist/
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error

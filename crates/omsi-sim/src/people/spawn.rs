@@ -73,6 +73,7 @@ impl PeopleSim {
             log::warn!("human pool limit {configured_people} adjusted to {people_limit} for safe spawning");
         }
         PeopleSim {
+            wheelchairs: Default::default(),
             optional_features: Default::default(),
             pool_types: types.len(),
             types,
@@ -384,6 +385,7 @@ impl PeopleSim {
         vehicle.set_engine_var("GivenTicket", -1.0);
         match self.cabin_for(vehicle) {
             Some(c) => {
+                self.configure_wheelchairs(vehicle, &c);
                 log::info!("passenger cabin: {} places ({} seats), {} entries, {} exits, {} path points, desk {:?}", c.seats.len(), c.seats.iter().filter(|s| s.seated).count(), c.entries.len(), c.exits.len(), c.graph.points.len(), c.desk.map(|d| d.0));
                 if debug_pax() {
                     for (i, e) in c.entries.iter().enumerate() {

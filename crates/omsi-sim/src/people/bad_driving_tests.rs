@@ -48,6 +48,7 @@ fn emergency_stop(on: bool) -> (u8, f32) {
     h.time = 10.0;
     h.people = vec![rider()];
     let bus = PlayerBusView {
+        wheelchair_feedback: Default::default(),
         position: DVec3::ZERO,
         heading: 0.0,
         rot: Mat4::IDENTITY,
