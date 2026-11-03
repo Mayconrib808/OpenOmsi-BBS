@@ -1,7 +1,7 @@
-name: Hotfix 3 - large host preferences without rebuilding native game
+name: Hotfix 3 - Host Agent large preferences plus localized BCS driver
 on:
   push:
-    branches: [fix/2224-host-preferences-limit]
+    branches: [fix/2224-host-preferences-limit, fix/2224-bcs-driver-locale-neutral-20261102]
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,6 +15,13 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/setup-go@v5
         with: {go-version: 1.23.2, cache: false}
+      - name: Regression - BCS driver locale-neutral profile
+        shell: pwsh
+        run: |
+          Push-Location source
+          go test -run 'TestPrepareLocalizedBCSDriver|TestPrepareDriverRejectsWrongSlotAndInvalidStructure' -count=1
+          if ($LASTEXITCODE -ne 0) { throw 'BCS international personnel tests failed' }
+          Pop-Location
       - uses: actions/download-artifact@v4
         with:
           name: Bridge-2.2.2.4-hotfix.2-CANDIDATE
