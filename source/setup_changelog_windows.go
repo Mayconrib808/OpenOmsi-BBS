@@ -529,7 +529,7 @@ func logSections() []logSection {
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    if from==changelogSeenVersion { return nil }
+    if from==changelogSeenVersion { return []logSection{allLogSections()[0]} } // Manually opened tour
     // Hotfix 3 has its own chapter, shown even to someone who has already
     // acknowledged Hotfix 2. Earlier users get cumulative history.
     hotfix3 := allLogSections()[0]
