@@ -302,9 +302,11 @@ func prepareDriver(nativePath, dir string) (*driverSync, error) {
 	if err != nil {
 		return nil, fmt.Errorf("BCS personnel file: %w", err)
 	}
-	// BCS localizes the driver name; retain the original identity in both formats.
-	if d.Ident[0] != "Bus Company Simulator" && d.Ident[0] != "Simulador de Companhia de Autobuses" {
-		return nil, fmt.Errorf("expected the BCS driver, got %q", d.Ident[0])
+	// BCS localizes the displayed driver name across countries. Identify the
+	// reserved BCS personnel slot by its file name and validated file structure,
+	// never by the translated display text. Preserve the exact native identity.
+	if !strings.EqualFold(filepath.Base(nativePath), "bbs.odr") {
+		return nil, fmt.Errorf("expected the BCS personnel file bbs.odr, got %q", filepath.Base(nativePath))
 	}
 	if err = os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
