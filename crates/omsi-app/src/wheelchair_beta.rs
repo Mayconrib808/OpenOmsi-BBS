@@ -1,9 +1,9 @@
 //! Explicit beta controls, kept out of the released Bridge updater.
 use crate::App;
 use omsi_sim::people::wheelchair::{self, Stage};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicU8, Ordering};
 use winit::keyboard::KeyCode;
-static NATIVE_ASSIST: AtomicBool = AtomicBool::new(false);
+static NATIVE_STAGE: AtomicU8 = AtomicU8::new(0);
 
 impl App {
     pub(crate) fn wheelchair_key(&mut self, key: KeyCode) -> bool {
@@ -17,42 +17,30 @@ impl App {
             _ => return false,
         };
         wheelchair::command(command);
-        if command == wheelchair::ASSIST {
-            NATIVE_ASSIST.store(true, Ordering::Release);
-        }
         true
     }
     pub(crate) fn tick_wheelchair_beta(&mut self) {
         self.tick_wheelchair_network();
-        if !NATIVE_ASSIST.load(Ordering::Acquire) {
-            return;
-        }
-        let Some(h) = self.session.humans.as_ref() else {
-            return;
-        };
-        let Some(profile) = h.wheelchairs.profile.as_ref() else {
-            NATIVE_ASSIST.store(false, Ordering::Release);
-            return;
-        };
-        let stowing = h
-            .wheelchairs
-            .journey
-            .as_ref()
-            .is_some_and(|j| j.stage == Stage::Riding && !j.alight_requested);
-        let trigger = if stowing {
-            profile.stow_trigger.clone()
-        } else {
-            profile.deploy_trigger.clone()
-        };
-        if let Some(p) = self.player.as_mut() {
-            if p.vehicle.physics.speed.abs() > 0.025 {
-                return;
-            }
-            if let Some(trigger) = trigger {
-                p.vehicle.trigger(&trigger);
-            }
-        }
-        NATIVE_ASSIST.store(false, Ordering::Release);
+        let Some(h)=self.session.humans.as_ref() else {NATIVE_STAGE.store(0,Ordering::Release);return;};
+        let Some(profile)=h.wheelchairs.profile.as_ref() else {NATIVE_STAGE.store(0,Ordering::Release);return;};
+        let native=matches!(profile.equipment,wheelchair::Equipment::NativeRamp|wheelchair::Equipment::NativeLift);
+        let action=h.wheelchairs.journey.as_ref().map(|j|match j.stage {
+            Stage::Deploying=>(1,profile.deploy_trigger.clone()),
+            Stage::Raising=>(2,profile.raise_trigger.clone()),
+            Stage::Riding if j.deployment>0.0=>(3,profile.stow_trigger.clone()),
+            Stage::Unsecuring=>(4,profile.alight_trigger.clone()),
+            Stage::Lowering=>(5,profile.lower_trigger.clone()),
+            Stage::Finished if j.deployment>0.0=>(6,profile.stow_trigger.clone()),
+            _=>(0,None),
+        }).unwrap_or((0,None));
+        if !native||action.0==0 {NATIVE_STAGE.store(0,Ordering::Release);return;}
+        if NATIVE_STAGE.load(Ordering::Acquire)==action.0 {return;}
+        let Some(p)=self.player.as_mut()else{return;};
+        if p.vehicle.physics.speed.abs()>0.025||!h.wheelchairs.feedback.door_open{return;}
+        // One command per stage. Missing triggers leave the real controls to
+        // the driver; endpoint/height feedback still gates every movement.
+        if let Some(trigger)=action.1 {p.vehicle.trigger(&trigger);}
+        NATIVE_STAGE.store(action.0,Ordering::Release);
     }
 }
 

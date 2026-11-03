@@ -92,7 +92,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create wheelchair-beta.1-20261103 \
+          current_head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/beta/wheelchair-boarding-1" --jq '.object.sha')
+          if [ "$current_head" != "$GITHUB_SHA" ]; then
+            echo "A newer beta commit is being tested; skipping publication."
+            exit 0
+          fi
+          gh release create wheelchair-beta.1-20261103-r2 \
             approved/OpenOMSI-Cadeirantes-Beta1-Windows-x64.zip \
             approved/OpenOMSI-Cadeirantes-Beta1-fontes.zip \
             approved/SHA256SUMS \

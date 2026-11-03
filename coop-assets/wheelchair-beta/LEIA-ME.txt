@@ -59,3 +59,12 @@ em uma sessão real ainda precisam ser confirmadas pelos testes de jogo.
 
 A beta está ativada no próprio executável compilado. O arquivo INICIAR_BETA.cmd
 configura o início isolado. OMSI_WHEELCHAIR_BETA=0 desativa o recurso para comparar.
+
+EQUIPAMENTO NATIVO
+native_height_var deve fornecer altura em metros no sistema local do ônibus,
+não apenas um valor normalizado de animação. Se necessário, o script do veículo
+precisa expor essa variável. ground/floor/stowed são confirmações de posição.
+deploy_trigger, raise_trigger, lower_trigger, alight_trigger e stow_trigger são
+comandos opcionais, disparados uma vez por etapa. alight_trigger prepara a
+plataforma no nível do piso para o desembarque. Sem esses comandos o motorista
+usa os controles originais; o passageiro espera pelo feedback verdadeiro.

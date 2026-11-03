@@ -58,6 +58,12 @@ pub struct Profile {
     pub native_stowed_var: Option<String>,
     pub deploy_trigger: Option<String>,
     pub stow_trigger: Option<String>,
+    #[serde(default)]
+    pub raise_trigger: Option<String>,
+    #[serde(default)]
+    pub lower_trigger: Option<String>,
+    #[serde(default)]
+    pub alight_trigger: Option<String>,
 }
 
 impl Profile {
@@ -371,6 +377,18 @@ impl Journey {
             return;
         }
         let dt = dt.min(0.1);
+        let native = matches!(
+            profile.equipment,
+            Equipment::NativeRamp | Equipment::NativeLift
+        );
+        let ramp = matches!(
+            profile.equipment,
+            Equipment::AddedRamp | Equipment::NativeRamp
+        );
+        if native && feedback.stowed && matches!(self.stage,Stage::Riding|Stage::Finished) {
+            self.deployment=0.0;
+            self.bridge_deployment=0.0;
+        }
         self.pose.moving = 0.0;
         if self.stage == Stage::Riding && self.deployment <= 0.0 && !self.alight_requested {
             return;
@@ -386,14 +404,30 @@ impl Journey {
             };
             return;
         }
-        let native = matches!(
-            profile.equipment,
-            Equipment::NativeRamp | Equipment::NativeLift
-        );
-        let ramp = matches!(
-            profile.equipment,
-            Equipment::AddedRamp | Equipment::NativeRamp
-        );
+        if native && !ramp {
+            let measured = feedback.equipment_height.filter(|h| h.is_finite()
+                && *h >= self.ground_height.min(profile.threshold.z) - 0.05
+                && *h <= self.ground_height.max(profile.threshold.z) + 0.05);
+            if let Some(height) = measured {
+                self.platform_height = height;
+                if matches!(self.stage, Stage::Raising | Stage::Lowering) {
+                    self.local.z = height;
+                }
+            } else if !matches!(self.stage, Stage::Waiting | Stage::Riding | Stage::Finished) {
+                self.hold_reason = "Aguardando altura real válida do elevador";
+                return;
+            }
+            if self.stage == Stage::ToPlatform
+                && (!feedback.ground_ready || (self.platform_height-self.ground_height).abs()>0.005) {
+                self.hold_reason = "Elevador ainda não alinhado ao solo";
+                return;
+            }
+            if matches!(self.stage, Stage::ToBay | Stage::ToExit)
+                && (!feedback.floor_ready || (self.platform_height-profile.threshold.z).abs()>0.005) {
+                self.hold_reason = "Elevador ainda não alinhado ao piso";
+                return;
+            }
+        }
         match self.stage {
             Stage::Waiting => {
                 if assist && speed.abs() < 0.025 && feedback.door_open {
@@ -416,7 +450,8 @@ impl Journey {
                 if native {
                     if feedback.ground_ready && feedback.floor_ready && ramp {
                         self.transition(Stage::ToPlatform);
-                    } else if feedback.ground_ready && !ramp {
+                    } else if feedback.ground_ready && !ramp
+                        && (self.platform_height-self.ground_height).abs()<=0.005 {
                         self.transition(Stage::ToPlatform);
                     } else {
                         self.hold_reason = "Aguardando posição real do equipamento do ônibus";
@@ -436,7 +471,7 @@ impl Journey {
             }
             Stage::Raising => {
                 let ready = if native {
-                    feedback.floor_ready
+                    feedback.floor_ready && (self.platform_height-profile.threshold.z).abs()<=0.005
                 } else {
                     approach(&mut self.platform_height, profile.threshold.z, dt * 0.14)
                 };
@@ -485,10 +520,11 @@ impl Journey {
             }
             Stage::Unsecuring => {
                 approach(&mut self.deployment, 1.0, dt / 1.8);
-                self.platform_height = profile.threshold.z;
+                if !native || ramp {self.platform_height = profile.threshold.z;}
                 self.timer += dt;
                 approach(&mut self.bridge_deployment, 1.0, dt / 1.2);
-                if self.timer >= 2.0 && (!native || feedback.floor_ready) {
+                if self.timer >= 2.0 && (!native || (feedback.floor_ready
+                    && (ramp || (self.platform_height-profile.threshold.z).abs()<=0.005))) {
                     self.transition(Stage::ToExit);
                 }
             }
@@ -518,7 +554,7 @@ impl Journey {
                     return;
                 }
                 let ready = if native {
-                    feedback.ground_ready
+                    feedback.ground_ready && (self.platform_height-self.ground_height).abs()<=0.005
                 } else {
                     approach(&mut self.platform_height, self.ground_height, dt * 0.14)
                 };
@@ -534,7 +570,11 @@ impl Journey {
                 }
             }
             Stage::Finished => {
-                approach(&mut self.deployment, 0.0, dt / 1.8);
+                if !native || feedback.stowed {
+                    approach(&mut self.deployment, 0.0, dt / 1.8);
+                } else {
+                    self.hold_reason = "Aguardando recolhimento real do equipamento";
+                }
             }
         }
         if ramp
@@ -924,6 +964,9 @@ mod tests {
             native_stowed_var: None,
             deploy_trigger: None,
             stow_trigger: None,
+            raise_trigger: None,
+            lower_trigger: None,
+            alight_trigger: None,
         }
     }
     fn run(j: &mut Journey, p: &Profile, target: Stage) {
@@ -1079,6 +1122,34 @@ mod tests {
         let before = j.local;
         j.advance(&p, f32::NAN, 0.0, Feedback::default(), true, &[]);
         assert_eq!(j.local, before);
+    }
+    #[test]
+    fn native_lift_tracks_measured_height_and_checks_alignment() {
+        let mut p=profile();p.equipment=Equipment::NativeLift;
+        let mut j=Journey::new(&p,0.0,270.0);j.transition(Stage::Raising);
+        j.local=p.platform(0.0);j.platform_height=0.0;
+        for n in 1..=90 {
+            let before=j.local.z;
+            j.advance(&p,0.1,0.0,Feedback{door_open:true,equipment_height:Some(n as f32*0.01),
+                floor_ready:true,..Default::default()},false,&[]);
+            assert!((j.local.z-before).abs()<0.011);
+            assert_eq!(j.stage,Stage::Raising);
+        }
+        j.advance(&p,0.1,0.0,Feedback{door_open:true,equipment_height:None,
+            floor_ready:true,..Default::default()},false,&[]);
+        assert_eq!(j.stage,Stage::Raising);assert!((j.local.z-0.9).abs()<0.001);
+        j.advance(&p,0.1,0.0,Feedback{door_open:true,equipment_height:Some(p.threshold.z),
+            floor_ready:true,..Default::default()},false,&[]);
+        assert_eq!(j.stage,Stage::ToBay);assert_eq!(j.local.z,p.threshold.z);
+    }
+    #[test]
+    fn native_equipment_must_be_stowed_before_departure_after_unloading() {
+        let mut p=profile();p.equipment=Equipment::NativeLift;
+        let mut j=Journey::new(&p,0.0,270.0);j.transition(Stage::Finished);j.deployment=1.0;
+        for _ in 0..100 {j.advance(&p,0.1,0.0,Feedback{door_open:true,..Default::default()},false,&[]);}
+        assert_eq!(j.deployment,1.0);assert!(j.interlocked());
+        for _ in 0..30 {j.advance(&p,0.1,0.0,Feedback{door_open:true,stowed:true,..Default::default()},false,&[]);}
+        assert_eq!(j.deployment,0.0);assert!(!j.interlocked());
     }
     #[test]
     fn pivot_turns_have_opposite_wheel_directions() {
