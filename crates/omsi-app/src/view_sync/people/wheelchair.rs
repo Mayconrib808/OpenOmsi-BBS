@@ -2,7 +2,7 @@
 //! always uses the seated rig, including when original walking animation is selected.
 use super::*;
 use glam::{Affine3A, DVec2, Quat};
-use omsi_sim::human::{Activity, Pose, PoseInput, SLOTS};
+use omsi_sim::human::{Pose, SLOTS};
 use omsi_sim::people::wheelchair::{EquipmentPose, geometry};
 
 pub(super) fn bones(
@@ -14,30 +14,7 @@ pub(super) fn bones(
     let chair = p.wheelchair.unwrap();
     // Contact point sweeps from rear/top to front/top on the handrim, followed
     // by a lower, outward recovery arc. Each side has its own drive phase.
-    let grips = std::array::from_fn(|side| {
-        let phase = chair.push_phase[side];
-        let (angle, outward) = if chair.moving < 0.01 {
-            (0.8, 0.0)
-        } else if phase < 0.58 {
-            (2.20 - (phase / 0.58) * 2.0, 0.0)
-        } else {
-            (
-                0.20 + ((phase - 0.58) / 0.42) * 2.0,
-                (((phase - 0.58) / 0.42) * std::f32::consts::PI).sin() * 0.035,
-            )
-        };
-        let angle = if chair.direction[side] < 0.0 {
-            std::f32::consts::PI - angle
-        } else {
-            angle
-        };
-        let x = if side == 0 { -1.0 } else { 1.0 };
-        Vec3::new(
-            x * (0.366 + outward),
-            0.240 * angle.cos(),
-            0.30 + 0.240 * angle.sin(),
-        )
-    });
+    let grips = omsi_sim::people::wheelchair::pose::hand_targets(chair);
     let grips = match st.wheelchair_grips {
         Some(old) => std::array::from_fn(|i| old[i].lerp(grips[i], 1.0 - (-dt / 0.08).exp())),
         None => grips,
@@ -48,34 +25,9 @@ pub(super) fn bones(
         Place::Bus(_, l) => l.as_dvec3(),
     };
     let floor = |_: DVec2| Some(origin.z + 0.16);
-    let frames = std::array::from_fn(|side| {
-        (
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(if side == 0 { 1.0 } else { -1.0 }, 0.0, 0.0),
-        )
-    });
-    let input = PoseInput {
-        activity: Activity::Sit,
-        origin,
-        heading: if matches!(p.place, Place::Ground) {
-            p.heading
-        } else {
-            p.lheading
-        },
-        frame: if matches!(p.place, Place::Ground) {
-            0
-        } else {
-            1
-        },
-        velocity: DVec2::ZERO,
-        seat: Some(Vec3::new(0.0, ty.rig.seat_front(), 0.51)),
-        seat_pelvis: Some(Vec3::new(0.0, 0.015, 0.51 + ty.rig.seat_lift)),
-        grips: Some(grips),
-        grip_frames: Some(frames),
-        grip_lean: chair.moving * 3.0,
-        floor: Some(&floor),
-        ..Default::default()
-    };
+    let input=omsi_sim::people::wheelchair::pose::input(&ty.rig,chair,origin,
+        if matches!(p.place,Place::Ground){p.heading}else{p.lheading},
+        if matches!(p.place,Place::Ground){0}else{1},grips,&floor);
     if st.procedural.is_none() {
         let mut pose = Pose::new(p.id);
         for _ in 0..30 {
@@ -98,7 +50,8 @@ pub(super) struct Renders {
     materials: Vec<MaterialId>,
     chairs: HashMap<u32, [usize; 5]>,
     spare: Vec<[usize; 5]>,
-    equipment: Option<[usize; 4]>,
+    equipment: HashMap<u32, [usize;4]>,
+    equipment_spare: Vec<[usize;4]>,
 }
 impl Renders {
     fn ensure(&mut self, r: &Renderer, s: &mut Scene) {
@@ -199,18 +152,17 @@ impl Renders {
             r.set_interior(s, i, p.interior * 0.5);
         }
     }
-    pub fn draw_equipment(&mut self, e: Option<EquipmentPose>, r: &Renderer, s: &mut Scene) {
-        let Some(e) = e else {
-            if let Some(instances) = self.equipment {
-                for i in instances {
-                    r.set_params(s, i, &[], false, &[]);
-                }
-            }
-            return;
-        };
+    pub fn draw_equipments(&mut self,list:&[EquipmentPose],r:&Renderer,s:&mut Scene){
+        let gone:Vec<_>=self.equipment.keys().copied().filter(|owner|!list.iter().any(|e|e.owner==*owner)).collect();
+        for owner in gone {if let Some(instances)=self.equipment.remove(&owner){
+            for &i in &instances{r.set_params(s,i,&[],false,&[]);}self.equipment_spare.push(instances);
+        }}
+        for &e in list{self.draw_equipment(e,r,s);}
+    }
+    fn draw_equipment(&mut self,e:EquipmentPose,r:&Renderer,s:&mut Scene){
         self.ensure(r, s);
         let meshes = self.meshes.unwrap();
-        let instances = *self.equipment.get_or_insert_with(|| {
+        let instances = *self.equipment.entry(e.owner).or_insert_with(|| self.equipment_spare.pop().unwrap_or_else(|| {
             [4, 5, 6, 4].map(|k| {
                 r.add_instance(
                     s,
@@ -220,7 +172,7 @@ impl Renders {
                     self.materials.clone(),
                 )
             })
-        });
+        }));
         let hinge = e.position;
         let slope = if e.ramp {
             e.side * ((e.floor_height - e.ground_height) / e.length).atan()

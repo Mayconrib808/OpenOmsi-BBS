@@ -44,6 +44,18 @@ try {
             Copy-Item -LiteralPath $_.FullName -Destination $target -Recurse -Force
         }
     }
+    $assetCandidates = @((Join-Path $OmsiRoot 'bcs-assets'))
+    Get-ChildItem -LiteralPath $OmsiRoot -Directory -Filter 'OpenOmsi Coop*' | ForEach-Object {
+        $assetCandidates += (Join-Path $_.FullName 'programa/bcs-assets')
+    }
+    $baseAssets = $assetCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Container } | Select-Object -First 1
+    if ($baseAssets) {
+        $assetTarget = Join-Path $target 'bcs-assets'
+        New-Item -ItemType Directory -Path $assetTarget -Force | Out-Null
+        Get-ChildItem -LiteralPath $baseAssets | ForEach-Object {
+            Copy-Item -LiteralPath $_.FullName -Destination $assetTarget -Recurse -Force
+        }
+    }
     $records = @()
     $vehicles = Join-Path $OmsiRoot 'Vehicles'
     $folders = Get-ChildItem -LiteralPath $vehicles -Directory | Where-Object { $_.Name -eq '2007 Marcopolo Torino OF 1722M' }
@@ -51,7 +63,8 @@ try {
         $dest = Join-Path $folder.FullName 'wheelchair.json'
         $prior = @($oldState.profiles | Where-Object { $_.destination -eq $dest }) | Select-Object -First 1
         $backup = if ($prior) { $prior.backup } else { $null }
-        if ((Test-Path -LiteralPath $dest) -and -not $prior) {
+        $changedSincePrior = $prior -and (Test-Path -LiteralPath $dest) -and ((Get-FileHash -LiteralPath $dest -Algorithm SHA256).Hash.ToLowerInvariant() -ne $prior.installed_hash)
+        if ((Test-Path -LiteralPath $dest) -and (-not $prior -or $changedSincePrior)) {
             $backupDir = Join-Path $target 'backups'
             New-Item -ItemType Directory -Path $backupDir -Force | Out-Null
             $backup = Join-Path $backupDir ('wheelchair-' + [Guid]::NewGuid().ToString('N') + '.json')

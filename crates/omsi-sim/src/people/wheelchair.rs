@@ -4,11 +4,17 @@ use super::*;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 static INTERLOCK: AtomicBool = AtomicBool::new(false);
+pub fn beta_enabled() -> bool {
+    std::env::var("OMSI_WHEELCHAIR_BETA").map(|s|s=="1")
+        .unwrap_or(option_env!("OPENOMSI_WHEELCHAIR_BETA")==Some("1"))
+}
 pub fn interlocked() -> bool {
     INTERLOCK.load(Ordering::Acquire)
 }
 
 pub mod geometry;
+pub mod network;
+pub mod pose;
 
 static COMMAND: AtomicU8 = AtomicU8::new(0);
 pub const SPAWN: u8 = 1;
@@ -199,6 +205,7 @@ pub struct ChairPose {
 
 #[derive(Debug, Clone, Copy)]
 pub struct EquipmentPose {
+    pub owner: u32,
     pub position: DVec3,
     pub rotation: Mat4,
     pub length: f32,
@@ -554,10 +561,13 @@ pub struct Wheelchairs {
     pub auto_spawn: bool,
     pub served: HashSet<i64>,
     reserved: Vec<usize>,
+    remotes: HashMap<u32, network::Remote>,
+    remote_poses: HashMap<u32, ChairPose>,
+    pub(crate) remote_equipment: Vec<EquipmentPose>,
 }
 impl Default for Wheelchairs {
     fn default() -> Self {
-        let enabled = std::env::var("OMSI_WHEELCHAIR_BETA").is_ok_and(|s| s == "1");
+        let enabled = beta_enabled();
         Self {
             enabled,
             profile: None,
@@ -566,9 +576,12 @@ impl Default for Wheelchairs {
             status: String::new(),
             feedback: Feedback::default(),
             equipment: None,
-            auto_spawn: std::env::var("OMSI_WHEELCHAIR_AUTO").is_ok_and(|s| s == "1"),
+            auto_spawn: std::env::var("OMSI_WHEELCHAIR_AUTO").map_or(enabled, |s|s=="1"),
             served: HashSet::new(),
             reserved: Vec::new(),
+            remotes: HashMap::new(),
+            remote_poses: HashMap::new(),
+            remote_equipment: Vec::new(),
         }
     }
 }
@@ -576,7 +589,7 @@ impl Wheelchairs {
     pub fn pose(&self, id: u32) -> Option<ChairPose> {
         (self.person == Some(id))
             .then(|| self.journey.as_ref().map(|j| j.pose))
-            .flatten()
+            .flatten().or_else(||self.remote_poses.get(&id).copied())
     }
     pub fn feedback_from(&self, v: &VehicleInstance) -> Feedback {
         let Some(p) = self.profile.as_ref() else {
@@ -706,18 +719,14 @@ impl PeopleSim {
             );
             let at = bn.world(journey.local);
             journey.outside_world = Some(at);
-            let selected = self
-                .types
-                .iter()
-                .enumerate()
-                .filter(|(_, t)| t.def.age.unwrap_or(40) >= 18)
-                .filter(|(_, t)| (1.45..=1.95).contains(&t.rig.head_top))
-                .min_by(|(_, a), (_, b)| {
-                    (a.rig.head_top - 1.7)
-                        .abs()
-                        .total_cmp(&(b.rig.head_top - 1.7).abs())
-                })
-                .map(|(i, _)| i);
+            let compatible:Vec<usize>=self.types.iter().enumerate()
+                .filter(|(_,t)|t.def.age.unwrap_or(40)>=18)
+                .filter(|(_,t)|(1.45..=1.95).contains(&t.rig.head_top)
+                    && t.rig.upper_arm.is_finite()&&t.rig.forearm.is_finite()
+                    && t.rig.upper_arm+t.rig.forearm>0.45)
+                .map(|(i,_)|i).collect();
+            if compatible.is_empty(){self.wheelchairs.status="Nenhum personagem adulto com rig compatível foi encontrado".into();return;}
+            let selected=Some(compatible[self.rand() as usize%compatible.len()]);
             let Some(i) = self.spawn_as(
                 world,
                 at,
@@ -847,6 +856,7 @@ impl PeopleSim {
         );
         self.wheelchairs.equipment =
             (!native && journey.deployment > 0.0001).then(|| EquipmentPose {
+                owner: 0,
                 position: bn.world(Vec3::new(
                     profile.threshold.x,
                     profile.threshold.y,

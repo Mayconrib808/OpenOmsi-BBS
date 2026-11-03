@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: wheelchair-beta-${{ github.ref }}
+  group: wheelchair-beta-${{ github.sha }}
   cancel-in-progress: true
 jobs:
   windows:
@@ -15,6 +15,7 @@ jobs:
     env:
       OPENOMSI_VERSION: 0.3.47-coop.16-wheelchair-beta.1
       OPENOMSI_COOP_GAME_ONLY: '1'
+      OPENOMSI_WHEELCHAIR_BETA: '1'
       CARGO_INCREMENTAL: '0'
       CARGO_BUILD_JOBS: '3'
       CARGO_PROFILE_RELEASE_DEBUG: '0'
@@ -46,6 +47,24 @@ jobs:
         run: |
           python scripts/package_wheelchair_beta.py --binary target/release/openomsi.exe --out dist
           if ($LASTEXITCODE -ne 0) { throw 'Beta packaging failed' }
+      - name: Check installation and rollback without replacing the stable game
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Expand-Archive dist/OpenOMSI-Cadeirantes-Beta1-Windows-x64.zip -DestinationPath install-test
+          $kit = Join-Path $PWD 'install-test/OpenOMSI-Cadeirantes-Beta1'
+          $root = Join-Path $env:RUNNER_TEMP 'omsi-wheelchair-install-fixture'
+          New-Item -ItemType Directory -Path (Join-Path $root 'maps'),(Join-Path $root 'Vehicles/2007 Marcopolo Torino OF 1722M') -Force | Out-Null
+          'original-omsi' | Set-Content (Join-Path $root 'Omsi.exe')
+          'stable-native-retained' | Set-Content (Join-Path $root 'openomsi.exe')
+          $profile = Join-Path $root 'Vehicles/2007 Marcopolo Torino OF 1722M/wheelchair.json'
+          'prior-profile-retained' | Set-Content $profile
+          & (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Beta installation failed' }
+          if ((Get-Content (Join-Path $root 'openomsi.exe') -Raw).Trim() -ne 'stable-native-retained') { throw 'Stable executable changed' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'BridgeWheelchairBeta/Instalar_Beta.ps1') -Uninstall -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Beta uninstall failed' }
+          if ((Get-Content $profile -Raw).Trim() -ne 'prior-profile-retained') { throw 'Original profile was not restored' }
       - uses: actions/upload-artifact@v4
         with:
           name: OpenOMSI-Cadeirantes-Beta1-Windows-x64
@@ -53,3 +72,30 @@ jobs:
           compression-level: 0
           retention-days: 90
           if-no-files-found: error
+
+  beta-download:
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-Cadeirantes-Beta1-Windows-x64
+          path: approved
+      - name: Publish the tested isolated prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create wheelchair-beta.1-20261103 \
+            approved/OpenOMSI-Cadeirantes-Beta1-Windows-x64.zip \
+            approved/OpenOMSI-Cadeirantes-Beta1-fontes.zip \
+            approved/SHA256SUMS \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "OpenOMSI Cadeirantes - Beta 1" \
+            --notes-file coop-assets/wheelchair-beta/RELEASE.md

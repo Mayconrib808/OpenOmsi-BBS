@@ -41,6 +41,7 @@ const POSE_PER_HELPER: f64 = 0.5e-3;
 #[derive(Default)]
 pub(crate) struct PeopleView {
     wheelchair_renders: wheelchair::Renders,
+    wheelchair_hands: HashMap<usize,(Arc<HumanType>,Arc<omsi_sim::people::wheelchair::pose::HandRest>)>,
     pub(crate) hidden: Vec<usize>,
     /// GPU side of the human types, shared by everyone of a type: textures by file and the
     /// materials of every (type, mesh) - each person used to upload its own copies - and
@@ -136,6 +137,7 @@ impl PeopleView {
     pub(crate) fn new() -> PeopleView {
         PeopleView {
             wheelchair_renders: Default::default(),
+            wheelchair_hands: HashMap::new(),
             hidden: Vec::new(),
             gpu_textures: HashMap::new(),
             gpu_materials: HashMap::new(),
@@ -502,6 +504,7 @@ impl PeopleView {
 #[derive(Default)]
 pub(crate) struct PersonView {
     wheelchair_grips: Option<[Vec3; 2]>,
+    wheelchair_hand_rest: Option<Arc<omsi_sim::people::wheelchair::pose::HandRest>>,
     pub(crate) meshes: Vec<(MeshId, usize)>,
     /// Skinned positions and normals, per mesh.
     skins: Vec<(Vec<Vec3>, Vec<Vec3>)>,
@@ -721,6 +724,12 @@ impl PeopleView {
         };
         let hour = avatars::hour();
         let frame_no = self.sync_frame;
+        for (p,st) in frame.people.iter().zip(states.iter_mut()).filter(|(p,_)|p.wheelchair.is_some()) {
+            let ty=st.avatar.as_ref().unwrap_or(&p.ty);let key=Arc::as_ptr(ty) as usize;
+            let cached=self.wheelchair_hands.entry(key).or_insert_with(||
+                (ty.clone(),Arc::new(omsi_sim::people::wheelchair::pose::HandRest::new(ty))));
+            st.wheelchair_hand_rest=Some(cached.1.clone());
+        }
         let pose_one = |(p, st): &mut (&PersonFrame, &mut PersonView)| {
             // the type drawn: the person's avatar, else the content's own
             let ty = st.avatar.clone().unwrap_or_else(|| p.ty.clone());
@@ -796,7 +805,7 @@ impl PeopleView {
             // The upstream 0.3.47 hail state lives on PersonView, not on extras::State.
             // Keep the optional visual effect active until its pose finishes fading.
             let hail_active = st.hail_strength > 0.001 || st.full_look_strength > 0.001;
-            let PersonView { skins, skin_bones, pose_changed, face, extra, .. } = &mut **st;
+            let PersonView { skins, skin_bones, pose_changed, face, extra, wheelchair_hand_rest, .. } = &mut **st;
             *pose_changed = false;
             if bones.iter().any(|b| !b.is_finite()) && !skins.is_empty() {
                 // keep the last good mesh (the rest pose would be the file's T-pose)
@@ -816,6 +825,7 @@ impl PeopleView {
                 }
             }
             extra.skin(&bones,skins);
+            if p.wheelchair.is_some() {if let Some(rest)=wheelchair_hand_rest {rest.apply(&bones,skins);}}
             *skin_bones = Some(bones);
             *pose_changed = true;
         };
@@ -938,7 +948,7 @@ impl PeopleView {
                 }
             }
         }
-        self.wheelchair_renders.draw_equipment(frame.wheelchair_equipment, renderer, scene);
+        self.wheelchair_renders.draw_equipments(&frame.wheelchair_equipment, renderer, scene);
         self.wheelchair_renders.retain(&frame.people, renderer, scene);
         drop(buses);
         for (p, st) in frame.people.iter().zip(states) {

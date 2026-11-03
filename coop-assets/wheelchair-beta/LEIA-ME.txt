@@ -49,3 +49,13 @@ arquivos modificados pelo usuário depois da instalação são preservados.
 
 Os fontes e a licença correspondente estão no ZIP de fontes, ou no commit
 indicado em beta-manifest.json. Nenhum arquivo original de ônibus é distribuído.
+
+
+MULTIPLAYER
+Todos que precisam ver a cadeira e a plataforma devem iniciar esta mesma beta.
+O dono do ônibus executa a simulação; os demais reproduzem o estado recebido.
+O servidor P16 instalado continua sendo usado. Troca de motorista e reconexão
+em uma sessão real ainda precisam ser confirmadas pelos testes de jogo.
+
+A beta está ativada no próprio executável compilado. O arquivo INICIAR_BETA.cmd
+configura o início isolado. OMSI_WHEELCHAIR_BETA=0 desativa o recurso para comparar.

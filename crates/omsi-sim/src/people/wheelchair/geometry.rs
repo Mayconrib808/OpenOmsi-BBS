@@ -45,7 +45,7 @@ impl Build {
                 .normals
                 .extend([x.normalize(), x.normalize(), y.normalize(), y.normalize()]);
             self.m.uvs.extend([Vec2::ZERO, Vec2::X, Vec2::ONE, Vec2::Y]);
-            self.triangles[slot as usize].extend([k, k + 1, k + 2, k, k + 2, k + 3]);
+            self.triangles[slot as usize].extend([k, k + 2, k + 1, k, k + 3, k + 2]);
             self.tri(a, a + y, a + x, slot);
             self.tri(b, b + x, b + y, slot);
         }
