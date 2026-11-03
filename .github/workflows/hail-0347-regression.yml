@@ -22,6 +22,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Visual hail tests failed' }
           cargo test --locked -p omsi-sim approaching_service_outranks_closer_parked_service -- --nocapture
           if ($LASTEXITCODE -ne 0) { throw 'Parked-service masking regression failed' }
+          cargo test --locked -p omsi-sim people::demand -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Demand bounds, refusal retry or queue tests failed' }
       - name: Build native openOMSI 0.3.47 game candidate
         shell: pwsh
         run: |
