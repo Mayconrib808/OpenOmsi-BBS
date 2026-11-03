@@ -9,7 +9,50 @@ concurrency:
   group: wheelchair-beta-${{ github.sha }}
   cancel-in-progress: true
 jobs:
+  installer:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test installer in Windows PowerShell before compiling
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $kit = Join-Path $env:RUNNER_TEMP 'wheelchair-installer-contract'
+          New-Item -ItemType Directory -Path $kit -Force | Out-Null
+          Copy-Item coop-assets/wheelchair-beta/* -Destination $kit -Recurse -Force
+          # This sentinel only tests file placement/hash/rollback; it is never run or shipped.
+          [IO.File]::WriteAllBytes((Join-Path $kit 'openomsi.exe'),[Text.Encoding]::ASCII.GetBytes('MZ-installer-fixture-only'))
+          @{ version='installer-fixture'; native_sha256=(Get-FileHash (Join-Path $kit 'openomsi.exe') -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content (Join-Path $kit 'beta-manifest.json')
+          $root = Join-Path $env:RUNNER_TEMP 'wheelchair-installer-fixture'
+          New-Item -ItemType Directory -Path (Join-Path $root 'maps'),(Join-Path $root 'Vehicles/2007 Marcopolo Torino OF 1722M') -Force | Out-Null
+          'original-omsi' | Set-Content (Join-Path $root 'Omsi.exe')
+          'stable-native-retained' | Set-Content (Join-Path $root 'openomsi.exe')
+          $profile = Join-Path $root 'Vehicles/2007 Marcopolo Torino OF 1722M/wheelchair.json'
+          'prior-profile-retained' | Set-Content $profile
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Installer failed in Windows PowerShell' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'BridgeWheelchairBeta/Instalar_Beta.ps1') -Uninstall -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Uninstaller failed in Windows PowerShell' }
+          if ((Get-Content $profile -Raw).Trim() -ne 'prior-profile-retained') { throw 'Prior profile not restored' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Second installation failed' }
+          'edited-after-install' | Set-Content $profile
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'BridgeWheelchairBeta/Instalar_Beta.ps1') -Uninstall -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Edited-profile removal failed' }
+          if ((Get-Content $profile -Raw).Trim() -ne 'edited-after-install') { throw 'User edit was lost on removal' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Reinstallation with edited profile failed' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'BridgeWheelchairBeta/Instalar_Beta.ps1') -Uninstall -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Reinstallation rollback failed' }
+          if ((Get-Content $profile -Raw).Trim() -ne 'edited-after-install') { throw 'Reinstall did not preserve edited backup' }
+          if ((Get-Content (Join-Path $root 'openomsi.exe') -Raw).Trim() -ne 'stable-native-retained') { throw 'Stable executable changed' }
+          if ((Get-Content (Join-Path $root 'Omsi.exe') -Raw).Trim() -ne 'original-omsi') { throw 'Original game changed' }
+
   windows:
+    needs: installer
     runs-on: windows-2022
     timeout-minutes: 150
     env:
@@ -59,7 +102,7 @@ jobs:
           'stable-native-retained' | Set-Content (Join-Path $root 'openomsi.exe')
           $profile = Join-Path $root 'Vehicles/2007 Marcopolo Torino OF 1722M/wheelchair.json'
           'prior-profile-retained' | Set-Content $profile
-          & (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
           if ($LASTEXITCODE -ne 0) { throw 'Beta installation failed' }
           if ((Get-Content (Join-Path $root 'openomsi.exe') -Raw).Trim() -ne 'stable-native-retained') { throw 'Stable executable changed' }
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'BridgeWheelchairBeta/Instalar_Beta.ps1') -Uninstall -NoOpen
