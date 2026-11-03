@@ -5,7 +5,7 @@ import build,build_bridge_update,setup_resources
 from build_runtime_2203 import embedded_payload,EXPECTED
 
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='2.2.2.4-hotfix.2';SEQUENCE=2026110205
+VERSION='2.2.2.4-hotfix.3';SEQUENCE=2026110206
 COOP='OpenOmsi Coop 0.3.41'  # Existing installation path; actual runtime is 0.3.47.
 ORIGIN='https://openomsi-bbs-updates.maycongamesmaximo.workers.dev'
 BASE_UPDATER='53d78b50ae0ac24765f6575dc1bf0faad0a35acdc74b6cb0c41c921ec14c869e'
@@ -69,14 +69,14 @@ def main():
  marker=json.loads(files['app/server-dinamico-p15/BBS-DYNAMIC-SERVER.json'])
  marker.update(bridge_line=VERSION,source_commit=evidence['commit'],native_version=NATIVE_VERSION,native_sha256=sha(native),protocol=16,version=NATIVE_VERSION,openomsi_version='0.3.47',upstream_commit=UPSTREAM)
  files[marker_name]=(json.dumps(marker,indent=2)+'\n').encode()
- notes=(ROOT/'docs/releases/2.2.2.4-hotfix.2.md').read_bytes()
+ notes=(ROOT/'docs/releases/2.2.2.4-hotfix.3.md').read_bytes()
  info_name=COOP+'/source/BUILD-INFO.json';info=json.loads(files[info_name])
  info.update(version=NATIVE_VERSION,bridge_version=VERSION,game_sha256=sha(native),native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,launcher_sha256=sha(launcher_binary),launcher_build_commit=launcher_pin['commit'],upstream_commit=UPSTREAM)
  files[info_name]=(json.dumps(info,indent=2)+'\n').encode()
- files[COOP+'/source/openomsi-2.2.2.4-hotfix.2-source.tar.gz']=source
- files[COOP+'/source/SOURCE-2.2.2.4-hotfix.2.json']=(json.dumps(evidence,indent=2)+'\n').encode()
- files[COOP+'/CHANGELOG-2.2.2.4-hotfix.2.md']=notes
- files[COOP+'/validation/version-2.2.2.4-hotfix.2.txt']=version.encode()
+ files[COOP+'/source/openomsi-2.2.2.4-hotfix.3-source.tar.gz']=source
+ files[COOP+'/source/SOURCE-2.2.2.4-hotfix.3.json']=(json.dumps(evidence,indent=2)+'\n').encode()
+ files[COOP+'/CHANGELOG-2.2.2.4-hotfix.3.md']=notes
+ files[COOP+'/validation/version-2.2.2.4-hotfix.3.txt']=version.encode()
  # Fallback content is installed beside each actual runtime. No commercial map,
  # human, bus, BCS class or user configuration is included.
  assets=a.native/'bcs-assets';assert (assets/'LICENSE-emergency-fallbacks.txt').is_file()
@@ -106,8 +106,9 @@ def main():
   destination=(companion/name).resolve()
   subprocess.run(['go','build','-trimpath','-buildvcs=false','-ldflags=-s -w','-o',str(destination),*build.PROGRAMS[name]],cwd=build.SOURCE,env=companion_env,check=True)
   files['app/hosts-p16/'+name]=destination.read_bytes()
- subprocess.run(['python',str(ROOT/'scripts/test_complete_host_ui.py'),str(companion),'--protocol','16','--server',str((a.native/'openomsi.exe').resolve()),'--report',str(out/'native-p16-controls.json')],check=True)
+ subprocess.run(['python',str(ROOT/'scripts/test_complete_host_ui.py'),str(companion),'--protocol','16','--large-inventory','--server',str((a.native/'openomsi.exe').resolve()),'--report',str(out/'native-p16-controls.json')],check=True)
  assert readjson(out/'native-p16-controls.json')['status']=='passed'
+ assert readjson(out/'native-p16-controls.json')['large_inventory_tested'] is True
  host_manifest_name='docs/HOST-PESSOAL-2.2.0.3.json';host_manifest=json.loads(files[host_manifest_name]);host_manifest['version']=VERSION
  for entry in host_manifest['files']:
   if entry['path']in(server,marker_name,launcher_name):entry['sha256']=sha(files[entry['path']])
@@ -124,7 +125,7 @@ def main():
  p15={name:digest for name,digest in before.items()if name.startswith('app/server-dinamico-p15/')};assert p15
  assert all(sha(files[name])==digest for name,digest in p15.items())
  assert files[game]==files[server]
- prefix='Bridge-2.2.2.4-hotfix.2/'
+ prefix='Bridge-2.2.2.4-hotfix.3/'
  bundle=io.BytesIO()
  with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED,compresslevel=6)as z:
   for name,data in sorted(files.items()):
@@ -207,7 +208,7 @@ def main():
  report=dict(version=VERSION,sequence=SEQUENCE,update_origin=ORIGIN,updater_sha256=sha(final),installer_size=len(final),
   coop_archive_sha256=new_spec['sha256'],components_sha256={n:sha(b)for n,b in payload.items()},retained_runtime_sha256={n:h for n,h in runtime_before.items()if n not in REBUILD},
   previous_installer_sha256=BASE_UPDATER,previous_coop_sha256=BASE_COOP,retained_host_hashes={n:sha(payload[n])for n in('HostAgent.exe','CompanyHost.exe')},
-  complete_hosts_unchanged=True,complete_hosts_rebuilt=False,p14_server_unchanged=True,p15_server_unchanged=True,new_p16_host_ui_tested=True,p16_host_hashes={n:sha(files['app/hosts-p16/'+n])for n in('HostAgent.exe','CompanyHost.exe')},dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,
+  host_preferences_limit=32<<20,large_host_inventory_ui_tested=True,complete_hosts_unchanged=True,complete_hosts_rebuilt=False,p14_server_unchanged=True,p15_server_unchanged=True,new_p16_host_ui_tested=True,p16_host_hashes={n:sha(files['app/hosts-p16/'+n])for n in('HostAgent.exe','CompanyHost.exe')},dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,
   native_version=NATIVE_VERSION,native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],upstream_commit=UPSTREAM,
   native_client_sha256={'openomsi.exe':sha(native)},native_source_sha256=sha(source),coop_protocol=16,custom_sounds_unchanged=True,desktop_launcher_unchanged=False,desktop_launcher_sha256=sha(launcher_binary),desktop_launcher_commit=launcher_pin['commit'],desktop_launcher_run=evidence['run_id'],
   bcs_capture_normal_launch_tested=True,bcs_single_and_company_event_fixture_tested=True,setup_changelog_languages=['pt','en','de'],setup_changelog_ui_tested=True,

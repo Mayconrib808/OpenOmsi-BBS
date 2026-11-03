@@ -23,6 +23,8 @@ with tempfile.TemporaryDirectory() as tmp:
                         require_hardware_id=False,admin_password='private-admin-ci',port=27015,web_port=27025,future_map='keep')},
                   host_key='private-host-ci',room_id='same-company-code',start_with_windows=True,future_root='keep')
     old_path.write_text(json.dumps(config),encoding='utf-8')
+    config['future_large_inventory']='x'*(5<<20)
+    old_path.write_text(json.dumps(config),encoding='utf-8')
     original = old_path.read_bytes()
     env=dict(os.environ,LOCALAPPDATA=str(appdata))
     def prepare(ok=True):

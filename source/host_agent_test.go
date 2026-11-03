@@ -3,14 +3,68 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
 )
+
+func TestLargeHostInventoryCanOpenSaveAndReopen(t *testing.T) {
+	c := hostConfigFixture(t)
+	files := make([]CompanyFile, 22000)
+	for i := range files {
+		files[i] = CompanyFile{Path: fmt.Sprintf("Sceneryobjects/Large/%s_%05d.sco", strings.Repeat("inventory", 10), i), SHA256: strings.Repeat("a", 64)}
+	}
+	c.Company.Packages = append(c.Company.Packages, CompanyPackage{ID: "large-inventory", Name: "Large installed map inventory", Version: "1", Folders: []string{"Sceneryobjects/Large"}, Files: files})
+	path := filepath.Join(t.TempDir(), "HostAgent-P16.local.json")
+	data, _ := json.MarshalIndent(c, "", "  ")
+	if len(data) <= 4<<20 || len(data) > companyProfileLimit+65536 {
+		t.Fatal("fixture must reproduce a formerly loadable but unsavable inventory", len(data))
+	}
+	if err := os.WriteFile(path, data, 0600); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := loadHostAgentConfig(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	loaded.Company.Protocol = 16
+	loaded.Company.OpenOMSIVersion = "0.3.47"
+	if err := saveHostAgentConfig(path, loaded); err != nil {
+		t.Fatal("large inventory opened but could not save:", err)
+	}
+	reopened, err := loadHostAgentConfig(path)
+	if err != nil || len(reopened.Company.Packages[len(reopened.Company.Packages)-1].Files) != len(files) || reopened.Company.Protocol != 16 {
+		t.Fatal("large saved inventory could not reopen", err)
+	}
+}
+
+func TestHostPreferencesBoundAppliesBeforeReadingOrReplacing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "oversize.json")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Truncate(hostPreferencesLimit + 1); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	if _, err := loadHostAgentConfig(path); err == nil {
+		t.Fatal("accepted oversized private file")
+	}
+	if _, err := preservePrivateHostFields(path, []byte(`{}`), reflect.TypeOf(hostAgentConfig{})); err == nil {
+		t.Fatal("accepted oversized previous file")
+	}
+	st, _ := os.Stat(path)
+	if st.Size() != hostPreferencesLimit+1 {
+		t.Fatal("rejected save changed the existing file")
+	}
+}
 
 func hostConfigFixture(t *testing.T) hostAgentConfig {
 	t.Helper()

@@ -11,13 +11,15 @@ function Read-SHA256([string]$Path) {
     finally { $hash.Dispose(); $stream.Dispose() }
 }
 function Read-PrivateJson([string]$Path) {
-    if ((Get-Item -LiteralPath $Path).Length -gt 4MB) { throw 'Configuracao privada excede 4 MB.' }
+    if ((Get-Item -LiteralPath $Path).Length -gt 32MB) { throw 'Configuracao privada excede 32 MB.' }
     return Get-Content -LiteralPath $Path -Raw -Encoding UTF8 | ConvertFrom-Json
 }
 function Write-PrivateJson([string]$Path, $Object) {
     $temporary = $Path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
     try {
-        [IO.File]::WriteAllText($temporary, ($Object | ConvertTo-Json -Depth 100), (New-Object Text.UTF8Encoding($false)))
+        $bytes = (New-Object Text.UTF8Encoding($false)).GetBytes(($Object | ConvertTo-Json -Depth 100))
+        if ($bytes.Length -gt 32MB) { throw 'Configuracao privada excede 32 MB.' }
+        [IO.File]::WriteAllBytes($temporary, $bytes)
         if (Test-Path -LiteralPath $Path) {
             $backup = $Path + '.before-p16-' + [Guid]::NewGuid().ToString('N') + '.bak'
             [IO.File]::Replace($temporary, $Path, $backup)

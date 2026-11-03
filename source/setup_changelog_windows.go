@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.4-hotfix.2"
+const changelogSeenVersion = "2.2.2.4-hotfix.3"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -46,6 +46,16 @@ func logAccent(r,g,b byte)uintptr{return guiRGB(r,g,b)}
 
 func allLogSections() []logSection {
     return []logSection{
+        {
+            label:logT("🛠️ HOTFIX 3 — SERVIDOR", "🛠️ HOTFIX 3 — SERVER", "🛠️ HOTFIX 3 — SERVER"),
+            accent:logAccent(112,219,164),
+            entries:[]logEntry{
+                {logT("Salvar e iniciar empresas com muitos arquivos", "Save and start large company inventories", "Große Firmeninventare speichern und starten"),
+                 logT("Corrige ‘host preferences exceed size limit’: o gerenciador abria perfis maiores que 4 MB e recusava salvá-los. Leitura, preservação de campos extras, salvamento e migração agora usam o mesmo limite local de 32 MiB, com leitura limitada e sem apagar inventários, mapas, chaves, voz ou senhas. Testes no Windows salvam e reabrem 22 mil arquivos cadastrados. Mantém P16, sinalização Original/Enhanced e integridade das oito vozes V2 da Hotfix 2.",
+                 "Fixes ‘host preferences exceed size limit’: profiles above 4 MB could open but fail to save. Reading, preserving extra fields, saving and migration now share a bounded 32 MiB local limit, retaining inventories, maps, keys, voice and passwords. Windows tests save and reopen 22,000 inventory files. Retains P16, Original/Enhanced hailing and the eight approved V2 voice hashes from Hotfix 2.",
+                 "Behebt ‘host preferences exceed size limit’: Profile über 4 MB ließen sich öffnen, aber nicht speichern. Lesen, Zusatzfelder, Speichern und Migration nutzen dieselbe begrenzte lokale 32-MiB-Grenze. Inventare, Karten, Schlüssel, Sprache und Passwörter bleiben erhalten. Windows-Tests speichern und öffnen 22.000 Inventardateien erneut. P16, Original-/Enhanced-Handzeichen und V2-Sprachprüfsummen aus Hotfix 2 bleiben erhalten.")},
+            },
+        },
         {
             label:logT("🛠️ CORREÇÕES DO HOTFIX","🛠️ HOTFIX CORRECTIONS","🛠️ HOTFIX-KORREKTUREN"),
             accent:logAccent(255,203,92),

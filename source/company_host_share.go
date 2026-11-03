@@ -36,13 +36,8 @@ func companyHostLocalSettingsPath() string {
 
 func loadCompanyHostLocalOptions(path string) (companyHostOptions, bool) {
 	var options companyHostOptions
-	f, err := os.Open(path)
+	text, err := readHostPreferences(path)
 	if err != nil {
-		return options, false
-	}
-	defer f.Close()
-	text, err := io.ReadAll(io.LimitReader(f, (16<<10)+1))
-	if err != nil || len(text) > 16<<10 {
 		return options, false
 	}
 	if err := json.Unmarshal(text, &options); err != nil || !filepath.IsAbs(options.Server) || !filepath.IsAbs(options.Root) || !filepath.IsAbs(options.Profile) || options.Session == "" || strings.Contains(options.Profile, "://") {
@@ -288,15 +283,15 @@ func managedHostServerPath(dir string) string {
 // public CompanyProfile files. Known omitted fields remain omitted (false and
 // deleted maps must never be resurrected by the compatibility merge).
 func preservePrivateHostFields(path string, current []byte, kind reflect.Type) ([]byte, error) {
-	previous, err := os.ReadFile(path)
+	if len(current) >= hostPreferencesLimit {
+		return nil, fmt.Errorf("host preferences exceed size limit (32 MiB maximum)")
+	}
+	previous, err := readHostPreferences(path)
 	if os.IsNotExist(err) {
 		return current, nil
 	}
 	if err != nil {
 		return nil, err
-	}
-	if len(previous) > 4<<20 {
-		return nil, fmt.Errorf("host preferences exceed size limit")
 	}
 	var old, next any
 	if err = json.Unmarshal(previous, &old); err != nil {
@@ -351,5 +346,12 @@ func preservePrivateHostFields(path string, current []byte, kind reflect.Type) (
 		}
 	}
 	merge(old, next, kind)
-	return json.MarshalIndent(next, "", "  ")
+	merged, err := json.MarshalIndent(next, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	if len(merged) >= hostPreferencesLimit {
+		return nil, fmt.Errorf("host preferences exceed size limit (32 MiB maximum)")
+	}
+	return merged, nil
 }

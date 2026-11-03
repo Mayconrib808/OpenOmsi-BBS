@@ -24,6 +24,38 @@ import (
 )
 
 const companyProfileLimit = 8 << 20
+
+// Private host files also carry map options and opaque settings. Their pretty
+// printed inventory can exceed the public profile's compact wire representation.
+// Opening, merging, saving and migration must use the same finite bound.
+const hostPreferencesLimit = 32 << 20
+
+func readHostPreferences(path string) ([]byte, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	info, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("host preferences must be a regular file")
+	}
+	if info.Size() > hostPreferencesLimit {
+		return nil, fmt.Errorf("host preferences exceed size limit (32 MiB maximum)")
+	}
+	data, err := io.ReadAll(io.LimitReader(f, hostPreferencesLimit+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(data) > hostPreferencesLimit {
+		return nil, fmt.Errorf("host preferences exceed size limit (32 MiB maximum)")
+	}
+	return data, nil
+}
+
 const companyFileLimit = 30000
 const multiplayerProtocol = 6
 

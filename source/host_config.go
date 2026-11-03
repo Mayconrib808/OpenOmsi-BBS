@@ -120,12 +120,9 @@ func hostMapMaxPeople(m hostMapOptions) int {
 }
 func loadHostAgentConfig(path string) (hostAgentConfig, error) {
 	var c hostAgentConfig
-	b, err := os.ReadFile(path)
+	b, err := readHostPreferences(path)
 	if err != nil {
 		return c, err
-	}
-	if len(b) > companyProfileLimit+65536 {
-		return c, fmt.Errorf("host configuration is too large")
 	}
 	err = json.Unmarshal(b, &c)
 	if c.Maps == nil {

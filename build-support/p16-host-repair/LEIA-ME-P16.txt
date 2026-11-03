@@ -1,3 +1,9 @@
+CORRECAO HOTFIX 3 — PERFIS GRANDES
+
+Corrige o salvamento de empresas com configuracoes maiores que 4 MB.
+Limite local unificado em 32 MiB. Nenhum inventario precisa ser apagado.
+Mantem as correcoes de sinalizacao, SHA de audio e P16 da Hotfix 2.
+
 CORRECAO DO GERENCIADOR P16 - Bridge 2.2.2.4
 
 1. Extraia TODO este ZIP na pasta da Bridge usada pelo servidor da empresa,

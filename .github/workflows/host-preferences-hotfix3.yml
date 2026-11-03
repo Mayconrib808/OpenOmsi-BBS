@@ -1,0 +1,110 @@
+name: Hotfix 3 - large host preferences without rebuilding native game
+on:
+  push:
+    branches: [fix/2224-host-preferences-limit]
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  repair:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@v5
+        with: {go-version: 1.23.2, cache: false}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.2-CANDIDATE
+          run-id: 41538116149
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Build isolated P16 preferences repair
+        run: python scripts/build_p16_preferences_repair.py candidate repair --server-output native
+      - name: Verify large profile migration, actual UI save/reopen and P16 connection
+        shell: pwsh
+        run: |
+          python scripts/test_p16_host_repair.py repair
+          if ($LASTEXITCODE -ne 0) { throw 'Large private profile migration failed' }
+          python scripts/test_complete_host_ui.py repair/app/hosts-p16 --protocol 16 --large-inventory --server native/openomsi.exe --report repair/validacao/native-p16-large-inventory.json
+          if ($LASTEXITCODE -ne 0) { throw 'Actual large host UI failed' }
+          $env:OPENOMSI_GATEWAY_TEST_SERVER = (Resolve-Path native/openomsi.exe).Path
+          $env:OPENOMSI_GATEWAY_TEST_PROTOCOL = '16'
+          python scripts/build_2203.py --tests-only
+          if ($LASTEXITCODE -ne 0) { throw 'Host, inventory bound, protocol or gateway regression failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Correcao_HostAgent_P16_Perfis_Grandes_HF3
+          path: repair/
+          if-no-files-found: error
+          retention-days: 30
+  candidate:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with: {persist-credentials: false}
+      - uses: actions/setup-go@v5
+        with: {go-version: 1.23.2, cache: false}
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.4-HF2-native-CANDIDATE
+          run-id: 41539618533
+          github-token: ${{ github.token }}
+          path: native
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.4-HF2-launcher-CANDIDATE
+          run-id: 41539618533
+          github-token: ${{ github.token }}
+          path: launcher
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2-native-Windows
+          run-id: 41157142308
+          github-token: ${{ github.token }}
+          path: prior-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.3-Final-CANDIDATE
+          run-id: 41439660434
+          github-token: ${{ github.token }}
+          path: baseline
+      - name: Build cumulative HF3 retaining exact HF2 native game and launcher
+        shell: pwsh
+        run: |
+          Get-ChildItem prior-native -Filter '*.dll' | Copy-Item -Destination native
+          python scripts/build_2224.py --baseline baseline --parts baseline --native native --launcher launcher --output build/release2224
+          if ($LASTEXITCODE -ne 0) { throw 'HF3 build or Windows first-attempt install failed' }
+          python -c "import json;from pathlib import Path;p=Path('build/release2224');r=json.loads((p/'build-report.json').read_text());u=json.loads((p/'native-p16-controls.json').read_text());assert r['version']=='2.2.2.4-hotfix.3' and r['sequence']==2026110206 and r['large_host_inventory_ui_tested'] and r['host_preferences_limit']==32<<20 and u['large_inventory_tested'] and u['inventory_files']==22000"
+          if ($LASTEXITCODE -ne 0) { throw 'Large inventory publication evidence missing' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: HF3-diagnostics
+          path: |
+            build/release2224/one-click-install-setup.log
+            build/release2224/runtime/app/setup-v1.1.3.log
+            build/release2224/setup-previews/*
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.3-CANDIDATE
+          path: |
+            build/release2224/Atualizar-Bridge.exe
+            build/release2224/build-report.json
+            build/release2224/coop-spec.json
+            build/release2224/coop_bundle_manifest.go
+            build/release2224/coop-assets/*
+            build/release2224/native-help.txt
+            build/release2224/native-p16-controls.json
+            build/release2224/one-click-install-test.json
+            build/release2224/one-click-install-setup.log
+            build/release2224/setup-previews/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 30

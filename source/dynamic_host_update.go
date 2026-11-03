@@ -347,8 +347,14 @@ func activateUpdatedDynamicHost(dir string, payload map[string][]byte) (err erro
 // Add isolated P16 settings without overwriting a retained P15 host's private
 // preferences. Existing P16 settings are left alone on subsequent updates.
 func activateP16HostSidecar(dir string, payload map[string][]byte) (err error) {
- var created []string
- defer func(){if err!=nil {for _,path:=range created {_=os.Remove(path)}}}()
+	var created []string
+	defer func() {
+		if err != nil {
+			for _, path := range created {
+				_ = os.Remove(path)
+			}
+		}
+	}()
 	const server = "app/server-dinamico-p16/openomsi.exe"
 	if len(payload[server]) == 0 {
 		return nil
@@ -369,7 +375,7 @@ func activateP16HostSidecar(dir string, payload map[string][]byte) (err error) {
 		}
 		var old []byte
 		for _, base := range []string{managedDataDir(dir), dir} {
-			data, e := os.ReadFile(filepath.Join(base, name+".local.json"))
+			data, e := readHostPreferences(filepath.Join(base, name+".local.json"))
 			if e == nil {
 				old = data
 				break
@@ -380,9 +386,6 @@ func activateP16HostSidecar(dir string, payload map[string][]byte) (err error) {
 		}
 		if old == nil {
 			continue
-		}
-		if len(old) > 4<<20 {
-			return fmt.Errorf("host preferences exceed size limit")
 		}
 		var doc map[string]json.RawMessage
 		if json.Unmarshal(old, &doc) != nil {
@@ -418,10 +421,13 @@ func activateP16HostSidecar(dir string, payload map[string][]byte) (err error) {
 		if e != nil {
 			return e
 		}
+		if len(data) >= hostPreferencesLimit {
+			return fmt.Errorf("host preferences exceed size limit (32 MiB maximum)")
+		}
 		if e = writeSetupAtomic(target, append(data, '\n')); e != nil {
 			return e
 		}
-        created=append(created,target)
+		created = append(created, target)
 	}
 	return nil
 }
