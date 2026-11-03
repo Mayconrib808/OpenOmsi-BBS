@@ -323,20 +323,25 @@ func TestPrepareLocalizedBCSDriver(t *testing.T) {
 	}
 }
 
-func TestPrepareDriverRejectsWrongSlotAndInvalidStructure(t *testing.T) {
+func TestPrepareDriverAllowsLegacyFilenamesButRejectsInvalidStructure(t *testing.T) {
 	d, err := parseDriver(fixture(t, "bbs-before.odr"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
 	dir := t.TempDir()
-	unrelated := filepath.Join(dir, "unrelated.odr")
-	if err := os.WriteFile(unrelated, d.encode(false), 0644); err != nil {
-		t.Fatal(err)
+	// Some legacy installations expose the BCS selected record as native.odr.
+	for _, file := range []string{"bbs.odr", "native.odr", "perfil-localizado.odr"} {
+		t.Run(file, func(t *testing.T) {
+			native := filepath.Join(t.TempDir(), file)
+			if err := os.WriteFile(native, d.encode(false), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prepareDriver(native, t.TempDir()); err != nil {
+				t.Fatalf("valid localized/legacy BCS profile rejected: %v", err)
+			}
+		})
 	}
-	if _, err := prepareDriver(unrelated, dir); err == nil {
-		t.Fatal("non-BCS personnel filename accepted")
-	}
-	native := filepath.Join(dir, "bbs.odr")
+	native := filepath.Join(dir, "native.odr")
 	if err := os.WriteFile(native, []byte("not a valid driver record"), 0644); err != nil {
 		t.Fatal(err)
 	}
