@@ -18,6 +18,8 @@ pub struct DemandAudit {
     pub refused_spots_full: u64,
     pub refused_spawn: u64,
     pub retries_suppressed: u64,
+    pub last_refused_stop: Option<i64>,
+    pub last_refused_reason: Option<&'static str>,
     pub patience_left: u64,
     pub last_stop: Option<i64>,
     pub clothing_evaluated: u64,
@@ -32,11 +34,23 @@ impl Default for DemandAudit {
         Self { last_report_at: -60.0, last_seat_report_at: -60.0, seeded_stops: 0,
             new_queue_units: 0.0, materialized: 0, spawn_refused: 0,
             refused_pool_full: 0, refused_spots_full: 0, refused_spawn: 0,
-            retries_suppressed: 0,
+            retries_suppressed: 0, last_refused_stop: None, last_refused_reason: None,
             patience_left: 0, last_stop: None, clothing_evaluated: 0,
             clothing_tagged_selected: 0, conversation_attempts: 0,
             conversation_without_pairs: 0, conversation_without_clips: 0,
             conversation_lines: 0 }
+    }
+}
+
+impl DemandAudit {
+    pub fn record_refusal(&mut self, stop: i64, reason: &'static str) {
+        self.last_refused_stop = Some(stop);
+        self.last_refused_reason = Some(reason);
+        match reason {
+            "human_pool_full" => self.refused_pool_full += 1,
+            "waiting_spots_full" => self.refused_spots_full += 1,
+            _ => self.refused_spawn += 1,
+        }
     }
 }
 
