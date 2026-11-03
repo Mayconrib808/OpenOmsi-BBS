@@ -68,3 +68,7 @@ deploy_trigger, raise_trigger, lower_trigger, alight_trigger e stow_trigger são
 comandos opcionais, disparados uma vez por etapa. alight_trigger prepara a
 plataforma no nível do piso para o desembarque. Sem esses comandos o motorista
 usa os controles originais; o passageiro espera pelo feedback verdadeiro.
+
+O canal de acessibilidade limita seus envios para reservar espaço aos comandos
+normais do P16. A frequência por observador diminui em salas com muitos jogadores.
+A validação desta beta em sessões grandes ainda está pendente.

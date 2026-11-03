@@ -44,19 +44,17 @@ impl App {
     }
 }
 
-static LAST_SEND:std::sync::OnceLock<std::sync::Mutex<std::time::Instant>>=std::sync::OnceLock::new();
+static LAST_SEND:std::sync::OnceLock<std::sync::Mutex<wheelchair::network::SendSchedule>>=std::sync::OnceLock::new();
 impl App {
     fn tick_wheelchair_network(&mut self){
         let Some(h)=self.session.humans.as_ref().filter(|h|h.wheelchairs.enabled)else{return;};
-        if self.net.lan.is_none(){return;}
-        let now=std::time::Instant::now();
-        let Ok(mut last)=LAST_SEND.get_or_init(||std::sync::Mutex::new(now-std::time::Duration::from_secs(1))).lock()else{return;};
-        if now.duration_since(*last)<std::time::Duration::from_millis(200){return;}
-        *last=now;drop(last);let text=h.wheelchair_wire();
-        if let Some(lan)=self.net.lan.as_mut(){
-            let peers:Vec<_>=lan.peers().filter(|p|p.has_pose).map(|p|p.pose.id).collect();
-            for peer in peers{lan.command(peer,&text);}
-        }
+        let Some(lan)=self.net.lan.as_ref()else{return;};
+        let mut peers:Vec<_>=lan.peers().filter(|p|p.has_pose).map(|p|p.pose.id).collect();
+        peers.sort_unstable();
+        let active=h.wheelchairs.journey.is_some()&&h.wheelchairs.person.is_some();
+        let Ok(mut schedule)=LAST_SEND.get_or_init(||std::sync::Mutex::new(Default::default())).lock()else{return;};
+        let to=schedule.recipient(std::time::Instant::now(),&peers,active);drop(schedule);
+        if let Some(to)=to {let text=h.wheelchair_wire();if let Some(lan)=self.net.lan.as_mut(){lan.command(to,&text);}}
     }
     pub(crate) fn receive_wheelchair_beta(&mut self,from:u32,text:&str)->bool{
         if !text.starts_with(wheelchair::network::PREFIX){return false;}

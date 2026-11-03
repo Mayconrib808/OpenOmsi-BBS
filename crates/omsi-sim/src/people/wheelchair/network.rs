@@ -5,6 +5,34 @@ use base64::{engine::general_purpose::URL_SAFE_NO_PAD,Engine};
 use std::time::{Duration,Instant};
 pub const PREFIX:&str="wcb1 ";
 
+/// The P16 message lane allows ten commands/second per sender. Spend at most
+/// eight on accessibility, send nothing while idle, and clear each observer once.
+pub struct SendSchedule {
+    last:Instant,cursor:usize,active:bool,clear:std::collections::VecDeque<u32>,
+}
+impl Default for SendSchedule {
+    fn default()->Self{Self{last:Instant::now()-Duration::from_secs(1),
+        cursor:0,active:false,clear:Default::default()}}
+}
+impl SendSchedule {
+    pub fn recipient(&mut self,now:Instant,peers:&[u32],active:bool)->Option<u32>{
+        if active!=self.active {
+            self.active=active;self.cursor=0;self.clear.clear();
+            if !active{self.clear.extend(peers.iter().copied());}
+        }
+        if now.saturating_duration_since(self.last)<Duration::from_millis(125){return None;}
+        let peer=if active {
+            if peers.is_empty(){return None;}
+            let peer=peers[self.cursor%peers.len()];
+            self.cursor=self.cursor.wrapping_add(1);Some(peer)
+        }else{
+            while self.clear.front().is_some_and(|p|!peers.contains(p)){self.clear.pop_front();}
+            self.clear.pop_front()
+        };
+        if peer.is_some(){self.last=now;}peer
+    }
+}
+
 #[derive(Debug,Clone,Copy)]
 pub struct EquipmentLocal {
     pub threshold:Vec3,pub width:f32,pub length:f32,pub height:f32,
@@ -97,9 +125,9 @@ impl PeopleSim {
         self.wheelchairs.remote_poses.clear();self.wheelchairs.remote_equipment.clear();
         remotes.retain(|&owner,r|{
             let bn=buses.iter().find(|b|b.id==BusId::Ai(super::super::mirror::remote_bus_id(owner)));
-            if r.heard.elapsed()>Duration::from_secs(8)||bn.is_none(){
+            if r.heard.elapsed()>Duration::from_secs(20)||bn.is_none(){
                 if let Some(id)=r.person.take(){self.remove_wheelchair_body(id);}
-                return r.heard.elapsed()<=Duration::from_secs(8);
+                return r.heard.elapsed()<=Duration::from_secs(20);
             }
             let bn=bn.unwrap();let k=(1.0-(-dt.max(0.0)/0.10).exp()).clamp(0.0,1.0);
             r.shown.local=r.shown.local.lerp(r.target.local,k);
@@ -153,6 +181,25 @@ impl PeopleSim {
         for _ in 0..100{h.receive_wheelchair(1,&text);}assert_eq!(h.wheelchairs.remotes.len(),1);
         for owner in 2..130{h.receive_wheelchair(owner,&text);}assert_eq!(h.wheelchairs.remotes.len(),64);
         h.receive_wheelchair(1,"wcb1 -");assert_eq!(h.wheelchairs.remotes.len(),63);
+    }
+    #[test]fn command_budget_is_bounded_for_a_large_room(){
+        let peers:Vec<u32>=(1..65).collect();let now=Instant::now();
+        let mut schedule=SendSchedule::default();let mut sent=0;
+        for millisecond in 0..1000 {
+            if schedule.recipient(now+Duration::from_millis(millisecond),&peers,true).is_some(){sent+=1;}
+        }
+        assert_eq!(sent,8);
+    }
+    #[test]fn each_peer_is_served_in_order_and_idle_has_no_periodic_traffic(){
+        let now=Instant::now();let peers=[2,7,11];let mut schedule=SendSchedule::default();
+        assert!(schedule.recipient(now,&peers,false).is_none());
+        for n in 0..9 {
+            assert_eq!(schedule.recipient(now+Duration::from_millis(n*125),&peers,true),Some(peers[n as usize%3]));
+        }
+        for n in 0..3 {
+            assert_eq!(schedule.recipient(now+Duration::from_millis(1250+n*125),&peers,false),Some(peers[n as usize]));
+        }
+        assert!(schedule.recipient(now+Duration::from_secs(100),&peers,false).is_none());
     }
     #[test]fn bundled_torino_profile_passes_the_runtime_validator(){
         let json=std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../coop-assets/wheelchair-beta/profiles/torino2007.json")).unwrap();
