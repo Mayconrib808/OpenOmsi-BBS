@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline publisher: sign an approved Hotfix 1 artifact. NEVER store a private key in GitHub.
+"""Offline publisher: sign the verified cumulative Hotfix 3 candidate. NEVER store a private key in GitHub.
 
 The runner/deployer only receives the public, signed stable.json. This tool
 produces two local files: publication.json (provenance) and stable.json (signature).
@@ -13,7 +13,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 VERSION = "2.2.2.4-hotfix.3"
 SEQUENCE = 2026110206
-NATIVE_COMMIT = "3d91881988bc260115184b5c4a03596f2b25d604"
+NATIVE_COMMIT = "fa3d9197b64c7763d4c6e4819cca9fac1660ed04"
 BASE = "https://openomsi-bbs-updates.maycongamesmaximo.workers.dev"
 PUBLIC = "5xKCV4uIoc9e0/sGeF9s9+cd5m5rwPOdyqslWqxPRrs="
 sha = lambda b: hashlib.sha256(b).hexdigest()
@@ -36,9 +36,9 @@ def run():
     assert report["version"] == VERSION and report["sequence"] == SEQUENCE
     assert report["updater_sha256"] == sha(exe) and report["installer_size"] == len(exe) and len(exe) <= 25*1024*1024
     assert report["coop_archive_sha256"] == spec["sha256"] and len(spec["parts"]) > 5
-    assert report["native_candidate_run"] == 41539618533 and report["desktop_launcher_run"] == 41539618533
+    assert report["native_candidate_run"] == int(a.candidate_run_id) and report["desktop_launcher_run"] == 41539618533
     assert report["native_candidate_commit"] == NATIVE_COMMIT and report["native_build_commit"] == NATIVE_COMMIT
-    assert report["desktop_launcher_commit"] == NATIVE_COMMIT
+    assert report["desktop_launcher_commit"] == "3d91881988bc260115184b5c4a03596f2b25d604"
     assert report["new_p16_host_ui_tested"] and report["coop_protocol"] == 16
     assert report["host_preferences_limit"] == 32<<20 and report["large_host_inventory_ui_tested"]
     assert host_ui["large_inventory_tested"] and host_ui["inventory_files"] == 22000
@@ -62,7 +62,9 @@ def run():
     pub = {
       "version": VERSION, "sequence": SEQUENCE,
       "candidate_run_id": int(a.candidate_run_id),
-      "native_base_run_id": 41539618533,
+      "native_base_run_id": int(a.candidate_run_id),
+      "native_build_commit": NATIVE_COMMIT,
+      "launcher_base_run_id": 41539618533,
       "candidate_commit": a.candidate_commit,
       "candidate_artifact_id": int(a.artifact_id),
       "candidate_artifact_sha256": archive_digest,
