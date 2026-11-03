@@ -806,6 +806,9 @@ impl PeopleSim {
         if journey.stage == Stage::Waiting || journey.stage == Stage::Finished {
             if let Some(at) = journey.outside_world {
                 journey.local = bn.to_local(at);
+                // A person left at the curb keeps their world orientation when
+                // the bus turns or drives away.
+                journey.heading = angle_delta(bn.heading, self.people[i].heading);
             }
         }
         if commands & ALIGHT != 0 {
@@ -885,7 +888,11 @@ impl PeopleSim {
         } else {
             Place::Ground
         };
-        p.tilt = bn.rot * Mat4::from_rotation_z(bn.heading.to_radians() as f32);
+        p.tilt = if matches!(journey.stage,Stage::Waiting|Stage::Finished) {
+            Mat4::IDENTITY
+        } else {
+            bn.rot * Mat4::from_rotation_z(bn.heading.to_radians() as f32)
+        };
         p.interior = if journey.boarded { bn.interior } else { 0.0 };
         p.vel = DVec2::ZERO;
         p.activity = Activity::Sit;
