@@ -48,7 +48,7 @@ if(process.argv[2]==='validate-signatures'){
   const binary=readFileSync('approved-new/Atualizar-Bridge.exe');
   const installed=json('approved-new/one-click-install-test.json');
   const hostUI=json('approved-new/native-p16-controls.json');
-  if(report.host_preferences_limit!==32*1024*1024||report.large_host_inventory_ui_tested!==true||hostUI.large_inventory_tested!==true||hostUI.inventory_files!==22000||info.native_base_run_id!==41539618533)throw Error('Large private profile save/reopen was not tested');
+  if(report.host_preferences_limit!==32*1024*1024||report.large_host_inventory_ui_tested!==true||hostUI.large_inventory_tested!==true||hostUI.inventory_files!==22000||info.native_base_run_id!==report.native_candidate_run||info.native_build_commit!=='fa3d9197b64c7763d4c6e4819cca9fac1660ed04'||info.launcher_base_run_id!==41539618533)throw Error('Large private profile save/reopen was not tested');
   if(report.actual_updater_first_attempt_windows_tested!==true||installed.status!=='passed'||installed.invocations!==1||
       installed.windows_crlf_acceptance_tested!==true||installed.running_old_setup_replaced!==true||
       installed.setup_reopened!==true||installed.unmanaged_preferences_preserved!==true||
@@ -58,9 +58,9 @@ if(process.argv[2]==='validate-signatures'){
   if(report.version!=='2.2.2.4-hotfix.3'||report.sequence!==2026110206||report.update_origin!==origin
       ||report.updater_sha256!==installer.sha256||sha(binary)!==installer.sha256||binary.length!==installer.size
       ||report.coop_archive_sha256!==spec.sha256||report.native_version!=='0.3.47-coop.16-2.2.2.4'
-      ||report.native_candidate_run!==41539618533
-      ||report.native_candidate_commit!=='3d91881988bc260115184b5c4a03596f2b25d604'
-      ||report.native_build_commit!=='3d91881988bc260115184b5c4a03596f2b25d604'
+      ||report.native_candidate_run!==info.native_base_run_id
+      ||report.native_candidate_commit!==info.native_build_commit
+      ||report.native_build_commit!==info.native_build_commit
       ||report.desktop_launcher_commit!=='3d91881988bc260115184b5c4a03596f2b25d604'
       ||report.desktop_launcher_run!==41539618533
       ||report.complete_hosts_unchanged!==true||report.complete_hosts_rebuilt!==false
@@ -78,7 +78,7 @@ if(process.argv[2]==='validate-signatures'){
      ||Object.keys(spec.files).some(n=>n.includes('/WinterClothes/')))
     throw Error('Invalid complete runtime or obsolete winter clothing remains');
 
-  if(report.native_candidate_run!==41539618533 || report.desktop_launcher_run!==41539618533
+  if(report.native_candidate_run!==info.native_base_run_id || report.desktop_launcher_run!==41539618533
      ||report.updater_sha256!==info.installer_sha256 ||report.installer_size!==info.installer_size
      ||report.coop_archive_sha256!==info.coop_archive_sha256
      ||report.dynamic_p16_version!=='0.3.47-coop.16-2.2.2.4'
