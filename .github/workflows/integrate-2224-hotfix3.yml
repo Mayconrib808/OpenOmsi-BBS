@@ -96,6 +96,9 @@ jobs:
       - name: Replace old native with freshly built passenger fixes and archive exact source
         shell: pwsh
         run: |
+          # A standalone openOMSI.exe needs the app-local Steam/C++ DLLs
+          # even for --version. Previously 0xc0000135 blocked publication here.
+          Get-ChildItem prior-native -Filter '*.dll' | Copy-Item -Destination native
           @'
           import hashlib, json, os, shutil, subprocess
           from pathlib import Path
@@ -128,6 +131,13 @@ jobs:
           print('HF3 NATIVE REPLACED',old_sha,'->',new_sha)
           '@ | python -
           if ($LASTEXITCODE -ne 0) { throw 'New native source/build provenance invalid' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-HF3-native-and-source-CANDIDATE
+          path: native/
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
       - name: Build new cumulative HF3 with all fixes and GUI update smoke tests
         shell: pwsh
         run: |
