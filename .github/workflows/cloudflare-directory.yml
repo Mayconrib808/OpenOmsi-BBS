@@ -14,10 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout validated 3.0 directory
+      - name: Checkout validated P16 and v3 directory
         uses: actions/checkout@v4
         with:
-          ref: 3e16e02364b0771bf912536ec6b1da660b5490c3
+          ref: 34337821b692cdd3e57828cbdcece8c52761665b
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -39,14 +39,6 @@ jobs:
           workingDirectory: relay
           wranglerVersion: '4.149.0'
           command: deploy --config wrangler.jsonc
-      - name: Verify live version 3 route
-        run: |
-          node --input-type=module <<'JS'
-          const url = 'https://openomsi-bbs-directory.maycongamesmaximo.workers.dev/rooms/00000000000000000000000000000000/v3/capabilities';
-          const response = await fetch(url);
-          const result = await response.json();
-          if (!response.ok || result.version !== 3 || result.lease_ms !== 60000) {
-            throw new Error('Live directory did not return version 3 capabilities');
-          }
-          console.log('Live directory supports version 3.');
-          JS
+      - name: Verify live P16 and existing v3 routes
+        working-directory: relay
+        run: node verify-live.mjs
