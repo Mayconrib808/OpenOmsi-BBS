@@ -40,8 +40,8 @@ def main():
  before={name:sha(data)for name,data in files.items()}
  evidence=readjson(a.native/'SOURCE.json');pin=readjson(ROOT/'build-support/release2224/native-build.json')
  assert evidence['build_commit']==pin['commit']
- assert evidence['run_id']==pin.get('run_id',int(os.environ['GITHUB_RUN_ID']))
- assert pin['workflow']=='.github/workflows/release-2224-candidate.yml'
+ assert evidence['run_id']==int(os.environ['GITHUB_RUN_ID']), 'Native executable must be freshly compiled in this run'
+ assert pin['workflow']=='.github/workflows/integrate-2224-hotfix3.yml'
  assert evidence['upstream_commit']==UPSTREAM and evidence['version']==NATIVE_VERSION
  assert evidence['winter_clothing_removed'] and evidence['passenger_upstream_tag']=='v0.3.47'
  assert evidence['passenger_upstream_commit']=='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6'
@@ -59,8 +59,9 @@ def main():
  launcher_meta=readjson(a.launcher/'BUILD-INFO.json')
  launcher_binary=(a.launcher/'openomsi-launcher-app.exe').read_bytes()
  launcher_pin=readjson(ROOT/'build-support/release2224/native-build.json')
+ assert launcher_pin['commit']==evidence['commit'], 'Native source pin changed during packaging'
  assert launcher_meta['version']==NATIVE_VERSION, 'Launcher must match the full 0.3.47 game and P16 server'
- assert launcher_meta['source_commit']==launcher_pin['commit'], 'Unexpected launcher source'
+ assert launcher_meta['source_commit']=='3d91881988bc260115184b5c4a03596f2b25d604', 'Unexpected launcher source'
  assert launcher_meta['optional_ui_controls']==12 and launcher_meta['passenger_upstream_controls']==3
  assert launcher_meta['path']==launcher_name
  assert sha(launcher_binary)==launcher_meta['launcher_sha256'] and launcher_binary[:2]==b'MZ'
@@ -71,7 +72,7 @@ def main():
  files[marker_name]=(json.dumps(marker,indent=2)+'\n').encode()
  notes=(ROOT/'docs/releases/2.2.2.4-hotfix.3.md').read_bytes()
  info_name=COOP+'/source/BUILD-INFO.json';info=json.loads(files[info_name])
- info.update(version=NATIVE_VERSION,bridge_version=VERSION,game_sha256=sha(native),native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,launcher_sha256=sha(launcher_binary),launcher_build_commit=launcher_pin['commit'],upstream_commit=UPSTREAM)
+ info.update(version=NATIVE_VERSION,bridge_version=VERSION,game_sha256=sha(native),native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,launcher_sha256=sha(launcher_binary),launcher_build_commit=launcher_meta['source_commit'],upstream_commit=UPSTREAM)
  files[info_name]=(json.dumps(info,indent=2)+'\n').encode()
  files[COOP+'/source/openomsi-2.2.2.4-hotfix.3-source.tar.gz']=source
  files[COOP+'/source/SOURCE-2.2.2.4-hotfix.3.json']=(json.dumps(evidence,indent=2)+'\n').encode()
@@ -210,7 +211,7 @@ def main():
   previous_installer_sha256=BASE_UPDATER,previous_coop_sha256=BASE_COOP,retained_host_hashes={n:sha(payload[n])for n in('HostAgent.exe','CompanyHost.exe')},
   host_preferences_limit=32<<20,large_host_inventory_ui_tested=True,complete_hosts_unchanged=True,complete_hosts_rebuilt=False,p14_server_unchanged=True,p15_server_unchanged=True,new_p16_host_ui_tested=True,p16_host_hashes={n:sha(files['app/hosts-p16/'+n])for n in('HostAgent.exe','CompanyHost.exe')},dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,
   native_version=NATIVE_VERSION,native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],upstream_commit=UPSTREAM,
-  native_client_sha256={'openomsi.exe':sha(native)},native_source_sha256=sha(source),coop_protocol=16,custom_sounds_unchanged=True,desktop_launcher_unchanged=False,desktop_launcher_sha256=sha(launcher_binary),desktop_launcher_commit=launcher_pin['commit'],desktop_launcher_run=evidence['run_id'],
+  native_client_sha256={'openomsi.exe':sha(native)},native_source_sha256=sha(source),coop_protocol=16,custom_sounds_unchanged=True,desktop_launcher_unchanged=False,desktop_launcher_sha256=sha(launcher_binary),desktop_launcher_commit=launcher_meta['source_commit'],desktop_launcher_run=evidence['run_id'],
   bcs_capture_normal_launch_tested=True,bcs_single_and_company_event_fixture_tested=True,setup_changelog_languages=['pt','en','de'],setup_changelog_ui_tested=True,
   winter_clothing_removed=True,passenger_upstream_tag='v0.3.47',passenger_upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6',brazilian_passenger_recordings=8,passenger_defaults_enabled=True,passenger_coop_handback=True,feature_event_audit_included=True,per_release_changelog_including_hotfixes=True,
   setup_live_update_ui_tested=True,bridge_regressions_tested=True,windows_gameplay_tested=False,paired_gameplay_tested=False,
