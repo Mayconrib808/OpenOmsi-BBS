@@ -1,0 +1,36 @@
+name: Repair company directory HTTP 400 for P16
+on:
+  push:
+    branches: [fix/directory-p16-400]
+    paths: ['relay/**', '.github/workflows/directory-p16-repair.yml', 'docs/releases/directory-p16.1.md']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: cloudflare-directory-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify P6/P7/P14/P15/P16 lifecycle and preserved v3 routes
+        working-directory: relay
+        run: npm test
+      - name: Deploy existing directory with original bindings and secrets
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: relay
+          wranglerVersion: '4.149.0'
+          command: deploy --config wrangler.jsonc
+      - name: Verify live P16 capabilities and existing v3 discovery
+        working-directory: relay
+        run: node verify-live.mjs

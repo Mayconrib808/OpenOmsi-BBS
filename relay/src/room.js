@@ -1,6 +1,10 @@
+import { multiplayer3 } from './multiplayer3.js';
 // Shared protocol logic, used by the Worker and the local regression harness.
 // Public room addresses are unguessable invitations, never host credentials.
 const idPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+// Discovery metadata follows the same explicit allowlist as the Bridge.
+// This does not translate native multiplayer packets between protocols.
+const supportedProtocols = new Set([6, 7, 14, 15, 16]);
 const states = new Set(['offline','starting','online','stopping','error','disabled']);
 const limit = 8 * 1024 * 1024;
 const weatherRanges = {vis:[50,50000],br:[0,1.5],wd:[0,360],ws:[0,50],t:[-40,50],rh:[0,100],p:[900,1100],c:[0,4],cb:[50,5000],pt:[0,2],pi:[0,255],wet:[0,1],snow:[0,1],snowroad:[0,1]};
@@ -46,15 +50,20 @@ export class RoomProtocol {
   async fetch(request) {
     try {
       const url=new URL(request.url);
-      const match=url.pathname.match(/^\/rooms\/([a-f0-9]{32})\/(profile|publish|heartbeat|requests|wake|sessions\/[a-z0-9_-]{1,64})$/);
+      const v3=url.pathname.match(/^\/rooms\/([a-f0-9]{32})\/(v3\/.*)$/);
+      if(v3&&!url.search)return await multiplayer3(this,request,v3[2]);
+      const match=url.pathname.match(/^\/rooms\/([a-f0-9]{32})\/(capabilities|profile|publish|heartbeat|requests|wake|sessions\/[a-z0-9_-]{1,64})$/);
       if(!match || url.search) return fail('not found',404);
       const action=match[2];
+      if(action==='capabilities') return request.method==='GET'
+        ? json({release:'directory-p16.1',supported_protocols:[...supportedProtocols]})
+        : fail('method not allowed',405);
       const privateAction=['publish','heartbeat','requests'].includes(action);
       if(privateAction && (!this.hostKey || this.hostKey.length<32 || request.headers.get('Authorization')!==`Bearer ${this.hostKey}`)) return fail('unauthorized',401);
       if(action==='publish' && request.method==='POST') {
         const p=await this.body(request);
         const allowed=new Set(['schema_version','company_id','company_name','openomsi_version','protocol','clock','directory_url','packages','sessions']);
-        if(!p || Object.keys(p).some(k=>!allowed.has(k)) || p.schema_version!==1 || !idPattern.test(p.company_id) || p.protocol!==6 || !Array.isArray(p.sessions) || !p.sessions.length || p.sessions.length>16 || p.directory_url!==`${url.origin}/rooms/${match[1]}`) return fail('invalid player profile',400);
+        if(!p || Object.keys(p).some(k=>!allowed.has(k)) || p.schema_version!==1 || !idPattern.test(p.company_id) || !supportedProtocols.has(p.protocol) || !Array.isArray(p.sessions) || !p.sessions.length || p.sessions.length>16 || p.directory_url!==`${url.origin}/rooms/${match[1]}`) return fail('invalid player profile',400);
         const ids=new Set();for(const s of p.sessions){if(!idPattern.test(s.id)||ids.has(s.id))return fail('invalid sessions',400);ids.add(s.id);}
         const existing=await this.readProfile();if(existing && existing.company_id!==p.company_id)return fail('company identity cannot change',409);
         const bytes=new TextEncoder().encode(JSON.stringify(p));
@@ -116,3 +125,4 @@ export class RoomProtocol {
     } catch {return fail('invalid request',400);}
   }
 }
+
