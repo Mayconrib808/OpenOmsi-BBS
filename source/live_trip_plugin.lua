@@ -70,21 +70,42 @@ end
 local function desired_sign()
   local d = omsi.duty.get()
   if not d then return nil, "The current timetable is unavailable" end
-  local found, count = nil, 0
-  local duty_name, selected_name = name(d.terminus), name(current.terminus)
-  for _, row in ipairs(omsi.bus.destinations()) do
-    local row_name = name(row.name)
-    if row_name ~= "" and ((duty_name ~= "" and row_name == duty_name) or
-       (selected_name ~= "" and row_name == selected_name)) then
-      found, count = row.index, count + 1
+  -- The BCS route label, the active duty's terminus and the *physical* last
+  -- timetable stop are not always spelled alike on addon maps. Try the
+  -- authoritative duty first, then the matched stop, then the BCS display.
+  -- Each choice MUST uniquely identify a real HOF row; never guess an index.
+  local destinations = omsi.bus.destinations() or {}
+  local candidates = {
+    { label = "duty", text = d.terminus },
+    { label = "final_stop", text = resolved and resolved.last and resolved.last.name },
+    { label = "bcs", text = current and current.terminus }
+  }
+  local seen = {}
+  for _, candidate in ipairs(candidates) do
+    local sought = name(candidate.text)
+    if sought ~= "" and not seen[sought] then
+      seen[sought] = true
+      local found, count = nil, 0
+      for _, row in ipairs(destinations) do
+        if name(row.name) == sought then
+          found, count = row.index, count + 1
+        end
+      end
+      if count > 1 then
+        return nil, "More than one HOF row matches " .. candidate.label
+      end
+      if count == 1 then
+        if type(found) ~= "number" or found < 1 or found ~= math.floor(found) then
+          return nil, "The HOF destination index is unavailable"
+        end
+        return found
+      end
     end
   end
-  if count == 0 then return nil, "No matching destination in the loaded HOF" end
-  if count ~= 1 then return nil, "More than one matching destination in the loaded HOF" end
-  if type(found) ~= "number" or found < 1 or found ~= math.floor(found) then
-    return nil, "The HOF destination index is unavailable"
-  end
-  return found
+  return nil, "No matching destination in the loaded HOF (rows=" .. #destinations ..
+    "; duty=" .. trim(d.terminus) .. "; final_stop=" ..
+    trim(resolved and resolved.last and resolved.last.name) .. "; BCS=" ..
+    trim(current and current.terminus) .. ")"
 end
 local function sign_matches()
   sign_expected, sign_issue = desired_sign()

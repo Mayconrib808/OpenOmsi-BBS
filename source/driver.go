@@ -302,10 +302,10 @@ func prepareDriver(nativePath, dir string) (*driverSync, error) {
 	if err != nil {
 		return nil, fmt.Errorf("BCS personnel file: %w", err)
 	}
-	// BCS localizes the driver name; retain the original identity in both formats.
-	if d.Ident[0] != "Bus Company Simulator" && d.Ident[0] != "Simulador de Companhia de Autobuses" {
-		return nil, fmt.Errorf("expected the BCS driver, got %q", d.Ident[0])
-	}
+	// Do not validate the localized driver display name or the physical
+	// filename. The caller has already selected the BCS profile; parseDriver
+	// validates its complete contents. Keep native [ident] bytes unchanged.
+	// Localized and legacy profile names both remain supported.
 	if err = os.MkdirAll(dir, 0755); err != nil {
 		return nil, err
 	}

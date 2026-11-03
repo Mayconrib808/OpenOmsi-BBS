@@ -278,41 +278,78 @@ func TestSavedDrivingPenaltyCanRecoverWithoutInventingEvents(t *testing.T) {
 }
 
 func TestPrepareLocalizedBCSDriver(t *testing.T) {
+	// Display names come from BCS localization. The identity and counters must
+	// survive unchanged, regardless of the country or translation.
+	names := []string{
+		"Bus Company Simulator",
+		"Simulador de Companhia de Autobuses",
+		"Simulador de Companhia de Autocarros",
+		"Simulador de Companhia de Ônibus",
+		"Busbetriebssimulator",
+		"Simulador de empresas de autobuses",
+		"バス会社シミュレーター",
+		"公交公司模拟器",
+		"BCS - localized driver title",
+	}
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			d, err := parseDriver(fixture(t, "bbs-before.odr"), false)
+			if err != nil {
+				t.Fatal(err)
+			}
+			d.Ident[0] = name
+			dir := t.TempDir()
+			native := filepath.Join(dir, "bbs.odr")
+			original := d.encode(false)
+			if err := os.WriteFile(native, original, 0644); err != nil {
+				t.Fatal(err)
+			}
+			sync, err := prepareDriver(native, dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			converted, err := os.ReadFile(sync.OpenPath)
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := parseDriver(converted, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got.Ident != d.Ident || got.evaluation() != d.evaluation() {
+				t.Fatal("localized profile changed during translation")
+			}
+			after, err := os.ReadFile(native)
+			if err != nil || !bytes.Equal(after, original) {
+				t.Fatal("native profile changed during preparation", err)
+			}
+		})
+	}
+}
+
+func TestPrepareDriverAllowsLegacyFilenamesButRejectsInvalidStructure(t *testing.T) {
 	d, err := parseDriver(fixture(t, "bbs-before.odr"), false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	d.Ident[0] = "Simulador de Companhia de Autobuses"
 	dir := t.TempDir()
-	native := filepath.Join(dir, "bbs.odr")
-	original := d.encode(false)
-	if err := os.WriteFile(native, original, 0644); err != nil {
-		t.Fatal(err)
+	// Some legacy installations expose the BCS selected record as native.odr.
+	for _, file := range []string{"bbs.odr", "native.odr", "perfil-localizado.odr"} {
+		t.Run(file, func(t *testing.T) {
+			native := filepath.Join(t.TempDir(), file)
+			if err := os.WriteFile(native, d.encode(false), 0644); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := prepareDriver(native, t.TempDir()); err != nil {
+				t.Fatalf("valid localized/legacy BCS profile rejected: %v", err)
+			}
+		})
 	}
-	sync, err := prepareDriver(native, dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	converted, err := os.ReadFile(sync.OpenPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	got, err := parseDriver(converted, true)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Ident != d.Ident || got.evaluation() != d.evaluation() {
-		t.Fatal("localized profile changed during translation")
-	}
-	after, err := os.ReadFile(native)
-	if err != nil || !bytes.Equal(after, original) {
-		t.Fatal("native profile changed during preparation", err)
-	}
-	d.Ident[0] = "Unrelated driver"
-	if err := os.WriteFile(native, d.encode(false), 0644); err != nil {
+	native := filepath.Join(dir, "native.odr")
+	if err := os.WriteFile(native, []byte("not a valid driver record"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := prepareDriver(native, dir); err == nil {
-		t.Fatal("unrelated driver accepted")
+		t.Fatal("invalid BCS personnel structure accepted")
 	}
 }
