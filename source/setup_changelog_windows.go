@@ -50,6 +50,10 @@ func allLogSections() []logSection {
             label:logT("🛠️ HOTFIX 3 — SERVIDOR", "🛠️ HOTFIX 3 — SERVER", "🛠️ HOTFIX 3 — SERVER"),
             accent:logAccent(112,219,164),
             entries:[]logEntry{
+                {logT("🌍 BCS em qualquer idioma", "🌍 BCS in any language", "🌍 BCS in jeder Sprache"),
+                 logT("O adaptador não restringe mais o nome do motorista ao inglês, português brasileiro ou espanhol: perfis do BCS em japonês, alemão, português europeu e demais idiomas são aceitos por sua estrutura, preservando o nome original em UTF-16. Arquivos legados como native.odr também funcionam; arquivos inválidos continuam bloqueados.",
+                      "The adapter no longer allowlists translated driver names. Japanese, German, Spanish, European Portuguese and other BCS personnel records are accepted by validated structure, preserving the original UTF-16 name. Legacy filenames such as native.odr work; malformed records remain blocked.",
+                      "Der Adapter beschränkt übersetzte Fahrernamen nicht mehr. Japanische, deutsche, spanische und andere BCS-Profile werden über die gültige Struktur erkannt, unter Erhalt des UTF-16-Namens. Ältere Dateinamen wie native.odr bleiben unterstützt; fehlerhafte Dateien werden abgewiesen.")},
                 {logT("Salvar e iniciar empresas com muitos arquivos", "Save and start large company inventories", "Große Firmeninventare speichern und starten"),
                  logT("Corrige ‘host preferences exceed size limit’: o gerenciador abria perfis maiores que 4 MB e recusava salvá-los. Leitura, preservação de campos extras, salvamento e migração agora usam o mesmo limite local de 32 MiB, com leitura limitada e sem apagar inventários, mapas, chaves, voz ou senhas. Testes no Windows salvam e reabrem 22 mil arquivos cadastrados. Mantém P16, sinalização Original/Enhanced e integridade das oito vozes V2 da Hotfix 2.",
                  "Fixes ‘host preferences exceed size limit’: profiles above 4 MB could open but fail to save. Reading, preserving extra fields, saving and migration now share a bounded 32 MiB local limit, retaining inventories, maps, keys, voice and passwords. Windows tests save and reopen 22,000 inventory files. Retains P16, Original/Enhanced hailing and the eight approved V2 voice hashes from Hotfix 2.",
@@ -525,10 +529,15 @@ func logSections() []logSection {
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    if from==changelogSeenVersion || from=="2.2.2.4-hotfix.1" || from=="2.2.2.4" {
-        return []logSection{hotfix2224VoiceIntegrityLogSection()}
+    if from==changelogSeenVersion { return nil }
+    // Hotfix 3 has its own chapter, shown even to someone who has already
+    // acknowledged Hotfix 2. Earlier users get cumulative history.
+    hotfix3 := allLogSections()[0]
+    if from=="2.2.2.4-hotfix.2" { return []logSection{hotfix3} }
+    if from=="2.2.2.4-hotfix.1" || from=="2.2.2.4" {
+        return []logSection{hotfix3,hotfix2224VoiceIntegrityLogSection()}
     }
-    result:=[]logSection{hotfix2224VoiceIntegrityLogSection(),engine0347LogSection()}
+    result:=[]logSection{hotfix3,hotfix2224VoiceIntegrityLogSection(),engine0347LogSection()}
     if from=="2.2.2.3"{return result}
     result=append(result,passengers0347LogSection())
     // The unpublished 2.2.2.3 test candidate already included these passenger changes.
@@ -553,12 +562,12 @@ func selectLogSections(from string) []logSection {
     result=append(result,hotfix2LogSection())
     if from=="2.2.2-hotfix.1"{return result}
     old:=allLogSections()
-    if from=="2.2.2"{return append(result,old[0])}
-    if strings.HasPrefix(from,"2.2.1.9"){return append(result,old...)}
+    if from=="2.2.2"{return result}
+    if strings.HasPrefix(from,"2.2.1.9"){return append(result,old[1:]...)}
     if strings.HasPrefix(from,"2.2.1"){
         earlier:=earlierBridgeLogSection()
         earlier.entries=earlier.entries[2:]
-        return append(append(result,earlier),old...)
+        return append(append(result,earlier),old[1:]...)
     }
     if strings.HasPrefix(from,"2.2.0"){
         earlier:=earlierBridgeLogSection()
