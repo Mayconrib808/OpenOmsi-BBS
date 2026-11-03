@@ -1,6 +1,6 @@
 {
-  "commit": "3d91881988bc260115184b5c4a03596f2b25d604",
-  "workflow": ".github/workflows/release-2224-candidate.yml",
+  "commit": "fa3d9197b64c7763d4c6e4819cca9fac1660ed04",
+  "workflow": ".github/workflows/integrate-2224-hotfix3.yml",
   "version": "0.3.47-coop.16-2.2.2.4",
   "protocol": 16,
   "winter_clothing_removed": true,
@@ -21,7 +21,9 @@
     "Setup SHA256 accepts exactly the 8 known PT-BR V2 voice variants; backups preserve them, corrupt unknown files rejected",
     "Passengers signal beginning 60-90 m before 60 m boarding transition; visual arm works with original as well as enhanced human animations",
     "Host-authorized multiplayer route matches hailing even without a ready terminus label",
-    "PASSENGER_HAIL_AUDIT tracks visible 90m approaches"
-  ],
-  "run_id": 41539618533
+    "PASSENGER_HAIL_AUDIT tracks visible 90m approaches",
+    "Near-player stop demand spawns bounded by free waiting spots; pool saturation refusal logging and ten-second retry cooldown",
+    "Hailing targets prefer moving buses over stationary closer buses; multiplayer mirrored passengers use same eligibility",
+    "Native Windows full-build provenance must match the hailing+demand correction commit"
+  ]
 }
