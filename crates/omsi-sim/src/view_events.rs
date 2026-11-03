@@ -388,9 +388,13 @@ impl crate::people::PeopleSim {
             let drawable = out.people.iter().filter(|p| p.hail_target.is_some()
                 && p.hail_moving && !p.puppet && p.hidden.is_none()
                 && matches!(p.place, crate::people::Place::Ground)).count();
-            log::info!("PASSENGER_HAIL_AUDIT settings_signal={} settings_full={} waiting_visible_300m={} waiting_near_bus_90m={} compatible_target={} moving_target={} render_candidates={} total_buses={}",
+            // Differentiate a stop with no moving buses from the classic regression
+            // where a stationary compatible bus masks an approaching service.
+            let buses_moving = self.last_buses.iter()
+                .filter(|b| b.speed.is_finite() && b.speed > 0.08).count();
+            log::info!("PASSENGER_HAIL_AUDIT settings_signal={} settings_full={} waiting_visible_300m={} waiting_near_bus_90m={} compatible_target={} stationary_target={} moving_target={} render_candidates={} moving_buses={} total_buses={}",
                 self.visual_hailing,self.visual_full_bus_reaction,waiting_visible,bus_near_waiter,
-                matched,moving,drawable,self.last_buses.len());
+                matched,matched.saturating_sub(moving),moving,drawable,buses_moving,self.last_buses.len());
         }
     }
 }

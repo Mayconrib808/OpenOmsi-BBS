@@ -80,6 +80,20 @@ impl PeopleSim { pub(crate) fn visual_hail_range(d: DVec3, forward: DVec2) -> bo
             && d.z.abs() < 8.0
     }}
 impl PeopleSim {
+    /// Prefer an approaching compatible bus over a parked one, even when that
+    /// parked bus is closer to the same stop. Visual-only: no route selection,
+    /// passenger booking, door or seat state is changed.
+    pub(crate) fn visual_hail_target_order(
+        a_speed: f64, a_distance_squared: f64,
+        b_speed: f64, b_distance_squared: f64,
+    ) -> std::cmp::Ordering {
+        let a_approaching = a_speed.is_finite() && a_speed > 0.08;
+        let b_approaching = b_speed.is_finite() && b_speed > 0.08;
+        b_approaching.cmp(&a_approaching)
+            .then_with(|| a_distance_squared.total_cmp(&b_distance_squared))
+    }
+}
+impl PeopleSim {
     /// Cosmetic recognition before door/path availability. Does not reserve a place,
     /// choose a task or change which bus anybody actually boards.
     pub fn visual_hail_bus(&self, i: usize, buses: &[BusNow]) -> Option<(BusId, bool, DVec3)> {
@@ -122,9 +136,10 @@ impl PeopleSim {
                         door.point.is_some() && entry_on_platform(side, door.side))
                 }
             }
-        }).min_by(|a,b| (a.pos-self.people[i].position).length_squared()
-            .total_cmp(&(b.pos-self.people[i].position).length_squared()))
-            .map(|b| (b.id, b.speed.abs() > 0.08, b.pos))
+        }).min_by(|a,b| Self::visual_hail_target_order(
+            a.speed, (a.pos-self.people[i].position).length_squared(),
+            b.speed, (b.pos-self.people[i].position).length_squared()))
+            .map(|b| (b.id, b.speed.is_finite() && b.speed > 0.08, b.pos))
     }
     /// Respect the map's side setting, as the vehicle's AI door scripts do.
     /// At two-sided stops, use this passenger's side rather than the stop box.

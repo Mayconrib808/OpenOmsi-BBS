@@ -82,8 +82,10 @@ impl PeopleSim {
             && (b.pos-p.position).length_squared() <= 90.0*90.0
             && b.fwd().dot(forward)>0. && b.served.is_none_or(|id| id==*stop)
             && self.mirror_bus_fit(p.id,b,p.position)==Some(true))
-            .min_by(|a,b| (a.pos-p.position).length_squared().total_cmp(&(b.pos-p.position).length_squared()))
-            .map(|b| (b.id,b.speed.abs()>0.08,b.pos))
+            .min_by(|a,b| Self::visual_hail_target_order(
+                a.speed, (a.pos-p.position).length_squared(),
+                b.speed, (b.pos-p.position).length_squared()))
+            .map(|b| (b.id,b.speed.is_finite() && b.speed>0.08,b.pos))
     }
 
     /// Exact individual service preference, supplied only by the authoritative host.

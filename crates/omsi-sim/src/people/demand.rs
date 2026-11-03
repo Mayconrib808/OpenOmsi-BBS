@@ -14,6 +14,12 @@ pub struct DemandAudit {
     pub new_queue_units: f64,
     pub materialized: u64,
     pub spawn_refused: u64,
+    pub refused_pool_full: u64,
+    pub refused_spots_full: u64,
+    pub refused_spawn: u64,
+    pub retries_suppressed: u64,
+    pub last_refused_stop: Option<i64>,
+    pub last_refused_reason: Option<&'static str>,
     pub patience_left: u64,
     pub last_stop: Option<i64>,
     pub clothing_evaluated: u64,
@@ -27,10 +33,24 @@ impl Default for DemandAudit {
     fn default() -> Self {
         Self { last_report_at: -60.0, last_seat_report_at: -60.0, seeded_stops: 0,
             new_queue_units: 0.0, materialized: 0, spawn_refused: 0,
+            refused_pool_full: 0, refused_spots_full: 0, refused_spawn: 0,
+            retries_suppressed: 0, last_refused_stop: None, last_refused_reason: None,
             patience_left: 0, last_stop: None, clothing_evaluated: 0,
             clothing_tagged_selected: 0, conversation_attempts: 0,
             conversation_without_pairs: 0, conversation_without_clips: 0,
             conversation_lines: 0 }
+    }
+}
+
+impl DemandAudit {
+    pub fn record_refusal(&mut self, stop: i64, reason: &'static str) {
+        self.last_refused_stop = Some(stop);
+        self.last_refused_reason = Some(reason);
+        match reason {
+            "human_pool_full" => self.refused_pool_full += 1,
+            "waiting_spots_full" => self.refused_spots_full += 1,
+            _ => self.refused_spawn += 1,
+        }
     }
 }
 
@@ -39,11 +59,14 @@ pub struct StopDemand {
     pub waiting: f32,
     pub minute: i64,
     pub last_arrival: f64,
+    /// Next moment at which a refused spawn can be retried. Prevent frame floods.
+    pub retry_after: f64,
 }
 
 impl Default for StopDemand {
     fn default() -> Self {
-        Self { waiting: 0.0, minute: i64::MIN, last_arrival: f64::NEG_INFINITY }
+        Self { waiting: 0.0, minute: i64::MIN, last_arrival: f64::NEG_INFINITY,
+            retry_after: f64::NEG_INFINITY }
     }
 }
 
@@ -87,6 +110,14 @@ impl StopDemand {
         let rate = arrivals_per_minute(mean, density, demand_variation(stop, minute));
         self.waiting = (self.waiting + rate * (dt.min(5.0) / 60.0))
             .clamp(0.0, capacity.min(100) as f32);
+    }
+
+    pub fn can_retry(&self, now: f64) -> bool { now.is_finite() && now >= self.retry_after }
+
+    pub fn retry_later(&mut self, now: f64, succeeded: bool) {
+        if now.is_finite() {
+            self.retry_after = now + if succeeded { 2.5 } else { 10.0 };
+        }
     }
 
     pub fn admitted(&mut self) {
@@ -136,5 +167,32 @@ mod tests {
         d.advance(1, 20.0, 1.0, 30.0, 0.0, 20);
         assert_eq!(d.waiting, 0.0);
         assert_eq!(patience_seconds(2), patience_seconds(2));
+    }
+}
+
+#[cfg(test)]
+mod retry_tests {
+    use super::*;
+
+    #[test]
+    fn failed_spawn_is_not_retried_every_frame() {
+        let mut d = StopDemand::default();
+        assert!(d.can_retry(1.0));
+        d.retry_later(1.0, false);
+        assert!(!d.can_retry(1.001));
+        assert!(!d.can_retry(10.999));
+        assert!(d.can_retry(11.0));
+        d.retry_later(11.0, true);
+        assert!(!d.can_retry(13.0));
+        assert!(d.can_retry(13.5));
+    }
+    #[test]
+    fn backlog_never_exceeds_free_waiting_positions() {
+        let mut d = StopDemand::default();
+        d.advance(77, 100.0, 1.0, 1000.0, 3.0, 4);
+        assert!(d.waiting <= 4.0);
+        // No free positions remaining: do not accumulate more people.
+        d.advance(77, 101.0, 1.0, 1000.0, 3.0, 0);
+        assert_eq!(d.waiting, 0.0);
     }
 }
