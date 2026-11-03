@@ -1,0 +1,14 @@
+{
+  "version": "2.2.2.4-hotfix.3",
+  "sequence": 2026110206,
+  "candidate_run_id": 41583888736,
+  "native_base_run_id": 41583888736,
+  "native_build_commit": "fa3d9197b64c7763d4c6e4819cca9fac1660ed04",
+  "launcher_base_run_id": 41539618533,
+  "candidate_commit": "b362ecec400402b10303e47f5c777b561ca6f258",
+  "candidate_artifact_id": 13207854402,
+  "candidate_artifact_sha256": "ca7ef816fc5283c346201928b2b1d9894fa22b7aff0533f51cc347a26ebc05d4",
+  "installer_sha256": "7b62f87e78771a8cc67ac593dc12acee9f141fe53f4ee07bdb6a666bf14c823b",
+  "installer_size": 25005568,
+  "coop_archive_sha256": "fc1414d0f6acd74dfae5ea51c80b8b199a28af5294cd285c399fcd2136f87c4f"
+}
