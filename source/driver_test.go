@@ -285,6 +285,10 @@ func TestPrepareLocalizedBCSDriver(t *testing.T) {
 		"Simulador de Companhia de Autobuses",
 		"Simulador de Companhia de Autocarros",
 		"Simulador de Companhia de Ônibus",
+		"Busbetriebssimulator",
+		"Simulador de empresas de autobuses",
+		"バス会社シミュレーター",
+		"公交公司模拟器",
 		"BCS - localized driver title",
 	}
 	for _, name := range names {
