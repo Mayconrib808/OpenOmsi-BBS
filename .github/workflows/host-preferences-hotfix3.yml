@@ -15,13 +15,11 @@ jobs:
         with: {persist-credentials: false}
       - uses: actions/setup-go@v5
         with: {go-version: 1.23.2, cache: false}
-      - name: Regression - BCS driver locale-neutral profile
+      - name: Regression - BCS localized driver and complete Go test suite
         shell: pwsh
         run: |
-          Push-Location source
-          go test -run 'TestPrepareLocalizedBCSDriver|TestPrepareDriverRejectsWrongSlotAndInvalidStructure' -count=1
-          if ($LASTEXITCODE -ne 0) { throw 'BCS international personnel tests failed' }
-          Pop-Location
+          python scripts/build_2203.py --tests-only
+          if ($LASTEXITCODE -ne 0) { throw 'International BCS driver or Go regressions failed' }
       - uses: actions/download-artifact@v4
         with:
           name: Bridge-2.2.2.4-hotfix.2-CANDIDATE
