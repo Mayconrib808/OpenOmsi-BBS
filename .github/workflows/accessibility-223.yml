@@ -32,6 +32,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
       - name: Simulation regression tests and add-on probe
         run: |
+          python3 -m py_compile tools/validate_wheelchair_nine.py
           cargo test --locked --release -p omsi-sim --lib
           cargo test --locked --release -p omsi-net --lib
           cargo build --locked --release -p omsi-sim --example wheelchair_probe
