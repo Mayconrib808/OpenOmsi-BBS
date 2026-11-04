@@ -6,6 +6,22 @@ promoted to stable releases (see [docs/VERSIONING.md](docs/VERSIONING.md)); the 
 
 ## Unreleased
 
+### P16 — passageiros que se aproximam da porta e voltam ao ponto (correção candidata, 2026-11-04)
+
+- Harmoniza a verificação final de embarque com a aproximação: aceita ônibus corretamente
+  alinhados ao ponto, com porta fisicamente aberta e acessível pelo lado da plataforma,
+  mesmo quando a posição do poste fica ligeiramente fora da caixa geométrica do ponto.
+- Mantém limites de velocidade, sentido, altura, distância até a porta, lado correto,
+  reserva de lugar, bilhetagem e validação de destino. Não permite atravessar a rua
+  nem entrar em um ônibus que esteja passando.
+- `PASSENGER_BOARDING_AUDIT` registra a conclusão do embarque pela tolerância de
+  plataforma deslocada e, quando um passageiro junto à porta desiste, o motivo
+  e a situação da porta/velocidade/caixa do ponto.
+- Inclui regressões do embarque ao lado correto e da recusa no lado oposto ou
+  com o ônibus em movimento. Resultado de jogo real e multiplayer ainda por verificar.
+- A investigação nasceu de um teste na versão oficial 0.3.45, onde o mesmo
+  comportamento foi observado; esta correção é específica da engine derivada.
+
 ### Bridge P16 — multiplayer passenger diagnosis (candidate, 2026-11-04)
 
 - Stops sending `COOPROUTE1` navigator-only updates to an empty headless
