@@ -48,6 +48,15 @@ if(process.argv[2]==='validate-signatures'){
   const binary=readFileSync('approved-new/Atualizar-Bridge.exe');
   const installed=json('approved-new/one-click-install-test.json');
   const hostUI=json('approved-new/native-p16-controls.json');
+  if(info.native_verified_binary_run!==41861885139 ||
+     info.native_verified_binary_artifact_id!==13342486464 ||
+     info.native_verified_binary_artifact_digest!=='sha256:60f0c2864913622747dd1ad9e94abed582c0643b181c218cf0e12256de32dc14' ||
+     info.native_verified_binary_sha256!=='577fefbd10a64cf17a049644bac6331575cbd573583ea0a9d53ebbfc8827a4e3' ||
+     report.native_verified_binary_run!==info.native_verified_binary_run ||
+     report.native_verified_binary_artifact_id!==info.native_verified_binary_artifact_id ||
+     report.native_verified_binary_artifact_digest!==info.native_verified_binary_artifact_digest ||
+     report.native_verified_binary_sha256!==info.native_verified_binary_sha256)
+    throw Error('Final hotfix 5 is not the tested Windows passenger-boarding native artifact');
   if(report.host_preferences_limit!==32*1024*1024||report.large_host_inventory_ui_tested!==true||hostUI.large_inventory_tested!==true||hostUI.inventory_files!==22000||info.native_base_run_id!==report.native_candidate_run||info.native_build_commit!=='201d37c162a35b0954b4d3f791931e2c532f5fba'||info.launcher_base_run_id!==41539618533)throw Error('Large private profile save/reopen was not tested');
   if(report.actual_updater_first_attempt_windows_tested!==true||installed.status!=='passed'||installed.invocations!==1||
       installed.windows_crlf_acceptance_tested!==true||installed.running_old_setup_replaced!==true||
@@ -94,6 +103,7 @@ if(process.argv[2]==='validate-signatures'){
   for(const name of names)if(report.retained_host_hashes[name]!==report.retained_runtime_sha256[name]||report.retained_runtime_sha256[name]!==report.components_sha256[name])throw Error('Retained host changed: '+name);
   const game='OpenOmsi Coop 0.3.41/programa/openomsi.exe',server='app/server-dinamico-p16/openomsi.exe';
   if(spec.files[game]!==report.native_client_sha256['openomsi.exe']||spec.files[server]!==report.dynamic_p16_sha256||spec.files[game]!==spec.files[server])throw Error('Mismatched game / P16 server');
+  if(spec.files[game]!==info.native_verified_binary_sha256)throw Error('Native Windows artifact was replaced after QA');
   for(const item of ['Police','Fire']){
     const client='OpenOmsi Coop 0.3.41/programa/bcs-assets/Vehicles/OpenOMSI_BCS/'+item+'/model/'+item+'.obj';
     const serverAsset='app/server-dinamico-p16/bcs-assets/Vehicles/OpenOMSI_BCS/'+item+'/model/'+item+'.obj';
