@@ -1,6 +1,6 @@
 {
   "commit": "201d37c162a35b0954b4d3f791931e2c532f5fba",
-  "workflow": ".github/workflows/integrate-2224-hotfix5.yml",
+  "workflow": ".github/workflows/integrate-2224-hotfix5-verified-native.yml",
   "version": "0.3.47-coop.16-2.2.2.4",
   "protocol": 16,
   "winter_clothing_removed": true,
@@ -25,6 +25,11 @@
     "Near-player stop demand spawns bounded by free waiting spots; pool saturation refusal logging and ten-second retry cooldown",
     "Hailing targets prefer moving buses over stationary closer buses; multiplayer mirrored passengers use same eligibility",
     "Native Windows full-build provenance matches P16 route audit and hailing+demand fix commit",
-    "Final passenger boarding reuses safe curb-offset fallback previously accepted at approach; adds PASSENGER_BOARDING_AUDIT and offset-stop/opposite-side/moving-bus native regression tests"
-  ]
+    "Final passenger boarding reuses safe curb-offset fallback previously accepted at approach; adds PASSENGER_BOARDING_AUDIT and offset-stop/opposite-side/moving-bus native regression tests",
+    "Windows native executable reused byte-for-byte from passing regression run 41861885139 (artifact 13342486464), with SHA256 checked and origin proven; full cumulative installer re-tested in publishing run"
+  ],
+  "verified_binary_run_id": 41861885139,
+  "verified_binary_artifact_id": 13342486464,
+  "verified_binary_artifact_digest": "sha256:60f0c2864913622747dd1ad9e94abed582c0643b181c218cf0e12256de32dc14",
+  "verified_binary_sha256": "577fefbd10a64cf17a049644bac6331575cbd573583ea0a9d53ebbfc8827a4e3"
 }
