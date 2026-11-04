@@ -12,6 +12,7 @@ pub fn interlocked() -> bool {
     INTERLOCK.load(Ordering::Acquire)
 }
 
+pub mod discovery;
 pub mod geometry;
 pub mod network;
 pub mod pose;
@@ -46,6 +47,14 @@ pub struct Profile {
     pub route: Vec<Vec3>,
     pub bay_heading: f64,
     pub door_var: String,
+    #[serde(default)]
+    pub door_vars: Vec<String>,
+    #[serde(default)]
+    pub native: Option<discovery::NativeDeck>,
+    #[serde(default)]
+    pub fold: Option<discovery::FoldSeat>,
+    #[serde(default)]
+    pub replacement_meshes: Vec<String>,
     pub door_open_value: f32,
     pub exit_index: usize,
     pub clear_width: f32,
@@ -81,13 +90,13 @@ impl Profile {
             return Err("non-finite accessibility geometry".into());
         }
         if !(0.78..=1.8).contains(&self.clear_width)
-            || !(1.25..=2.2).contains(&self.platform_length)
+            || !(if self.equipment==Equipment::NativeRamp{0.55..=2.2}else{1.25..=2.2}).contains(&self.platform_length)
             || !(0.65..=1.6).contains(&self.threshold.x.abs())
             || self.threshold.y.abs() > 20.0
             || self.threshold.z < 0.15
             || self.threshold.z > 2.0
             || self.bay.x.abs() > 1.1
-            || (self.bay.z - self.threshold.z).abs() > 0.05
+            || (self.bay.z - self.threshold.z).abs() > 0.18
         {
             return Err("door, platform or wheelchair bay is outside supported dimensions".into());
         }
@@ -97,7 +106,7 @@ impl Profile {
                 !p.is_finite()
                     || p.x.abs() > 1.6
                     || p.y.abs() > 20.0
-                    || (p.z - self.threshold.z).abs() > 0.05
+                    || (p.z - self.threshold.z).abs() > 0.18
             })
         {
             return Err("accessible route must stay on a continuous cabin floor".into());
@@ -115,12 +124,17 @@ impl Profile {
         if matches!(
             self.equipment,
             Equipment::NativeRamp | Equipment::NativeLift
-        ) && (self.native_ground_var.is_none()
+        ) && self.native.is_none() && (self.native_ground_var.is_none()
             || self.native_floor_var.is_none()
             || self.native_stowed_var.is_none()
             || (self.equipment == Equipment::NativeLift && self.native_height_var.is_none()))
         {
             return Err("native equipment requires ground AND floor endpoint feedback".into());
+        }
+        if let Some(n)=&self.native {
+            if self.equipment!=Equipment::NativeRamp||n.mesh.is_empty()||n.corners.iter().any(|p|!p.is_finite())||!n.thickness.is_finite()||!(0.0..=0.20).contains(&n.thickness) {
+                return Err("invalid native ramp binding".into());
+            }
         }
         Ok(())
     }
@@ -128,8 +142,9 @@ impl Profile {
         self.threshold.x.signum()
     }
     pub fn platform(&self, height: f32) -> Vec3 {
+        let centre_shift=if matches!(self.equipment,Equipment::AddedLift|Equipment::NativeLift){0.13}else{0.0};
         Vec3::new(
-            self.threshold.x + self.side() * self.platform_length * 0.5,
+            self.threshold.x + self.side() * (self.platform_length * 0.5+centre_shift),
             self.threshold.y,
             height,
         )
@@ -233,6 +248,8 @@ pub struct Feedback {
     pub floor_ready: bool,
     pub equipment_height: Option<f32>,
     pub stowed: bool,
+    pub surface: Option<[Vec3;3]>,
+    pub bay_ready: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -305,14 +322,17 @@ impl Journey {
         self.deployment > 0.0001
             || !matches!(self.stage, Stage::Waiting | Stage::Riding | Stage::Finished)
     }
+    pub fn doorway_busy(&self)->bool {
+        !matches!(self.stage,Stage::Waiting|Stage::Riding|Stage::Finished)
+    }
     /// Differential drive: each wheel follows its own travelled arc. The push
     /// cycle is distance based, so stopped hands never continue propelling.
-    fn drive(&mut self, target: Vec3, dt: f32, blockers: &[Vec3]) -> bool {
+    fn drive(&mut self, target: Vec3, dt: f32, blockers: &[Vec3], reverse:bool) -> bool {
         let delta = target - self.local;
         if delta.length() < 0.002 {
             return true;
         }
-        let wanted = (delta.x as f64).atan2(delta.y as f64).to_degrees();
+        let wanted = (delta.x as f64).atan2(delta.y as f64).to_degrees()+if reverse{180.0}else{0.0};
         let yaw = angle_delta(self.heading, wanted).clamp(-55.0 * dt as f64, 55.0 * dt as f64);
         let heading = (self.heading + yaw).rem_euclid(360.0);
         let ds = if angle_delta(heading, wanted).abs() < 6.0 {
@@ -320,7 +340,8 @@ impl Journey {
         } else {
             0.0
         };
-        let next = self.local + delta.truncate().normalize_or_zero().extend(0.0) * ds;
+        let mut next = self.local + delta.truncate().normalize_or_zero().extend(0.0) * ds;
+        if ds>0.0 {next.z=self.local.z+delta.z*(ds/delta.truncate().length()).min(1.0);}
         if blockers
             .iter()
             .any(|p| (p.z - next.z).abs() < 1.5 && (p.truncate() - next.truncate()).length() < 0.64)
@@ -334,7 +355,7 @@ impl Journey {
         self.local = next;
         let turn = yaw.to_radians() as f32 * 0.33;
         for side in 0..2 {
-            let distance = ds + if side == 0 { turn } else { -turn };
+            let distance = (if reverse{-ds}else{ds}) + if side == 0 { turn } else { -turn };
             self.pose.direction[side] = distance.signum();
             self.pose.wheels[side] =
                 (self.pose.wheels[side] + distance / 0.30).rem_euclid(std::f32::consts::TAU);
@@ -404,6 +425,10 @@ impl Journey {
             };
             return;
         }
+        if native && ramp && matches!(self.stage,Stage::ToPlatform|Stage::ToBay|Stage::ToExit|Stage::Leaving)
+            && (!feedback.ground_ready||!feedback.floor_ready) {
+            self.hold_reason="Aguardando rampa alinhada ao piso e apoiada no solo";return;
+        }
         if native && !ramp {
             let measured = feedback.equipment_height.filter(|h| h.is_finite()
                 && *h >= self.ground_height.min(profile.threshold.z) - 0.05
@@ -431,7 +456,7 @@ impl Journey {
         match self.stage {
             Stage::Waiting => {
                 if assist && speed.abs() < 0.025 && feedback.door_open {
-                    if ramp
+                    if ramp && !native
                         && (profile.threshold.z - self.ground_height).abs()
                             / profile.platform_length
                             > 0.22
@@ -446,6 +471,7 @@ impl Journey {
                 }
             }
             Stage::Deploying => {
+                if feedback.bay_ready==Some(false){self.hold_reason="Aguardando recolhimento do banco retrátil";return;}
                 approach(&mut self.deployment, 1.0, dt / 1.8);
                 if native {
                     if feedback.ground_ready && feedback.floor_ready && ramp {
@@ -464,7 +490,7 @@ impl Journey {
             }
             Stage::ToPlatform => {
                 let p = profile.platform(self.ground_height);
-                if self.drive(p, dt, blockers) {
+                if self.drive(p, dt, blockers, false) {
                     self.outside_world = None;
                     self.transition(if ramp { Stage::ToBay } else { Stage::Raising });
                 }
@@ -488,7 +514,7 @@ impl Journey {
                 } else {
                     profile.bay
                 };
-                if self.drive(target, dt, blockers) {
+                if self.drive(target, dt, blockers, false) {
                     if self.route_at > profile.route.len() {
                         if self.turn_to(profile.bay_heading, dt) {
                             self.boarded = true;
@@ -537,7 +563,7 @@ impl Journey {
                 } else {
                     profile.platform(profile.threshold.z)
                 };
-                if self.drive(target, dt, blockers) {
+                if self.drive(target, dt, blockers, true) {
                     if self.route_at > n {
                         self.transition(if ramp {
                             Stage::Leaving
@@ -564,7 +590,7 @@ impl Journey {
                 }
             }
             Stage::Leaving => {
-                if self.drive(profile.outside(self.ground_height), dt, blockers) {
+                if self.drive(profile.outside(self.ground_height), dt, blockers, true) {
                     self.boarded = false;
                     self.transition(Stage::Finished);
                 }
@@ -583,9 +609,12 @@ impl Journey {
                 Stage::ToPlatform | Stage::ToBay | Stage::ToExit | Stage::Leaving
             )
         {
-            let t = ((self.local.x - profile.threshold.x).abs() / profile.platform_length)
-                .clamp(0.0, 1.0);
-            self.local.z = profile.threshold.z + (self.ground_height - profile.threshold.z) * t;
+            let t=((self.local.x-profile.threshold.x)*profile.side()/profile.platform_length).clamp(0.0,1.0);
+            if t>=1.0 {self.local.z=self.ground_height;} else if t>0.0 {
+                let measured=feedback.surface.and_then(|surface|discovery::height_on_plane(surface,self.local.truncate()));
+                let lip=feedback.surface.and_then(|surface|discovery::height_on_plane(surface,profile.threshold.truncate())).map_or(0.0,|h|profile.threshold.z-h);
+                self.local.z=measured.unwrap_or(profile.threshold.z+(self.ground_height-profile.threshold.z)*t)+lip*(1.0-t*profile.platform_length/0.20).clamp(0.0,1.0);
+            }
         }
     }
 }
@@ -599,6 +628,7 @@ pub struct Wheelchairs {
     pub feedback: Feedback,
     pub equipment: Option<EquipmentPose>,
     pub auto_spawn: bool,
+    pub bay_occupied: bool,
     pub served: HashSet<i64>,
     reserved: Vec<usize>,
     remotes: HashMap<u32, network::Remote>,
@@ -617,6 +647,7 @@ impl Default for Wheelchairs {
             feedback: Feedback::default(),
             equipment: None,
             auto_spawn: std::env::var("OMSI_WHEELCHAIR_AUTO").map_or(enabled, |s|s=="1"),
+            bay_occupied: false,
             served: HashSet::new(),
             reserved: Vec::new(),
             remotes: HashMap::new(),
@@ -635,19 +666,19 @@ impl Wheelchairs {
         let Some(p) = self.profile.as_ref() else {
             return Feedback::default();
         };
+        if p.native.is_some(){return discovery::feedback(v,p);}
         let ready = |name: &Option<String>| {
             name.as_ref()
                 .and_then(|n| v.var(n))
                 .is_some_and(|x| x.is_finite() && x >= 0.95)
         };
         Feedback {
-            door_open: v
-                .var(&p.door_var)
-                .is_some_and(|x| x.is_finite() && x >= p.door_open_value),
+            door_open: discovery::doors_ready(v,p),
             ground_ready: ready(&p.native_ground_var),
             floor_ready: ready(&p.native_floor_var),
             equipment_height: p.native_height_var.as_ref().and_then(|n| v.var(n)),
             stowed: ready(&p.native_stowed_var),
+            surface:None,bay_ready:p.fold.as_ref().map(|_|discovery::fold_ready(v,p)),
         }
     }
 }
@@ -697,8 +728,11 @@ impl PeopleSim {
                 None
             }
             Ok(None) => {
-                self.wheelchairs.status="Este ônibus precisa de um perfil wheelchair.json medido para a porta e área reservada".into();
-                None
+                let detected=discovery::detect(v,cabin);
+                log::info!("WHEELCHAIR DETECTION {}",serde_json::to_string(&detected).unwrap_or_default());
+                if let Some(profile)=detected.profile {
+                    self.wheelchairs.status=format!("Acessibilidade automática: {} | Ctrl+Alt+W: passageiro",profile.name);Some(profile)
+                }else{self.wheelchairs.status="Acessibilidade: porta, área ou manobra ainda precisam de calibração".into();None}
             }
             Err(e) => {
                 log::warn!("WHEELCHAIR profile rejected: {e}");
@@ -814,6 +848,7 @@ impl PeopleSim {
         if commands & ALIGHT != 0 {
             journey.alight_requested = true;
         }
+        let mut alight_surface_loaded=true;
         if journey.stage == Stage::Riding {
             if journey.board_stop.is_none() {
                 journey.board_stop = stop;
@@ -828,6 +863,14 @@ impl PeopleSim {
             }
             if journey.alight_requested {
                 self.stop_request = true;
+                if bus.speed.abs()<0.025 {
+                    let outside=bn.world(profile.outside(0.0));
+                    if let Some(height)=world.walk_height_near(outside.x,outside.y,bn.pos.z) {
+                        let ground=bn.to_local(DVec3::new(outside.x,outside.y,height)).z;
+                        if (profile.threshold.z-ground).abs()<=1.6{journey.ground_height=ground;}else{alight_surface_loaded=false;}
+                    }else{alight_surface_loaded=false;}
+                    if !alight_surface_loaded{journey.hold_reason="Aguardando superfície de desembarque carregada e ao alcance";}
+                }
             }
         }
         let blockers: Vec<Vec3> = self
@@ -837,20 +880,22 @@ impl PeopleSim {
             .filter(|p| (p.position - bn.world(journey.local)).length_squared() < 16.0)
             .map(|p| bn.to_local(p.position))
             .collect();
+        self.wheelchairs.bay_occupied=self.people.iter().any(|p|p.id!=id&&matches!(p.place,Place::Bus(BusId::Player,_))
+            &&(bn.to_local(p.position).truncate()-profile.bay.truncate()).length()<0.85);
         journey.advance(
             &profile,
             dt,
             bus.speed,
             self.wheelchairs.feedback,
-            commands & ASSIST != 0,
+            commands & ASSIST != 0 && alight_surface_loaded,
             &blockers,
         );
         // The bay is a volume, not a seat index: reserve all overlapping standing
         // places, and never take a place from somebody who is already there.
-        if !matches!(journey.stage, Stage::Waiting | Stage::Finished) {
+        if journey.stage!=Stage::Finished {
             if let Some(seats) = self.seats.get_mut(&BusId::Player) {
                 for (k, s) in bn.cabin.seats.iter().enumerate() {
-                    if !s.seated && (s.floor.truncate() - profile.bay.truncate()).length() < 0.85 {
+                    if (!s.seated||profile.fold.is_some()) && (s.floor.truncate() - profile.bay.truncate()).length() < 0.85 {
                         if let Some(slot) = seats.get_mut(k) {
                             if !*slot {
                                 self.wheelchairs.reserved.push(k);
@@ -891,7 +936,13 @@ impl PeopleSim {
         p.tilt = if matches!(journey.stage,Stage::Waiting|Stage::Finished) {
             Mat4::IDENTITY
         } else {
-            bn.rot * Mat4::from_rotation_z(bn.heading.to_radians() as f32)
+            let outward=(journey.local.x-profile.threshold.x)*profile.side();
+            let local_tilt=if matches!(profile.equipment,Equipment::NativeRamp|Equipment::AddedRamp)&&outward>0.0&&outward<profile.platform_length {
+                let normal=self.wheelchairs.feedback.surface.map(|s|(s[1]-s[0]).cross(s[2]-s[0]).normalize_or_zero()).map(|n|if n.z<0.0{-n}else{n})
+                    .unwrap_or_else(||Vec3::new(profile.side()*(profile.threshold.z-journey.ground_height)/profile.platform_length,0.0,1.0).normalize());
+                Mat4::from_quat(glam::Quat::from_rotation_arc(Vec3::Z,normal))
+            }else{Mat4::IDENTITY};
+            bn.rot*local_tilt*Mat4::from_rotation_z(bn.heading.to_radians() as f32)
         };
         p.interior = if journey.boarded { bn.interior } else { 0.0 };
         p.vel = DVec2::ZERO;
@@ -961,6 +1012,7 @@ mod tests {
             route: vec![Vec3::new(0.35, 0.0, 0.97)],
             bay_heading: 180.0,
             door_var: "door_2".into(),
+            door_vars:Vec::new(),native:None,fold:None,replacement_meshes:Vec::new(),
             door_open_value: 0.9,
             exit_index: 0,
             clear_width: 1.05,
@@ -1087,6 +1139,7 @@ mod tests {
                 floor_ready: false,
                 equipment_height: Some(0.0),
                 stowed: false,
+                surface:None,bay_ready:None,
             },
             false,
             &[],
