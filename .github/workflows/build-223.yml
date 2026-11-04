@@ -96,6 +96,7 @@ jobs:
           if-no-files-found: error
 
   bridge_checks:
+    if: github.ref == 'refs/heads/feature/2.2.3-package-prep'
     runs-on: windows-2022
     timeout-minutes: 45
     env:

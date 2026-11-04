@@ -67,7 +67,7 @@ def main():
  assert sha(launcher_binary)==launcher_meta['launcher_sha256'] and launcher_binary[:2]==b'MZ'
  assert launcher_name in before, 'Missing old launcher: check baseline layout'
  files[launcher_name]=launcher_binary
- marker=json.loads(files['app/server-dinamico-p15/BBS-DYNAMIC-SERVER.json'])
+ marker=json.loads(files[marker_name])
  marker.update(bridge_line=VERSION,source_commit=evidence['commit'],native_version=NATIVE_VERSION,native_sha256=sha(native),protocol=16,version=NATIVE_VERSION,openomsi_version='0.3.47',upstream_commit=UPSTREAM)
  files[marker_name]=(json.dumps(marker,indent=2)+'\n').encode()
  notes=(ROOT/'docs/releases/2.2.3.md').read_bytes()
@@ -77,6 +77,7 @@ def main():
  files[COOP+'/source/openomsi-2.2.3-source.tar.gz']=source
  files[COOP+'/source/SOURCE-2.2.3.json']=(json.dumps(evidence,indent=2)+'\n').encode()
  files[COOP+'/CHANGELOG-2.2.3.md']=notes
+ files['docs/TESTE-2.2.3-pt-BR.md']=(ROOT/'docs/TESTE-2.2.3-pt-BR.md').read_bytes()
  files[COOP+'/validation/version-2.2.3.txt']=version.encode()
  # Fallback content is installed beside each actual runtime. No commercial map,
  # human, bus, BCS class or user configuration is included.
