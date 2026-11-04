@@ -365,6 +365,8 @@ impl PeopleSim {
             }
             self.retire(&p);
         }
+        self.tick_wheelchairs(dt, world, bus, buses);
+        self.tick_remote_wheelchairs(dt, world, buses);
         self.give_ticket = false;
         self.tick_ambient_talk();
         stage!("pedestrians");

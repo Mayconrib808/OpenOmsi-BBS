@@ -230,6 +230,7 @@ impl crate::ai_traffic::TrafficSim {
 /// and the simulation can step on meanwhile. Kept from one to the next (`PeopleSim::snapshot_into`).
 #[derive(Default)]
 pub struct PeopleFrame {
+    pub wheelchair_equipment: Vec<crate::people::wheelchair::EquipmentPose>,
     /// The people's clock (s).
     pub time: f64,
     /// Where the player looks from (None: the camera stands in).
@@ -244,6 +245,7 @@ pub struct PeopleFrame {
 /// One person of a [`PeopleFrame`].
 #[derive(Clone)]
 pub struct PersonFrame {
+    pub wheelchair: Option<crate::people::wheelchair::ChairPose>,
     pub id: u32,
     pub ty: Arc<crate::human::HumanType>,
     pub position: glam::DVec3,
@@ -285,6 +287,9 @@ impl crate::people::PeopleSim {
     /// buffer kept).
     pub fn snapshot_into(&self, out: &mut PeopleFrame) {
         let debug = omsi_cfg::flags::OMSI_CHECK_TPOSE.is_set();
+        out.wheelchair_equipment.clear();
+        out.wheelchair_equipment.extend(self.wheelchairs.equipment);
+        out.wheelchair_equipment.extend_from_slice(&self.wheelchairs.remote_equipment);
         out.time = self.time;
         out.eye = self.eye;
         out.buses.clone_from(&self.last_buses);
@@ -330,6 +335,7 @@ impl crate::people::PeopleSim {
                 None
             };
             PersonFrame {
+            wheelchair: self.wheelchairs.pose(p.id),
             id: p.id,
             ty: p.ty.clone(),
             position: p.position,

@@ -8,6 +8,8 @@ use super::*;
 pub enum PuppetMode {
     /// The player on foot (or another player's walker): moved by the game, see `avatar`.
     Avatar,
+    /// A wheelchair passenger, moved by the accessibility controller.
+    Wheelchair,
 }
 
 /// A person the game moves itself (the player on foot).

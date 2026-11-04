@@ -1050,9 +1050,10 @@ impl Player {
             throttle,
             brake,
         );
+        let accessibility_hold = omsi_sim::people::wheelchair::interlocked();
         self.vehicle.set_controls(omsi_sim::Controls {
-            throttle,
-            brake,
+            throttle: if accessibility_hold {0.0} else {throttle},
+            brake: if accessibility_hold {1.0} else {brake},
             clutch: a.clutch.unwrap_or(self.axes.clutch).max(self.axes.clutch),
             // (a wheel at rest does not hold against the keys)
             steering: match a.steering {

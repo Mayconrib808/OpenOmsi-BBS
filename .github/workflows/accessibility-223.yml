@@ -1,0 +1,50 @@
+name: OpenOMSI 2.2.3 accessibility validation
+on:
+  push:
+    branches: [feature/2.2.3-accessibility]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: accessibility-223-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  simulation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: accessibility-223-simulation
+      - name: Simulation regression tests and add-on probe
+        run: |
+          cargo test --locked --release -p omsi-sim --lib
+          cargo build --locked --release -p omsi-sim --example wheelchair_probe
+      - name: Prepare offline probe and compiler for supplied add-on checks
+        run: |
+          mkdir -p validation-tools/cargo validation-tools/toolchain
+          cp target/release/examples/wheelchair_probe validation-tools/
+          toolchain=$(rustc --print sysroot)
+          cp -a "$toolchain/bin" "$toolchain/lib" validation-tools/toolchain/
+          for item in registry git; do
+            if [ -d "$HOME/.cargo/$item" ]; then cp -a "$HOME/.cargo/$item" "validation-tools/cargo/"; fi
+          done
+          tar -czf accessibility-validation-tools.tar.gz validation-tools
+      - uses: actions/upload-artifact@v4
+        with:
+          name: accessibility-223-validation-tools
+          path: accessibility-validation-tools.tar.gz
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error

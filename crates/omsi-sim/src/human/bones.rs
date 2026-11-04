@@ -178,7 +178,7 @@ impl Pose {
             // the shin hanging down. A floor further down than that (a seat on a podium or
             // over a wheel arch) is not reached by stretching the leg straight at it - the
             // leg ran diagonally through the seat's front - the feet hang above it instead.
-            if sit > 0.5 {
+            if sit > 0.5 && self.seat_feet.is_none() {
                 let flat = Vec3::new(pelvis_fwd.x, pelvis_fwd.y, 0.0).normalize_or(Vec3::Y);
                 let knee_n = hip_at + flat * rig.thigh * 0.95;
                 let hang = knee_n - Vec3::Z * rig.shin * 0.97;
@@ -191,6 +191,7 @@ impl Pose {
                 let target = Vec3::new(hang.x, hang.y, floor_z);
                 ankle_t[side] = ankle_t[side] + (target - ankle_t[side]) * blend;
             }
+            if let Some(feet)=self.seat_feet {ankle_t[side]=feet[side];}
             let (knee_at, ankle_at, hinge) =
                 two_bone(hip_at, rig.thigh, rig.shin, ankle_t[side], pole);
             let side_v = hinge;
@@ -199,6 +200,7 @@ impl Pose {
                 foot_rot[side] =
                     Mat3A::from_quat(yaw_quat(foot_yaw[side]) * Quat::from_rotation_x(d(pitch)));
             }
+            if self.seat_feet.is_some() {foot_rot[side]=Mat3A::IDENTITY;}
             let r_thigh = bone_rot(
                 rig.knee[side] - rig.hip[side],
                 Vec3::X,

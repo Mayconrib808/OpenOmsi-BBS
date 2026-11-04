@@ -175,6 +175,7 @@ impl App {
             if lan::note_driver_authority(&mut self.net.remotes,lan,from,text){return;}
         }
         if self.receive_bcs_event(from,text){return;}
+        if self.receive_wheelchair_beta(from,text){return;}
         if self.coop_receive(from, text) { return; }
         if let Some(request) = text.strip_prefix("pax_request ") {
             self.receive_passenger_door_request(from, request);

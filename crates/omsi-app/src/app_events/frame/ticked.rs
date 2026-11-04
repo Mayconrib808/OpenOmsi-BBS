@@ -61,6 +61,7 @@ impl App {
         if self.player.is_none() || self.renderer.is_none() || self.scene.is_none() {
             return;
         }
+        self.wheelchair_replacement_visibility();
         let sim = self.player_to_drawn_pose();
         super::driving::player_to_scene(super::driving::PlayerToSceneCx::of(&mut self.parts()), dt);
         self.frame_view_camera(dt);

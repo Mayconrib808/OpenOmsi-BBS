@@ -66,6 +66,7 @@ use omsi_scene::driver;
 use omsi_scene::export;
 pub(crate) use omsi_scene::hud;
 mod humans;
+mod wheelchair_beta;
 use omsi_career::journey;
 use omsi_input::keys;
 // (LAN play: the session is omsi-lan's `game`, see `lan_play`; the shared world's mirror
