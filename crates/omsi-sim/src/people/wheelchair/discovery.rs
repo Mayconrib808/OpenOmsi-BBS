@@ -386,6 +386,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             };
             threshold.y = (n.corners[0].y + n.corners[2].y) * 0.5;
             threshold.z = n.corners[0].z.max(d.inside.z);
+            if (0.0..=0.03).contains(&(floor-threshold.z)){threshold.z=floor;}
             if (threshold.z - floor).abs() > 0.18 {
                 continue;
             }

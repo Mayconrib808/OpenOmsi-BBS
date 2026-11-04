@@ -687,6 +687,7 @@ pub struct Wheelchairs {
     pub spawn_percent: f32,
     pub assisted: bool,
     pub special_stop_signal: bool,
+    pub stop_signal_variables:Vec<String>,
     pub journey: Option<Journey>,
     pub person: Option<u32>,
     pub status: String,
@@ -713,6 +714,7 @@ impl Default for Wheelchairs {
             spawn_percent: 3.0,
             assisted: false,
             special_stop_signal: false,
+            stop_signal_variables:Vec::new(),
             journey: None,
             person: None,
             status: String::new(),
@@ -785,7 +787,8 @@ impl PeopleSim {
         self.wheelchairs.profiles.clear();
         self.wheelchairs.riders.clear();
         self.wheelchairs.assisted = false;
-        self.wheelchairs.special_stop_signal = passengers::has_special_signal(v);
+        self.wheelchairs.stop_signal_variables = passengers::special_signal_variables(v);
+        self.wheelchairs.special_stop_signal = !self.wheelchairs.stop_signal_variables.is_empty();
         self.wheelchairs.profile = match Profile::load(&v.ty.def.path) {
             Ok(Some(profile))
                 if profile.exit_index < cabin.exits.len() && v.var(&profile.door_var).is_some() =>

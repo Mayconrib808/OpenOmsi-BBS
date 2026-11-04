@@ -13,16 +13,26 @@ pub struct Rider {
     pub reserved: Vec<usize>,
 }
 
-pub(super) fn has_special_signal(v: &VehicleInstance) -> bool {
-    let special=|n:&str| {
-        let n=n.to_ascii_lowercase();
-        ["kinderwagenwunsch", "rollstuhl", "wheelchair", "luzcadeirante"]
-            .iter().any(|word|n.contains(word))
-    };
-    v.ty.model.meshes.iter().any(|m| {
-        m.visible.as_ref().is_some_and(|(n,_)|special(n))
-            || m.materials.iter().any(|mat|mat.change.as_ref().is_some_and(|(_,_,n)|special(n)))
-    })
+fn strong_signal_name(name:&str)->bool {
+    let n=name.to_ascii_lowercase().replace('_',"");
+    n.contains("kinderwagenwunsch")||n.contains("luzcadeirante")
+        ||((n.contains("wheelchair")||n.contains("rollstuhl")||n.contains("cadeirante"))
+            &&["request","wunsch","sinal","signal","light","bell","desembarque"].iter().any(|k|n.contains(k)))
+}
+pub(super) fn special_signal_variables(v:&VehicleInstance)->Vec<String> {
+    let mut variables=Vec::new();
+    for m in &v.ty.model.meshes {
+        let file=m.file.to_ascii_lowercase();
+        let indicator=["painel","panel","light","luz","indicator","anzeige","cockpit"].iter().any(|k|file.contains(k));
+        for name in m.visible.iter().map(|(name,_)|name)
+            .chain(m.materials.iter().filter_map(|mat|mat.change.as_ref().map(|(_,_,name)|name))) {
+            let n=name.to_ascii_lowercase();
+            if (strong_signal_name(name)||(indicator&&(n.contains("wheelchair")||n.contains("rollstuhl")||n.contains("cadeirante"))))
+                &&v.var(name).is_some()&&!variables.contains(name) {variables.push(name.clone());}
+        }
+    }
+    if !variables.is_empty()&&v.var("door_kinderwagenwunsch").is_some(){variables.push("door_kinderwagenwunsch".into());}
+    variables.sort();variables.dedup();variables
 }
 
 fn spawn_roll(seed:u64,id:u32)->f64 {
@@ -41,10 +51,15 @@ impl Wheelchairs {
             ||self.riders.values().any(|r|r.journey.alight_requested)
     }
     pub fn request_alight(&mut self,id:u32)->bool {
-        if self.person==Some(id) {
-            if let Some(j)=self.journey.as_mut() {j.alight_requested=true;return true;}
+        let journey=if self.person==Some(id){self.journey.as_mut()}
+            else{self.riders.get_mut(&id).map(|r|&mut r.journey)};
+        if let Some(j)=journey {
+            if !j.alight_requested {
+                log::info!("WHEELCHAIR alighting_requested person={id} signal={} variables={:?}",
+                    if self.special_stop_signal{"special"}else{"normal_with_driver_notice"},self.stop_signal_variables);
+            }
+            j.alight_requested=true;return true;
         }
-        if let Some(r)=self.riders.get_mut(&id) {r.journey.alight_requested=true;return true;}
         false
     }
     pub fn free_profiles(&self)->impl Iterator<Item=&Profile> {

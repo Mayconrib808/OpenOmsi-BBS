@@ -103,6 +103,7 @@ impl PeopleSim {
         // do not require the optional HOF label to be populated.
         let term=bn.terminus.as_deref();
         let side=self.preferred_entry_side(*stop,bn,position);
+        if self.wheelchairs.is_chair(id)&&!self.wheelchairs.supports_bus(bn.id,side){return Some(false)}
         if !bn.cabin.entries.iter().any(|d|d.point.is_some() && entry_on_platform(side,d.side)){return Some(false)}
         let route_match=line.and_then(|k|s.lines.get(k))
             .is_some_and(|(_,termini)|bn.route.as_ref().and_then(|r|r.takes_waiting_for(termini)).is_some());
@@ -563,6 +564,7 @@ impl PeopleSim {
         let p = &mut self.people[i];
         p.remote = false;
         p.state = State::Pax(Box::new(pax));
+        if self.wheelchairs.is_chair(id){self.register_wheelchair(i);}
         true
     }
 

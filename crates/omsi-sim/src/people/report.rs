@@ -128,7 +128,7 @@ impl PeopleSim {
         }
         Self::write_door_requests(b, &doors);
         if self.wheelchairs.wants_alight() && self.wheelchairs.special_stop_signal {
-            for name in ["door_kinderwagenwunsch","cockpit_light_kinderwagenwunsch"] {
+            for name in &self.wheelchairs.stop_signal_variables {
                 if b.var(name).is_some(){b.set_var(name,1.0);}
             }
         }
