@@ -27,21 +27,28 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           key: accessibility-223-simulation
+      - name: Install native audio headers
+        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
       - name: Simulation regression tests and add-on probe
         run: |
           cargo test --locked --release -p omsi-sim --lib
           cargo build --locked --release -p omsi-sim --example wheelchair_probe
       - name: Prepare offline probe and compiler for supplied add-on checks
+        if: always()
         run: |
           mkdir -p validation-tools/cargo validation-tools/toolchain
-          cp target/release/examples/wheelchair_probe validation-tools/
+          if [ -f target/release/examples/wheelchair_probe ]; then cp target/release/examples/wheelchair_probe validation-tools/; fi
           toolchain=$(rustc --print sysroot)
           cp -a "$toolchain/bin" "$toolchain/lib" validation-tools/toolchain/
           for item in registry git; do
             if [ -d "$HOME/.cargo/$item" ]; then cp -a "$HOME/.cargo/$item" "validation-tools/cargo/"; fi
           done
+          mkdir -p validation-tools/system/lib/pkgconfig
+          cp -a /usr/lib/x86_64-linux-gnu/libasound.so* /usr/lib/x86_64-linux-gnu/libudev.so* validation-tools/system/lib/
+          cp /usr/lib/x86_64-linux-gnu/pkgconfig/alsa.pc /usr/lib/x86_64-linux-gnu/pkgconfig/libudev.pc validation-tools/system/lib/pkgconfig/
           tar -czf accessibility-validation-tools.tar.gz validation-tools
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: accessibility-223-validation-tools
           path: accessibility-validation-tools.tar.gz
