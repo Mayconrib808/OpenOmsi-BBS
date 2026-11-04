@@ -443,8 +443,13 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             }
         }
         if selected_bays.is_empty() {
+            let entrance_heading=if threshold.x>0.0{270.0}else{90.0};
+            let reason=if count==0 {"no clear wheelchair bay found"}
+                else if !geometry.chair_clear(threshold,entrance_heading) {
+                    "door threshold blocked for wheelchair footprint"
+                } else {"no collision-verified turning route"};
             out.reasons.push(format!(
-                "Door y={:.2}: {count} candidate bays, no verified turning route",
+                "Door y={:.2}: {count} candidate bays, {reason}",
                 threshold.y
             ));
             continue;
@@ -793,13 +798,19 @@ impl Geometry {
     /// Bounded pose search preserves the wheelchair's full volume through every
     /// pivot and forward/reverse leg. A failed search never authorizes a shortcut.
     fn plan_route(&self,start:Vec3,bays:&[(Vec3,f32)])->Option<(Vec3,f32,Vec<Maneuver>)> {
+        // The first grid is fast. The second searches narrow turning bays that
+        // fall between its 13 cm samples; both use the full-volume collision test.
+        self.plan_route_grid(start,bays,0.13,6000)
+            .or_else(||self.plan_route_grid(start,bays,0.09,8000))
+    }
+    fn plan_route_grid(&self,start:Vec3,bays:&[(Vec3,f32)],step:f32,max_expanded:usize)->Option<(Vec3,f32,Vec<Maneuver>)> {
         use std::{cmp::Reverse,collections::BinaryHeap};
         type Key=(i16,i16,u8);
         if bays.is_empty(){return None;}
         let initial:Key=(0,0,if start.x>0.0{6}else{2});
         if !self.chair_clear(start,initial.2 as f32*45.0){return None;}
         let position=|k:Key| {
-            let mut p=start+Vec3::new(k.0 as f32*0.13,k.1 as f32*0.13,0.0);
+            let mut p=start+Vec3::new(k.0 as f32*step,k.1 as f32*step,0.0);
             p.z=self.height(p).unwrap_or(start.z);p
         };
         let heuristic=|p:Vec3|bays.iter().map(|(b,_)|(*b-p).truncate().length()).fold(f32::INFINITY,f32::min);
@@ -812,7 +823,7 @@ impl Geometry {
         while let Some(Reverse((_,queued,key)))=queue.pop() {
             let &(cost,_,_)=visited.get(&key)?;
             if queued!=(cost*1000.0).round()as u32{continue;}
-            expanded+=1;if expanded>6000{break;}
+            expanded+=1;if expanded>max_expanded{break;}
             let at=position(key);let heading=key.2 as f32*45.0;
             for &(bay,end) in bays {
                 if (at-bay).truncate().length()>0.20{continue;}
@@ -846,12 +857,12 @@ impl Geometry {
             for (other,reverse,extra) in [
                 ((key.0,key.1,(key.2+1)%8),false,0.11),
                 ((key.0,key.1,(key.2+7)%8),false,0.11),
-                ((key.0+dx,key.1+dy,key.2),false,0.13),
-                ((key.0-dx,key.1-dy,key.2),true,0.16),
+                ((key.0+dx,key.1+dy,key.2),false,step),
+                ((key.0-dx,key.1-dy,key.2),true,step+0.03),
             ] {
                 let to=position(other);
                 if to.x.abs()>1.55||to.x*start.x.signum()>start.x.abs()+0.01
-                    ||(to.y-start.y).abs()>2.65||(to.z-start.z).abs()>0.18{continue;}
+                    ||(to.y-start.y).abs()>3.15||(to.z-start.z).abs()>0.18{continue;}
                 // Only the access platform may bridge a missing floor mesh.
                 if self.height(to).is_none() && !(to.x*start.x.signum()>start.x.abs()-0.85
                     &&(to.y-start.y).abs()<0.25){continue;}
@@ -1064,13 +1075,15 @@ fn find_bays(
 ) -> Vec<(Vec3, f32)> {
     let mut bays = Vec::new();
     for side in [-threshold.x.signum(), threshold.x.signum()] {
-        for ix in 0..7 {
-            for iy in -32_i32..=32 {
-                if side == threshold.x.signum() && iy.abs() < 21 {
+        for ix in 0..9 {
+            for iy in -40_i32..=40 {
+                // A same-side bay can be adjacent to a wide accessible door.
+                // Reject only the doorway footprint, not the surrounding cabin.
+                if side == threshold.x.signum() && iy.abs() < 14 {
                     continue;
                 }
                 let mut p = Vec3::new(
-                    side * (0.25 + ix as f32 * 0.09),
+                    side * (0.18 + ix as f32 * 0.09),
                     threshold.y + iy as f32 * 0.065,
                     threshold.z,
                 );
@@ -1313,6 +1326,28 @@ mod tests {
             bay,
             180.0
         ));
+    }
+    #[test]
+    fn a_collision_checked_route_can_turn_into_a_bay_on_a_fine_grid() {
+        // An actual planar cabin floor, not a geometry-free shortcut.
+        let a=Vec3::new(-1.5,-3.0,0.0);
+        let b=Vec3::new(1.5,-3.0,0.0);
+        let c=Vec3::new(1.5,3.0,0.0);
+        let d=Vec3::new(-1.5,3.0,0.0);
+        let floor=vec![[a,b,c],[a,c,d]];
+        let triangles=floor.iter().map(|&p|Triangle{
+            p,low:p[0].min(p[1]).min(p[2]),high:p[0].max(p[1]).max(p[2]),
+        }).collect();
+        let g=Geometry::index(floor,triangles);
+        let start=Vec3::new(1.15,0.0,0.0);
+        let bay=Vec3::new(-0.58,0.58,0.0);
+        let (_,heading,steps)=g.plan_route(start,&[(bay,180.0)])
+            .expect("clear continuous cabin must allow a checked approach");
+        assert_eq!(heading,180.0);
+        assert!(!steps.is_empty());
+        assert!(steps.len()<=64);
+        assert!((steps.last().unwrap().at-bay).length()<0.001);
+        assert!(steps.iter().all(|m|g.chair_clear(m.at,m.heading as f32)));
     }
     fn native_fixture() -> (VehicleInstance, Profile) {
         let mut v = crate::timetable_run::tests::script_test_vehicle(
