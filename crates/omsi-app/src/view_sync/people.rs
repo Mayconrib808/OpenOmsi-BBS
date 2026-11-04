@@ -883,7 +883,7 @@ impl PeopleView {
                 at += (if matches!(p.place, Place::Bus(..)) { p.tilt } else { Mat4::IDENTITY }).transform_vector3(fwd).as_dvec3();
             }
             // (riders with the tilt of their floor)
-            let tilt = if matches!(p.place, Place::Bus(..)) { p.tilt } else { Mat4::IDENTITY };
+            let tilt = if matches!(p.place, Place::Bus(..))||p.wheelchair.is_some() { p.tilt } else { Mat4::IDENTITY };
             let xf = tilt * Mat4::from_rotation_z((-heading).to_radians() as f32);
             let lit_to = if matches!(p.place, Place::Bus(..)) { p.interior } else { 0.0 };
             st.lit += (lit_to - st.lit) * (sdt / 0.4).min(1.0);

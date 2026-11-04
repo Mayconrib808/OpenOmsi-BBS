@@ -335,7 +335,7 @@ impl Journey {
         let wanted = (delta.x as f64).atan2(delta.y as f64).to_degrees()+if reverse{180.0}else{0.0};
         let yaw = angle_delta(self.heading, wanted).clamp(-55.0 * dt as f64, 55.0 * dt as f64);
         let heading = (self.heading + yaw).rem_euclid(360.0);
-        let ds = if angle_delta(heading, wanted).abs() < 6.0 {
+        let ds = if angle_delta(heading, wanted).abs() < 1.0 {
             (0.48 * dt).min(delta.truncate().length())
         } else {
             0.0
@@ -411,12 +411,13 @@ impl Journey {
             self.bridge_deployment=0.0;
         }
         self.pose.moving = 0.0;
+        self.hold_reason = "";
         if self.stage == Stage::Riding && self.deployment <= 0.0 && !self.alight_requested {
             return;
         }
         if (!matches!(self.stage, Stage::Waiting | Stage::Riding | Stage::Finished)
             || self.deployment > 0.0001)
-            && (speed.abs() > 0.025 || !feedback.door_open)
+            && (speed.abs() > 0.025 || (!feedback.door_open && (self.doorway_busy() || (!native && self.bridge_deployment>0.001))))
         {
             self.hold_reason = if speed.abs() > 0.025 {
                 "Aguardando ônibus completamente parado"
@@ -533,6 +534,7 @@ impl Journey {
                 }
             }
             Stage::Riding => {
+                if native&&self.deployment>0.0&&!feedback.stowed {self.hold_reason="Aguardando recolhimento do equipamento original";}
                 if self.deployment > 0.0 && (!native || feedback.stowed) {
                     if approach(&mut self.bridge_deployment, 0.0, dt / 1.2) {
                         approach(&mut self.deployment, 0.0, dt / 1.8);
@@ -890,6 +892,7 @@ impl PeopleSim {
             commands & ASSIST != 0 && alight_surface_loaded,
             &blockers,
         );
+        if !alight_surface_loaded {journey.hold_reason="Aguardando superfície de desembarque carregada e ao alcance";}
         // The bay is a volume, not a seat index: reserve all overlapping standing
         // places, and never take a place from somebody who is already there.
         if journey.stage!=Stage::Finished {
@@ -1220,4 +1223,34 @@ mod tests {
         assert!(j.pose.wheels[1] > 6.0);
         assert_eq!(j.local, p.outside(0.0));
     }
+    #[test]
+    fn the_ramp_approach_stays_on_ground_and_the_cabin_keeps_its_own_height() {
+        let mut p=profile();p.equipment=Equipment::NativeRamp;p.threshold.z=0.30;p.bay.z=0.36;
+        for point in &mut p.route{point.z=0.34;}let ground=0.10;let mut j=Journey::new(&p,ground,270.0);
+        let surface=[p.threshold,p.threshold+Vec3::Y,p.threshold+Vec3::new(p.platform_length,0.0,ground-p.threshold.z)];
+        let f=Feedback{door_open:true,ground_ready:true,floor_ready:true,surface:Some(surface),..Default::default()};let mut biggest=0.0_f32;
+        for n in 0..12000{let before=j.local;j.advance(&p,1.0/60.0,0.0,f,n==0,&[]);biggest=biggest.max((j.local-before).length());
+            if j.stage==Stage::ToPlatform&&(j.local.x-p.threshold.x)*p.side()>p.platform_length+0.01{assert!((j.local.z-ground).abs()<0.001);}
+            if j.stage==Stage::Riding{break;}}
+        assert_eq!(j.stage,Stage::Riding);assert!((j.local.z-p.bay.z).abs()<0.001);assert!(biggest<0.012,"vertical jump: {biggest}");
+    }
+    #[test]
+    fn the_platform_waits_for_a_folding_seat() {
+        let p=profile();let mut j=Journey::new(&p,0.0,270.0);j.transition(Stage::Deploying);
+        for _ in 0..100{j.advance(&p,0.1,0.0,Feedback{door_open:true,bay_ready:Some(false),..Default::default()},false,&[]);}
+        assert_eq!(j.stage,Stage::Deploying);assert_eq!(j.deployment,0.0);
+    }
+    #[test]
+    fn a_ramp_can_close_its_original_door_to_stow_after_the_chair_is_clear() {
+        let p=profile();let mut j=Journey::new(&p,0.0,270.0);j.deployment=1.0;j.stage=Stage::ToBay;assert!(j.doorway_busy());
+        j.stage=Stage::Riding;assert!(!j.doorway_busy());assert!(j.interlocked());
+        j.stage=Stage::Finished;assert!(!j.doorway_busy());assert!(j.interlocked());
+    }
+    #[test]
+    fn backing_out_turns_both_wheels_backwards_without_turning_the_chair_around() {
+        let p=profile();let mut j=Journey::new(&p,0.0,180.0);j.local=Vec3::ZERO;
+        for _ in 0..110{j.drive(Vec3::Y,0.02,&[],true);}
+        assert!(j.local.y>0.9);assert!((j.heading-180.0).abs()<0.1);assert_eq!(j.pose.direction,[-1.0,-1.0]);
+    }
+
 }

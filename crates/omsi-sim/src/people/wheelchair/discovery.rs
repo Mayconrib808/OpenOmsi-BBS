@@ -163,11 +163,37 @@ fn deck(ty: &VehicleType, index: usize) -> Option<NativeDeck> {
     if size.y < 0.78 || !(0.55..=2.2).contains(&size.x) || size.z > 0.20 {
         return None;
     }
-    if !m.data.indices.chunks_exact(3).any(|t| {
-        let p = t.map_positions(&m.data.positions);
-        (p[1] - p[0]).cross(p[2] - p[0]).normalize_or_zero().z.abs() > 0.98
-    }) {
+    let faces: Vec<_> = m
+        .data
+        .indices
+        .chunks_exact(3)
+        .filter_map(|t| {
+            let p = t.map_positions(&m.data.positions);
+            let cross = (p[1] - p[0]).cross(p[2] - p[0]);
+            (cross.normalize_or_zero().z.abs() > 0.98).then_some((cross.length(), p))
+        })
+        .collect();
+    let largest = faces.iter().map(|f| f.0).max_by(f32::total_cmp)?;
+    let centre = (lo + hi).truncate() * 0.5;
+    let planes: Vec<_> = faces
+        .iter()
+        .filter(|f| f.0 >= largest * 0.5)
+        .filter_map(|f| height_on_plane(f.1, centre).map(|z| (z, f.1)))
+        .collect();
+    let top = planes.iter().max_by(|a, b| a.0.total_cmp(&b.0))?;
+    let low = planes.iter().map(|f| f.0).min_by(f32::total_cmp)?;
+    let thickness = (top.0 - low).max(0.0);
+    if thickness > 0.10 {
         return None;
+    }
+    let mut corners = [
+        Vec3::new(lo.x, lo.y, 0.0),
+        Vec3::new(hi.x, lo.y, 0.0),
+        Vec3::new(hi.x, hi.y, 0.0),
+        Vec3::new(lo.x, hi.y, 0.0),
+    ];
+    for corner in &mut corners {
+        corner.z = height_on_plane(top.1, corner.truncate())?;
     }
     let trigger = d
         .mouse_event
@@ -189,13 +215,8 @@ fn deck(ty: &VehicleType, index: usize) -> Option<NativeDeck> {
         .or_else(|| (trigger.as_deref() == Some("ramplift_wunsch")).then(|| "ramp_soll".into()));
     Some(NativeDeck {
         mesh: d.file.clone(),
-        corners: [
-            Vec3::new(lo.x, lo.y, hi.z),
-            Vec3::new(hi.x, lo.y, hi.z),
-            Vec3::new(hi.x, hi.y, hi.z),
-            Vec3::new(lo.x, hi.y, hi.z),
-        ],
-        thickness: size.z,
+        corners,
+        thickness,
         trigger,
         control_var,
         index: Some(index),
@@ -577,6 +598,10 @@ impl Geometry {
         let mut cells: HashMap<_, Vec<usize>> = HashMap::new();
         let mut large = Vec::new();
         for (i, t) in triangles.iter().enumerate() {
+            if t.low.abs().max_element() > 1000.0 || t.high.abs().max_element() > 1000.0 {
+                large.push(i);
+                continue;
+            }
             let a = (t.low * 2.0).floor().as_ivec3();
             let b = (t.high * 2.0).floor().as_ivec3();
             let n = (b - a + glam::IVec3::ONE).as_i64vec3();
@@ -645,8 +670,10 @@ impl Geometry {
     }
     fn chair_clear(&self, p: Vec3, heading: f32) -> bool {
         let (s, c) = heading.to_radians().sin_cos();
-        let forward = Vec3::new(s, c, 0.0);
-        let right = Vec3::new(c, -s, 0.0);
+        let mut forward = Vec3::new(s, c, 0.0);
+        let mut right = Vec3::new(c, -s, 0.0);
+        let up=contact_normal(p,heading,|at|self.height(at)).unwrap_or(Vec3::Z);
+        let tilt=glam::Quat::from_rotation_arc(Vec3::Z,up);forward=tilt*forward;right=tilt*right;
         // Wheels, footrests, legs, arms, torso, head and back frame.
         [
             (0.0, 0.33, Vec3::new(0.38, 0.32, 0.30)),
@@ -659,13 +686,13 @@ impl Geometry {
         ]
         .into_iter()
         .all(|(y, z, half)| {
-            let centre = p + forward * y + Vec3::Z * z;
-            let ext = right.abs() * half.x + forward.abs() * half.y + Vec3::Z * half.z;
+            let centre = p + forward * y + up * z;
+            let ext = right.abs() * half.x + forward.abs() * half.y + up.abs() * half.z;
             !self.hit(centre - ext, centre + ext, |t| {
                 triangle_box(
                     t.p.map(|v| {
                         let v = v - centre;
-                        Vec3::new(v.dot(right), v.dot(forward), v.z)
+                        Vec3::new(v.dot(right), v.dot(forward), v.dot(up))
                     }),
                     Vec3::ZERO,
                     half,
@@ -705,6 +732,15 @@ impl Geometry {
         let n = (yaw.abs() / 5.0).ceil().max(1.0) as usize;
         (1..=n).all(|i| self.chair_clear(bay, heading + yaw * i as f32 / n as f32))
     }
+}
+/// Fit the chair's rear wheels and front casters to a gently sloping floor.
+pub fn contact_normal(at:Vec3,heading:f32,height:impl Fn(Vec3)->Option<f32>)->Option<Vec3>{
+    let (s,c)=heading.to_radians().sin_cos();let forward=Vec3::new(s,c,0.0);let right=Vec3::new(c,-s,0.0);
+    let rear=[height(at-right*0.30).unwrap_or(at.z),height(at+right*0.30).unwrap_or(at.z)];
+    let front=[height(at+forward*0.42-right*0.18).unwrap_or(at.z),height(at+forward*0.42+right*0.18).unwrap_or(at.z)];
+    let sideways=(rear[1]-rear[0])/0.60;let ahead=((front[0]+front[1])-(rear[0]+rear[1]))*0.5/0.42;
+    let normal=(Vec3::Z-right*sideways-forward*ahead).normalize_or_zero();
+    (normal.is_finite()&&normal.z>0.85).then_some(normal)
 }
 fn triangle_box(p: [Vec3; 3], centre: Vec3, half: Vec3) -> bool {
     let p = p.map(|p| p - centre);
@@ -875,23 +911,45 @@ pub fn feedback(v: &VehicleInstance, p: &Profile) -> Feedback {
     let inner = (across[0] + across[1]) * 0.5;
     let outer = (across[2] + across[3]) * 0.5;
     let extension = (outer.x - p.threshold.x) * p.side();
-    let normal = (corners[1] - corners[0])
+    let mut normal = (corners[1] - corners[0])
         .cross(corners[3] - corners[0])
         .normalize_or_zero();
-    let world = v.position + v.body_rotation().transform_vector3(outer).as_dvec3();
+    if normal.z < 0.0 {
+        normal = -normal;
+    }
+    let contact_edge = outer - normal * n.thickness;
+    let world = v.position + v.body_rotation().transform_vector3(contact_edge).as_dvec3();
     let contact = v
         .ground
         .as_ref()
         .and_then(|g| g(world.x, world.y))
-        .is_some_and(|z| (world.z - z).abs() < 0.10);
-    let ground_ready = extension > 0.45 && contact && normal.z.abs() > 0.94;
+        .is_some_and(|z| (world.z - z).abs() < 0.035);
+    let settled = v.animators.get(i).is_some_and(|m| {
+        m.anims.iter().all(|(a, _, s)| {
+            v.var(&a.variable).is_some_and(|x| {
+                (s.value - (x * a.factor + a.offset)).abs()
+                    < if a.kind == Some(omsi_model::AnimKind::Trans) {
+                        0.006
+                    } else {
+                        0.5
+                    }
+            })
+        })
+    });
+    let extended = n.control_var.as_deref() != Some("ramp_soll")
+        || v.var("ramp_pos").is_some_and(|x| x >= 0.995);
+    let ground_ready = extension > 0.45
+        && contact
+        && v.body_rotation().transform_vector3(normal).z.abs() > 0.94
+        && settled
+        && extended;
     let floor_ready = ground_ready
         && (inner.z - p.threshold.z).abs() < 0.075
         && (inner.x - p.threshold.x).abs() < 0.15;
     let stowed = extension < 0.12
         && v.animators.get(i).is_some_and(|m| {
             m.anims.iter().all(|(a, _, s)| {
-                s.value.abs()
+                (s.value - a.offset).abs()
                     < if a.kind == Some(omsi_model::AnimKind::Trans) {
                         0.012
                     } else {
@@ -939,20 +997,157 @@ mod tests {
         ];
         let g = Geometry::index(
             Vec::new(),
-            vec![Triangle {
-                p,
-                low: p[0].min(p[1]).min(p[2]),
-                high: p[0].max(p[1]).max(p[2]),
-            }],
+            [p, [p[0], Vec3::new(-0.4, -0.4, 0.0), p[1]]]
+                .into_iter()
+                .map(|p| Triangle {
+                    p,
+                    low: p[0].min(p[1]).min(p[2]),
+                    high: p[0].max(p[1]).max(p[2]),
+                })
+                .collect(),
         );
         let start = Vec3::new(1.25, -1.02, 0.0);
-        let bay = Vec3::new(-0.60, -0.88, 0.0);
+        let bay = Vec3::new(-0.60, -0.95, 0.0);
         assert!(g.route_clear(start, &[start.lerp(bay, 0.5)], bay, 180.0));
         assert!(!g.route_clear(
             start,
-            &[Vec3::new(0.0, -1.02, 0.0), Vec3::new(0.0, -0.88, 0.0)],
+            &[Vec3::new(0.0, -1.02, 0.0), Vec3::new(0.0, -0.95, 0.0)],
             bay,
             180.0
         ));
+    }
+    fn native_fixture() -> (VehicleInstance, Profile) {
+        let mut v = crate::timetable_run::tests::script_test_vehicle(
+            "{frame} (L.L.command) (S.L.angle) {end}",
+            "command\nangle\ndoor_a\ndoor_b\n",
+            "",
+        );
+        let animation = omsi_model::Animation {
+            origins: vec![
+                omsi_model::AnimOrigin::Trans([1.2, 0.0, 0.4]),
+                omsi_model::AnimOrigin::RotZ(90.0),
+            ],
+            kind: Some(omsi_model::AnimKind::Rot),
+            variable: "angle".into(),
+            max_speed: 90.0,
+            ..Default::default()
+        };
+        let definition = omsi_model::MeshDef {
+            file: "ramp".into(),
+            animations: vec![animation],
+            ..Default::default()
+        };
+        let ty = std::sync::Arc::make_mut(&mut v.ty);
+        ty.model.meshes.push(definition.clone());
+        ty.meshes.push(crate::vehicle::VehicleMesh {
+            def_index: 0,
+            data: Default::default(),
+            pick_geometry: Default::default(),
+            file: PathBuf::new(),
+            materials: Vec::new(),
+            overrides: Vec::new(),
+            pivot: Mat4::IDENTITY,
+            viewpoint: 0,
+            skin: Vec::new(),
+            keep_winding: false,
+        });
+        let mut animator =
+            crate::anim::MeshAnimator::new(&definition, Mat4::IDENTITY, |n| v.ty.program.var(n));
+        v.mesh_transforms = vec![animator.update(0.02, &v.state.vars)];
+        v.animators = vec![animator];
+        v.mesh_props = vec![crate::vehicle::MeshProps::default()];
+        v.set_var("door_a", 1.0);
+        v.set_var("door_b", 1.0);
+        let mut p = super::super::tests::profile();
+        p.equipment = Equipment::NativeRamp;
+        p.platform_length = 0.8;
+        p.threshold = Vec3::new(1.2, 0.0, 0.4);
+        p.bay.z = 0.4;
+        for point in &mut p.route {
+            point.z = 0.4;
+        }
+        p.door_var = "door_a".into();
+        p.door_vars = vec!["door_b".into()];
+        p.native = Some(NativeDeck {
+            mesh: "ramp".into(),
+            corners: [
+                Vec3::new(0.4, -0.5, 0.4),
+                Vec3::new(1.2, -0.5, 0.4),
+                Vec3::new(1.2, 0.5, 0.4),
+                Vec3::new(0.4, 0.5, 0.4),
+            ],
+            thickness: 0.0,
+            trigger: None,
+            control_var: Some("command".into()),
+            index: Some(0),
+        });
+        let ground = 0.4 - 0.8 * 15_f64.to_radians().sin();
+        v.ground = Some(std::sync::Arc::new(move |_, _| Some(ground)));
+        (v, p)
+    }
+    fn animate(v: &mut VehicleInstance, angle: f32, seconds: f32) {
+        v.set_var("angle", angle);
+        for _ in 0..(seconds / 0.02).round() as usize {
+            v.mesh_transforms[0] = v.animators[0].update(0.02, &v.state.vars);
+        }
+    }
+    #[test]
+    fn the_native_deck_must_finish_its_real_animation_and_touch_the_curb() {
+        let (mut v, p) = native_fixture();
+        p.validate().unwrap();
+        assert!(feedback(&v, &p).stowed);
+        v.set_var("command", 195.0);
+        animate(&mut v, 195.0, 0.02);
+        assert!(!feedback(&v, &p).ground_ready);
+        animate(&mut v, 195.0, 3.0);
+        let f = feedback(&v, &p);
+        assert!(f.ground_ready && f.floor_ready, "{f:?}");
+        assert!(!f.stowed);
+        assert!(
+            (height_on_plane(f.surface.unwrap(), Vec2::new(1.2, 0.0)).unwrap() - 0.4).abs() < 0.001
+        );
+        v.heading = 123.0;
+        assert!(feedback(&v, &p).ground_ready);
+        v.ground = Some(std::sync::Arc::new(|_, _| Some(-0.3)));
+        assert!(!feedback(&v, &p).ground_ready);
+    }
+    #[test]
+    fn a_closed_leaf_or_hidden_deck_does_not_release_the_passenger() {
+        let (mut v, p) = native_fixture();
+        animate(&mut v, 195.0, 3.0);
+        v.set_var("door_b", 0.7);
+        assert!(!feedback(&v, &p).door_open);
+        v.set_var("door_b", 1.0);
+        assert!(feedback(&v, &p).door_open);
+        v.mesh_props[0].visible = false;
+        assert!(!feedback(&v, &p).ground_ready);
+        v.mesh_props[0].visible = true;
+        animate(&mut v, 0.0, 3.0);
+        assert!(feedback(&v, &p).stowed);
+    }
+    #[test]
+    fn door_feedback_follows_the_leaf_animation_instead_of_its_early_flag() {
+        let (mut v, p) = native_fixture();
+        v.set_var("door_b", 0.0);
+        let def = omsi_model::MeshDef {
+            animations: vec![omsi_model::Animation {
+                variable: "door_b".into(),
+                kind: Some(omsi_model::AnimKind::Trans),
+                max_speed: 0.4,
+                ..Default::default()
+            }],
+            ..Default::default()
+        };
+        let mut leaf =
+            crate::anim::MeshAnimator::new(&def, Mat4::IDENTITY, |n| v.ty.program.var(n));
+        leaf.update(0.02, &v.state.vars);
+        v.animators.push(leaf);
+        v.set_var("door_b", 1.0);
+        v.animators[1].update(0.02, &v.state.vars);
+        assert!(!doors_ready(&v, &p));
+        for _ in 0..160 {
+            v.animators[1].update(0.02, &v.state.vars);
+        }
+        assert!(doors_ready(&v, &p));
     }
 }

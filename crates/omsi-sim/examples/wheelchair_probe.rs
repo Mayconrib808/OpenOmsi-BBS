@@ -4,6 +4,9 @@ use omsi_sim::{VehicleHost, VehicleInstance, VehicleType, people::cabin::Cabin};
 use serde_json::json;
 use std::{path::Path, sync::Arc};
 
+#[path = "wheelchair_probe/native.rs"]
+mod native;
+
 fn main() -> anyhow::Result<()> {
     let args: Vec<_> = std::env::args().collect();
     let root = Path::new(args.get(1).expect("game root"));
@@ -12,7 +15,7 @@ fn main() -> anyhow::Result<()> {
         .get(3)
         .zip(args.get(4))
         .map(|(y, z)| (y.parse::<f32>().unwrap(), z.parse::<f32>().unwrap()));
-    let v = VehicleInstance::new(
+    let mut v = VehicleInstance::new(
         Arc::new(VehicleType::load(root, file)?),
         VehicleHost::new(Default::default()),
     );
@@ -65,18 +68,24 @@ fn main() -> anyhow::Result<()> {
             sections.push(json!({"offset":offset,"lines":lines}));
         }
     }
-    let began=std::time::Instant::now();
-    let detection=cabin.as_ref().map(|c|omsi_sim::people::wheelchair::discovery::detect(&v,c));
-    let discovery_ms=began.elapsed().as_secs_f64()*1000.0;
-    eprintln!("Discovery {}: {:.1} ms",file.display(),discovery_ms);
-    println!(
-        "{}",
-        serde_json::to_string(&json!({"bus":file,"meshes":meshes,"sections":sections,"detection":detection,"discovery_ms":discovery_ms,
-            "script_errors":ty.program.errors.len(),"errors":ty.program.errors.iter().take(5).map(|e|e.to_string()).collect::<Vec<_>>(),
-            "entries":cabin.as_ref().map(|c|c.entries.iter().map(|d|d.inside).collect::<Vec<_>>()),
-            "exits":cabin.as_ref().map(|c|c.exits.iter().map(|d|d.inside).collect::<Vec<_>>()),
-            "seats":cabin.as_ref().map(|c|c.seats.iter().map(|s|json!({"floor":s.floor,"seated":s.seated,"switch":s.switch_var})).collect::<Vec<_>>())
-        }))?
-    );
+    let began = std::time::Instant::now();
+    let detection = cabin
+        .as_ref()
+        .map(|c| omsi_sim::people::wheelchair::discovery::detect(&v, c));
+    let discovery_ms = began.elapsed().as_secs_f64() * 1000.0;
+    eprintln!("Discovery {}: {:.1} ms", file.display(), discovery_ms);
+    let profile = detection.as_ref().and_then(|d| d.profile.clone());
+    let mut report = json!({"bus":file,"meshes":meshes,"sections":sections,"detection":detection,"discovery_ms":discovery_ms,
+        "script_errors":ty.program.errors.len(),"errors":ty.program.errors.iter().take(5).map(|e|e.to_string()).collect::<Vec<_>>(),
+        "entries":cabin.as_ref().map(|c|c.entries.iter().map(|d|d.inside).collect::<Vec<_>>()),
+        "exits":cabin.as_ref().map(|c|c.exits.iter().map(|d|d.inside).collect::<Vec<_>>()),
+        "seats":cabin.as_ref().map(|c|c.seats.iter().map(|s|json!({"floor":s.floor,"seated":s.seated,"switch":s.switch_var})).collect::<Vec<_>>())
+    });
+    if std::env::var_os("WHEELCHAIR_EXERCISE").is_some() {
+        if let Some(profile) = profile {
+            report["native_exercise"] = native::run(&mut v, &profile);
+        }
+    }
+    println!("{}", serde_json::to_string(&report)?);
     Ok(())
 }

@@ -114,9 +114,16 @@ impl PeopleSim {
             places: self.pax_places.get(&BusId::Player).cloned().unwrap_or_default(),
         };
         if let (Some(profile),Some(journey))=(&self.wheelchairs.profile,&self.wheelchairs.journey) {
-            if journey.interlocked() {
-                if let Some(busy)=doors.exit_busy.get_mut(profile.exit_index){*busy=true;}
-                if let Some(req)=doors.exit_req.get_mut(profile.exit_index){*req=true;}
+            let added=matches!(profile.equipment,wheelchair::Equipment::AddedLift|wheelchair::Equipment::AddedRamp);
+            if journey.doorway_busy() || (added && journey.bridge_deployment>0.001) {
+                if let Some(c)=&self.player_cabin {
+                    for (exit,list) in [(false,&c.entries),(true,&c.exits)] {for (i,d) in list.iter().enumerate() {
+                        if d.side==profile.side()&&(d.inside.y-profile.threshold.y).abs()<0.85 {
+                            let (busy,req)=if exit{(&mut doors.exit_busy,&mut doors.exit_req)}else{(&mut doors.entry_busy,&mut doors.entry_req)};
+                            if let Some(v)=busy.get_mut(i){*v=true;}if let Some(v)=req.get_mut(i){*v=true;}
+                        }
+                    }}
+                }
             }
         }
         Self::write_door_requests(b, &doors);

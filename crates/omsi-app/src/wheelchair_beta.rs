@@ -21,26 +21,42 @@ impl App {
     }
     pub(crate) fn tick_wheelchair_beta(&mut self) {
         self.tick_wheelchair_network();
-        let Some(h)=self.session.humans.as_ref() else {NATIVE_STAGE.store(0,Ordering::Release);return;};
-        let Some(profile)=h.wheelchairs.profile.as_ref() else {NATIVE_STAGE.store(0,Ordering::Release);return;};
+        let Some(h)=self.session.humans.as_ref()else{NATIVE_STAGE.store(0,Ordering::Release);return;};
+        let Some(profile)=h.wheelchairs.profile.as_ref()else{NATIVE_STAGE.store(0,Ordering::Release);return;};
+        let Some(player)=self.player.as_mut()else{return;};
+        if h.wheelchairs.journey.as_ref().is_some_and(|j|!matches!(j.stage,Stage::Finished|Stage::Riding))
+            &&player.vehicle.physics.speed.abs()<0.025&&h.wheelchairs.feedback.door_open&&!h.wheelchairs.bay_occupied {
+            if let Some(f)=&profile.fold {if player.vehicle.var(&f.variable).is_some_and(|x|(x-f.folded_value).abs()>0.02){player.vehicle.trigger(&f.trigger);}}
+        }
         let native=matches!(profile.equipment,wheelchair::Equipment::NativeRamp|wheelchair::Equipment::NativeLift);
         let action=h.wheelchairs.journey.as_ref().map(|j|match j.stage {
-            Stage::Deploying=>(1,profile.deploy_trigger.clone()),
-            Stage::Raising=>(2,profile.raise_trigger.clone()),
-            Stage::Riding if j.deployment>0.0=>(3,profile.stow_trigger.clone()),
-            Stage::Unsecuring=>(4,profile.alight_trigger.clone()),
-            Stage::Lowering=>(5,profile.lower_trigger.clone()),
-            Stage::Finished if j.deployment>0.0=>(6,profile.stow_trigger.clone()),
-            _=>(0,None),
+            Stage::Deploying=>(1,profile.deploy_trigger.clone()),Stage::Raising=>(2,profile.raise_trigger.clone()),
+            Stage::Riding if j.deployment>0.0=>(3,profile.stow_trigger.clone()),Stage::Unsecuring=>(4,profile.alight_trigger.clone()),
+            Stage::Lowering=>(5,profile.lower_trigger.clone()),Stage::Finished if j.deployment>0.0=>(6,profile.stow_trigger.clone()),_ =>(0,None)
         }).unwrap_or((0,None));
-        if !native||action.0==0 {NATIVE_STAGE.store(0,Ordering::Release);return;}
-        if NATIVE_STAGE.load(Ordering::Acquire)==action.0 {return;}
-        let Some(p)=self.player.as_mut()else{return;};
-        if p.vehicle.physics.speed.abs()>0.025||!h.wheelchairs.feedback.door_open{return;}
-        // One command per stage. Missing triggers leave the real controls to
-        // the driver; endpoint/height feedback still gates every movement.
-        if let Some(trigger)=action.1 {p.vehicle.trigger(&trigger);}
+        if !native||action.0==0{NATIVE_STAGE.store(0,Ordering::Release);return;}
+        if NATIVE_STAGE.load(Ordering::Acquire)==action.0{return;}
+        if player.vehicle.physics.speed.abs()>0.025||!h.wheelchairs.feedback.door_open{return;}
+        if let Some(trigger)=action.1 {
+            let desired=if matches!(action.0,1|4){1.0}else{0.0};let control=profile.native.as_ref().and_then(|n|n.control_var.as_ref());
+            if !control.is_some_and(|n|player.vehicle.var(n).is_some_and(|x|(x-desired).abs()<0.1)) {
+                static LAST_TRIGGER:std::sync::OnceLock<std::sync::Mutex<std::time::Instant>>=std::sync::OnceLock::new();
+                let Ok(mut last)=LAST_TRIGGER.get_or_init(||std::sync::Mutex::new(std::time::Instant::now()-std::time::Duration::from_secs(2))).lock()else{return;};
+                if last.elapsed()<std::time::Duration::from_secs(1){return;}
+                player.vehicle.trigger(&trigger);*last=std::time::Instant::now();
+                if control.is_some_and(|n|!player.vehicle.var(n).is_some_and(|x|(x-desired).abs()<0.1)){return;}
+            }
+        }
         NATIVE_STAGE.store(action.0,Ordering::Release);
+    }
+    pub(crate) fn wheelchair_replacement_visibility(&mut self) {
+        let Some(h)=self.session.humans.as_ref()else{return;};let Some(profile)=h.wheelchairs.profile.as_ref()else{return;};
+        if !h.wheelchairs.journey.as_ref().is_some_and(|j|j.deployment>0.001){return;}
+        let Some(player)=self.player.as_mut()else{return;};
+        for (i,m) in player.vehicle.ty.meshes.iter().enumerate() {
+            let name=&player.vehicle.ty.model.meshes[m.def_index].file;
+            if profile.replacement_meshes.iter().any(|n|n.eq_ignore_ascii_case(name)) {if let Some(p)=player.vehicle.mesh_props.get_mut(i){p.visible=false;}}
+        }
     }
 }
 

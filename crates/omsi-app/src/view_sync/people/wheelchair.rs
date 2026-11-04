@@ -204,13 +204,13 @@ impl Renders {
                 .as_dvec3();
         let bridge_center = bridge_origin
             + bridge_rotation
-                .transform_vector3(Vec3::X * (-e.side * 0.375))
+                .transform_vector3(Vec3::X * (-e.side * 0.5))
                 .as_dvec3();
         r.set_transform(
             s,
             instances[3],
             bridge_center,
-            bridge_rotation * Mat4::from_scale(Vec3::new(0.75, e.width, 0.5)),
+            bridge_rotation * Mat4::from_scale(Vec3::new(1.0, e.width, 0.5)),
         );
         r.set_params(
             s,
