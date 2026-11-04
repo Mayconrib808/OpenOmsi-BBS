@@ -1193,8 +1193,11 @@ mod connection_tests {
         assert!(people.visual_hail_bus(i, &[vehicle.clone()]).is_none());
         vehicle.pos = DVec3::new(0., -45., 0.);
         people.pax_mut(i).unwrap().task = Task::ToBus;
+        assert!(people.visual_hail_bus(i, &[vehicle.clone()]).is_some(),
+            "a passenger recognized inside 60m but still standing must signal");
+        people.pax_mut(i).unwrap().task = Task::WalkingToBus;
         assert!(people.visual_hail_bus(i, &[vehicle]).is_none(),
-            "must not signal while already moving to board");
+            "must not signal after actually walking to the door");
         std::fs::remove_dir_all(root).unwrap();
     }
 
