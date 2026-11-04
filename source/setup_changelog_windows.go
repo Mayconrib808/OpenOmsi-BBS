@@ -778,6 +778,11 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     if x<0{x=0};if y<0{y=0}
     window,_,_:=guiUser.NewProc("CreateWindowExW").Call(0,uintptr(unsafe.Pointer(class.Name)),uintptr(unsafe.Pointer(winPtr("OpenOMSI BCS Bridge  •  "+changelogSeenVersion))),style,uintptr(x),uintptr(y),uintptr(width),uintptr(height),g.window,0,instance,0)
     if window==0{return 0}
+    // Windows may constrain the requested window to the display work area.
+    // Position child controls using the resulting client area, as painting does.
+    var client guiRect
+    guiUser.NewProc("GetClientRect").Call(window,uintptr(unsafe.Pointer(&client)))
+    clientWidth,clientHeight:=int(client.Right),int(client.Bottom)
     changelogWindow=window
     changelogState=&logWindowState{heading:guiFont(26,700),subhead:guiFont(19,700),body:guiFont(18,400),tiny:guiFont(16,400)}
     control:=func(label string,x,y,w,h,id int)uintptr{
@@ -787,20 +792,22 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     }
     // Fit every cumulative release section above the footer, including the
     // complete history shown to users upgrading from an old installation.
-    // Keep ALL section buttons above the bottom footer on 780px dialogs.
+    // Keep ALL section buttons above the footer at the actual client height.
     tabTop,tabStep,tabHeight:=152,65,54
     if len(logSections())>8{tabTop,tabStep,tabHeight=141,48,42}
     if len(logSections())>11{tabTop,tabStep,tabHeight=130,33,30}
-    if count:=len(logSections());count>15{
-        tabTop,tabStep=118,26
-        if step:=(700-tabTop)/count;step<tabStep{tabStep=step}
-        tabHeight=tabStep-2
+    if len(logSections())>15{tabTop,tabStep,tabHeight=118,26,24}
+    if count:=len(logSections());count>0{
+        if step:=(clientHeight-90-tabTop)/count;step<tabStep{
+            tabStep=step
+            tabHeight=tabStep-2
+        }
     }
     for i,s:=range logSections(){
         hwnd:=control(logL(g.config.Language,s.label),17,tabTop+i*tabStep,232,tabHeight,logIDSectionBase+i)
         changelogState.buttons=append(changelogState.buttons,hwnd)
     }
-    done:=control(logL(g.config.Language,logT("✓ VAMOS JOGAR","✓ LET'S PLAY","✓ LOS GEHT'S")),810,716,230,44,logIDDone)
+    done:=control(logL(g.config.Language,logT("✓ VAMOS JOGAR","✓ LET'S PLAY","✓ LOS GEHT'S")),clientWidth-270,clientHeight-64,230,44,logIDDone)
     guiUser.NewProc("EnableWindow").Call(g.window,0)
     guiUser.NewProc("ShowWindow").Call(window,1)
     guiUser.NewProc("UpdateWindow").Call(window)

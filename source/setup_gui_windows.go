@@ -972,8 +972,13 @@ func runSetupGUI(dir string, smoke bool) error {
                     var bounds guiRect
                     guiUser.NewProc("GetWindowRect").Call(button,uintptr(unsafe.Pointer(&bounds)))
                     guiUser.NewProc("MapWindowPoints").Call(0,notes,uintptr(unsafe.Pointer(&bounds)),2)
-                    if bounds.Top<114 || bounds.Bottom>notesClient.Bottom-77{return fmt.Errorf("changelog navigation %d overlaps header/footer: %s",i,lang)}
+                    if bounds.Top<114 || bounds.Bottom>notesClient.Bottom-77{return fmt.Errorf("changelog navigation %d overlaps header/footer: %s (top=%d bottom=%d footer=%d)",i,lang,bounds.Top,bounds.Bottom,notesClient.Bottom-77)}
                 }
+                done,_,_:=guiUser.NewProc("GetDlgItem").Call(notes,logIDDone)
+                var doneBounds guiRect
+                guiUser.NewProc("GetWindowRect").Call(done,uintptr(unsafe.Pointer(&doneBounds)))
+                guiUser.NewProc("MapWindowPoints").Call(0,notes,uintptr(unsafe.Pointer(&doneBounds)),2)
+                if done==0 || doneBounds.Top<notesClient.Bottom-77 || doneBounds.Bottom>notesClient.Bottom || doneBounds.Left<0 || doneBounds.Right>notesClient.Right{return fmt.Errorf("changelog close button is clipped: %s",lang)}
                 for i:=range logSections(){
                     guiUser.NewProc("SendMessageW").Call(notes,guiWMCommand,uintptr(logIDSectionBase+i),0)
                     if changelogState.section!=i{return fmt.Errorf("changelog category %d did not switch: %s",i,lang)}
