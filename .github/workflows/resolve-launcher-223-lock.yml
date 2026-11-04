@@ -1,0 +1,36 @@
+name: Resolve exact launcher dependencies for 2.2.3
+on:
+  push:
+    branches: [fix/2.2.3-launcher-lock]
+permissions:
+  contents: read
+jobs:
+  lockfile:
+    runs-on: windows-2022
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Resolve and export the actual desktop dependency lock
+        shell: pwsh
+        env:
+          PYTHONUTF8: '1'
+        run: |
+          cargo generate-lockfile --manifest-path launcher/src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher dependency resolution failed' }
+          @'
+          import hashlib,json
+          from pathlib import Path
+          data=Path('launcher/src-tauri/Cargo.lock').read_text(encoding='utf-8')
+          print('LAUNCHER_LOCK_SHA256:'+hashlib.sha256(data.encode()).hexdigest())
+          for start in range(0,len(data),6000):
+              print('LAUNCHER_LOCK_JSON:'+json.dumps(data[start:start+6000]))
+          '@ | python -
+      - uses: actions/upload-artifact@v4
+        with:
+          name: launcher-223-resolved-lock
+          path: launcher/src-tauri/Cargo.lock
+          retention-days: 7
+          if-no-files-found: error
