@@ -289,7 +289,11 @@ impl PeopleSim {
                 }
                 // (or the destination of another route of its service ending where its own
                 // does: a circular's people wait for the stop it ends at)
-                let f = fit(stop, s, p.dest.as_deref(), termini, bn.terminus.as_deref()?, &bn.takes)
+                // The HOF terminus can arrive after the timetable route. Do
+                // not short-circuit before trying that route, otherwise the
+                // bus can be eligible to hail but cannot actually board.
+                let f = bn.terminus.as_deref()
+                    .and_then(|term|fit(stop, s, p.dest.as_deref(), termini, term, &bn.takes))
                     .or_else(|| bn.route.as_ref().and_then(|r| r.takes_waiting_for(termini)))?;
                 Some((*id, f, (bn.pos - self.people[i].position).length()))
             })),
