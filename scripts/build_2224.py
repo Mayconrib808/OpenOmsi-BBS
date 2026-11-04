@@ -40,15 +40,19 @@ def main():
  before={name:sha(data)for name,data in files.items()}
  evidence=readjson(a.native/'SOURCE.json');pin=readjson(ROOT/'build-support/release2224/native-build.json')
  assert evidence['build_commit']==pin['commit']
- assert evidence['run_id']==int(os.environ['GITHUB_RUN_ID']), 'Native executable must be freshly compiled in this run'
- assert pin['workflow']=='.github/workflows/integrate-2224-hotfix5.yml'
+ assert evidence['run_id']==int(os.environ['GITHUB_RUN_ID']), 'Native archive and package must be assembled in this run'
+ assert evidence['verified_binary_run_id']==pin['verified_binary_run_id']==41861885139
+ assert evidence['verified_binary_sha256']==pin['verified_binary_sha256']
+ assert evidence['verified_binary_artifact_digest']==pin['verified_binary_artifact_digest']
+ assert evidence['verified_binary_artifact_id']==pin['verified_binary_artifact_id']
+ assert pin['workflow']=='.github/workflows/integrate-2224-hotfix5-verified-native.yml'
  assert evidence['upstream_commit']==UPSTREAM and evidence['version']==NATIVE_VERSION
  assert evidence['winter_clothing_removed'] and evidence['passenger_upstream_tag']=='v0.3.47'
  assert evidence['passenger_upstream_commit']=='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6'
  assert evidence['paired_gameplay_tested'] is False
 
  native=(a.native/'openomsi.exe').read_bytes();source=(a.native/'openomsi-source.tar.gz').read_bytes()
- assert sha(native)==evidence['native_sha256'] and sha(source)==evidence['source_sha256'] and native[:2]==b'MZ'
+ assert sha(native)==evidence['native_sha256']==pin['verified_binary_sha256'] and sha(source)==evidence['source_sha256'] and native[:2]==b'MZ'
  version=(a.native/'version.txt').read_text();assert NATIVE_VERSION in version
  game=COOP+'/programa/openomsi.exe';server='app/server-dinamico-p16/openomsi.exe';marker_name='app/server-dinamico-p16/BBS-DYNAMIC-SERVER.json'
  files[game]=native;files[server]=native
@@ -211,6 +215,7 @@ def main():
   previous_installer_sha256=BASE_UPDATER,previous_coop_sha256=BASE_COOP,retained_host_hashes={n:sha(payload[n])for n in('HostAgent.exe','CompanyHost.exe')},
   host_preferences_limit=32<<20,large_host_inventory_ui_tested=True,complete_hosts_unchanged=True,complete_hosts_rebuilt=False,p14_server_unchanged=True,p15_server_unchanged=True,new_p16_host_ui_tested=True,p16_host_hashes={n:sha(files['app/hosts-p16/'+n])for n in('HostAgent.exe','CompanyHost.exe')},dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,
   native_version=NATIVE_VERSION,native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],upstream_commit=UPSTREAM,
+  native_verified_binary_run=evidence['verified_binary_run_id'],native_verified_binary_artifact_id=evidence['verified_binary_artifact_id'],native_verified_binary_artifact_digest=evidence['verified_binary_artifact_digest'],native_verified_binary_sha256=evidence['verified_binary_sha256'],
   native_client_sha256={'openomsi.exe':sha(native)},native_source_sha256=sha(source),coop_protocol=16,custom_sounds_unchanged=True,desktop_launcher_unchanged=False,desktop_launcher_sha256=sha(launcher_binary),desktop_launcher_commit=launcher_meta['source_commit'],desktop_launcher_run=41539618533,
   bcs_capture_normal_launch_tested=True,bcs_single_and_company_event_fixture_tested=True,setup_changelog_languages=['pt','en','de'],setup_changelog_ui_tested=True,
   winter_clothing_removed=True,passenger_upstream_tag='v0.3.47',passenger_upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6',brazilian_passenger_recordings=8,passenger_defaults_enabled=True,passenger_coop_handback=True,feature_event_audit_included=True,per_release_changelog_including_hotfixes=True,
