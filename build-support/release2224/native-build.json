@@ -1,6 +1,6 @@
 {
-  "commit": "e2d32cf0f8726393bdf20d24bd6d0d1eeff11448",
-  "workflow": ".github/workflows/integrate-2224-hotfix4.yml",
+  "commit": "201d37c162a35b0954b4d3f791931e2c532f5fba",
+  "workflow": ".github/workflows/integrate-2224-hotfix5.yml",
   "version": "0.3.47-coop.16-2.2.2.4",
   "protocol": 16,
   "winter_clothing_removed": true,
@@ -24,6 +24,7 @@
     "PASSENGER_HAIL_AUDIT tracks visible 90m approaches",
     "Near-player stop demand spawns bounded by free waiting spots; pool saturation refusal logging and ten-second retry cooldown",
     "Hailing targets prefer moving buses over stationary closer buses; multiplayer mirrored passengers use same eligibility",
-    "Native Windows full-build provenance matches P16 route audit and hailing+demand fix commit"
+    "Native Windows full-build provenance matches P16 route audit and hailing+demand fix commit",
+    "Final passenger boarding reuses safe curb-offset fallback previously accepted at approach; adds PASSENGER_BOARDING_AUDIT and offset-stop/opposite-side/moving-bus native regression tests"
   ]
 }
