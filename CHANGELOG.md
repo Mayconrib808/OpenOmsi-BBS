@@ -6,6 +6,26 @@ promoted to stable releases (see [docs/VERSIONING.md](docs/VERSIONING.md)); the 
 
 ## Unreleased
 
+### Correções adicionais 2.2.3 — acessibilidade e sinalização (candidata, 2026-11-04)
+
+- Localizador universal de cadeirantes: amplia a busca por área reservada e trajetos de
+  manobra, tenta malhas de 13 e 9 cm e entradas interiores alternativas. Cada trecho
+  continua validado contra a geometria de colisão; falhar não autoriza atravessar
+  bancos, grades, degraus ou portas fechadas.
+- Reconhece variantes de animação de portas `door`, `tuer`, `porta` e `puerta`,
+  preservando a capitalização real das variáveis do script, sem tratar luzes ou
+  botões como prova de abertura. Melhora pistas de áreas reservadas e plataformas.
+- Passageiros: quando o HOF/letreiro ainda não forneceu o destino, a consulta
+  de embarque agora tenta a rota efetivamente carregada antes de rejeitar o serviço.
+- Multiplayer: a sinalização de passageiros espelhados usa a compatibilidade
+  individual de rota e aceita o ponto explicitamente atendido na ausência de
+  rótulo de HOF. Há teste de regressão para esse caso, sem liberar ônibus
+  que apenas passam pelo ponto.
+- **Limite de validação**: compilação e testes de simulação não equivalem a um
+  teste completo nos add-ons. Os nove ônibus bloqueados no relatório anterior
+  precisam de nova execução individual com seus arquivos originais; não há
+  garantia publicada para eles. Esta candidata não está no Buscar atualizações.
+
 ### P16 — passageiros que se aproximam da porta e voltam ao ponto (correção candidata, 2026-11-04)
 
 - Harmoniza a verificação final de embarque com a aproximação: aceita ônibus corretamente
