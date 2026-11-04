@@ -38,7 +38,7 @@ pub struct Detection {
 static CACHE: OnceLock<Mutex<HashMap<u64, Detection>>> = OnceLock::new();
 fn equipment_name(name: &str) -> bool {
     let n = name.to_lowercase();
-    ["ramp", "rampe", "hublift", "elevador", "pandus"]
+    ["ramp", "rampe", "hublift", "elevador", "pandus", "plataforma", "wheelchairlift", "rollstuhllift"]
         .iter()
         .any(|k| n.contains(k))
         && ![
@@ -66,6 +66,9 @@ fn reserved_name(name: &str) -> bool {
         "rollstuhl",
         "retratil",
         "klappsitz",
+        "acessibilidade",
+        "reserved_pcd",
+        "silla_ruedas",
     ]
     .iter()
     .any(|k| n.contains(k))
@@ -552,7 +555,10 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
 /// dashboard button is never proof of a wheelchair-width door opening.
 fn door_animation_variable(name:&str)->bool {
     let n=name.to_ascii_lowercase().replace('_',"");
-    let suffix=n.strip_prefix("door").or_else(||n.strip_prefix("tuer"));
+    let suffix=n.strip_prefix("door")
+        .or_else(||n.strip_prefix("tuer"))
+        .or_else(||n.strip_prefix("porta"))
+        .or_else(||n.strip_prefix("puerta"));
     let Some(suffix)=suffix else{return false;};
     let number_len=suffix.bytes().take_while(|b|b.is_ascii_digit()).count();
     number_len>0 && matches!(&suffix[number_len..],""|"positiony"|"position"|"pos")
@@ -1310,11 +1316,11 @@ mod tests {
     #[test]
     fn indexed_door_leaf_variables_accept_common_omsi_naming_without_button_fallback() {
         for name in ["door_1","door2_positiony","door_3_pos","door4_position",
-                     "tuer_1","tuer2_pos","Tuer_3_PositionY"] {
+                     "tuer_1","tuer2_pos","Tuer_3_PositionY", "porta_1", "Porta2_PositionY", "puerta_3"] {
             assert!(door_animation_variable(name), "{name}");
         }
         for name in ["ramp_request","door_open","door2_light","doorbutton2",
-                     "tuer2_lamp","cockpit_tuertaster1","door","door_a"] {
+                     "tuer2_lamp","cockpit_tuertaster1","porta_botao","porta2_luz","door","door_a"] {
             assert!(!door_animation_variable(name), "{name}");
         }
     }
