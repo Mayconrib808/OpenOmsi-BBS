@@ -568,11 +568,13 @@ fn door_binding(ty: &VehicleType, y: f32, floor: f32, side: f32) -> (f32, Vec<St
             continue;
         }
         for anim in &ty.model.meshes[m.def_index].animations {
-            let n = anim.variable.to_lowercase();
-            let door = door_animation_variable(&n);
-            if door && ty.program.var(&n).is_some_and(|id| ty.program.stores(id)) {
-                if !vars.contains(&n) {
-                    vars.push(n);
+            let n = &anim.variable;
+            let door = door_animation_variable(n);
+            // Script variable lookup is case-sensitive in some add-ons.
+            // Retain the actual binding used by the animated leaf.
+            if door && ty.program.var(n).is_some_and(|id| ty.program.stores(id)) {
+                if !vars.iter().any(|seen: &String| seen.eq_ignore_ascii_case(n)) {
+                    vars.push(n.clone());
                 }
                 low = low.min(a.y);
                 high = high.max(b.y);
