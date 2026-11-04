@@ -5,7 +5,7 @@ import build,build_bridge_update,setup_resources
 from build_runtime_2203 import embedded_payload,EXPECTED
 
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='2.2.2.4-hotfix.4';SEQUENCE=2026110401
+VERSION='2.2.2.4-hotfix.5';SEQUENCE=2026110402
 COOP='OpenOmsi Coop 0.3.41'  # Existing installation path; actual runtime is 0.3.47.
 ORIGIN='https://openomsi-bbs-updates.maycongamesmaximo.workers.dev'
 BASE_UPDATER='53d78b50ae0ac24765f6575dc1bf0faad0a35acdc74b6cb0c41c921ec14c869e'
@@ -41,7 +41,7 @@ def main():
  evidence=readjson(a.native/'SOURCE.json');pin=readjson(ROOT/'build-support/release2224/native-build.json')
  assert evidence['build_commit']==pin['commit']
  assert evidence['run_id']==int(os.environ['GITHUB_RUN_ID']), 'Native executable must be freshly compiled in this run'
- assert pin['workflow']=='.github/workflows/integrate-2224-hotfix4.yml'
+ assert pin['workflow']=='.github/workflows/integrate-2224-hotfix5.yml'
  assert evidence['upstream_commit']==UPSTREAM and evidence['version']==NATIVE_VERSION
  assert evidence['winter_clothing_removed'] and evidence['passenger_upstream_tag']=='v0.3.47'
  assert evidence['passenger_upstream_commit']=='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6'
@@ -70,14 +70,14 @@ def main():
  marker=json.loads(files['app/server-dinamico-p15/BBS-DYNAMIC-SERVER.json'])
  marker.update(bridge_line=VERSION,source_commit=evidence['commit'],native_version=NATIVE_VERSION,native_sha256=sha(native),protocol=16,version=NATIVE_VERSION,openomsi_version='0.3.47',upstream_commit=UPSTREAM)
  files[marker_name]=(json.dumps(marker,indent=2)+'\n').encode()
- notes=(ROOT/'docs/releases/2.2.2.4-hotfix.4.md').read_bytes()
+ notes=(ROOT/'docs/releases/2.2.2.4-hotfix.5.md').read_bytes()
  info_name=COOP+'/source/BUILD-INFO.json';info=json.loads(files[info_name])
  info.update(version=NATIVE_VERSION,bridge_version=VERSION,game_sha256=sha(native),native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,launcher_sha256=sha(launcher_binary),launcher_build_commit=launcher_meta['source_commit'],upstream_commit=UPSTREAM)
  files[info_name]=(json.dumps(info,indent=2)+'\n').encode()
- files[COOP+'/source/openomsi-2.2.2.4-hotfix.4-source.tar.gz']=source
- files[COOP+'/source/SOURCE-2.2.2.4-hotfix.4.json']=(json.dumps(evidence,indent=2)+'\n').encode()
- files[COOP+'/CHANGELOG-2.2.2.4-hotfix.4.md']=notes
- files[COOP+'/validation/version-2.2.2.4-hotfix.4.txt']=version.encode()
+ files[COOP+'/source/openomsi-2.2.2.4-hotfix.5-source.tar.gz']=source
+ files[COOP+'/source/SOURCE-2.2.2.4-hotfix.5.json']=(json.dumps(evidence,indent=2)+'\n').encode()
+ files[COOP+'/CHANGELOG-2.2.2.4-hotfix.5.md']=notes
+ files[COOP+'/validation/version-2.2.2.4-hotfix.5.txt']=version.encode()
  # Fallback content is installed beside each actual runtime. No commercial map,
  # human, bus, BCS class or user configuration is included.
  assets=a.native/'bcs-assets';assert (assets/'LICENSE-emergency-fallbacks.txt').is_file()
@@ -126,7 +126,7 @@ def main():
  p15={name:digest for name,digest in before.items()if name.startswith('app/server-dinamico-p15/')};assert p15
  assert all(sha(files[name])==digest for name,digest in p15.items())
  assert files[game]==files[server]
- prefix='Bridge-2.2.2.4-hotfix.4/'
+ prefix='Bridge-2.2.2.4-hotfix.5/'
  bundle=io.BytesIO()
  with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED,compresslevel=6)as z:
   for name,data in sorted(files.items()):
