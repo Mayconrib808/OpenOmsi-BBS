@@ -18,7 +18,7 @@ jobs:
         env:
           PYTHONUTF8: '1'
         run: |
-          cargo generate-lockfile --manifest-path launcher/src-tauri/Cargo.toml
+          cargo update --workspace --manifest-path launcher/src-tauri/Cargo.toml
           if ($LASTEXITCODE -ne 0) { throw 'Launcher dependency resolution failed' }
           @'
           import hashlib,json
