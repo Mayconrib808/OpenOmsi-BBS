@@ -8,6 +8,12 @@ use std::{
     time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 use winit::keyboard::KeyCode;
+// The dedicated server has an INFO heartbeat but no vehicle or walker. A
+// COOPROUTE1 preview belongs to other players' navigators, not server admin
+// commands; sending it to the headless host used to log "not taken" each second.
+fn coop_route_preview_peer(pose: &omsi_net::Pose) -> bool {
+    pose.has_vehicle() || pose.walker.is_some()
+}
 pub(crate) const DRIVER_SEAT: u16 = 1023;
 struct Owner {
     peer: u32,
@@ -395,7 +401,10 @@ impl App {
         let Ok(json) = serde_json::to_string(&(duty.line.as_str(), duty.tour.as_str(), duty.trip().name.as_str(), duty.next_stop)) else { return };
         if json.len() > 768 { return; }
         let Some(lan) = self.net.lan.as_mut() else { return; };
-        let peers: Vec<u32> = lan.peers().map(|p| p.pose.id).collect();
+        let peers: Vec<u32> = lan.peers()
+            .filter(|p| coop_route_preview_peer(&p.pose))
+            .map(|p| p.pose.id)
+            .collect();
         let msg = format!("COOPROUTE1 {json}");
         for peer in peers { lan.command(peer, &msg); }
         self.net.coop.drive.route_sent = Some(Instant::now());
@@ -1542,4 +1551,26 @@ mod coop13_regressions {
         assert_eq!(player.vehicle.position, position);
         assert_eq!(player.vehicle.host.clock.run_time, 123.0);
     }
+    #[test]
+    fn coop_route_preview_skips_headless_dedicated_host_but_keeps_players() {
+        let server = omsi_net::Pose { id: 1, ..Default::default() };
+        assert!(!super::coop_route_preview_peer(&server),
+            "a headless host is not a passenger navigator");
+        let walker = omsi_net::Pose {
+            id: 2,
+            walker: Some(Default::default()),
+            ..Default::default()
+        };
+        assert!(super::coop_route_preview_peer(&walker),
+            "on-foot passengers still need the route");
+        let bus = omsi_net::Pose {
+            id: 3,
+            flags: omsi_net::FLAG_VEHICLE,
+            bus: "Vehicles/MAN/bus.bus".to_string(),
+            ..Default::default()
+        };
+        assert!(super::coop_route_preview_peer(&bus),
+            "the correction must not prevent normal client delivery");
+    }
+
 }
