@@ -26,7 +26,7 @@ pub(crate) const PER_PAGE: usize = 15;
 const WIDTH: f32 = 5.0 * 84.0 + 4.0 * 8.0 + 2.0 * 14.0;
 
 /// The tiles: id, label, icon - in OMSI's order, five to a row, fifteen to a page.
-pub(crate) const TILES: [(&str, &str, &str); 29] = [
+pub(crate) const TILES: [(&str, &str, &str); 30] = [
     ("place", "Place a vehicle", "add"),
     ("switch", "Change vehicle", "sync_alt"),
     ("remove", "Remove vehicle", "delete"),
@@ -37,6 +37,7 @@ pub(crate) const TILES: [(&str, &str, &str); 29] = [
     ("repair", "Repair", "construction"),
     ("refuel", "Refuel", "local_gas_station"),
     ("wash", "Wash", "local_car_wash"),
+    ("wheelchair", "Wheelchair assistance", "accessible"),
     ("arrows", "Route arrows", "navigation"),
     ("time", "Time", "schedule"),
     ("weather", "Weather", "partly_cloudy_day"),
@@ -258,6 +259,7 @@ pub(crate) fn click(app: &mut crate::App, id: &str) {
     }
     app.menus.game_panels.quick = None;
     match id {
+        "wheelchair" => app.menus.game_panels.wheelchair = true,
         "coop" => app.net.coop.panel = true,
         "camera" => super::view_editor::open(app),
         "dest" => super::dest_form::open(app),

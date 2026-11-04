@@ -435,7 +435,10 @@ impl PeopleSim {
         if !self.pool_room() {
             return None;
         }
-        self.spawn_as(world, position, heading, state, None)
+        let chair=self.wheelchair_spawn_kind(world,&state);
+        let i=self.spawn_as(world, position, heading, state, chair)?;
+        if chair.is_some(){self.register_wheelchair(i);}
+        Some(i)
     }
 
     #[allow(clippy::too_many_arguments)]

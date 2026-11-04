@@ -2265,6 +2265,7 @@ fn voice_defaults(v: &mut Value) {
 fn passenger_defaults(v: &mut Value) {
     v["passenger_connections"] = json!(true);
     v["passenger_transfer_percent"] = json!(20.0);
+    v["wheelchair_spawn_percent"] = json!(3.0);
     v["passenger_hailing"] = json!(true);
     v["passenger_full_bus_reaction"] = json!(true);
 }
@@ -2347,6 +2348,7 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
     v["ticket_chance_enabled"]=json!(false);
     v["ticket_chance_percent"]=json!(-1.0);
     v["passenger_transfer_percent"]=json!(20.0);
+    v["wheelchair_spawn_percent"]=json!(3.0);
     // The temporary illegal-parking frequency is a percentage (0..5), not a fixed 0.8 setting.
     v["illegal_parking_frequency"]=json!(0.8);
     for feature in omsi_cfg::optional_features::FEATURES { v[feature.key] = json!(true); }
@@ -2466,6 +2468,7 @@ pub fn settings_from_text_on(text: Option<&str>, phone: bool) -> Value {
             "ticket_chance_enabled" => v[&k]=json!(b(val)),
             "ticket_chance_percent" => v[&k]=json!(val.parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(-1.0).clamp(-1.0,100.0)),
             "passenger_umbrellas" | "passenger_hailing" | "passenger_full_bus_reaction" | "passenger_connections" => v[&k]=json!(b(val)),
+            "wheelchair_spawn_percent" => v[&k]=json!(val.trim_end_matches('%').parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(3.0).clamp(0.0,100.0)),
             "passenger_transfer_percent" => v[&k]=json!(val.parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(20.0).clamp(0.0,100.0)),
             "illegal_parking_frequency" => v[&k]=json!(val.parse::<f64>().ok().filter(|x|x.is_finite()).unwrap_or(0.8).clamp(0.0,5.0)),
             "passenger_hailing_maps" => v[&k]=json!(val),
@@ -2925,6 +2928,7 @@ pub fn settings_to_text(v: &Value, old: Option<&str>) -> String {
     text.push_str(&format!("ticket_chance_enabled={}\nticket_chance_percent={}\n",b("ticket_chance_enabled",false),v.get("ticket_chance_percent").and_then(|x|x.as_f64()).filter(|x|x.is_finite()).unwrap_or(-1.0).clamp(-1.0,100.0)));
     text.push_str(&format!("passenger_transfer_percent={}\n",f("passenger_transfer_percent",20.0).clamp(0.0,100.0)));
     text.push_str(&format!("illegal_parking_frequency={}\n",f("illegal_parking_frequency",0.8).clamp(0.0,5.0)));
+    text.push_str(&format!("wheelchair_spawn_percent={}\n",f("wheelchair_spawn_percent",3.0).clamp(0.0,100.0)));
     for feature in omsi_cfg::optional_features::FEATURES { text.push_str(&format!("{}={}\n", feature.key, b(feature.key, true))); }
     if v["language"].as_str().is_some_and(|l|l.eq_ignore_ascii_case("PTB")) {text.push_str("ptbr_passenger_audio=1\n");}
     text.push_str(&format!("passenger_features_0347=1\npassenger_connections={}\npassenger_full_bus_reaction={}\n",b("passenger_connections",true),b("passenger_full_bus_reaction",true)));

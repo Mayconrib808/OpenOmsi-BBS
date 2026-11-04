@@ -371,6 +371,8 @@ const gameplay = {
         { type: 'slider', key: 'ticket_chance_percent', label: 'Ticket purchase chance', min: -1, max: 100, step: 1, def: -1, format: (v) => v < 0 ? t('Default') : `${Math.round(v)}%`, store: round, when: (s) => s.ticket_chance_enabled },
         { type: 'select', key: 'standing_chance' , label: 'Standing passengers', options: [['0', 'Never'], ['5', '5%'], ['10', '10%'], ['25', '25%'], ['50', '50%'], ['100', 'Always']] },
         { type: 'select', key: 'passenger_animation', label: 'Passenger animations', options: [['original', 'Original OMSI'], ['enhanced', 'Natural (procedural)']] },
+        { type: 'toggle', key: 'wheelchair_passengers', label: 'Wheelchair passengers at bus stops', help: 'Takes effect when the game starts the next time' },
+        { type: 'slider', key: 'wheelchair_spawn_percent', label: 'Wheelchair appearance chance', min: 0, max: 100, step: 1, def: 3, store: round, format: (v) => Math.round(v)+'%', help: 'Chance per new passenger; 0% stops new wheelchair arrivals' },
         { type: 'slider', key: 'passenger_transfer_percent', label: 'Connection chance', min: 0, max: 100, step: 1, def: 20, store: round, format: (v) => Math.round(v)+'%', help: 'Probability for eligible transfers; default 20%' },
         { type: 'toggle', key: 'passenger_umbrellas', label: 'Passenger umbrellas', help: 'Takes effect when the game starts the next time', when: (s) => s.passenger_animation === 'enhanced' },
         { type: 'toggle', key: 'passenger_connections', label: 'Passenger connections between lines', help: 'Takes effect when the game starts the next time' },

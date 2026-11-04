@@ -31,6 +31,7 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "exact_fare", "Passengers pay the exact fare", "No change is given at the cash desk"),
         switch_row(app, "full_tank", "Start with a full tank", "Each new bus starts with its tank full (many maps have no petrol station); a saved situation keeps its own"),
         switch_row(app, "pax_bad_driving", "Passengers react to bad driving", "They complain about rough driving and may get off at the next stop"),
+        slider_row(app,"wheelchair_spawn_percent","Wheelchair appearance chance","Chance per new passenger; 0% stops new wheelchair arrivals",&|v|format!("{v:.0}%")).filter(|_|s.optional_features.wheelchair_passengers),
         switch_row(app, "passenger_connections", "Passenger connections between lines", omsi_cfg::optional_features::HELP),
         slider_row(app, "passenger_transfer_percent", "Connection chance", "Probability for eligible transfers; default 20%", &|v|format!("{v:.0}%")).filter(|_|s.passenger_connections),
         switch_row(app, "passenger_hailing", "Passengers signal approaching buses", "Optional visual hailing; only effective with supported natural animations"),

@@ -462,6 +462,7 @@ fn new_humans(
         h.players_only = args.server.is_some() && player.is_none();
         h.exact_fare = settings.exact_fare;
         h.optional_features = settings.optional_features;
+        h.wheelchairs.spawn_percent=settings.wheelchair_spawn_percent;
         h.transfer_percent = if settings.passenger_connections { settings.passenger_transfer_percent } else { 0.0 };
         h.visual_hailing = settings.passenger_hailing && settings.passenger_animation == "enhanced";
         h.visual_full_bus_reaction = settings.passenger_full_bus_reaction && settings.passenger_animation == "enhanced";

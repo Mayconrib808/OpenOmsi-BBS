@@ -597,6 +597,7 @@ impl App {
                     }
                     h.exact_fare = self.settings.exact_fare;
         h.optional_features = self.settings.optional_features;
+        h.wheelchairs.spawn_percent=self.settings.wheelchair_spawn_percent;
         h.transfer_percent = if self.settings.passenger_connections { self.settings.passenger_transfer_percent } else { 0.0 };
         // These settings enable cosmetic arm/look gestures over EITHER the
         // original OMSI skeleton or enhanced IK. Tying them to the full

@@ -271,6 +271,7 @@ impl PeopleSim {
                 if p.transfer_from == Some(*id) { return None; }
                 let bn = bus_ix.get(id).map(|k| &buses[*k])?;
                 let side = self.preferred_entry_side(stop, bn, self.people[i].position);
+                if self.wheelchairs.is_chair(self.people[i].id)&&!self.wheelchairs.supports_bus(*id,side){return None;}
                 bn.cabin.entries.iter().any(|door| door.point.is_some() && entry_on_platform(side, door.side))
                     .then_some((*id, Fit::Any))
             }),
@@ -278,6 +279,7 @@ impl PeopleSim {
                 if p.transfer_from == Some(*id) { return None; }
                 let bn = bus_ix.get(id).map(|k| &buses[*k])?;
                 let side = self.preferred_entry_side(stop, bn, self.people[i].position);
+                if self.wheelchairs.is_chair(self.people[i].id)&&!self.wheelchairs.supports_bus(*id,side){return None;}
                 if !bn.cabin.entries.iter().any(|door| door.point.is_some() && entry_on_platform(side, door.side)) {
                     return None;
                 }

@@ -202,7 +202,7 @@ impl PeopleSim {
         assert!(schedule.recipient(now+Duration::from_secs(100),&peers,false).is_none());
     }
     #[test]fn bundled_torino_profile_passes_the_runtime_validator(){
-        let json=std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../coop-assets/wheelchair-beta/profiles/torino2007.json")).unwrap();
+        let json=std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../accessibility-profiles/torino2007.json")).unwrap();
         let p:Profile=serde_json::from_str(&json).unwrap();p.validate().unwrap();assert_eq!(p.door_var,"door_2");
     }
 }

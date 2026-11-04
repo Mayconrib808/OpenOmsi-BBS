@@ -32,6 +32,8 @@ pub struct Detection {
     pub static_equipment: Vec<String>,
     pub reasons: Vec<String>,
     pub profile: Option<Profile>,
+    /// Distinct verified bays, including alternatives served by the same door.
+    pub profiles: Vec<Profile>,
 }
 static CACHE: OnceLock<Mutex<HashMap<u64, Detection>>> = OnceLock::new();
 fn equipment_name(name: &str) -> bool {
@@ -47,6 +49,11 @@ fn equipment_name(name: &str) -> bool {
             "multiplex",
             "adesivo",
             "warning",
+            "lameiro",
+            "mudflap",
+            "botao",
+            "button",
+            "ads_",
         ]
         .iter()
         .any(|k| n.contains(k))
@@ -62,7 +69,7 @@ fn reserved_name(name: &str) -> bool {
     ]
     .iter()
     .any(|k| n.contains(k))
-        && !["painel", "panel", "adesivo", "luz", "light", "display"]
+        && !["painel", "panel", "adesivo", "luz", "light", "display", "ads_"]
             .iter()
             .any(|k| n.contains(k))
 }
@@ -243,6 +250,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
         static_equipment: Vec::new(),
         reasons: Vec::new(),
         profile: None,
+        profiles: Vec::new(),
     };
     let mut natives = Vec::new();
     let mut reserved = Vec::new();
@@ -277,17 +285,12 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             .any(|k| n.contains(k))
             && ![
                 "light", "lamp", "warning", "cockpit", "wunsch", "button", "luz", "display",
-                "visible",
+                "visible", "config_", "partida", "assist", "hill", "accel", "slope",
             ]
             .iter()
             .any(|k| n.contains(k))
             && ty.program.var(&n).is_some_and(|id| ty.program.stores(id))
     });
-    if natives.is_empty() && reserved.is_empty() && out.static_equipment.is_empty() {
-        out.reasons
-            .push("No accessible equipment or reserved-space evidence in the active model".into());
-        return out;
-    }
     let geometry = Geometry::new(v);
     let half = ty
         .def
@@ -324,7 +327,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
         }
         floors.sort_by(f32::total_cmp);
         let floor = floors[floors.len() / 2];
-        let (width, vars) = door_binding(ty, d.inside.y, floor);
+        let (width, vars) = door_binding(ty, d.inside.y, floor, d.side);
         if width < 0.78 || vars.is_empty() {
             out.reasons.push(format!(
                 "Door y={:.2}: no verified wide door animation",
@@ -348,7 +351,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             || static_boxes
                 .iter()
                 .any(|(a, b)| ((a.y + b.y) * 0.5 - d.inside.y).abs() < 1.7);
-        if native.is_none() && (!hint || unbound_native || !out.native_meshes.is_empty()) {
+        if native.is_none() && (unbound_native || !out.native_meshes.is_empty()) {
             continue;
         }
         let mut threshold = Vec3::new(d.side * half, d.inside.y, floor);
@@ -366,7 +369,9 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
         }
         let bays = find_bays(c, &geometry, threshold, &reserved, &static_boxes);
         let count = bays.len();
-        let selected = bays.into_iter().find_map(|(bay, heading)| {
+        let mut selected_bays: Vec<(Vec3, f32, Vec<Vec3>)> = Vec::new();
+        for (bay, heading) in bays {
+            if selected_bays.iter().any(|(other, _, _)| (other.truncate()-bay.truncate()).length()<1.35) { continue; }
             let centre = Vec3::new(0.0, threshold.y, threshold.z);
             // A direct diagonal avoids unnecessary pivot turns beside the rails.
             let mut routes = vec![
@@ -389,18 +394,19 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
                     }
                 }
             }
-            routes
+            if let Some(route) = routes
                 .into_iter()
                 .find(|r| geometry.route_clear(threshold, r, bay, heading))
-                .map(|route| (bay, heading, route))
-        });
-        let Some((bay, heading, route)) = selected else {
+            { selected_bays.push((bay, heading, route)); }
+        }
+        if selected_bays.is_empty() {
             out.reasons.push(format!(
                 "Door y={:.2}: {count} candidate bays, no verified turning route",
                 threshold.y
             ));
             continue;
-        };
+        }
+        for (bay, heading, route) in selected_bays {
         let platform_length = native
             .as_ref()
             .map_or(1.4, |n| (n.corners[2].x - n.corners[0].x).abs());
@@ -464,7 +470,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             lower_trigger: None,
             fold: fold_seat(ty, c, bay),
             replacement_meshes,
-            native,
+            native: native.clone(),
         };
         if let Err(e) = p.validate() {
             out.reasons.push(e);
@@ -473,21 +479,30 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
         let score =
             (bay - threshold).truncate().length() + if p.native.is_some() { 0.0 } else { 4.0 };
         choices.push((score, p));
+        }
+        if !hint && native.is_none() && !choices.is_empty() {
+            out.reasons.push("Verified wide door and clear floor area; driver-operated auxiliary lift required".into());
+        }
     }
     choices.sort_by(|a, b| a.0.total_cmp(&b.0));
-    out.profile = choices.into_iter().next().map(|(_, p)| p);
+    for (_, p) in choices {
+        if !out.profiles.iter().any(|other| (other.bay-p.bay).truncate().length()<1.35) {
+            out.profiles.push(p);
+        }
+    }
+    out.profile = out.profiles.first().cloned();
     if out.profile.is_none() && out.reasons.is_empty() {
         out.reasons.push("Native equipment could not be bound to a verified door and route; no duplicate equipment added".into());
     }
     out
 }
-fn door_binding(ty: &VehicleType, y: f32, floor: f32) -> (f32, Vec<String>) {
+fn door_binding(ty: &VehicleType, y: f32, floor: f32, side: f32) -> (f32, Vec<String>) {
     let mut low = f32::INFINITY;
     let mut high = f32::NEG_INFINITY;
     let mut vars = Vec::new();
     for (i, m) in ty.meshes.iter().enumerate() {
         let (a, b) = ty.mesh_boxes[i];
-        if ((a.y + b.y) * 0.5 - y).abs() > 0.85 || a.z > floor + 0.8 || b.z < floor + 0.8 {
+        if ((a.y + b.y) * 0.5 - y).abs() > 0.85 || (a.x+b.x).signum()!=side.signum() || a.z > floor + 0.8 || b.z < floor + 0.8 {
             continue;
         }
         for anim in &ty.model.meshes[m.def_index].animations {

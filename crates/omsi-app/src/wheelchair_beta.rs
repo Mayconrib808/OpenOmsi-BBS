@@ -1,24 +1,10 @@
-//! Explicit beta controls, kept out of the released Bridge updater.
+//! Native accessibility equipment and authenticated cooperative snapshots.
 use crate::App;
 use omsi_sim::people::wheelchair::{self, Stage};
 use std::sync::atomic::{AtomicU8, Ordering};
-use winit::keyboard::KeyCode;
 static NATIVE_STAGE: AtomicU8 = AtomicU8::new(0);
 
 impl App {
-    pub(crate) fn wheelchair_key(&mut self, key: KeyCode) -> bool {
-        if !wheelchair::beta_enabled() {
-            return false;
-        }
-        let command = match key {
-            KeyCode::KeyW => wheelchair::SPAWN,
-            KeyCode::KeyE => wheelchair::ASSIST,
-            KeyCode::KeyD => wheelchair::ALIGHT,
-            _ => return false,
-        };
-        wheelchair::command(command);
-        true
-    }
     pub(crate) fn tick_wheelchair_beta(&mut self) {
         self.tick_wheelchair_network();
         let Some(h)=self.session.humans.as_ref()else{NATIVE_STAGE.store(0,Ordering::Release);return;};

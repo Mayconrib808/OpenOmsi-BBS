@@ -127,6 +127,11 @@ impl PeopleSim {
             }
         }
         Self::write_door_requests(b, &doors);
+        if self.wheelchairs.wants_alight() && self.wheelchairs.special_stop_signal {
+            for name in ["door_kinderwagenwunsch","cockpit_light_kinderwagenwunsch"] {
+                if b.var(name).is_some(){b.set_var(name,1.0);}
+            }
+        }
     }
 
     /// Who wants a timetable bus to stop, as Omsi.exe asks before it lets one pull in

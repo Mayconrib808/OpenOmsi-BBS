@@ -120,9 +120,8 @@ impl App {
         // the editors' keys while one is on: help to look up, not news - they stay in the
         // corner as long as the editor does
         let mut lines: Vec<String> = mirror_help;
-        if let Some(h)=self.session.humans.as_ref().filter(|h|h.wheelchairs.enabled) {
-            lines.push(format!("♿ BETA · {}",h.wheelchairs.status));
-            lines.push("Ctrl+Alt+W: passageiro · Ctrl+Alt+E: assistência · Ctrl+Alt+D: desembarque".into());
+        if self.session.humans.as_ref().is_some_and(|h|h.wheelchairs.wants_alight()&&!h.wheelchairs.special_stop_signal) {
+            lines.push(omsi_ui::tr("A wheelchair passenger wants to alight at the next stop").into_owned());
         }
         if self.menus.editor.is_some() {
             lines.push("Object editor: click picks | drag moves | wheel turns (Shift lifts) | Del | C copy | V variant | Backspace undo | Ctrl+S save | Esc".into());

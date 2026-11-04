@@ -3,6 +3,8 @@
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct OptionalFeatures {
+    /// Wheelchair users participate in the ordinary stop demand.
+    pub wheelchair_passengers: bool,
     pub bcs_event_scenes: bool,
     pub bcs_inspectors: bool,
     pub passenger_door_comments: bool,
@@ -32,6 +34,7 @@ impl Default for OptionalFeatures {
         // passenger_connections_enabled is an obsolete separate switch,
         // superseded by the upstream 0.3.47 passenger_connections setting.
         Self {
+            wheelchair_passengers: true,
             bcs_event_scenes: true,
             bcs_inspectors: true,
             passenger_door_comments: true,
@@ -68,6 +71,7 @@ pub fn help(key: &str) -> &'static str {
     }
 }
 pub const FEATURES: &[Feature] = &[
+    Feature { key: "wheelchair_passengers", label: "Wheelchair passengers at bus stops" },
     Feature {
         key: "bcs_event_scenes",
         label: "BCS event scenes",
@@ -129,6 +133,7 @@ impl OptionalFeatures {
 
     pub fn get(self, key: &str) -> Option<bool> {
         Some(match key {
+            "wheelchair_passengers" => self.wheelchair_passengers,
             "bcs_event_scenes" => self.bcs_event_scenes,
             "bcs_inspectors" => self.bcs_inspectors,
             "passenger_door_comments" => self.passenger_door_comments,
@@ -150,6 +155,7 @@ impl OptionalFeatures {
     pub fn set(&mut self, key: &str, enabled: bool) -> Option<&'static str> {
         let feature = FEATURES.iter().find(|feature| feature.key == key)?;
         match key {
+            "wheelchair_passengers" => self.wheelchair_passengers = enabled,
             "bcs_event_scenes" => self.bcs_event_scenes = enabled,
             "bcs_inspectors" => self.bcs_inspectors = enabled,
             "passenger_door_comments" => self.passenger_door_comments = enabled,

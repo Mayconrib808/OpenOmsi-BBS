@@ -13,6 +13,7 @@ pub(super) fn option_now(app: &App, verb: &str, arg: &str) -> Option<f32> {
         "traffic" => app.session.traffic.as_ref()?.target as f32,
         "ticket_chance_percent" => s.ticket_chance_percent,
         "pax" => s.pax_density,
+        "wheelchair_spawn_percent" => s.wheelchair_spawn_percent,
         "pax_transfer_percent" | "passenger_transfer_percent" => s.passenger_transfer_percent,
         "volume" => s.volume,
         "led_glow" => s.led_glow as f32,
@@ -113,6 +114,7 @@ pub(super) fn option_set(app: &mut App, verb: &str, arg: &str, v: f32) -> Option
             Some(("pax_density", v.to_string()))
         }
         "pax_transfer_percent" | "passenger_transfer_percent" => {app.settings.passenger_transfer_percent=v.round().clamp(0.0,100.0);if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=if app.settings.passenger_connections {app.settings.passenger_transfer_percent}else{0.};}Some(("passenger_transfer_percent",app.settings.passenger_transfer_percent.to_string()))}
+        "wheelchair_spawn_percent" => {let percent=if v.is_finite(){v.clamp(0.0,100.0)}else{3.0};app.settings.wheelchair_spawn_percent=percent;if let Some(h)=app.session.humans.as_mut(){h.wheelchairs.spawn_percent=percent;}Some(("wheelchair_spawn_percent",percent.to_string()))}
         "ticket_chance_percent" => {app.settings.ticket_chance_percent=v.round().clamp(-1.0,100.0);Some(("ticket_chance_percent",app.settings.ticket_chance_percent.to_string()))}
         "volume" => {
             app.settings.volume = v;
@@ -526,7 +528,7 @@ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
 /// Switch `id` on or off; the key and value to keep for the next game.
 pub(super) fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String)> {
     let bit = (on as u8).to_string();
-    if let Some(key) = app.settings.optional_features.set(id, on) { return Some((key, bit)); }
+    if let Some(key) = app.settings.optional_features.set(id, on) { if let Some(h)=app.session.humans.as_mut(){h.optional_features=app.settings.optional_features;}return Some((key, bit)); }
     match id {
         "pax_natural"=>{app.settings.passenger_animation=if on{"enhanced"}else{"original"}.into();Some(("passenger_animation",app.settings.passenger_animation.clone()))},
         "ticket_chance_enabled"=>{app.settings.ticket_chance_enabled=on;Some(("ticket_chance_enabled",bit))},

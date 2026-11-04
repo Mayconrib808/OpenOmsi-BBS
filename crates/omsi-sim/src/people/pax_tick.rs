@@ -53,7 +53,7 @@ impl PeopleSim {
                 }
             }
             marked = remove.len();
-            if self.pax(i).is_none() || gone[i] {
+            if self.pax(i).is_none() || gone[i] || self.wheelchairs.person==Some(self.people[i].id) {
                 continue;
             }
             let was = self.people[i].position;

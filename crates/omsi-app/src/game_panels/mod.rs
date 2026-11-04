@@ -18,6 +18,7 @@ mod coop_panel;
 mod character_panel;
 mod multiplayer;
 mod move_here;
+mod wheelchair;
 pub(crate) use dest_form::open as open_dest_form;
 pub(crate) use move_here::ask as ask_move;
 pub(crate) mod quick_menu;
@@ -40,6 +41,7 @@ pub(crate) struct GamePanels {
     /// Alt is down and nothing else has been pressed with it: let go, it opens the quick menu.
     alt_alone: bool,
     pub(crate) quick: Option<quick_menu::QuickMenu>,
+    pub(crate) wheelchair: bool,
     pub(crate) trip: Option<trip_summary::TripPanel>,
     pub(crate) dest: Option<dest_form::DestForm>,
     pub(crate) multiplayer: Option<multiplayer::Multiplayer>,
@@ -51,7 +53,7 @@ pub(crate) struct GamePanels {
 impl GamePanels {
     /// Whether any panel is open.
     pub(crate) fn any(&self) -> bool {
-        self.multiplayer.is_some() || self.quick.is_some() || self.trip.is_some() || self.dest.is_some() || self.view.is_some() || self.move_to.is_some()
+        self.wheelchair || self.multiplayer.is_some() || self.quick.is_some() || self.trip.is_some() || self.dest.is_some() || self.view.is_some() || self.move_to.is_some()
     }
 
     /// Whether the panels have the mouse.
@@ -138,6 +140,7 @@ impl crate::App {
             let el = c.element.as_deref().unwrap_or("");
             match c.panel.as_str() {
                 "quick" => quick_menu::click(self, el),
+                "wheelchair" => wheelchair::click(self, el),
                 "coop" => coop_panel::click(self, el),
                 "trip" => trip_summary::click(self, el),
                 "dest" => dest_form::click(self, el),
@@ -189,6 +192,7 @@ impl crate::App {
             ("dest", self.menus.game_panels.dest.as_ref().map(|d| d.panel(pal))),
             ("multiplayer", self.menus.game_panels.multiplayer.as_ref().map(|f| f.panel(self, pal))),
             ("quick", self.menus.game_panels.quick.as_ref().map(|q| q.panel(self))),
+            ("wheelchair", self.menus.game_panels.wheelchair.then(||wheelchair::panel(self,pal))),
             ("move", self.menus.game_panels.move_to.map(|at| move_here::panel(at, pal))),
         ];
         let gp = &mut self.menus.game_panels;
@@ -336,7 +340,7 @@ impl crate::App {
             return true;
         }
         let gp = &mut self.menus.game_panels;
-        if gp.quick.take().is_some() || gp.move_to.take().is_some() || gp.dest.take().is_some() || gp.trip.take().is_some() {
+        if std::mem::take(&mut gp.wheelchair) || gp.quick.take().is_some() || gp.move_to.take().is_some() || gp.dest.take().is_some() || gp.trip.take().is_some() {
             return true;
         }
         if gp.view.is_some() {

@@ -22,6 +22,7 @@ impl PeopleSim {
         if self.pax(i).is_none_or(|p| p.task == t) {
             return;
         }
+        if t==Task::InBusToExit && self.wheelchairs.request_alight(self.people[i].id) { return; }
         // Inspectors have their own BCS lifecycle. An ordinary alighting task
         // would release their reserved seat and press the stop button.
         if t == Task::InBusToExit && self.pax(i).is_some_and(|p| p.inspector) {
@@ -31,6 +32,7 @@ impl PeopleSim {
             log::info!("t={:.1} pax {} {} -> {}", self.time, self.people[i].label(), self.pax(i).unwrap().task.name(), t.name());
         }
         let seatheight = self.people[i].ty.def.seat_height;
+        let wheelchair=self.wheelchairs.is_chair(self.people[i].id);
         self.pax_mut(i).unwrap().task = t;
         match t {
             Task::WaitingForBus => {
@@ -42,14 +44,14 @@ impl PeopleSim {
                 let p = self.pax_mut(i).unwrap();
                 p.st = 0;
                 match sp {
-                    Some(sp) if sp.height != 0.0 => {
+                    Some(sp) if sp.height != 0.0 && !wheelchair => {
                         p.seat_h = sp.height;
                         p.pos = sp.pos - DVec3::Z * seatheight as f64;
                         p.yaw = sp.face.to_radians();
                         p.pax_state = 2.0;
                     }
                     Some(sp) => {
-                        p.pos = sp.pos;
+                        p.pos = sp.pos-DVec3::Z*if wheelchair{sp.height as f64}else{0.0};
                         p.yaw = sp.face.to_radians();
                         p.pax_state = 0.0;
                     }
@@ -375,6 +377,14 @@ impl PeopleSim {
             }
             Task::ToBus => {
                 let Some(stop) = p.stop else { return };
+                if self.wheelchairs.is_chair(self.people[i].id) {
+                    if let Some(bn)=bn {
+                        if self.in_stop_box(stop,bn.id)||self.can_walk_to_stopped_bus(i,stop,bn) {
+                            self.begin_wheelchair_boarding(i,bn,world);
+                        }
+                    }
+                    return;
+                }
                 if let Some(bn) = bn {
                     if bn.speed.abs() < 3.0 && (self.in_stop_box(stop, bn.id) || self.can_walk_to_stopped_bus(i, stop, bn)) {
                         // A seat in a disconnected trailer needs an entry on this side
@@ -777,7 +787,7 @@ impl PeopleSim {
     }
 
     /// Reuse this person and its network id instead of spawning a second passenger.
-    fn try_connection(&mut self, i: usize, at: DVec3, heading: f64, from_stop: Option<i64>, from_bus: BusId,
+    pub(super) fn try_connection(&mut self, i: usize, at: DVec3, heading: f64, from_stop: Option<i64>, from_bus: BusId,
         buses: &[BusNow], bus_ix: &HashMap<BusId, usize>, world: &dyn World) -> bool {
         if self.people[i].remote || (self.mirror && !self.return_capable) { return false; }
         let percent = self.transfer_percent;

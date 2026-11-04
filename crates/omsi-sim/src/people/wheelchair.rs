@@ -1,12 +1,11 @@
-//! Opt-in accessibility beta. Movement is owned by this state machine, never by the
+//! Accessibility journeys. Movement is owned by this state machine, never by the
 //! walking passenger's step/climb or stuck-passenger recovery paths.
 use super::*;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 static INTERLOCK: AtomicBool = AtomicBool::new(false);
 pub fn beta_enabled() -> bool {
-    std::env::var("OMSI_WHEELCHAIR_BETA").map(|s|s=="1")
-        .unwrap_or(option_env!("OPENOMSI_WHEELCHAIR_BETA")==Some("1"))
+    true
 }
 pub fn interlocked() -> bool {
     INTERLOCK.load(Ordering::Acquire)
@@ -16,6 +15,7 @@ pub mod discovery;
 pub mod geometry;
 pub mod network;
 pub mod pose;
+mod passengers;
 
 static COMMAND: AtomicU8 = AtomicU8::new(0);
 pub const SPAWN: u8 = 1;
@@ -624,6 +624,13 @@ impl Journey {
 pub struct Wheelchairs {
     pub enabled: bool,
     pub profile: Option<Profile>,
+    pub profiles: Vec<Profile>,
+    /// Every wheelchair user keeps the same identity through stops and connections.
+    pub mobile: HashMap<u32, passengers::Mobile>,
+    pub riders: HashMap<u32, passengers::Rider>,
+    pub spawn_percent: f32,
+    pub assisted: bool,
+    pub special_stop_signal: bool,
     pub journey: Option<Journey>,
     pub person: Option<u32>,
     pub status: String,
@@ -644,12 +651,18 @@ impl Default for Wheelchairs {
         Self {
             enabled,
             profile: None,
+            profiles: Vec::new(),
+            mobile: HashMap::new(),
+            riders: HashMap::new(),
+            spawn_percent: 3.0,
+            assisted: false,
+            special_stop_signal: false,
             journey: None,
             person: None,
             status: String::new(),
             feedback: Feedback::default(),
             equipment: None,
-            auto_spawn: std::env::var("OMSI_WHEELCHAIR_AUTO").map_or(enabled, |s|s=="1"),
+            auto_spawn: false,
             bay_occupied: false,
             floor_surface:None,
             served: HashSet::new(),
@@ -664,7 +677,9 @@ impl Wheelchairs {
     pub fn pose(&self, id: u32) -> Option<ChairPose> {
         (self.person == Some(id))
             .then(|| self.journey.as_ref().map(|j| j.pose))
-            .flatten().or_else(||self.remote_poses.get(&id).copied())
+            .flatten().or_else(||self.riders.get(&id).map(|r|r.journey.pose))
+            .or_else(||self.mobile.get(&id).map(|m|m.pose))
+            .or_else(||self.remote_poses.get(&id).copied())
     }
     pub fn feedback_from(&self, v: &VehicleInstance) -> Feedback {
         let Some(p) = self.profile.as_ref() else {
@@ -711,6 +726,10 @@ impl PeopleSim {
         }
         self.wheelchairs.journey = None;
         self.wheelchairs.equipment = None;
+        self.wheelchairs.profiles.clear();
+        self.wheelchairs.riders.clear();
+        self.wheelchairs.assisted = false;
+        self.wheelchairs.special_stop_signal = passengers::has_special_signal(v);
         self.wheelchairs.profile = match Profile::load(&v.ty.def.path) {
             Ok(Some(profile))
                 if profile.exit_index < cabin.exits.len() && v.var(&profile.door_var).is_some() =>
@@ -737,6 +756,7 @@ impl PeopleSim {
             Ok(None) => {
                 let detected=discovery::detect(v,cabin);
                 log::info!("WHEELCHAIR DETECTION {}",serde_json::to_string(&detected).unwrap_or_default());
+                self.wheelchairs.profiles=detected.profiles;
                 if let Some(profile)=detected.profile {
                     self.wheelchairs.status=format!("Acessibilidade automática: {} | Ctrl+Alt+W: passageiro",profile.name);Some(profile)
                 }else{self.wheelchairs.status="Acessibilidade: porta, área ou manobra ainda precisam de calibração".into();None}
@@ -747,6 +767,9 @@ impl PeopleSim {
                 None
             }
         };
+        if self.wheelchairs.profiles.is_empty() {
+            self.wheelchairs.profiles.extend(self.wheelchairs.profile.clone());
+        }
         self.wheelchairs.floor_surface=self.wheelchairs.profile.as_ref().map(|_|discovery::FloorSurface::load(v));
     }
 
@@ -760,6 +783,8 @@ impl PeopleSim {
         if !self.wheelchairs.enabled {
             return;
         }
+        self.tick_wheelchair_mobility(dt);
+        self.schedule_wheelchair_journeys(world, bus, buses);
         let commands = COMMAND.swap(0, Ordering::AcqRel);
         let (Some(profile), Some(bus), Some(bn)) = (
             self.wheelchairs.profile.clone(),
@@ -770,72 +795,6 @@ impl PeopleSim {
         };
         self.wheelchairs.feedback = bus.wheelchair_feedback;
         let stop = self.player_next_stop.as_ref().map(|s| s.id);
-        let auto = self.wheelchairs.auto_spawn
-            && stop.is_some_and(|s| !self.wheelchairs.served.contains(&s))
-            && self
-                .player_next_stop
-                .as_ref()
-                .is_some_and(|s| (s.pos - bn.pos).length() < 35.0)
-            && bus.speed.abs() < 0.025;
-        if self.wheelchairs.journey.is_none() && (commands & SPAWN != 0 || auto) {
-            if bus.speed.abs() > 0.025 {
-                self.wheelchairs.status =
-                    "Pare o ônibus antes de criar o passageiro de teste".into();
-                return;
-            }
-            let outside = bn.world(profile.outside(0.0));
-            let Some(height) = world.walk_height_near(outside.x, outside.y, bn.pos.z) else {
-                self.wheelchairs.status =
-                    "Não foi encontrada uma superfície carregada para aguardar o ônibus".into();
-                return;
-            };
-            let ground = bn.to_local(DVec3::new(outside.x, outside.y, height)).z;
-            if (profile.threshold.z - ground).abs() > 1.6 {
-                self.wheelchairs.status = "Desnível fora do alcance do elevador".into();
-                return;
-            }
-            let mut journey = Journey::new(
-                &profile,
-                ground,
-                if profile.side() > 0.0 { 270.0 } else { 90.0 },
-            );
-            let at = bn.world(journey.local);
-            journey.outside_world = Some(at);
-            let compatible:Vec<usize>=self.types.iter().enumerate()
-                .filter(|(_,t)|t.def.age.unwrap_or(40)>=18)
-                .filter(|(_,t)|(1.45..=1.95).contains(&t.rig.head_top)
-                    && t.rig.upper_arm.is_finite()&&t.rig.forearm.is_finite()
-                    && t.rig.upper_arm+t.rig.forearm>0.45)
-                .map(|(i,_)|i).collect();
-            if compatible.is_empty(){self.wheelchairs.status="Nenhum personagem adulto com rig compatível foi encontrado".into();return;}
-            let selected=Some(compatible[self.rand() as usize%compatible.len()]);
-            let Some(i) = self.spawn_as(
-                world,
-                at,
-                bn.heading + journey.heading,
-                State::Idle,
-                selected,
-            ) else {
-                self.wheelchairs.status =
-                    "Não foi possível carregar um personagem instalado".into();
-                return;
-            };
-            let person = &mut self.people[i];
-            person.puppet = Some(Puppet {
-                mode: PuppetMode::Wheelchair,
-            });
-            person.activity = Activity::Sit;
-            self.wheelchairs.person = Some(person.id);
-            self.wheelchairs.journey = Some(journey);
-            if let Some(s) = stop {
-                self.wheelchairs.served.insert(s);
-            }
-            log::info!(
-                "WHEELCHAIR spawned person={} profile={} ground_z={ground:.3}",
-                person.id,
-                profile.name
-            );
-        }
         let (Some(id), Some(mut journey)) =
             (self.wheelchairs.person, self.wheelchairs.journey.take())
         else {
@@ -854,9 +813,7 @@ impl PeopleSim {
                 journey.heading = angle_delta(bn.heading, self.people[i].heading);
             }
         }
-        if commands & ALIGHT != 0 {
-            journey.alight_requested = true;
-        }
+        if commands & ASSIST != 0 { self.wheelchairs.assisted = true; }
         let mut alight_surface_loaded=true;
         if !matches!(journey.stage,Stage::Riding|Stage::Waiting|Stage::Finished) && bus.speed.abs()<0.025 {
             let outside=bn.world(profile.outside(0.0));
@@ -873,7 +830,7 @@ impl PeopleSim {
                 journey.last_stop = stop;
                 journey.stops += 1;
             }
-            if journey.stops >= 2 {
+            if journey.stops >= 2 && self.pax(i).is_none_or(|p|p.dest.is_none()) {
                 journey.alight_requested = true;
             }
             if journey.alight_requested {
@@ -888,22 +845,41 @@ impl PeopleSim {
                 }
             }
         }
+        self.clear_wheelchair_corridor(id, &profile, bn, dt);
         let blockers: Vec<Vec3> = self
             .people
             .iter()
-            .filter(|p| p.id != id && p.puppet.is_none())
+            .filter(|p| p.id != id)
             .filter(|p| (p.position - bn.world(journey.local)).length_squared() < 16.0)
             .map(|p| bn.to_local(p.position))
             .collect();
         self.wheelchairs.bay_occupied=self.people.iter().any(|p|p.id!=id&&matches!(p.place,Place::Bus(BusId::Player,_))
             &&(bn.to_local(p.position).truncate()-profile.bay.truncate()).length()<0.85);
         let occupied_before_assist=journey.stage==Stage::Waiting&&self.wheelchairs.bay_occupied;
+        if journey.stage==Stage::Waiting && bus.speed.abs()<0.025 {
+            let target=profile.outside(journey.ground_height);
+            let at=bn.world(journey.local);
+            let to=bn.world(target);
+            if !world.collision().ray_blocked(at+DVec3::Z*0.45,to+DVec3::Z*0.45,0.30,0.60) {
+                let before=journey.local;
+                journey.drive(target,dt,&blockers,false);
+                let next=bn.world(journey.local);
+                if let Some(z)=world.walk_height_near(next.x,next.y,at.z).filter(|z|(*z-at.z).abs()<0.08) {
+                    journey.local.z=bn.to_local(DVec3::new(next.x,next.y,z)).z;
+                    journey.ground_height=journey.local.z;
+                } else { journey.local=before; journey.pose.moving=0.0; }
+                journey.outside_world=Some(bn.world(journey.local));
+            }
+        }
+        let native=matches!(profile.equipment,Equipment::NativeRamp|Equipment::NativeLift);
+        let ready_to_board=native && self.wheelchairs.feedback.ground_ready
+            && self.wheelchairs.feedback.floor_ready;
         journey.advance(
             &profile,
             dt,
             bus.speed,
             self.wheelchairs.feedback,
-            commands & ASSIST != 0 && alight_surface_loaded && !occupied_before_assist,
+            (self.wheelchairs.assisted || ready_to_board) && alight_surface_loaded && !occupied_before_assist,
             &blockers,
         );
         if !alight_surface_loaded {journey.hold_reason="Aguardando superfície de desembarque carregada e ao alcance";}
@@ -968,6 +944,11 @@ impl PeopleSim {
         p.vel = DVec2::ZERO;
         p.activity = Activity::Sit;
         p.why = "wheelchair accessibility controller";
+        if let State::Pax(pax)=&mut p.state {
+            pax.pos=if journey.boarded{journey.local.as_dvec3()}else{p.position};
+            pax.inside=journey.boarded.then_some(BusId::Player);
+            pax.yaw=(if journey.boarded{journey.heading}else{p.heading}).to_radians();
+        }
         let native = matches!(
             profile.equipment,
             Equipment::NativeLift | Equipment::NativeRamp
@@ -1004,18 +985,8 @@ impl PeopleSim {
                 format!(" · {}", journey.hold_reason)
             }
         );
-        if journey.stage == Stage::Finished
-            && journey.deployment <= 0.0
-            && (self.people[i].position - bn.pos).length() > 45.0
-        {
-            let person = self.people.swap_remove(i);
-            self.retire(&person);
-            self.wheelchairs.person = None;
-            self.wheelchairs.equipment = None;
-            INTERLOCK.store(false, Ordering::Release);
-        } else {
-            self.wheelchairs.journey = Some(journey);
-        }
+        self.wheelchairs.journey = Some(journey);
+        self.finish_wheelchair_service(i, bn, buses, world);
     }
 }
 
