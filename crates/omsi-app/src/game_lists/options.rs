@@ -533,8 +533,8 @@ pub(super) fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static 
         "pax_natural"=>{app.settings.passenger_animation=if on{"enhanced"}else{"original"}.into();Some(("passenger_animation",app.settings.passenger_animation.clone()))},
         "ticket_chance_enabled"=>{app.settings.ticket_chance_enabled=on;Some(("ticket_chance_enabled",bit))},
         "pax_umbrellas"=>{app.settings.passenger_umbrellas=on;Some(("passenger_umbrellas",bit))},
-        "pax_hailing" | "passenger_hailing"=>{app.settings.passenger_hailing=on;if let Some(h)=app.session.humans.as_mut(){h.visual_hailing=on&&app.settings.passenger_animation=="enhanced";}Some(("passenger_hailing",bit))},
-        "passenger_full_bus_reaction"=>{app.settings.passenger_full_bus_reaction=on;if let Some(h)=app.session.humans.as_mut(){h.visual_full_bus_reaction=on&&app.settings.passenger_animation=="enhanced";}Some(("passenger_full_bus_reaction",bit))},
+        "pax_hailing" | "passenger_hailing"=>{app.settings.passenger_hailing=on;if let Some(h)=app.session.humans.as_mut(){h.visual_hailing=on;}Some(("passenger_hailing",bit))},
+        "passenger_full_bus_reaction"=>{app.settings.passenger_full_bus_reaction=on;if let Some(h)=app.session.humans.as_mut(){h.visual_full_bus_reaction=on;}Some(("passenger_full_bus_reaction",bit))},
         "passenger_connections"=>{app.settings.passenger_connections=on;if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=if on {app.settings.passenger_transfer_percent}else{0.};}Some(("passenger_connections",bit))},
         "pax_hailing_map"=>{
             let key=crate::view_sync::people::extras::map_key(&app.args.map);
