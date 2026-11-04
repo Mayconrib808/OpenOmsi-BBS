@@ -1,0 +1,76 @@
+name: Deliver verified Bridge 2.2.3 candidate and validation reports
+on:
+  push:
+    branches: [feature/2.2.3-verified-delivery]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  deliver:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Require the exact successful full Windows validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import json, os, subprocess
+          r=json.loads(subprocess.check_output(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/41911761748"],text=True))
+          assert r['status']=='completed' and r['conclusion']=='success'
+          assert r['head_sha']=='f880606c8b8654b8b7d59f5429a833fb79a0cc3f'
+          assert r['path']=='.github/workflows/build-223.yml'
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3-FULL-CANDIDATE
+          run-id: 41911761748
+          github-token: ${{ github.token }}
+          path: tested
+      - name: Collect the unchanged tested ZIP and its evidence
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, shutil, zipfile
+          from pathlib import Path
+          root=Path('tested'); out=Path('delivery'); out.mkdir()
+          reports=out/'reports'; reports.mkdir()
+          report=json.loads((root/'build-report.json').read_text())
+          install=json.loads((root/'one-click-install-test.json').read_text())
+          hosts=json.loads((root/'native-p16-controls.json').read_text())
+          assert report['version']=='2.2.3' and report['native_candidate_run']==41906951655
+          assert report['native_candidate_commit']=='796899206672257430af140966f8eea31239d965'
+          for key in ('actual_updater_first_attempt_windows_tested','setup_changelog_ui_tested','setup_live_update_ui_tested','p16_host_ui_tested','complete_hosts_unchanged','p16_hosts_unchanged','p14_server_unchanged','p15_server_unchanged','bridge_regressions_tested'):
+              assert report[key] is True, key
+          assert report['windows_gameplay_tested'] is False and report['paired_gameplay_tested'] is False
+          assert install['status']=='passed' and install['invocations']==1 and install['setup_reopened'] is True
+          assert hosts['status']=='passed' and hosts['save_reopen'] is True and hosts['large_inventory_tested'] is True
+          package=root/'OpenOMSI-BCS-Bridge-2.2.3-CANDIDATE.zip'
+          assert package.stat().st_size < 500<<20
+          with zipfile.ZipFile(package) as z:
+              for name in ('Setup.exe','docs/TESTE-2.2.3-pt-BR.md','docs/accessibility-223-validation.md','docs/accessibility-223-vehicle-validation.json','OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe'):
+                  assert name in z.namelist(), name
+          digest=hashlib.file_digest(package.open('rb'),'sha256').hexdigest()
+          shutil.copy2(package,out/package.name)
+          for name in ('build-report.json','coop-spec.json','one-click-install-test.json','native-p16-controls.json','accessibility-223-validation.md','accessibility-223-vehicle-validation.json'):
+              shutil.copy2(root/name,reports/name)
+          shutil.copytree(root/'setup-previews',reports/'setup-previews')
+          (reports/'DELIVERY.json').write_text(json.dumps(dict(version='2.2.3',source_run=41911761748,source_commit='f880606c8b8654b8b7d59f5429a833fb79a0cc3f',source_artifact=13361859735,package_file=package.name,package_sha256=digest,package_size=package.stat().st_size,package_rebuilt=False),indent=2)+'\n')
+          print('Unchanged tested portable package SHA256:',digest)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3-PORTABLE-CANDIDATE
+          path: delivery/OpenOMSI-BCS-Bridge-2.2.3-CANDIDATE.zip
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3-VALIDATION-REPORTS
+          path: delivery/reports/
+          retention-days: 90
+          if-no-files-found: error
