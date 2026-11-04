@@ -1,7 +1,7 @@
 name: Build full Bridge 2.2.3 accessibility candidate on verified Hotfix 5
 on:
   push:
-    branches: [feature/2.2.3-build]
+    branches: [feature/2.2.3-package-prep, feature/2.2.3-build]
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   windows:
+    if: github.ref == 'refs/heads/feature/2.2.3-build'
     runs-on: windows-2022
     timeout-minutes: 120
     env:
@@ -93,3 +94,42 @@ jobs:
           compression-level: 0
           retention-days: 30
           if-no-files-found: error
+
+  bridge_checks:
+    runs-on: windows-2022
+    timeout-minutes: 45
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.2
+          cache: false
+      - name: Verify retained Bridge regressions
+        shell: pwsh
+        run: |
+          python scripts/build_2203.py --tests-only
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge regressions failed' }
+      - name: Compile actual 2.2.3 Setup and cumulative changelog
+        shell: pwsh
+        run: |
+          @'
+          import os, shutil, subprocess, sys, tempfile
+          from pathlib import Path
+          sys.path.insert(0,str(Path('scripts').resolve()))
+          import build, setup_resources
+          assert build.VERSION=='2.2.3'
+          destination=Path('setup-223-compile-check.exe').resolve()
+          with tempfile.TemporaryDirectory()as folder:
+              work=Path(folder)
+              for name in build.PROGRAMS['Setup.exe']:shutil.copy2(build.SOURCE/name,work/name)
+              (work/'go.mod').write_text('module openomsi-bbs/setup\n\ngo 1.23.2\n',encoding='utf-8')
+              resources=setup_resources.prepare(work,build.SOURCE/'resources')
+              env=dict(os.environ,GOOS='windows',GOARCH='386',GO386='sse2',CGO_ENABLED='0',GOTOOLCHAIN='local',GO111MODULE='on')
+              subprocess.run(['go','build','-trimpath','-buildvcs=false','-ldflags=-s -w -H=windowsgui','-o',str(destination),'.'],cwd=work,env=env,check=True)
+              setup_resources.verify_executable(destination,resources)
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Setup or cumulative changelog compilation failed' }
