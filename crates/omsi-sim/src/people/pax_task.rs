@@ -1171,6 +1171,27 @@ mod connection_tests {
     }
 
     #[test]
+    fn mirrored_waiter_hails_a_bus_explicitly_serving_the_stop_without_a_hof_label() {
+        let (root,mut h,_world,i)=fixture("mirror-hail-served-no-hof");
+        h.stops.insert(2,stop(DVec3::ZERO));
+        h.people[i].remote=true;
+        let id=h.people[i].id;
+        h.mirror_wait.insert(id,(2,0));
+        h.mirror_hail_intent.insert(id,(2,None,None,Some("Cidade".into())));
+        let mut vehicle=bus(&root,BusId::Player,"Destino",DVec3::new(0.,-75.,0.));
+        vehicle.terminus=None;
+        vehicle.served=Some(2);
+        vehicle.speed=6.0;
+        assert_eq!(h.mirror_bus_fit(id,&vehicle,h.people[i].position),Some(true),
+            "the host explicitly serving this stop must not be rejected only because the HOF is pending");
+        assert_eq!(h.visual_mirror_hail_bus(i,&[vehicle.clone()]),
+            Some((BusId::Player,true,vehicle.pos)));
+        // A bus passing the stop without serving it is not enough evidence.
+        vehicle.served=None;
+        assert_eq!(h.mirror_bus_fit(id,&vehicle,h.people[i].position),Some(false));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn passengers_signal_before_the_60_metre_boarding_task_transition() {
         // In the old implementation the visual range started at the same
         // distance where pax_tick switches WaitingForBus to ToBus. The
