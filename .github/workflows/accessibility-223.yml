@@ -112,6 +112,12 @@ jobs:
           Copy-Item candidate/SOURCE.json candidate/BUILD-INFO.json -Force
           & candidate/openomsi.exe --version | Out-File candidate/version.txt -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw 'Native candidate version failed' }
+      - name: Build Windows wheelchair add-on probe for exact nine-vehicle validation
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-sim --example wheelchair_probe
+          if ($LASTEXITCODE -ne 0) { throw 'Windows wheelchair add-on probe build failed' }
+          Copy-Item target/release/examples/wheelchair_probe.exe candidate/wheelchair_probe.exe -Force
       - uses: actions/upload-artifact@v4
         with:
           name: OpenOMSI-2.2.3-native-CANDIDATE
