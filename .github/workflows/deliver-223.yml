@@ -74,3 +74,15 @@ jobs:
           path: delivery/reports/
           retention-days: 90
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3-PUBLISH-INPUTS
+          path: |
+            tested/Atualizar-Bridge.exe
+            tested/build-report.json
+            tested/coop-spec.json
+            tested/one-click-install-test.json
+            tested/native-p16-controls.json
+          compression-level: 0
+          retention-days: 30
+          if-no-files-found: error
