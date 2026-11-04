@@ -108,12 +108,16 @@ impl PeopleSim {
         let route_match=line.and_then(|k|s.lines.get(k))
             .is_some_and(|(_,termini)|bn.route.as_ref().and_then(|r|r.takes_waiting_for(termini)).is_some());
         let stop_served=term.is_some_and(|t|matches!(at_stop(*stop,s,Some(t),&bn.takes),AtStop::Serves));
-        if !stop_served && !route_match{return Some(false)}
+        // Stop-level at_stop and a passenger's individual route fit differ.
+        // Do not veto an individual fit just because the stop-wide label was
+        // not recognized: the local authoritative bus_for accepts that fit.
+        // For a passenger with no line index, an explicitly served stop is
+        // enough, as in normal no-line boarding. Never accept a passing bus.
         Some(match line.and_then(|k|s.lines.get(k)){
             Some((_,termini))=>term
                 .and_then(|t|fit(*stop,s,dest.as_deref(),termini,t,&bn.takes))
                 .is_some() || route_match,
-            None=>line.is_none() && stop_served,
+            None=>line.is_none() && (stop_served || bn.served==Some(*stop)),
         })
     }
     /// Stable identity of the termini, independent of HashMap loading/line order.
