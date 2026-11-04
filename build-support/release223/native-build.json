@@ -1,0 +1,11 @@
+{
+  "commit": "f0c56635114891472969bccce6f3cc5307dd611c",
+  "run_id": 41904526794,
+  "workflow": ".github/workflows/accessibility-223.yml",
+  "version": "0.3.47-coop.16-2.2.3",
+  "protocol": 16,
+  "base_commit": "201d37c162a35b0954b4d3f791931e2c532f5fba",
+  "base_release": "2.2.2.4-hotfix.5",
+  "gameplay_visual_tested": false,
+  "paired_gameplay_tested": false
+}

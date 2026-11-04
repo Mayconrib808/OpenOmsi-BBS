@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.2.4-hotfix.3"
+const changelogSeenVersion = "2.2.3"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -520,14 +520,14 @@ func hotfix2224VoiceIntegrityLogSection() logSection {
 
 func logSections() []logSection {
     if shownLogSections!=nil{return shownLogSections}
-    return allLogSections()
+    return selectLogSections("")
 }
 
 // Show newest unseen releases first. The saved marker is the last changelog
 // actually acknowledged, not merely the last executable installed. In
 // particular 2.2.2.1 never opened its tour, so users with a Hotfix 3 marker
 // must see BOTH the original 2.2.2.1 features and Hotfix 1 corrections.
-func selectLogSections(from string) []logSection {
+func selectLegacyLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
     if from==changelogSeenVersion { return []logSection{allLogSections()[0]} } // Manually opened tour
     // Hotfix 3 has its own chapter, shown even to someone who has already
@@ -801,4 +801,50 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
     guiUser.NewProc("UpdateWindow").Call(window)
     guiUser.NewProc("SetFocus").Call(done)
     return window
+}
+
+// Every release, including both preceding hotfixes, has its own history boundary.
+func selectLogSections(from string) []logSection {
+    from=strings.TrimSpace(from)
+    result:=[]logSection{accessibility223LogSection()}
+    if from==changelogSeenVersion || from=="2.2.2.4-hotfix.5" {return result}
+    result=append(result,boardingHotfix5LogSection())
+    if from=="2.2.2.4-hotfix.4" {return result}
+    result=append(result,routeHotfix4LogSection())
+    if from=="2.2.2.4-hotfix.3" {return result}
+    return append(result,selectLegacyLogSections(from)...)
+}
+func accessibility223LogSection() logSection {
+    return logSection{
+        label:logT("♿ 2.2.3 • CADEIRANTES","♿ 2.2.3 • WHEELCHAIR PASSENGERS","♿ 2.2.3 • ROLLSTUHLFAHRGÄSTE"),
+        accent:logAccent(85,190,255),
+        entries:[]logEntry{
+            {logT("Cadeirantes no fluxo normal","Wheelchair passengers in normal demand","Rollstuhlfahrgäste im normalen Fahrgastaufkommen"),
+             logT("Cadeirantes podem surgir nos pontos, aproximar-se de um ônibus compatível e dar sinal. A geração vem ativada com chance de 3% por passageiro novo, ajustável de 0% a 100%, e tem opção própria para desativar. O lobby desta versão foi recompilado para mostrar esses controles.",
+                  "Wheelchair users may appear at stops, approach a compatible bus and hail it. Spawning defaults to 3% per new passenger, adjustable from 0% to 100%, with an independent off switch. This release rebuilds the actual lobby to show these controls.",
+                  "Rollstuhlfahrgäste können an Haltestellen erscheinen, sich einem geeigneten Bus nähern und ein Haltezeichen geben. Die Chance beträgt standardmäßig 3% je neuem Fahrgast, ist von 0% bis 100% einstellbar und separat abschaltbar. Die neu gebaute Lobby enthält diese Einstellungen.")},
+            {logT("Acesso e assistência no menu Alt","Access and assistance in the Alt menu","Zugang und Unterstützung im Alt-Menü"),
+             logT("O localizador examina portas, equipamento, piso, espaço e manobras. Rampas originais esperam sua animação real; ônibus com acesso verificado sem equipamento animado recebem assistência pelo botão de cadeira no menu Alt. Um acesso sem passagem comprovada permanece indisponível. Os textos novos têm tradução nos 30 idiomas do jogo.",
+                  "Discovery examines doors, equipment, floor, space and maneuvers. Original ramps wait for real animation feedback; verified accesses without animated equipment use the wheelchair button in the Alt menu. An unverified route remains unavailable. New controls and messages cover all 30 game languages.",
+                  "Die Erkennung prüft Türen, Ausrüstung, Boden, Platz und Rangierbewegungen. Originalrampen warten auf echte Animationsrückmeldung; geprüfte Zugänge ohne animierte Ausrüstung nutzen die Rollstuhltaste im Alt-Menü. Ungeprüfte Wege bleiben gesperrt. Neue Bedienfelder und Meldungen sind in allen 30 Spielsprachen verfügbar.")},
+            {logT("Vagas, desembarque e conexões","Bays, alighting and connections","Stellplätze, Ausstieg und Anschlüsse"),
+             logT("Cada vaga verificada tem ocupação independente. Passageiros em pé podem liberar o corredor; bloqueios reais não são atravessados. O cadeirante usa o sinal específico quando disponível ou o sinal comum com aviso ao motorista. A mesma pessoa conserva a cadeira após descer e nas conexões, inclusive na troca de autoridade do multiplayer P16.",
+                  "Verified bays have independent occupancy. Standing passengers may clear the aisle; real obstructions are never bypassed. Alighting uses a verified wheelchair signal or the ordinary signal with a driver message. The same passenger keeps the chair after alighting and through connections, including P16 authority handback.",
+                  "Geprüfte Stellplätze sind unabhängig belegt. Stehende Fahrgäste können den Gang freigeben; echte Hindernisse werden nicht durchquert. Der Ausstieg nutzt ein geprüftes Rollstuhlsignal oder das normale Signal mit Fahrerhinweis. Der Fahrgast behält seinen Rollstuhl beim Ausstieg und bei Anschlüssen, auch bei der P16-Autoritätsübergabe.")},
+            {logT("Base e validação","Base and validation","Basis und Validierung"),
+             logT("Usa a base exata da 2.2.2.4 Hotfix 5 e preserva HostAgent, servidores, vozes e correções anteriores. Os testes automatizados e o relatório de ônibus acompanham o código. Compilação aprovada não confirma aparência, animações nem o ciclo real em cada ônibus: a validação visual em jogo continua indicada separadamente.",
+                  "Uses the exact 2.2.2.4 Hotfix 5 base, retaining hosts, servers, voices and earlier fixes. Automated tests and the supplied-vehicle report accompany the source. A successful build does not establish visual or full in-game compatibility for every bus; gameplay validation is recorded separately.",
+                  "Verwendet die genaue Basis von 2.2.2.4 Hotfix 5 und erhält Hosts, Server, Stimmen und frühere Korrekturen. Automatische Tests und der Fahrzeugbericht begleiten den Quelltext. Ein erfolgreicher Build bestätigt nicht die Darstellung oder vollständige Spielkompatibilität jedes Busses; Spieltests werden getrennt ausgewiesen.")},
+        },
+    }
+}
+func boardingHotfix5LogSection() logSection {
+    return logSection{label:logT("2.2.2.4 HOTFIX 5 • EMBARQUE","2.2.2.4 HOTFIX 5 • BOARDING","2.2.2.4 HOTFIX 5 • EINSTIEG"),accent:logAccent(112,219,164),entries:[]logEntry{
+        {logT("Pontos deslocados e diagnóstico","Offset stops and diagnostics","Versetzte Haltestellen und Diagnose"),logT("O embarque final reaproveita a aproximação segura de plataforma já autorizada. Mantém ônibus parado e alinhado, porta aberta, lado da calçada, altura, destino e lotação; PASSENGER_BOARDING_AUDIT registra aceites e recusas.","Final boarding reuses an already authorized safe curb-offset approach, retaining stationary-bus, alignment, open-door, platform-side, height, destination and capacity checks. PASSENGER_BOARDING_AUDIT records acceptance and refusal.","Der Einstieg nutzt die bereits geprüfte sichere Annäherung bei versetzter Plattform. Stillstand, Ausrichtung, offene Tür, Straßenseite, Höhe, Ziel und Belegung bleiben geprüft. PASSENGER_BOARDING_AUDIT protokolliert Annahme und Ablehnung.")},
+    }}
+}
+func routeHotfix4LogSection() logSection {
+    return logSection{label:logT("2.2.2.4 HOTFIX 4 • ROTA P16","2.2.2.4 HOTFIX 4 • P16 ROUTE","2.2.2.4 HOTFIX 4 • P16-ROUTE"),accent:logAccent(112,219,164),entries:[]logEntry{
+        {logT("Rota e passageiros multiplayer","Multiplayer route and passengers","Mehrspielerroute und Fahrgäste"),logT("COOPROUTE1 deixa de ser enviado ao servidor dedicado sem veículo. PASSENGER_LAN_AUDIT compara geração autoritativa, quadros de rede, passageiros espelhados e embarques sem mudar a escala do BCS.","Navigator-only COOPROUTE1 no longer targets the headless server. PASSENGER_LAN_AUDIT compares authoritative demand, network frames, mirrored passengers and boarding without changing the BCS timetable.","Die reine Navigator-Meldung COOPROUTE1 wird nicht mehr an den Server ohne Fahrzeug gesendet. PASSENGER_LAN_AUDIT vergleicht autoritative Nachfrage, Netzwerkdaten, gespiegelte Fahrgäste und Einstiege ohne Änderung des BCS-Fahrplans.")},
+    }}
 }
