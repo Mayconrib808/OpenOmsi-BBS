@@ -98,9 +98,13 @@ impl PeopleSim {
     /// choose a task or change which bus anybody actually boards.
     pub fn visual_hail_bus(&self, i: usize, buses: &[BusNow]) -> Option<(BusId, bool, DVec3)> {
         let p = self.pax(i)?;
-        // Only stationary waiting passengers can signal: once they start moving to
-        // a door, turning the whole pose would slide their feet sideways.
-        if p.inside.is_some() || p.task != Task::WaitingForBus { return None; }
+        // Allow the visual signal while the passenger is still standing at
+        // the point, including the ToBus recognition phase (a bus may appear
+        // inside 60m before the first WaitingForBus snapshot). Stop at
+        // WalkingToBus so the animation cannot drag feet across the curb.
+        if p.inside.is_some()
+            || !matches!(p.task, Task::WaitingForBus | Task::ToBus)
+        { return None; }
         let stop = p.stop?;
         let s = self.stops.get(&stop)?;
         let heading = s.heading.to_radians();
