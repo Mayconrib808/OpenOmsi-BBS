@@ -142,6 +142,8 @@ pub struct PoseInput<'a> {
     /// which sits on every kind of seat (a bench at a stop has no person standing in front
     /// of its hip point, as `seat` takes for granted).
     pub seat_pelvis: Option<Vec3>,
+    /// Explicit model-space ankle targets for a seated support, left and right.
+    pub seat_feet: Option<[Vec3; 2]>,
     /// Something to look at.
     pub look: Option<Vec3>,
     /// Where the right hand reaches (the cash desk).
@@ -174,6 +176,7 @@ impl Default for PoseInput<'_> {
             velocity: DVec2::ZERO,
             seat: None,
             seat_pelvis: None,
+            seat_feet: None,
             look: None,
             reach: None,
             grips: None,
@@ -271,6 +274,7 @@ pub struct Pose {
     sit: f32,
     seat: Vec3,
     seat_pelvis: Option<Vec3>,
+    seat_feet: Option<[Vec3; 2]>,
     reach: f32,
     reach_at: Vec3,
     /// Both hands on a steering wheel: how far (0 … 1) and where.

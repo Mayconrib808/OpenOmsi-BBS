@@ -41,11 +41,15 @@ pub fn hand_targets(chair:ChairPose)->[Vec3;2] {
             0.240*angle.cos(),0.30+0.240*angle.sin())
     })
 }
+pub fn foot_targets(rig:&Rig)->[Vec3;2] {
+    [-0.14,0.14].map(|x|Vec3::new(x,0.48,0.16+rig.ankle_h))
+}
 pub fn input<'a>(rig:&Rig,chair:ChairPose,origin:DVec3,heading:f64,frame:u64,
     grips:[Vec3;2],floor:&'a dyn Fn(DVec2)->Option<f64>)->PoseInput<'a> {
     PoseInput{activity:Activity::Sit,origin,heading,frame,velocity:DVec2::ZERO,
         seat:Some(Vec3::new(0.0,rig.seat_front(),0.51)),
         seat_pelvis:Some(Vec3::new(0.0,0.015,0.51+rig.seat_lift)),
+        seat_feet:Some(foot_targets(rig)),
         grips:Some(grips),grip_frames:Some(std::array::from_fn(|side|(
             Vec3::new(0.0,grips[side].z-0.30,-grips[side].y).normalize_or(Vec3::Y),
             Vec3::new(if side==0{1.0}else{-1.0},0.0,0.0)))),
