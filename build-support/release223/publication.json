@@ -1,0 +1,18 @@
+{
+  "version": "2.2.3",
+  "sequence": 2026110403,
+  "candidate_run_id": 41911761748,
+  "candidate_commit": "f880606c8b8654b8b7d59f5429a833fb79a0cc3f",
+  "candidate_artifact_id": 13361859735,
+  "candidate_artifact_sha256": "5051738b51b8e4cb44534ed375fef0165814d02e1f99ef49991e6134e9654b00",
+  "native_run_id": 41906951655,
+  "native_commit": "796899206672257430af140966f8eea31239d965",
+  "previous_version": "2.2.2.4-hotfix.5",
+  "previous_sequence": 2026110402,
+  "installer_sha256": "d8dff7b03b8c4865a56cea3b92d85b77817992b8819359a5c17b939a6ef95943",
+  "installer_size": 25010688,
+  "coop_archive_sha256": "5f9aaad2c157b501bc5a1bceec4a29e11e2e95f404781f2b5b4c147e21e1da82",
+  "portable_sha256": "7f8fe5348e60d8b5ecd56c7918f412f488ee019c7fec615665719302a5eb57a9",
+  "portable_artifact_run_id": 41912618406,
+  "portable_artifact_id": 13364420367
+}
