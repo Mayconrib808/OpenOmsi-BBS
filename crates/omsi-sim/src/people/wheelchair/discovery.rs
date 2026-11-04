@@ -547,6 +547,16 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
     }
     out
 }
+/// Different OMSI builders expose the same moving leaf through different
+/// script names. Only an indexed leaf animation counts; a request lamp or
+/// dashboard button is never proof of a wheelchair-width door opening.
+fn door_animation_variable(name:&str)->bool {
+    let n=name.to_ascii_lowercase().replace('_',"");
+    let suffix=n.strip_prefix("door").or_else(||n.strip_prefix("tuer"));
+    let Some(suffix)=suffix else{return false;};
+    let number_len=suffix.bytes().take_while(|b|b.is_ascii_digit()).count();
+    number_len>0 && matches!(&suffix[number_len..],""|"positiony"|"position"|"pos")
+}
 fn door_binding(ty: &VehicleType, y: f32, floor: f32, side: f32) -> (f32, Vec<String>,Vec2) {
     let mut low = f32::INFINITY;
     let mut high = f32::NEG_INFINITY;
@@ -559,12 +569,7 @@ fn door_binding(ty: &VehicleType, y: f32, floor: f32, side: f32) -> (f32, Vec<St
         }
         for anim in &ty.model.meshes[m.def_index].animations {
             let n = anim.variable.to_lowercase();
-            let door = n
-                .strip_prefix("door_")
-                .is_some_and(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()))
-                || n.strip_prefix("door")
-                    .and_then(|s| s.strip_suffix("_positiony"))
-                    .is_some_and(|s| !s.is_empty() && s.chars().all(|c| c.is_ascii_digit()));
+            let door = door_animation_variable(&n);
             if door && ty.program.var(&n).is_some_and(|id| ty.program.stores(id)) {
                 if !vars.contains(&n) {
                     vars.push(n);
@@ -798,10 +803,28 @@ impl Geometry {
     /// Bounded pose search preserves the wheelchair's full volume through every
     /// pivot and forward/reverse leg. A failed search never authorizes a shortcut.
     fn plan_route(&self,start:Vec3,bays:&[(Vec3,f32)])->Option<(Vec3,f32,Vec<Maneuver>)> {
-        // The first grid is fast. The second searches narrow turning bays that
-        // fall between its 13 cm samples; both use the full-volume collision test.
-        self.plan_route_grid(start,bays,0.13,6000)
-            .or_else(||self.plan_route_grid(start,bays,0.09,8000))
+        // A door's exported threshold is often slightly outside the first aisle
+        // grid point. Try checked straight-in entry poses before planning a turn.
+        // Keep the actual sill as Profile.threshold for lift/ramp feedback.
+        let heading=if start.x>0.0{270.0}else{90.0};
+        for inward in [0.0_f32,0.18,0.36] {
+            let mut entry=start-Vec3::X*start.x.signum()*inward;
+            if inward>0.0 {
+                let Some(z)=self.height(entry) else{continue;};
+                if (z-start.z).abs()>0.07{continue;}
+                entry.z=z;
+                if self.leg_clear(start,heading,entry,heading).is_none(){continue;}
+            }
+            let found=self.plan_route_grid(entry,bays,0.13,6000)
+                .or_else(||self.plan_route_grid(entry,bays,0.09,8000));
+            if let Some((bay,end,mut steps))=found {
+                if inward>0.0 {
+                    steps.insert(0,Maneuver{at:entry,heading:heading as f64,reverse:false});
+                }
+                if steps.len()<=64{return Some((bay,end,steps));}
+            }
+        }
+        None
     }
     fn plan_route_grid(&self,start:Vec3,bays:&[(Vec3,f32)],step:f32,max_expanded:usize)->Option<(Vec3,f32,Vec<Maneuver>)> {
         use std::{cmp::Reverse,collections::BinaryHeap};
@@ -1282,6 +1305,17 @@ pub fn feedback(v: &VehicleInstance, p: &Profile) -> Feedback {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn indexed_door_leaf_variables_accept_common_omsi_naming_without_button_fallback() {
+        for name in ["door_1","door2_positiony","door_3_pos","door4_position",
+                     "tuer_1","tuer2_pos","Tuer_3_PositionY"] {
+            assert!(door_animation_variable(name), "{name}");
+        }
+        for name in ["ramp_request","door_open","door2_light","doorbutton2",
+                     "tuer2_lamp","cockpit_tuertaster1","door","door_a"] {
+            assert!(!door_animation_variable(name), "{name}");
+        }
+    }
     #[test]
     fn indicators_do_not_certify_accessible_equipment() {
         assert!(!equipment_name("Display/VDV_ramp1.o3d"));
