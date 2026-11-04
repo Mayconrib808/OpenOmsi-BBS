@@ -25,6 +25,13 @@ pub(super) fn has_special_signal(v: &VehicleInstance) -> bool {
     })
 }
 
+fn spawn_roll(seed:u64,id:u32)->f64 {
+    let mut x=seed^(u64::from(id).wrapping_mul(0x9E3779B97F4A7C15));
+    x=(x^(x>>30)).wrapping_mul(0xBF58476D1CE4E5B9);
+    x=(x^(x>>27)).wrapping_mul(0x94D049BB133111EB);
+    ((x^(x>>31))>>11) as f64*(100.0/(1u64<<53) as f64)
+}
+
 impl Wheelchairs {
     pub fn is_chair(&self,id:u32)->bool {
         self.mobile.contains_key(&id)||self.person==Some(id)||self.riders.contains_key(&id)
@@ -53,13 +60,26 @@ impl Wheelchairs {
 }
 
 impl PeopleSim {
+    /// Mobility metadata uses the normal P16 person identity and position stream.
+    pub fn mirror_wheelchair(&mut self,id:u32,on:bool) {
+        let Some(p)=self.people.iter().find(|p|p.id==id&&p.remote)else{return;};
+        if on {
+            self.wheelchairs.mobile.entry(id).or_insert(Mobile{pose:Default::default(),position:p.position,heading:p.heading});
+        }else{self.wheelchairs.mobile.remove(&id);}
+    }
+    /// A returned connection gets a new authoritative id while keeping its mobility.
+    pub fn adopt_wheelchair_mobility(&mut self,id:u32) {
+        if let Some(i)=self.people.iter().position(|p|p.id==id&&!p.remote) {
+            if !self.wheelchairs.is_chair(id){self.register_wheelchair(i);}
+        }
+    }
     pub(crate) fn wheelchair_spawn_kind(&mut self,world:&dyn World,state:&State)->Option<usize> {
         if !self.wheelchairs.enabled||!self.optional_features.wheelchair_passengers
             ||!matches!(state,State::Pax(p) if p.inside.is_none()&&p.stop.is_some()) {
             return None;
         }
         let chance=self.wheelchairs.spawn_percent;
-        if !chance.is_finite()||chance<=0.0||self.rand_f()*100.0>=chance.clamp(0.0,100.0) as f64 {
+        if !chance.is_finite()||chance<=0.0||spawn_roll(self.rng,self.next_id)>=chance.clamp(0.0,100.0) as f64 {
             return None;
         }
         self.use_map_humans(world);
@@ -70,9 +90,20 @@ impl PeopleSim {
         (!types.is_empty()).then(||types[self.rand() as usize%types.len()])
     }
     pub(crate) fn register_wheelchair(&mut self,i:usize) {
+        let spot=self.pax(i).filter(|p|p.inside.is_none())
+            .and_then(|p|p.stop.zip(p.spot))
+            .and_then(|(s,k)|self.stops.get(&s)?.spots.get(k)).cloned();
+        if let Some(pax)=self.pax_mut(i) {
+            if let Some(sp)=spot {
+                pax.pos=sp.pos-DVec3::Z*sp.height as f64;
+                pax.pax_state=0.0;pax.seat_h=0.0;
+            }
+            pax.walk_speed=0.75;pax.speed_des=0.75;
+            let at=pax.pos;
+            self.people[i].position=at;
+        }
         let p=&self.people[i];
         self.wheelchairs.mobile.insert(p.id,Mobile{pose:Default::default(),position:p.position,heading:p.heading});
-        if let Some(pax)=self.pax_mut(i) {pax.walk_speed=0.75;pax.speed_des=0.75;}
         log::info!("WHEELCHAIR demand_spawn person={} chance_percent={:.2} stop={:?}",
             self.people[i].id,self.wheelchairs.spawn_percent,self.pax(i).and_then(|p|p.stop));
     }

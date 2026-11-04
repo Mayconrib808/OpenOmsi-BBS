@@ -446,7 +446,7 @@ impl EntityRef {
 /// with the car's row, see `traffic_table`; `DESC|c|…` was protocol 14's.)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Desc {
-    Person { id: u32, file: String, intent: Option<PersonIntent> },
+    Person { id: u32, file: String, intent: Option<PersonIntent>, wheelchair: bool },
 }
 
 /// Optional descriptor suffix; legacy clients still read the unchanged first four fields.
@@ -466,11 +466,12 @@ impl PersonIntent {
 impl Desc {
     pub fn encode(&self) -> String {
         match self {
-            Desc::Person { id, file, intent } => {
+            Desc::Person { id, file, intent, wheelchair } => {
                 let mut text=format!("DESC|p|{id}|{}", crate::clean_text(file, 260));
                 if let Some(i)=intent {
                     text.push_str(&format!("|i1|{}|{}|{}|{}|{}",i.stop,i.line.map_or("-".into(),|v|v.to_string()),crate::clean_text(i.dest.as_deref().unwrap_or(""),180),i.transfers,i.previous_bus.map_or("-".into(),|v|v.to_string())));
                 }
+                if *wheelchair { text.push_str("|m1|wheelchair"); }
                 text
             }
         }
@@ -487,6 +488,7 @@ impl Desc {
                 id,
                 file: content_file(parts[3], &["hum"])?,
                 intent: PersonIntent::decode(parts),
+                wheelchair: parts.ends_with(&["m1","wheelchair"]),
             }),
             _ => None,
         }
@@ -517,11 +519,32 @@ pub fn content_file(p: &str, exts: &[&str]) -> Option<String> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn wheelchair_descriptor_keeps_mobility_and_connection_history_independent() {
+        for intent in [None, Some(PersonIntent {
+            stop: 123, line: Some(7), dest: Some("Terminal Central".into()),
+            transfers: 1, previous_bus: Some((1 << 40) | 7),
+        })] {
+            let person = Desc::Person {
+                id: 25, file: "Humans/Generic/m1.hum".into(), intent, wheelchair: true,
+            };
+            let wire = person.encode();
+            assert_eq!(Desc::decode(&wire.split('|').collect::<Vec<_>>()), Some(person));
+            assert_eq!(wire.split('|').take(4).collect::<Vec<_>>().join("|"),
+                "DESC|p|25|Humans/Generic/m1.hum");
+        }
+        for suffix in ["|m1|walking", "|m1", "|wheelchair", "|i1|bad|m1|wheelchair|extra"] {
+            let wire = format!("DESC|p|25|Humans/Generic/m1.hum{suffix}");
+            assert!(matches!(Desc::decode(&wire.split('|').collect::<Vec<_>>()),
+                Some(Desc::Person { wheelchair: false, .. })));
+        }
+    }
+
     #[test] fn intent_descriptor_2212_is_optional_and_legacy_compatible(){
         let legacy="DESC|p|25|Humans/Generic/m1.hum";
         let old=Desc::decode(&legacy.split('|').collect::<Vec<_>>()).unwrap();
         assert_eq!(old.encode(),legacy);
-        let now=Desc::Person{id:25,file:"Humans/Generic/m1.hum".into(),intent:Some(PersonIntent{stop:123,line:Some(7),dest:Some("Terminal Central".into()),transfers:1,previous_bus:Some((1<<40)|7)})};
+        let now=Desc::Person{ wheelchair: false, id:25,file:"Humans/Generic/m1.hum".into(),intent:Some(PersonIntent{stop:123,line:Some(7),dest:Some("Terminal Central".into()),transfers:1,previous_bus:Some((1<<40)|7)})};
         let encoded=now.encode();
         assert_eq!(Desc::decode(&encoded.split('|').collect::<Vec<_>>()),Some(now));
         // A legacy decoder only consumes these unchanged fields.
@@ -703,7 +726,7 @@ mod tests {
             let parts: Vec<&str> = bad.split('|').collect();
             assert!(Desc::decode(&parts).is_none(), "{bad}");
         }
-        let p = Desc::Person {
+        let p = Desc::Person { wheelchair: false, 
             id: 5,
             file: "Humans\\Generic\\m1.hum".into(),
                 intent: None,
@@ -712,7 +735,7 @@ mod tests {
         let parts: Vec<&str> = text.split('|').collect();
         assert_eq!(
             Desc::decode(&parts).unwrap(),
-            Desc::Person {
+            Desc::Person { wheelchair: false, 
                 id: 5,
                 file: "Humans/Generic/m1.hum".into(),
                 intent: None,

@@ -37,6 +37,7 @@ pub fn remote_bus_player(bus: u64) -> Option<u32> {
 
 /// One of the host's people as it tells the clients.
 pub struct LanPerson {
+    pub wheelchair: bool,
     pub id: u32,
     pub ty: Arc<HumanType>,
     pub pos: DVec3,
@@ -215,6 +216,7 @@ impl PeopleSim {
             .filter(|p| p.puppet.is_none() && !p.remote)
             .filter_map(|p| match p.place {
                 Place::Bus(BusId::Player, l) => Some(LanPerson {
+                    wheelchair: self.wheelchairs.is_chair(p.id),
                     id: p.id,
                     ty: p.ty.clone(),
                     pos: p.position,
@@ -310,6 +312,7 @@ impl PeopleSim {
                     _ => None,
                 };
                 Some(LanPerson {
+                    wheelchair: self.wheelchairs.is_chair(p.id),
                     id: p.id,
                     ty: p.ty.clone(),
                     pos: p.position,

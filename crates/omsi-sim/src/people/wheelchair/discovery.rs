@@ -99,7 +99,8 @@ fn live_animation(ty: &VehicleType, index: usize) -> bool {
 fn fingerprint(v: &VehicleInstance, c: &Cabin) -> u64 {
     let ty = &v.ty;
     let mut h = std::collections::hash_map::DefaultHasher::new();
-    ty.model_dir.hash(&mut h);
+    // Installation directories and drive letters do not describe vehicle geometry.
+    for n in &ty.program.var_names { n.to_ascii_lowercase().hash(&mut h); }
     for (i, m) in ty.meshes.iter().enumerate() {
         let d = &ty.model.meshes[m.def_index];
         d.file.hash(&mut h);
@@ -153,7 +154,13 @@ pub fn detect(v: &VehicleInstance, c: &Cabin) -> Detection {
             return d.clone();
         }
     }
-    let d = discover(v, c, key);
+    let mut d = discover(v, c, key);
+    if d.profiles.is_empty() {
+        if let Some(profile)=calibrated_profile(v,c) {
+            d.reasons.push("Exact previously gameplay-tested geometry: calibrated access route".into());
+            d.profiles.push(profile.clone());d.profile=Some(profile);
+        }
+    }
     if let Ok(mut cached) = cache.lock() {
         if cached.len() >= 128 {
             cached.clear();
@@ -161,6 +168,22 @@ pub fn detect(v: &VehicleInstance, c: &Cabin) -> Detection {
         cached.insert(key, d.clone());
     }
     d
+}
+fn calibrated_profile(v:&VehicleInstance,c:&Cabin)->Option<Profile> {
+    // Match geometry, never installation directories or a driver's vehicle name.
+    // This is the Torino 2007 route already exercised in the player's real game.
+    let expected=[
+        ("Interior/Outros_Rampa.o3d",Vec3::new(0.40220,-4.98784,0.39804),Vec3::new(0.68910,-3.59747,2.07723)),
+        ("Interior/Balaustres_ferros_cadeirante.o3d",Vec3::new(-1.19519,-5.05059,0.99232),Vec3::new(-0.37069,-3.73161,3.01726)),
+    ];
+    if !expected.iter().all(|(name,lo,hi)|v.ty.meshes.iter().enumerate().any(|(i,m)|
+        v.ty.model.meshes[m.def_index].file.replace('\\',"/").eq_ignore_ascii_case(name)
+            &&(v.ty.mesh_boxes[i].0-*lo).abs().max_element()<0.002
+            &&(v.ty.mesh_boxes[i].1-*hi).abs().max_element()<0.002)){return None;}
+    if !c.exits.iter().any(|d|(d.inside-Vec3::new(1.25523,-4.13698,0.44279)).length()<0.002){return None;}
+    let mut p:Profile=serde_json::from_str(include_str!("../../../../../accessibility-profiles/torino2007.json")).ok()?;
+    p.replacement_meshes=vec!["Interior\\Outros_Rampa.o3d".into(),"Interior\\Outros_Rampa1.o3d".into(),"Interior\\Outros_Rampa2.o3d".into()];
+    (p.validate().is_ok()&&v.var(&p.door_var).is_some()).then_some(p)
 }
 fn deck(ty: &VehicleType, index: usize) -> Option<NativeDeck> {
     let m = &ty.meshes[index];
@@ -327,7 +350,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
         }
         floors.sort_by(f32::total_cmp);
         let floor = floors[floors.len() / 2];
-        let (width, vars) = door_binding(ty, d.inside.y, floor, d.side);
+        let (width, vars, opening) = door_binding(ty, d.inside.y, floor, d.side);
         if width < 0.78 || vars.is_empty() {
             out.reasons.push(format!(
                 "Door y={:.2}: no verified wide door animation",
@@ -354,7 +377,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
         if native.is_none() && (unbound_native || !out.native_meshes.is_empty()) {
             continue;
         }
-        let mut threshold = Vec3::new(d.side * half, d.inside.y, floor);
+        let mut threshold = Vec3::new(d.side * opening.x.clamp(0.9,half), opening.y, floor);
         if let Some(n) = &native {
             threshold.x = if d.side > 0.0 {
                 n.corners[2].x
@@ -367,11 +390,24 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
                 continue;
             }
         }
+        let centre=threshold;
+        let door_choices=choices.len();
+        let limit=((width.min(native.as_ref().map_or(width,|n|(n.corners[2].y-n.corners[0].y).abs()))-0.78)*0.5).max(0.0);
+        let mut offsets=vec![0.0];
+        if native.is_none()&&(d.inside.y-centre.y).abs()<=limit{offsets.push(d.inside.y-centre.y);}
+        for offset in [-0.04_f32,0.04,-0.08,0.08,-0.12,0.12,-0.18,0.18] {
+            if offset.abs()<=limit {offsets.push(offset);}
+        }
+        for offset in offsets {
+        let mut threshold=centre;threshold.y+=offset;
+        if native.is_none() {
+            threshold.z=geometry.height(Vec3::new(0.0,threshold.y,threshold.z)).unwrap_or(threshold.z);
+        }
         let bays = find_bays(c, &geometry, threshold, &reserved, &static_boxes);
         let count = bays.len();
-        let mut selected_bays: Vec<(Vec3, f32, Vec<Vec3>)> = Vec::new();
-        for (bay, heading) in bays {
-            if selected_bays.iter().any(|(other, _, _)| (other.truncate()-bay.truncate()).length()<1.35) { continue; }
+        let mut selected_bays: Vec<(Vec3, f32, Vec<Vec3>,Vec<Maneuver>)> = Vec::new();
+        for &(bay, heading) in &bays {
+            if selected_bays.iter().any(|(other, _, _,_)| (other.truncate()-bay.truncate()).length()<1.35) { continue; }
             let centre = Vec3::new(0.0, threshold.y, threshold.z);
             // A direct diagonal avoids unnecessary pivot turns beside the rails.
             let mut routes = vec![
@@ -397,7 +433,13 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             if let Some(route) = routes
                 .into_iter()
                 .find(|r| geometry.route_clear(threshold, r, bay, heading))
-            { selected_bays.push((bay, heading, route)); }
+            { selected_bays.push((bay, heading, route,Vec::new())); }
+        }
+        if selected_bays.is_empty() {
+            if let Some((bay,heading,maneuvers))=geometry.plan_route(threshold,&bays) {
+                let route=maneuvers.iter().map(|m|m.at).collect();
+                selected_bays.push((bay,heading,route,maneuvers));
+            }
         }
         if selected_bays.is_empty() {
             out.reasons.push(format!(
@@ -406,7 +448,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             ));
             continue;
         }
-        for (bay, heading, route) in selected_bays {
+        for (bay, heading, route,maneuvers) in selected_bays {
         let platform_length = native
             .as_ref()
             .map_or(1.4, |n| (n.corners[2].x - n.corners[0].x).abs());
@@ -452,6 +494,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             threshold,
             bay,
             route,
+            maneuvers,
             bay_heading: heading as f64,
             door_var: vars[0].clone(),
             door_vars: vars[1..].to_vec(),
@@ -483,6 +526,8 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
         if !hint && native.is_none() && !choices.is_empty() {
             out.reasons.push("Verified wide door and clear floor area; driver-operated auxiliary lift required".into());
         }
+        if choices.len()>door_choices{break;}
+    }
     }
     choices.sort_by(|a, b| a.0.total_cmp(&b.0));
     for (_, p) in choices {
@@ -496,10 +541,11 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
     }
     out
 }
-fn door_binding(ty: &VehicleType, y: f32, floor: f32, side: f32) -> (f32, Vec<String>) {
+fn door_binding(ty: &VehicleType, y: f32, floor: f32, side: f32) -> (f32, Vec<String>,Vec2) {
     let mut low = f32::INFINITY;
     let mut high = f32::NEG_INFINITY;
     let mut vars = Vec::new();
+    let mut outer=0.0_f32;
     for (i, m) in ty.meshes.iter().enumerate() {
         let (a, b) = ty.mesh_boxes[i];
         if ((a.y + b.y) * 0.5 - y).abs() > 0.85 || (a.x+b.x).signum()!=side.signum() || a.z > floor + 0.8 || b.z < floor + 0.8 {
@@ -519,6 +565,7 @@ fn door_binding(ty: &VehicleType, y: f32, floor: f32, side: f32) -> (f32, Vec<St
                 }
                 low = low.min(a.y);
                 high = high.max(b.y);
+                outer=outer.max(a.x*side).max(b.x*side);
             }
         }
     }
@@ -530,6 +577,7 @@ fn door_binding(ty: &VehicleType, y: f32, floor: f32, side: f32) -> (f32, Vec<St
             (high - low - 0.04).min(1.8)
         },
         vars,
+        Vec2::new(outer,if low.is_finite()&&high.is_finite(){(low+high)*0.5}else{y}),
     )
 }
 fn fold_seat(ty: &VehicleType, c: &Cabin, bay: Vec3) -> Option<FoldSeat> {
@@ -576,6 +624,7 @@ struct Triangle {
 }
 struct Geometry {
     floor: Vec<[Vec3; 3]>,
+    floor_cells: HashMap<(i32,i32), Vec<usize>>,
     triangles: Vec<Triangle>,
     cells: HashMap<(i32, i32, i32), Vec<usize>>,
     large: Vec<usize>,
@@ -610,6 +659,13 @@ impl Geometry {
         Self::index(floor, triangles)
     }
     fn index(floor: Vec<[Vec3; 3]>, triangles: Vec<Triangle>) -> Self {
+        let mut floor_cells:HashMap<(i32,i32),Vec<usize>>=HashMap::new();
+        for (i,t) in floor.iter().enumerate() {
+            let lo=(t[0].min(t[1]).min(t[2]).truncate()*2.0).floor().as_ivec2();
+            let hi=(t[0].max(t[1]).max(t[2]).truncate()*2.0).floor().as_ivec2();
+            if (hi-lo).abs().max_element()>1000 {continue;}
+            for x in lo.x..=hi.x {for y in lo.y..=hi.y {floor_cells.entry((x,y)).or_default().push(i);}}
+        }
         let mut cells: HashMap<_, Vec<usize>> = HashMap::new();
         let mut large = Vec::new();
         for (i, t) in triangles.iter().enumerate() {
@@ -634,6 +690,7 @@ impl Geometry {
         }
         Self {
             floor,
+            floor_cells,
             triangles,
             cells,
             large,
@@ -665,7 +722,8 @@ impl Geometry {
         false
     }
     fn height(&self, p: Vec3) -> Option<f32> {
-        floor_height(&self.floor, p)
+        let key=(p.truncate()*2.0).floor().as_ivec2();
+        floor_height_iter(self.floor_cells.get(&(key.x,key.y))?.iter().map(|i|&self.floor[*i]),p)
     }
     fn chair_clear(&self, p: Vec3, heading: f32) -> bool {
         let (s, c) = heading.to_radians().sin_cos();
@@ -677,29 +735,141 @@ impl Geometry {
         right = tilt * right;
         // Wheels, footrests, legs, arms, torso, head and back frame.
         [
-            (0.0, 0.33, Vec3::new(0.38, 0.32, 0.30)),
-            (0.49, 0.145, Vec3::new(0.29, 0.20, 0.105)),
-            (0.36, 0.45, Vec3::new(0.22, 0.21, 0.28)),
-            (0.025, 0.80, Vec3::new(0.38, 0.25, 0.20)),
-            (-0.04, 0.88, Vec3::new(0.24, 0.22, 0.30)),
-            (-0.025, 1.22, Vec3::new(0.15, 0.17, 0.18)),
-            (-0.26, 0.77, Vec3::new(0.29, 0.12, 0.34)),
+            // The space between the rear wheels is not a solid block. Preserve
+            // each wheel's full width instead of falsely filling that empty space.
+            (-0.34, 0.0, 0.31, Vec3::new(0.04, 0.32, 0.30)),
+            (0.34, 0.0, 0.31, Vec3::new(0.04, 0.32, 0.30)),
+            (0.0, 0.02, 0.44, Vec3::new(0.27, 0.29, 0.09)),
+            (-0.255, 0.40, 0.10, Vec3::new(0.04, 0.10, 0.09)),
+            (0.255, 0.40, 0.10, Vec3::new(0.04, 0.10, 0.09)),
+            (0.0, 0.49, 0.145, Vec3::new(0.29, 0.20, 0.105)),
+            (0.0, 0.36, 0.45, Vec3::new(0.22, 0.21, 0.28)),
+            (0.0, 0.025, 0.80, Vec3::new(0.38, 0.25, 0.20)),
+            (0.0, -0.04, 0.88, Vec3::new(0.24, 0.22, 0.30)),
+            (0.0, -0.025, 1.22, Vec3::new(0.15, 0.17, 0.18)),
+            (0.0, -0.26, 0.77, Vec3::new(0.29, 0.12, 0.34)),
         ]
         .into_iter()
-        .all(|(y, z, half)| {
-            let centre = p + forward * y + up * z;
+        .all(|(x,y, z, half)| {
+            let centre = p + right*x + forward * y + up * z;
             let ext = right.abs() * half.x + forward.abs() * half.y + up.abs() * half.z;
             !self.hit(centre - ext, centre + ext, |t| {
-                triangle_box(
+                // The rolling contact surface is checked as a floor, not a
+                // solid obstacle filling the wheel's bounding volume.
+                let normal=(t.p[1]-t.p[0]).cross(t.p[2]-t.p[0]).normalize_or_zero();
+                if normal.dot(up).abs()>0.95 && height_on_plane(t.p,p.truncate())
+                    .is_some_and(|z|z<=p.z+0.06) {return false;}
+                let hit=triangle_box(
                     t.p.map(|v| {
                         let v = v - centre;
                         Vec3::new(v.dot(right), v.dot(forward), v.dot(up))
                     }),
                     Vec3::ZERO,
                     half,
-                )
+                );
+                hit
             })
         })
+    }
+    fn turn_clear(&self,at:Vec3,from:f32,to:f32)->bool {
+        let yaw=(to-from+180.0).rem_euclid(360.0)-180.0;
+        let steps=(yaw.abs()/5.0).ceil().max(1.0) as usize;
+        (0..=steps).all(|i|self.chair_clear(at,from+yaw*i as f32/steps as f32))
+    }
+    fn leg_clear(&self,a:Vec3,heading:f32,b:Vec3,end:f32)->Option<bool> {
+        let delta=b-a;let distance=delta.truncate().length();
+        if distance<0.002 {return self.turn_clear(a,heading,end).then_some(false);}
+        if delta.z.abs()>0.18 || delta.z.abs()/distance>0.30{return None;}
+        let direction=delta.x.atan2(delta.y).to_degrees();
+        let reverse=((direction-heading+180.0).rem_euclid(360.0)-180.0).abs()>90.0;
+        let wanted=direction+if reverse{180.0}else{0.0};
+        if !self.turn_clear(a,heading,wanted){return None;}
+        let steps=(distance/0.06).ceil().max(1.0) as usize;
+        if !(1..=steps).all(|i|self.chair_clear(a.lerp(b,i as f32/steps as f32),wanted))
+            ||!self.turn_clear(b,wanted,end){return None;}
+        Some(reverse)
+    }
+    /// Bounded pose search preserves the wheelchair's full volume through every
+    /// pivot and forward/reverse leg. A failed search never authorizes a shortcut.
+    fn plan_route(&self,start:Vec3,bays:&[(Vec3,f32)])->Option<(Vec3,f32,Vec<Maneuver>)> {
+        use std::{cmp::Reverse,collections::BinaryHeap};
+        type Key=(i16,i16,u8);
+        if bays.is_empty(){return None;}
+        let initial:Key=(0,0,if start.x>0.0{6}else{2});
+        if !self.chair_clear(start,initial.2 as f32*45.0){return None;}
+        let position=|k:Key| {
+            let mut p=start+Vec3::new(k.0 as f32*0.13,k.1 as f32*0.13,0.0);
+            p.z=self.height(p).unwrap_or(start.z);p
+        };
+        let heuristic=|p:Vec3|bays.iter().map(|(b,_)|(*b-p).truncate().length()).fold(f32::INFINITY,f32::min);
+        let mut queue=BinaryHeap::new();
+        let mut visited:HashMap<Key,(f32,Option<Key>,bool)>=HashMap::new();
+        visited.insert(initial,(0.0,None,false));
+        queue.push(Reverse(((heuristic(start)*1000.0)as u32,0u32,initial)));
+        let directions=[(0,1),(1,1),(1,0),(1,-1),(0,-1),(-1,-1),(-1,0),(-1,1)];
+        let mut expanded=0;
+        while let Some(Reverse((_,queued,key)))=queue.pop() {
+            let &(cost,_,_)=visited.get(&key)?;
+            if queued!=(cost*1000.0).round()as u32{continue;}
+            expanded+=1;if expanded>6000{break;}
+            let at=position(key);let heading=key.2 as f32*45.0;
+            for &(bay,end) in bays {
+                if (at-bay).truncate().length()>0.20{continue;}
+                let Some(reverse)=self.leg_clear(at,heading,bay,end)else{continue;};
+                let mut path=Vec::new();let mut next=key;
+                while next!=initial {
+                    let &(_,parent,reverse)=visited.get(&next)?;
+                    path.push(Maneuver{at:position(next),heading:next.2 as f64*45.0,reverse});
+                    next=parent?;
+                }
+                path.reverse();
+                path.push(Maneuver{at:bay,heading:end as f64,reverse});
+                // Coalesce only collinear legs with the same direction, retaining
+                // every pivot and any slope break that the controller must follow.
+                let mut compact:Vec<Maneuver>=Vec::new();
+                for step in path {
+                    if compact.len()>=2 {
+                        let n=compact.len();let a=&compact[n-2];let b=&compact[n-1];
+                        let first=b.at-a.at;let second=step.at-b.at;
+                        if a.heading==b.heading&&b.heading==step.heading&&b.reverse==step.reverse
+                            &&first.length()>0.001&&second.length()>0.001
+                            &&first.normalize().dot(second.normalize())>0.9999 {
+                            compact.pop();
+                        }
+                    }
+                    compact.push(step);
+                }
+                if compact.len()<=64{return Some((bay,end,compact));}
+            }
+            let (dx,dy)=directions[key.2 as usize];
+            for (other,reverse,extra) in [
+                ((key.0,key.1,(key.2+1)%8),false,0.11),
+                ((key.0,key.1,(key.2+7)%8),false,0.11),
+                ((key.0+dx,key.1+dy,key.2),false,0.13),
+                ((key.0-dx,key.1-dy,key.2),true,0.16),
+            ] {
+                let to=position(other);
+                if to.x.abs()>1.55||to.x*start.x.signum()>start.x.abs()+0.01
+                    ||(to.y-start.y).abs()>2.65||(to.z-start.z).abs()>0.18{continue;}
+                // Only the access platform may bridge a missing floor mesh.
+                if self.height(to).is_none() && !(to.x*start.x.signum()>start.x.abs()-0.85
+                    &&(to.y-start.y).abs()<0.25){continue;}
+                let proposed=cost+extra;
+                if visited.get(&other).is_some_and(|(c,_,_)|*c<=proposed){continue;}
+                let clear=if key.0==other.0&&key.1==other.1 {
+                    self.turn_clear(at,heading,other.2 as f32*45.0)
+                }else {
+                    let distance=(to-at).truncate().length();
+                    (to.z-at.z).abs()/distance<0.30
+                        &&(1..=3).all(|i|self.chair_clear(at.lerp(to,i as f32/3.0),heading))
+                };
+                if !clear{continue;}
+                visited.insert(other,(proposed,Some(key),reverse));
+                let priority=((proposed+heuristic(to))*1000.0).round()as u32;
+                queue.push(Reverse((priority,(proposed*1000.0).round()as u32,other)));
+            }
+        }
+        None
     }
     fn route_clear(&self, start: Vec3, route: &[Vec3], bay: Vec3, end_heading: f32) -> bool {
         let mut a = start;
@@ -757,8 +927,10 @@ pub fn contact_normal(
     (normal.is_finite() && normal.z > 0.85).then_some(normal)
 }
 fn floor_height(triangles: &[[Vec3; 3]], p: Vec3) -> Option<f32> {
+    floor_height_iter(triangles.iter(),p)
+}
+fn floor_height_iter<'a>(triangles:impl Iterator<Item=&'a [Vec3;3]>,p:Vec3)->Option<f32> {
     triangles
-        .iter()
         .filter_map(|t| {
             let a = (t[1] - t[0]).truncate();
             let b = (t[2] - t[0]).truncate();

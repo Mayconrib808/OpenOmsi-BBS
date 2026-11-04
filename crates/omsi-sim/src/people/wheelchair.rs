@@ -34,6 +34,14 @@ pub enum Equipment {
     NativeLift,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Maneuver {
+    pub at: Vec3,
+    pub heading: f64,
+    #[serde(default)]
+    pub reverse: bool,
+}
+
 /// Coordinates are metres, X right / Y forward / Z up, in the lead bus frame.
 /// The sidecar is deliberately explicit: a stop button is not evidence of a ramp.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +53,9 @@ pub struct Profile {
     pub threshold: Vec3,
     pub bay: Vec3,
     pub route: Vec<Vec3>,
+    /// Collision-checked forward/reverse legs and pivot turns for confined cabins.
+    #[serde(default)]
+    pub maneuvers: Vec<Maneuver>,
     pub bay_heading: f64,
     pub door_var: String,
     #[serde(default)]
@@ -101,7 +112,7 @@ impl Profile {
             return Err("door, platform or wheelchair bay is outside supported dimensions".into());
         }
         if self.route.is_empty()
-            || self.route.len() > 24
+            || self.route.len() > 64
             || self.route.iter().any(|p| {
                 !p.is_finite()
                     || p.x.abs() > 1.6
@@ -110,6 +121,15 @@ impl Profile {
             })
         {
             return Err("accessible route must stay on a continuous cabin floor".into());
+        }
+        if self.maneuvers.len()>64 || self.maneuvers.iter().any(|m|
+            !m.at.is_finite()||!m.heading.is_finite()||m.at.x.abs()>1.6
+                ||m.at.y.abs()>20.0||(m.at.z-self.threshold.z).abs()>0.18) {
+            return Err("invalid accessible maneuver".into());
+        }
+        if self.maneuvers.last().is_some_and(|m|(m.at-self.bay).length()>0.005
+            ||angle_delta(m.heading,self.bay_heading).abs()>0.1) {
+            return Err("accessible maneuvers must end secured in the selected bay".into());
         }
         let mut previous = self.threshold;
         for next in self.route.iter().chain(std::iter::once(&self.bay)) {
@@ -197,6 +217,18 @@ pub enum Stage {
     Finished,
 }
 impl Stage {
+    pub fn ui_label(self)->&'static str {
+        match self {
+            Self::Waiting=>"Waiting for wheelchair assistance",
+            Self::Deploying|Self::Raising|Self::Lowering=>"Preparing accessibility equipment",
+            Self::ToPlatform|Self::ToBay=>"Boarding",
+            Self::Securing=>"Securing the wheelchair",
+            Self::Riding=>"Riding in the wheelchair bay",
+            Self::Unsecuring=>"Preparing to alight",
+            Self::ToExit|Self::Leaving=>"Alighting",
+            Self::Finished=>"Alighting complete",
+        }
+    }
     pub fn label(self) -> &'static str {
         match self {
             Self::Waiting => "Aguardando assistência na porta acessível",
@@ -384,6 +416,13 @@ impl Journey {
         self.pose.moving = if yaw.abs() > 0.001 { 1.0 } else { 0.0 };
         angle_delta(self.heading, heading).abs() < 0.1
     }
+    fn align_ramp(&mut self,profile:&Profile,feedback:Feedback) {
+        if matches!(profile.equipment,Equipment::AddedRamp|Equipment::NativeRamp)
+            &&matches!(self.stage,Stage::ToPlatform|Stage::ToBay|Stage::ToExit|Stage::Leaving) {
+            let t=((self.local.x-profile.threshold.x)*profile.side()/profile.platform_length).clamp(0.0,1.0);
+            if t>0.0{self.local.z=discovery::ramp_height(profile,self.local.truncate(),self.ground_height,feedback.surface);}
+        }
+    }
     /// Large stalls are substepped. Time paused by a closed door/obstacle is not
     /// accumulated as a future jump, and no timeout moves a passenger through a wall.
     pub fn advance(
@@ -512,6 +551,15 @@ impl Journey {
                 }
             }
             Stage::ToBay => {
+                if !profile.maneuvers.is_empty() && self.route_at>0 {
+                    let m=&profile.maneuvers[self.route_at-1];
+                    if self.drive(m.at,dt,blockers,m.reverse)&&self.turn_to(m.heading,dt) {
+                        if self.route_at==profile.maneuvers.len() {
+                            self.boarded=true;self.transition(Stage::Securing);
+                        }else{self.route_at+=1;}
+                    }
+                    self.align_ramp(profile,feedback);return;
+                }
                 let target = if self.route_at == 0 {
                     profile.threshold
                 } else if self.route_at <= profile.route.len() {
@@ -561,6 +609,22 @@ impl Journey {
                 }
             }
             Stage::ToExit => {
+                if !profile.maneuvers.is_empty() {
+                    let n=profile.maneuvers.len();
+                    if self.route_at<n {
+                        let source=&profile.maneuvers[n-1-self.route_at];
+                        let (at,heading)=if self.route_at+1==n {
+                            (profile.threshold,if profile.side()>0.0{270.0}else{90.0})
+                        }else{
+                            let previous=&profile.maneuvers[n-2-self.route_at];
+                            (previous.at,previous.heading)
+                        };
+                        if self.drive(at,dt,blockers,!source.reverse)&&self.turn_to(heading,dt){self.route_at+=1;}
+                    }else if self.drive(profile.platform(profile.threshold.z),dt,blockers,true) {
+                        self.transition(if ramp{Stage::Leaving}else{Stage::Lowering});
+                    }
+                    self.align_ramp(profile,feedback);return;
+                }
                 let n = profile.route.len();
                 let target = if self.route_at < n {
                     profile.route[n - self.route_at - 1]
@@ -609,15 +673,7 @@ impl Journey {
                 }
             }
         }
-        if ramp
-            && matches!(
-                self.stage,
-                Stage::ToPlatform | Stage::ToBay | Stage::ToExit | Stage::Leaving
-            )
-        {
-            let t=((self.local.x-profile.threshold.x)*profile.side()/profile.platform_length).clamp(0.0,1.0);
-            if t>0.0 {self.local.z=discovery::ramp_height(profile,self.local.truncate(),self.ground_height,feedback.surface);}
-        }
+        self.align_ramp(profile,feedback);
     }
 }
 
@@ -743,7 +799,7 @@ impl PeopleSim {
                     profile.bay
                 );
                 self.wheelchairs.status = format!(
-                    "Acessibilidade beta: {} | Ctrl+Alt+W: passageiro | Ctrl+Alt+E: assistência | Ctrl+Alt+D: desembarque",
+                    "Acessibilidade: {}",
                     profile.name
                 );
                 Some(profile)
@@ -758,7 +814,7 @@ impl PeopleSim {
                 log::info!("WHEELCHAIR DETECTION {}",serde_json::to_string(&detected).unwrap_or_default());
                 self.wheelchairs.profiles=detected.profiles;
                 if let Some(profile)=detected.profile {
-                    self.wheelchairs.status=format!("Acessibilidade automática: {} | Ctrl+Alt+W: passageiro",profile.name);Some(profile)
+                    self.wheelchairs.status=format!("Acessibilidade automática: {}",profile.name);Some(profile)
                 }else{self.wheelchairs.status="Acessibilidade: porta, área ou manobra ainda precisam de calibração".into();None}
             }
             Err(e) => {
@@ -1001,6 +1057,7 @@ mod tests {
             threshold: Vec3::new(1.16, 0.0, 0.97),
             bay: Vec3::new(-0.72, 0.0, 0.97),
             route: vec![Vec3::new(0.35, 0.0, 0.97)],
+            maneuvers:Vec::new(),
             bay_heading: 180.0,
             door_var: "door_2".into(),
             door_vars:Vec::new(),native:None,fold:None,replacement_meshes:Vec::new(),
@@ -1040,6 +1097,54 @@ mod tests {
             "never reached {target:?}, at {:?} pos {:?}",
             j.stage, j.local
         );
+    }
+    #[test]
+    fn independent_bays_keep_their_passenger_and_alighting_request() {
+        let first=profile();
+        let mut second=first.clone();second.bay.y+=1.8;
+        let mut wc=Wheelchairs::default();
+        wc.profiles=vec![first.clone(),second.clone()];
+        let mut j=Journey::new(&first,0.18,270.0);
+        j.stage=Stage::Riding;j.boarded=true;
+        wc.riders.insert(17,passengers::Rider{profile:first,journey:j,reserved:vec![1,2]});
+        assert_eq!(wc.free_profiles().count(),1);
+        assert_eq!(wc.free_profiles().next().unwrap().bay,second.bay);
+        let mut j=Journey::new(&second,0.18,270.0);
+        j.stage=Stage::Riding;j.boarded=true;
+        wc.riders.insert(23,passengers::Rider{profile:second,journey:j,reserved:vec![4,5]});
+        assert_eq!(wc.free_profiles().count(),0);
+        assert!(wc.request_alight(23));
+        assert!(wc.wants_alight());
+        assert!(!wc.riders[&17].journey.alight_requested);
+        assert_eq!(wc.riders[&17].reserved,vec![1,2]);
+        assert!(!wc.request_alight(99));
+    }
+    #[test]
+    fn a_confined_maneuver_retraces_reverse_legs_and_pivots_on_alighting() {
+        let mut p=profile();p.bay_heading=90.0;
+        let centre=p.route[0];
+        p.maneuvers=vec![
+            Maneuver{at:centre,heading:270.0,reverse:false},
+            Maneuver{at:centre,heading:90.0,reverse:false},
+            Maneuver{at:p.bay,heading:90.0,reverse:true},
+        ];
+        p.validate().unwrap();
+        let mut j=Journey::new(&p,0.18,270.0);
+        run(&mut j,&p,Stage::Riding);
+        assert!((j.local-p.bay).length()<0.003);
+        assert!(angle_delta(j.heading,90.0).abs()<0.1);
+        j.alight_requested=true;
+        run(&mut j,&p,Stage::Finished);
+        assert!((j.local-p.outside(0.18)).length()<0.003);
+        assert!(!j.boarded);
+    }
+    #[test]
+    fn two_routes_to_one_bay_do_not_double_its_capacity() {
+        let p=profile();let mut alternative=p.clone();alternative.threshold.y+=0.6;
+        let mut wc=Wheelchairs::default();wc.profiles=vec![p.clone(),alternative];
+        let j=Journey::new(&p,0.18,270.0);
+        wc.profile=Some(p);wc.person=Some(1);wc.journey=Some(j);
+        assert_eq!(wc.free_profiles().count(),0);
     }
     #[test]
     fn complete_lift_journey_has_bounded_continuous_movement() {

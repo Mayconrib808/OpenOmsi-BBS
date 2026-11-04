@@ -1553,7 +1553,7 @@ fn coop14_hotfix_boarding_burst_preserves_people_commands_and_vehicle_budget() {
     let id = client.my_id;
     let before = host.peers[&id].dropped;
     for person in 1..=89 {
-        client.send_desc_up(&world::Desc::Person {
+        client.send_desc_up(&world::Desc::Person { wheelchair: false, 
             id: person,
             file: "Humans/aXYZ/man01.hum".into(),
             intent: None,

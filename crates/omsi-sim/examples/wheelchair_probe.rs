@@ -19,8 +19,18 @@ fn main() -> anyhow::Result<()> {
         Arc::new(VehicleType::load(root, file)?),
         VehicleHost::new(Default::default()),
     );
+    let mut lead=v.ty.clone();
+    let mut seen=std::collections::HashSet::new();
+    seen.insert(lead.def.path.clone());
+    for _ in 0..16 {
+        let Some((next,reversed))=lead.def.couple_back.as_ref()else{break;};
+        let next=lead.def.path.parent().unwrap_or(root).join(next.replace('\\',"/"));
+        if !seen.insert(next.clone()){break;}
+        let ty=match VehicleType::load(root,&next){Ok(t)=>Arc::new(t),Err(e)=>{eprintln!("Missing articulated section {}: {e}",next.display());break;}};
+        v.attach_trailer_ex(ty.clone(),*reversed);lead=ty;
+    }
     let ty = &v.ty;
-    let cabin = Cabin::load_train(&[(&ty.def, Vec3::ZERO, f32::INFINITY)]);
+    let cabin = Cabin::load_train(&omsi_sim::people::cabin::train_parts(&v));
     let meshes:Vec<_>=ty.meshes.iter().enumerate().map(|(i,m)|{
         let d=&ty.model.meshes[m.def_index];
         json!({"index":i,"file":d.file,"bounds":ty.mesh_boxes[i],"visible":v.mesh_props[i].visible,
@@ -84,6 +94,12 @@ fn main() -> anyhow::Result<()> {
     if std::env::var_os("WHEELCHAIR_EXERCISE").is_some() {
         if let Some(profile) = profile {
             report["native_exercise"] = native::run(&mut v, &profile);
+        }
+        if let Some(d)=detection.as_ref() {
+            report["bay_exercises"]=json!(d.profiles.iter().map(|p|{
+                let mut vehicle=VehicleInstance::new(v.ty.clone(),VehicleHost::new(Default::default()));
+                json!({"bay":p.bay,"exercise":native::run(&mut vehicle,p)})
+            }).collect::<Vec<_>>());
         }
     }
     println!("{}", serde_json::to_string(&report)?);

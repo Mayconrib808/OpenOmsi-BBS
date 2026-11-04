@@ -155,6 +155,7 @@ impl Mirror {
 struct Upstream {
     tracks: HashMap<u32, Track<PersonState>>,
     files: HashMap<u32, String>,
+    wheelchairs: HashSet<u32>,
     intents: HashMap<u32, nw::PersonIntent>,
     aboard_once: HashSet<u32>,
     returned: HashSet<u32>,
@@ -303,7 +304,7 @@ impl LanWorld {
                 v.described.insert(id, 0.0);
                 describe_left -= 1;
                 if returning { v.return_described.insert(id); }
-                lan.send_desc_up(&Desc::Person {
+                lan.send_desc_up(&Desc::Person { wheelchair: p.wheelchair, 
                     intent: p.waiting.and_then(|_| person_intent(h,p.id,lan.my_id)),
                     id,
                     file: Humans::type_file(&p.ty),
@@ -341,7 +342,7 @@ impl LanWorld {
             if describe_left > 0 && v.described.get(&id).is_none_or(|age| *age >= 5.0) {
                 v.described.insert(id, 0.0);
                 describe_left -= 1;
-                lan.send_desc_up(&Desc::Person {
+                lan.send_desc_up(&Desc::Person { wheelchair: p.wheelchair, 
                     intent: None,
                     id,
                     file: Humans::type_file(&p.ty),
@@ -398,9 +399,10 @@ impl LanWorld {
         let _ = h.take_claims();
         let epoch = *self.epoch.get_or_insert_with(Instant::now);
         for (id, d) in lan.take_descs_up() {
-            let Desc::Person { id: pid, file, intent } = d;
+            let Desc::Person { id: pid, file, intent, wheelchair } = d;
             let up = self.ups.entry(id).or_default();
             up.files.insert(pid, file);
+            if wheelchair {up.wheelchairs.insert(pid);}else{up.wheelchairs.remove(&pid);}
             if let Some(intent) = intent { up.intents.insert(pid, intent); }
         }
         for (id, at, f) in lan.take_world_up() {
@@ -449,6 +451,7 @@ impl LanWorld {
                 let Some(kind) = h.type_by_file(file) else { continue; };
                 if let Some(host_id) = h.adopt_returned_connection(&*world.data(), kind, stop,
                     intent.line, intent.dest.clone(), *peer, DVec3::new(x, y, z), heading as f64, intent.transfers) {
+                    if up.wheelchairs.contains(&pid){h.adopt_wheelchair_mobility(host_id);}
                     up.returned.insert(pid);
                     adopted.push(pid);
                     lan.acknowledge_return(*peer, pid);
@@ -490,6 +493,7 @@ impl LanWorld {
                 if let Some(local) = up.ids.get(pid).copied() {
                     if h.has_mirror(local) {
                         h.mirror_set(local, &pose);
+                        h.mirror_wheelchair(local,up.wheelchairs.contains(pid));
                         continue;
                     }
                     up.ids.remove(pid);
@@ -513,6 +517,7 @@ impl LanWorld {
                     crate::view_sync::apply_people(h, v, world, r, sc);
                     if added {
                         up.ids.insert(*pid, local);
+                        h.mirror_wheelchair(local,up.wheelchairs.contains(pid));
                     }
                 }
             }
@@ -658,7 +663,7 @@ impl LanWorld {
             let Gather { mut frame, mut seen, mut descs, mut ids_hash } = g;
             // the riders of our own bus, and the other players' people and riders: everybody
             // sees everybody's passengers
-            let mut others: Vec<(PersonState, String)> = Vec::new();
+            let mut others: Vec<(PersonState, String, bool)> = Vec::new();
             if let Some(h) = h_ref {
                 for p in h.lan_riders() {
                     let Some((_, l, lh, seat)) = p.aboard else { continue };
@@ -679,6 +684,7 @@ impl LanWorld {
                             },
                         },
                         Humans::type_file(&p.ty),
+                        p.wheelchair,
                     ));
                 }
             }
@@ -703,16 +709,16 @@ impl LanWorld {
                     if let PersonPlace::Foot { ref mut waiting, .. } = st.place {
                         *waiting = None;
                     }
-                    others.push((st, file.clone()));
+                    others.push((st, file.clone(), up.wheelchairs.contains(pid)));
                 }
             }
-            for (st, file) in others {
+            for (st, file, wheelchair) in others {
                 let key = (true, st.id);
                 seen.insert(key);
                 ids_hash ^= fnv(&(st.id as u64 | 1 << 40).to_le_bytes());
                 if !view.described.contains_key(&key) {
                     view.described.insert(key, 0);
-                    descs.push(Desc::Person { id: st.id, file, intent: None });
+                    descs.push(Desc::Person { wheelchair, id: st.id, file, intent: None });
                 }
                 let q = person_q(&st);
                 let due = match view.sent.get(&key) {
@@ -1366,6 +1372,7 @@ impl Mirror {
 
                 if h.has_mirror(*id) {
                     h.mirror_set(*id, &pose);
+                    h.mirror_wheelchair(*id,m.descs.get(&(true,*id)).is_some_and(|d|matches!(d,Desc::Person{wheelchair:true,..})));
                     continue;
                 }
                 // (taken away here with a bus that went: drawn again once it is back)
@@ -1390,6 +1397,7 @@ impl Mirror {
             if added {
                 spawned += 1;
                 m.drawn_people.insert(*id);
+                h.mirror_wheelchair(*id,m.descs.get(&(true,*id)).is_some_and(|d|matches!(d,Desc::Person{wheelchair:true,..})));
             }
         }
         // Replay in the same operation order, once per batch. This also avoids
@@ -1430,7 +1438,7 @@ fn gather_people(view: &mut View, h: &Humans, table: Option<&omsi_net::traffic_t
         g.ids_hash ^= fnv(&(p.id as u64 | 1 << 40).to_le_bytes());
         if !view.described.contains_key(&key) {
             view.described.insert(key, 0);
-            g.descs.push(Desc::Person {
+            g.descs.push(Desc::Person { wheelchair: p.wheelchair, 
                 intent: person_intent(h,p.id,1),
                 id: p.id,
                 file: Humans::type_file(&p.ty),
@@ -1587,7 +1595,7 @@ fn describe(humans: Option<&Humans>, r: EntityRef) -> Option<Desc> {
         return None;
     }
     let p = humans?.lan_people_by_id(r.id)?;
-    Some(Desc::Person {
+    Some(Desc::Person { wheelchair: humans?.wheelchairs.is_chair(r.id), 
         intent: person_intent(humans?,r.id,1),
         id: r.id,
         file: Humans::type_file(&p),

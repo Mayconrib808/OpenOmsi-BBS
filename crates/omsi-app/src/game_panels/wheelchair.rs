@@ -14,8 +14,8 @@ pub(crate) fn panel(app:&crate::App,pal:Palette)->Panel {
                 "Original equipment: passengers board when the door and ramp are ready"
             }else{"Auxiliary lift: stop, open the accessible door and start assistance"}),pal));
             if let Some(j)=wc.journey.as_ref() {
-                rows.push(note(&tr(j.stage.label()),pal));
-                if !j.hold_reason.is_empty(){rows.push(note(&tr(j.hold_reason),pal));}
+                rows.push(note(&tr(j.stage.ui_label()),pal));
+                if !j.hold_reason.is_empty(){rows.push(note(&tr(hold_label(j.hold_reason)),pal));}
                 rows.push(button("assist",&tr("Prepare boarding or alighting"),Some("accessible")));
             }else{
                 rows.push(note(&tr("Waiting for an approaching passenger or an alighting request"),pal));
@@ -25,6 +25,18 @@ pub(crate) fn panel(app:&crate::App,pal:Palette)->Panel {
     }
     rows.push(button("close",&tr("Close"),Some("close")));
     card(Anchor::BottomRight,32.0,32.0,460.0,245,pal,rows)
+}
+fn hold_label(reason:&str)->&'static str {
+    match reason {
+        "Passagem ocupada: aguardando espaço"|"Área reservada ocupada: aguardando liberação"=>"Waiting for space",
+        "Aguardando ônibus completamente parado"=>"Stop the bus completely before starting assistance",
+        "Aguardando abertura da porta acessível"|"Pare completamente e abra a porta acessível"=>"Open the accessible door",
+        "Aguardando recolhimento do banco retrátil"=>"Waiting for the folding seat",
+        "Aguardando recolhimento real do equipamento"|"Aguardando recolhimento do equipamento original"=>"Waiting for the equipment to be stowed",
+        "Reposicione a porta acessível perto do passageiro"=>"Move the accessible door closer to the passenger",
+        "Aguardando superfície de desembarque carregada e ao alcance"|"Desnível excessivo para esta rampa: reposicione o ônibus"=>"Reposition the bus near a safe pavement",
+        _=>"Waiting for the door and equipment",
+    }
 }
 pub(crate) fn click(app:&mut crate::App,id:&str) {
     match id {
