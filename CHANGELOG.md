@@ -6,6 +6,22 @@ promoted to stable releases (see [docs/VERSIONING.md](docs/VERSIONING.md)); the 
 
 ## Unreleased
 
+### Bridge P16 — multiplayer passenger diagnosis (candidate, 2026-11-04)
+
+- Stops sending `COOPROUTE1` navigator-only updates to an empty headless
+  dedicated-server heartbeat. Other drivers and walkers still receive them.
+  This prevents repeated unsupported server-command logs without touching
+  BCS ownership of the timetable or administrative permissions.
+- Logs `PASSENGER_LAN_AUDIT` approximately once per simulated minute:
+  the server reports each player's authoritative nearby/waiting population
+  within 260 m and its last advertised frame; each client reports mirrored
+  and drawn people, mirrored waiters, claim grants and refusals.
+- This candidate does **not** change passenger generation, bus doors,
+  destinations or handover. The provided Riccieri run did not reach the
+  timetable's 18:50 start, so successful boarding still requires a live
+  test at a served stop and comparison of both logs before release.
+
+
 ### New
 
 - **Enhanced has options of its own, and the quality presets cross the modes.** Enhanced+ is no
