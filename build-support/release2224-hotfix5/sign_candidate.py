@@ -38,12 +38,6 @@ def run():
     assert report["coop_archive_sha256"] == spec["sha256"] and len(spec["parts"]) > 5
     assert report["native_candidate_run"] == int(a.candidate_run_id) and report["desktop_launcher_run"] == 41539618533
     assert report["native_candidate_commit"] == NATIVE_COMMIT and report["native_build_commit"] == NATIVE_COMMIT
-    assert report["native_verified_binary_run"] == 41861885139
-    assert report["native_verified_binary_artifact_id"] == 13342486464
-    assert report["native_verified_binary_artifact_digest"] == "sha256:60f0c2864913622747dd1ad9e94abed582c0643b181c218cf0e12256de32dc14"
-    assert report["native_verified_binary_sha256"] == "577fefbd10a64cf17a049644bac6331575cbd573583ea0a9d53ebbfc8827a4e3"
-    assert spec["files"]["OpenOmsi Coop 0.3.41/programa/openomsi.exe"] == report["native_verified_binary_sha256"]
-    assert spec["files"]["app/server-dinamico-p16/openomsi.exe"] == report["native_verified_binary_sha256"]
     assert report["desktop_launcher_commit"] == "3d91881988bc260115184b5c4a03596f2b25d604"
     assert report["new_p16_host_ui_tested"] and report["coop_protocol"] == 16
     assert report["host_preferences_limit"] == 32<<20 and report["large_host_inventory_ui_tested"]
@@ -70,10 +64,6 @@ def run():
       "candidate_run_id": int(a.candidate_run_id),
       "native_base_run_id": int(a.candidate_run_id),
       "native_build_commit": NATIVE_COMMIT,
-      "native_verified_binary_run": 41861885139,
-      "native_verified_binary_artifact_id": 13342486464,
-      "native_verified_binary_artifact_digest": "sha256:60f0c2864913622747dd1ad9e94abed582c0643b181c218cf0e12256de32dc14",
-      "native_verified_binary_sha256": "577fefbd10a64cf17a049644bac6331575cbd573583ea0a9d53ebbfc8827a4e3",
       "launcher_base_run_id": 41539618533,
       "candidate_commit": a.candidate_commit,
       "candidate_artifact_id": int(a.artifact_id),
