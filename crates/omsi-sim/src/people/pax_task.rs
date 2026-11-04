@@ -530,8 +530,15 @@ impl PeopleSim {
             return;
         }
         let stop = p.stop;
+        let in_stop_box = stop.is_some_and(|s| self.in_stop_box(s, bn.id));
+        // The approach and reservation stages already admit a correctly aligned,
+        // open, same-platform door just outside the map's stop box. Do not revoke
+        // that reservation at the final doorway simply because the pole is offset.
+        // The fallback still checks the stop ID, vehicle direction and speed,
+        // elevation, entry side and distance to a physically open entry.
+        let reachable_door = stop.is_some_and(|s| self.can_walk_to_stopped_bus(i, s, bn));
         let ok = bn.speed.abs() < 3.0
-            && stop.is_some_and(|s| self.in_stop_box(s, bn.id))
+            && (in_stop_box || reachable_door)
             && !bn.cabin.graph.points.is_empty();
         if ok {
             if p.st != 3 {
@@ -562,9 +569,26 @@ impl PeopleSim {
             // in the doorway: the driver is greeted (the player's bus)
             if bn.id == BusId::Player {
                 self.greet_or_complain(i, bn);
+                if !in_stop_box {
+                    log::info!(
+                        "PASSENGER_BOARDING_AUDIT outcome=boarded_offset_stop passenger={} stop={:?} bus={:?} entry={:?} speed_mps={:.2}",
+                        self.people[i].id, stop, bn.id, self.pax(i).unwrap().door, bn.speed);
+                }
             }
             self.set_task(i, Task::InBusToPlace, buses, bus_ix, world);
             return;
+        }
+        // Emit a single diagnostic when the passenger loses its reservation
+        // instead of spamming a message every simulation frame at the doorway.
+        if bn.id == BusId::Player && p.st >= 2 {
+            let reason = if bn.speed.abs() >= 3.0 { "bus_moving" }
+                else if stop.is_none() { "stop_missing" }
+                else if bn.cabin.graph.points.is_empty() { "cabin_path_missing" }
+                else { "outside_stop_box_and_no_reachable_open_entry" };
+            log::info!(
+                "PASSENGER_BOARDING_AUDIT outcome=returned_to_stop reason={} passenger={} stop={:?} bus={:?} in_box={} reachable_door={} entry={:?} open={:?} speed_mps={:.2} pos={:?}",
+                reason, self.people[i].id, stop, bn.id, in_stop_box, reachable_door,
+                p.door, bn.entry_open, bn.speed, self.people[i].position);
         }
         // the bus pulls away again: the place is given back
         if let Some(k) = p.seat {
@@ -1188,6 +1212,62 @@ mod connection_tests {
         assert!(h.finish_returned_connection(id));
         assert!(!h.finish_returned_connection(id));
         assert!(h.people.iter().all(|p|p.id!=id));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn offset_platform_door_completes_boarding_without_stop_box() {
+        let (root, mut h, world, i) = fixture("offset-platform-boarding");
+        let bus = bus(&root, BusId::Player, "Destino", DVec3::ZERO);
+        let mut platform = stop(DVec3::new(5.0, 0.0, 0.0));
+        platform.buses.push((BusId::Player, false));
+        h.stops.insert(1, platform);
+        let at_door = DVec3::new(2.0, 0.0, 0.0);
+        h.people[i].position = at_door;
+        let p = h.pax_mut(i).unwrap();
+        p.pos = at_door;
+        p.stop = Some(1);
+        p.bus = Some(BusId::Player);
+        p.task = Task::WalkingToBus;
+        p.seat = Some(0);
+        p.door = Some(0);
+        p.st = 3;
+        let buses = vec![bus];
+        let ix = HashMap::from([(BusId::Player, 0)]);
+        assert!(!h.in_stop_box(1, BusId::Player));
+        assert!(h.can_walk_to_stopped_bus(i, 1, &buses[0]),
+            "the final gate must use the same validated curb-offset fallback as the approach");
+        h.task_to_bus(i, &buses, &ix, &world);
+        assert_eq!(h.pax(i).unwrap().task, Task::InBusToPlace);
+        assert_eq!(h.pax(i).unwrap().seat, Some(0));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn offset_platform_cannot_board_from_opposite_side_or_moving_bus() {
+        let (root, mut h, world, i) = fixture("offset-platform-guard");
+        let mut bus = bus(&root, BusId::Player, "Destino", DVec3::ZERO);
+        let mut platform = stop(DVec3::new(5.0, 0.0, 0.0));
+        platform.buses.push((BusId::Player, false));
+        h.stops.insert(1, platform);
+        let ix = HashMap::from([(BusId::Player, 0)]);
+        for (pos, speed) in [(DVec3::new(-2.0, 0.0, 0.0), 0.0), (DVec3::new(2.0, 0.0, 0.0), 1.0)] {
+            h.people[i].position = pos;
+            let p = h.pax_mut(i).unwrap();
+            p.pos = pos;
+            p.stop = Some(1);
+            p.bus = Some(BusId::Player);
+            p.task = Task::WalkingToBus;
+            p.seat = Some(0);
+            p.door = Some(0);
+            p.st = 3;
+            bus.speed = speed;
+            assert!(!h.can_walk_to_stopped_bus(i, 1, &bus));
+            h.task_to_bus(i, std::slice::from_ref(&bus), &ix, &world);
+            assert_eq!(h.pax(i).unwrap().task, Task::WalkingToBusstop,
+                "no shortcut across the road or to an in-motion bus");
+            assert_eq!(h.pax(i).unwrap().seat, None);
+        }
         std::fs::remove_dir_all(root).unwrap();
     }
 
