@@ -90,6 +90,8 @@ jobs:
             build/release223/coop-assets/*
             build/release223/native-p16-controls.json
             build/release223/one-click-install-test.json
+            build/release223/accessibility-223-validation.md
+            build/release223/accessibility-223-vehicle-validation.json
             build/release223/setup-previews/*
           compression-level: 0
           retention-days: 30

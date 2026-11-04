@@ -1,5 +1,5 @@
 """Build Bridge 2.2.3 over the verified Hotfix 5 package, retaining every host."""
-import argparse,hashlib,io,json,os,shutil,subprocess,tempfile,zipfile
+import argparse,hashlib,io,json,os,shutil,subprocess,tarfile,tempfile,zipfile
 from pathlib import Path
 import build,build_bridge_update,setup_resources
 from build_runtime_2203 import embedded_payload,EXPECTED
@@ -79,6 +79,20 @@ def main():
  files[COOP+'/source/SOURCE-2.2.3.json']=(json.dumps(evidence,indent=2)+'\n').encode()
  files[COOP+'/CHANGELOG-2.2.3.md']=notes
  files['docs/TESTE-2.2.3-pt-BR.md']=(ROOT/'docs/TESTE-2.2.3-pt-BR.md').read_bytes()
+ # Publish the compatibility evidence from the exact pinned native source as
+ # ordinary documentation, so testers need not unpack a source archive.
+ compatibility_reports={}
+ with tarfile.open(fileobj=io.BytesIO(source),mode='r:gz')as archive:
+  for name in ('accessibility-223-validation.md','accessibility-223-vehicle-validation.json'):
+   member=archive.getmember('openomsi-223/docs/releases/'+name)
+   assert member.isfile() and member.size<=2<<20, 'Invalid accessibility report: '+name
+   data=archive.extractfile(member).read()
+   files['docs/'+name]=data
+   (out/name).write_bytes(data)
+   compatibility_reports[name]=sha(data)
+ vehicle_validation=json.loads(files['docs/accessibility-223-vehicle-validation.json'])
+ assert vehicle_validation['bridge_version']==VERSION and vehicle_validation['base_release']=='2.2.2.4-hotfix.5'
+ assert vehicle_validation['gameplay_visual_tested'] is False and vehicle_validation['paired_gameplay_tested'] is False
  files[COOP+'/validation/version-2.2.3.txt']=version.encode()
  # Fallback content is installed beside each actual runtime. No commercial map,
  # human, bus, BCS class or user configuration is included.
@@ -214,7 +228,7 @@ def main():
   previous_installer_sha256=BASE_UPDATER,previous_coop_sha256=BASE_COOP,retained_host_hashes={n:sha(payload[n])for n in('HostAgent.exe','CompanyHost.exe')},
   host_preferences_limit=32<<20,large_host_inventory_ui_tested=True,complete_hosts_unchanged=True,complete_hosts_rebuilt=False,p14_server_unchanged=True,p15_server_unchanged=True,new_p16_host_ui_tested=False,p16_host_ui_tested=True,p16_hosts_unchanged=True,wheelchair_passengers=True,wheelchair_spawn_percent_default=3,accessibility_menu_alt=True,accessibility_ui_languages=30,p16_host_hashes={n:sha(files['app/hosts-p16/'+n])for n in('HostAgent.exe','CompanyHost.exe')},dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,
   native_version=NATIVE_VERSION,native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],upstream_commit=UPSTREAM,
-  native_client_sha256={'openomsi.exe':sha(native)},native_source_sha256=sha(source),coop_protocol=16,custom_sounds_unchanged=True,desktop_launcher_unchanged=False,desktop_launcher_sha256=sha(launcher_binary),desktop_launcher_commit=launcher_meta['source_commit'],desktop_launcher_run=pin['run_id'],
+  native_client_sha256={'openomsi.exe':sha(native)},native_source_sha256=sha(source),accessibility_report_sha256=compatibility_reports,accessibility_vehicle_validation=vehicle_validation['summary'],coop_protocol=16,custom_sounds_unchanged=True,desktop_launcher_unchanged=False,desktop_launcher_sha256=sha(launcher_binary),desktop_launcher_commit=launcher_meta['source_commit'],desktop_launcher_run=pin['run_id'],
   bcs_capture_normal_launch_tested=True,bcs_single_and_company_event_fixture_tested=True,setup_changelog_languages=['pt','en','de'],setup_changelog_ui_tested=True,
   winter_clothing_removed=True,passenger_upstream_tag='v0.3.47',passenger_upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6',brazilian_passenger_recordings=8,passenger_defaults_enabled=True,passenger_coop_handback=True,feature_event_audit_included=True,per_release_changelog_including_hotfixes=True,
   setup_live_update_ui_tested=True,bridge_regressions_tested=True,windows_gameplay_tested=False,paired_gameplay_tested=False,

@@ -2,6 +2,8 @@
 
 Esta candidata usa a base da 2.2.2.4 Hotfix 5. O relatório dos ônibus distingue os ciclos automatizados aprovados dos acessos ainda bloqueados. A validação visual de todos os modelos e do multiplayer continua pendente.
 
+Consulte a lista por modelo em [accessibility-223-validation.md](accessibility-223-validation.md), nesta mesma pasta. O arquivo `accessibility-223-vehicle-validation.json` conserva os resultados detalhados, incluindo os motivos de bloqueio.
+
 1. Nas configurações de passageiros, mantenha **Cadeirantes nos pontos de ônibus** ativado. Para encontrar passageiros durante o teste, ajuste **Chance de aparecer um cadeirante** para **100%** e reinicie o jogo. A chance é aplicada a novos passageiros; as pessoas que já estavam no mapa não são convertidas.
 2. Use um ônibus com acesso aprovado no relatório e abra o menu **Alt → Assistência ao cadeirante**. O painel informa as vagas verificadas e o lado da porta acessível. Se disser que não há acesso verificado, esse modelo continua bloqueado nesta candidata.
 3. Ao chegar ao ponto, observe a aproximação e o sinal do passageiro. Pare junto à calçada e abra a porta acessível. Em ônibus com rampa original, opere a rampa pelos controles do próprio ônibus. Com elevador auxiliar, use **Preparar embarque ou desembarque** no painel de assistência.
