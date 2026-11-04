@@ -1097,6 +1097,17 @@ fn triangle_box(p: [Vec3; 3], centre: Vec3, half: Vec3) -> bool {
         .into_iter()
         .all(|a| !separated(a) && edges.iter().all(|e| !separated(a.cross(*e))))
 }
+/// Wheelchair footprint rotates with the bay's orientation. Sampling only the
+/// fixed longitudinal corners incorrectly rejected side-facing reserved bays.
+fn bay_floor_supported(g:&Geometry, p:Vec3, heading:f32)->bool {
+    let (sin,cos)=heading.to_radians().sin_cos();
+    let forward=Vec3::new(sin,cos,0.0);
+    let right=Vec3::new(cos,-sin,0.0);
+    [-1.0_f32,1.0].into_iter().all(|x|
+        [-1.0_f32,1.0].into_iter().all(|y|
+            g.height(p+right*(x*0.30)+forward*(y*0.43))
+                .is_some_and(|h|(h-p.z).abs()<0.07)))
+}
 fn find_bays(
     c: &Cabin,
     g: &Geometry,
@@ -1106,7 +1117,9 @@ fn find_bays(
 ) -> Vec<(Vec3, f32)> {
     let mut bays = Vec::new();
     for side in [-threshold.x.signum(), threshold.x.signum()] {
-        for ix in 0..9 {
+        // Profile::validate permits a bay up to 1.10 m from the centre,
+        // so do not stop the universal search at only 0.90 m.
+        for ix in 0..11 {
             for iy in -40_i32..=40 {
                 // A same-side bay can be adjacent to a wide accessible door.
                 // Reject only the doorway footprint, not the surrounding cabin.
@@ -1138,26 +1151,21 @@ fn find_bays(
                 }) {
                     continue;
                 }
-                if ![-1.0, 1.0].iter().all(|x| {
-                    [-1.0, 1.0].iter().all(|y| {
-                        g.height(p + Vec3::new(x * 0.30, y * 0.43, 0.0))
-                            .is_some_and(|h| (h - p.z).abs() < 0.07)
-                    })
-                }) {
-                    continue;
-                }
                 let hint = reserved
                     .iter()
                     .map(|r| (r.truncate() - p.truncate()).length())
                     .fold(1.5, f32::min);
-                for heading in [180.0, 0.0] {
-                    if g.chair_clear(p, heading) {
+                // Some accessible spaces face across the body instead of
+                // forward/back. Both the four wheel contacts and the complete
+                // body must fit; alternative headings are not a bypass.
+                for heading in [180.0_f32,0.0,90.0,270.0] {
+                    if bay_floor_supported(g,p,heading) && g.chair_clear(p,heading) {
                         bays.push((
-                            (p.y - threshold.y).abs()
-                                + hint * 0.5
-                                + (p.x.abs() - 0.65).abs()
-                                + if heading == 0.0 { 0.2 } else { 0.0 },
-                            (p, heading),
+                            (p.y-threshold.y).abs()
+                                + hint*0.5
+                                + (p.x.abs()-0.65).abs()
+                                + if heading==180.0{0.0}else if heading==0.0{0.2}else{0.35},
+                            (p,heading),
                         ));
                     }
                 }
@@ -1330,6 +1338,17 @@ mod tests {
         assert!(!equipment_name("Generic/Rampe_Taster.o3d"));
         assert!(equipment_name("Generic/Rampe_Main.o3d"));
         assert!(!reserved_name("Painel/LuzCadeirante.o3d"));
+    }
+    #[test]
+    fn wheelchair_bay_floor_is_checked_in_the_selected_heading() {
+        let a=Vec3::new(-0.39,-1.5,0.0);
+        let b=Vec3::new(0.39,-1.5,0.0);
+        let c=Vec3::new(0.39,1.5,0.0);
+        let d=Vec3::new(-0.39,1.5,0.0);
+        let floor=vec![[a,b,c],[a,c,d]];
+        let g=Geometry::index(floor,Vec::new());
+        assert!(bay_floor_supported(&g,Vec3::ZERO,0.0));
+        assert!(!bay_floor_supported(&g,Vec3::ZERO,90.0));
     }
     #[test]
     fn a_diagonal_triangle_does_not_fill_its_bounding_box() {
