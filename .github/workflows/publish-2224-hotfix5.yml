@@ -26,10 +26,16 @@ jobs:
           const fs=require('fs'),{execFileSync}=require('child_process');
           const p=require('./build-support/release2224-hotfix5/publication.json');
           const r=JSON.parse(execFileSync('gh',['api','repos/'+process.env.GITHUB_REPOSITORY+'/actions/runs/'+p.candidate_run_id],{encoding:'utf8'}));
-          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/integrate-2224-hotfix5.yml')throw Error('Wrong or failed opt-in test release candidate');
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/integrate-2224-hotfix5-verified-native.yml')throw Error('Wrong or failed opt-in test release candidate');
           const arts=JSON.parse(execFileSync('gh',['api','repos/'+process.env.GITHUB_REPOSITORY+'/actions/runs/'+p.candidate_run_id+'/artifacts'],{encoding:'utf8'})).artifacts;
           const art=arts.find(a=>a.name==='Bridge-2.2.2.4-hotfix.5-FULL-CANDIDATE');
           if(!art||art.id!==p.candidate_artifact_id||art.digest!=='sha256:'+p.candidate_artifact_sha256||art.expired)throw Error('Hotfix artifact ID/digest does not match approved Windows candidate');
+          const native=JSON.parse(execFileSync('gh',['api','repos/'+process.env.GITHUB_REPOSITORY+'/actions/runs/41861885139'],{encoding:'utf8'}));
+          if(native.status!=='completed'||native.conclusion!=='success'||native.head_sha!=='201d37c162a35b0954b4d3f791931e2c532f5fba'||native.path!=='.github/workflows/p16-boarding-offset-gate.yml')throw Error('Not an approved Windows native test run');
+          const nativeArts=JSON.parse(execFileSync('gh',['api','repos/'+process.env.GITHUB_REPOSITORY+'/actions/runs/41861885139/artifacts'],{encoding:'utf8'})).artifacts;
+          const nativeArtifact=nativeArts.find(a=>a.name==='OpenOMSI-P16-boarding-offset-gate-CANDIDATE');
+          if(!nativeArtifact||nativeArtifact.id!==13342486464||nativeArtifact.digest!=='sha256:60f0c2864913622747dd1ad9e94abed582c0643b181c218cf0e12256de32dc14'||nativeArtifact.expired)throw Error('Native Windows tested binary artifact changed');
+          if(p.native_verified_binary_run!==native.id||p.native_verified_binary_artifact_id!==nativeArtifact.id||p.native_verified_binary_artifact_digest!==nativeArtifact.digest||p.native_verified_binary_sha256!=='577fefbd10a64cf17a049644bac6331575cbd573583ea0a9d53ebbfc8827a4e3')throw Error('Signer provenance disagrees with native QA run');
           fs.appendFileSync(process.env.GITHUB_OUTPUT,'run_id='+p.candidate_run_id+'\n');
           NODE
       - name: Check publisher syntax and preflight all signed releases
