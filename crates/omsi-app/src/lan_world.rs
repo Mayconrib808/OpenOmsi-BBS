@@ -716,8 +716,11 @@ impl LanWorld {
                 let key = (true, st.id);
                 seen.insert(key);
                 ids_hash ^= fnv(&(st.id as u64 | 1 << 40).to_le_bytes());
-                if !view.described.contains_key(&key) {
-                    view.described.insert(key, 0);
+                // Refresh a changed person descriptor without flooding unchanged
+                // passengers every world frame.
+                let signature = passenger_description_hash(&file, wheelchair, None);
+                if view.described.get(&key).copied() != Some(signature) {
+                    view.described.insert(key, signature);
                     descs.push(Desc::Person { wheelchair, id: st.id, file, intent: None });
                 }
                 let q = person_q(&st);
@@ -1436,12 +1439,18 @@ fn gather_people(view: &mut View, h: &Humans, table: Option<&omsi_net::traffic_t
         let key = (true, p.id);
         g.seen.insert(key);
         g.ids_hash ^= fnv(&(p.id as u64 | 1 << 40).to_le_bytes());
-        if !view.described.contains_key(&key) {
-            view.described.insert(key, 0);
+        // A passenger can change stops, line and destination after its first
+        // description. Without refreshing, mirror_bus_fit may reject all hails.
+        // Send only changed identities; retain normal LAN traffic limits.
+        let intent = person_intent(h,p.id,1);
+        let file = Humans::type_file(&p.ty);
+        let signature = passenger_description_hash(&file, p.wheelchair, intent.as_ref());
+        if view.described.get(&key).copied() != Some(signature) {
+            view.described.insert(key, signature);
             g.descs.push(Desc::Person { wheelchair: p.wheelchair,
-                intent: person_intent(h,p.id,1),
+                intent,
                 id: p.id,
-                file: Humans::type_file(&p.ty),
+                file,
             });
         }
         let (place, q) = match p.aboard {
@@ -1582,6 +1591,26 @@ fn person_pose(a: &PersonState, b: &PersonState, k: f64) -> MirrorPose {
         },
         (_, PersonPlace::Foot { .. }) => person_pose(b, b, 1.0),
     }
+}
+
+/// A per-session descriptor fingerprint: updates when a passenger changes
+/// waiting stop/service, while avoiding one DESC per person per simulation frame.
+fn passenger_description_hash(file: &str, wheelchair: bool, intent: Option<&nw::PersonIntent>) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut state = std::collections::hash_map::DefaultHasher::new();
+    file.hash(&mut state);
+    wheelchair.hash(&mut state);
+    if let Some(i) = intent {
+        true.hash(&mut state);
+        i.stop.hash(&mut state);
+        i.line.hash(&mut state);
+        i.dest.hash(&mut state);
+        i.transfers.hash(&mut state);
+        i.previous_bus.hash(&mut state);
+    } else {
+        false.hash(&mut state);
+    }
+    state.finish()
 }
 
 /// What a person asked for is (the cars are told with their rows: `traffic_table`).
