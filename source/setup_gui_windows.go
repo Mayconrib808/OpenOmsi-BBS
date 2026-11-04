@@ -966,6 +966,14 @@ func runSetupGUI(dir string, smoke bool) error {
                 guiUser.NewProc("RedrawWindow").Call(notes,0,0,0x0581)
                 if err:=captureSetupPreview(notes,filepath.Join(previews,"changelog-"+lang+".png"));err!=nil{return err}
                 if changelogState==nil || len(changelogState.buttons)!=len(logSections()) {return fmt.Errorf("detailed changelog navigation was not created: %s",lang)}
+                var notesClient guiRect
+                guiUser.NewProc("GetClientRect").Call(notes,uintptr(unsafe.Pointer(&notesClient)))
+                for i,button:=range changelogState.buttons{
+                    var bounds guiRect
+                    guiUser.NewProc("GetWindowRect").Call(button,uintptr(unsafe.Pointer(&bounds)))
+                    guiUser.NewProc("MapWindowPoints").Call(0,notes,uintptr(unsafe.Pointer(&bounds)),2)
+                    if bounds.Top<114 || bounds.Bottom>notesClient.Bottom-77{return fmt.Errorf("changelog navigation %d overlaps header/footer: %s",i,lang)}
+                }
                 for i:=range logSections(){
                     guiUser.NewProc("SendMessageW").Call(notes,guiWMCommand,uintptr(logIDSectionBase+i),0)
                     if changelogState.section!=i{return fmt.Errorf("changelog category %d did not switch: %s",i,lang)}

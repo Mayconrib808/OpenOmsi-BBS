@@ -785,12 +785,17 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
         guiUser.NewProc("SendMessageW").Call(hwnd,guiWMSetFont,g.font,1)
         return hwnd
     }
-    // Cumulative updates can contain up to sixteen release sections.
+    // Fit every cumulative release section above the footer, including the
+    // complete history shown to users upgrading from an old installation.
     // Keep ALL section buttons above the bottom footer on 780px dialogs.
     tabTop,tabStep,tabHeight:=152,65,54
     if len(logSections())>8{tabTop,tabStep,tabHeight=141,48,42}
     if len(logSections())>11{tabTop,tabStep,tabHeight=130,33,30}
-    if len(logSections())>15{tabTop,tabStep,tabHeight=118,26,24}
+    if count:=len(logSections());count>15{
+        tabTop,tabStep=118,26
+        if step:=(700-tabTop)/count;step<tabStep{tabStep=step}
+        tabHeight=tabStep-2
+    }
     for i,s:=range logSections(){
         hwnd:=control(logL(g.config.Language,s.label),17,tabTop+i*tabStep,232,tabHeight,logIDSectionBase+i)
         changelogState.buttons=append(changelogState.buttons,hwnd)
