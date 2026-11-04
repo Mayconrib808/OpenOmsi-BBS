@@ -1171,6 +1171,23 @@ mod connection_tests {
     }
 
     #[test]
+    fn mirrored_service_recovers_one_unique_destination_despite_different_addon_hof_hash() {
+        let (root,mut h,_world,i)=fixture("mirror-unique-hof-destination");
+        h.stops.insert(2,stop(DVec3::ZERO));
+        let id=h.people[i].id;
+        h.mirror_hail_intent(id,Some((2,Some(999_991),Some("cidade".into()))));
+        assert_eq!(h.mirror_hail_intent.get(&id).and_then(|p|p.2),Some(0),
+            "unique destination name must resolve a changed addon terminal list");
+
+        let mut ambiguous=stop(DVec3::ZERO);
+        ambiguous.lines.push(("CIDADE".into(),HashSet::from(["Outra".into()])));
+        h.stops.insert(3,ambiguous);
+        h.mirror_hail_intent(id,Some((3,Some(999_992),Some("cidade".into()))));
+        assert!(h.mirror_hail_intent.get(&id).is_some_and(|p|p.2.is_none()),
+            "duplicate destination names must not authorize a guessed service");
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn mirrored_waiter_hails_a_bus_explicitly_serving_the_stop_without_a_hof_label() {
         let (root,mut h,_world,i)=fixture("mirror-hail-served-no-hof");
         h.stops.insert(2,stop(DVec3::ZERO));
