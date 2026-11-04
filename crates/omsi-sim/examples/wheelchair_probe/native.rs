@@ -21,7 +21,40 @@ fn snapshot(v: &VehicleInstance, p: &Profile) -> Value {
 }
 pub fn run(v: &mut VehicleInstance, p: &Profile) -> Value {
     let Some(binding) = &p.native else {
-        return json!({"skipped":"additional equipment"});
+        let feedback = wheelchair::Feedback {
+            door_open: true,
+            bay_ready: Some(true),
+            ..Default::default()
+        };
+        let mut j = wheelchair::Journey::new(p, 0.18, if p.side() > 0.0 { 270.0 } else { 90.0 });
+        let mut max_step = 0.0_f32;
+        for step in 0..12000 {
+            let before = j.local;
+            j.advance(p, 1.0 / 60.0, 0.0, feedback, step == 0, &[]);
+            max_step = max_step.max((j.local - before).length());
+            if j.stage == wheelchair::Stage::Riding {
+                break;
+            }
+        }
+        let boarding = format!("{:?}", j.stage);
+        for _ in 0..240 {
+            j.advance(p, 1.0 / 60.0, 0.0, feedback, false, &[]);
+        }
+        j.alight_requested = true;
+        for step in 0..12000 {
+            let before = j.local;
+            j.advance(p, 1.0 / 60.0, 0.0, feedback, step == 0, &[]);
+            max_step = max_step.max((j.local - before).length());
+            if j.stage == wheelchair::Stage::Finished {
+                break;
+            }
+        }
+        let alighting = format!("{:?}", j.stage);
+        for _ in 0..240 {
+            j.advance(p, 1.0 / 60.0, 0.0, feedback, false, &[]);
+        }
+        return json!({"fixture":"additional equipment controller, doors and bay available, 18 cm curb",
+            "controller":{"boarding":boarding,"alighting":alighting,"max_step_metres":max_step,"interlocked_after_stow":j.interlocked()}});
     };
     let man = binding.trigger.as_deref() == Some("ramplift_wunsch");
     let solaris = binding
@@ -82,6 +115,32 @@ pub fn run(v: &mut VehicleInstance, p: &Profile) -> Value {
         }
     }
     let deployed = snapshot(v, p);
+    let feedback = wheelchair::discovery::feedback(v, p);
+    let mut journey = wheelchair::Journey::new(
+        p,
+        0.18 - body_z as f32,
+        if p.side() > 0.0 { 270.0 } else { 90.0 },
+    );
+    let mut max_step = 0.0_f32;
+    for step in 0..12000 {
+        let before = journey.local;
+        journey.advance(p, 1.0 / 60.0, 0.0, feedback, step == 0, &[]);
+        max_step = max_step.max((journey.local - before).length());
+        if journey.stage == wheelchair::Stage::Riding {
+            break;
+        }
+    }
+    let boarding = format!("{:?}", journey.stage);
+    journey.alight_requested = true;
+    for step in 0..12000 {
+        let before = journey.local;
+        journey.advance(p, 1.0 / 60.0, 0.0, feedback, step == 0, &[]);
+        max_step = max_step.max((journey.local - before).length());
+        if journey.stage == wheelchair::Stage::Finished {
+            break;
+        }
+    }
+    let alighting = format!("{:?}", journey.stage);
     if man {
         v.set_var("door_handsteuerung", 0.0);
         v.set_var("door_2", 0.0);
@@ -101,6 +160,15 @@ pub fn run(v: &mut VehicleInstance, p: &Profile) -> Value {
         animate(v, 0.02);
     }
     let stowed = snapshot(v, p);
+    journey.advance(
+        p,
+        0.02,
+        0.0,
+        wheelchair::discovery::feedback(v, p),
+        false,
+        &[],
+    );
+    let controller = json!({"boarding":boarding,"alighting":alighting,"max_step_metres":max_step,"interlocked_after_stow":journey.interlocked()});
     json!({"macro":name,"trigger_found":fired,"curb_height":0.18,"body_z":body_z,"initial":initial,"first_ready_seconds":first_ready,
-        "deployed":deployed,"immediately_after_stow":immediately_after_stow,"stowed":stowed})
+        "deployed":deployed,"immediately_after_stow":immediately_after_stow,"stowed":stowed,"controller":controller})
 }

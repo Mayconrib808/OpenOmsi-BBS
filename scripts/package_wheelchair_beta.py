@@ -11,7 +11,7 @@ def package(binary: Path, output: Path) -> Path:
     if binary.read_bytes()[:2] != b'MZ':
         raise ValueError('A real Windows native executable is required')
     output.mkdir(parents=True, exist_ok=True)
-    stage = output / 'OpenOMSI-Cadeirantes-Beta1'
+    stage = output / 'OpenOMSI-Cadeirantes-Beta2'
     stage.mkdir(exist_ok=True)
     shutil.copytree(ASSETS, stage, dirs_exist_ok=True)
     shutil.copy2(binary, stage / 'openomsi.exe')
@@ -23,7 +23,7 @@ def package(binary: Path, output: Path) -> Path:
         shutil.copy2(ROOT / name, stage / name)
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     manifest = {
-        'version': 'wheelchair-beta.1', 'engine': '0.3.47-coop.16',
+        'version': 'wheelchair-beta.2', 'engine': '0.3.47-coop.16',
         'source_commit': commit,
         'source_url': f'https://github.com/Mayconrib808/OpenOmsi-BBS/tree/{commit}',
         'native_sha256': hashlib.sha256(binary.read_bytes()).hexdigest(),
@@ -31,13 +31,15 @@ def package(binary: Path, output: Path) -> Path:
         'native_startup': 'CI openomsi.exe --help',
         'visual_gameplay_verified': False,
         'multiplayer_verified': False,
-        'supported_profile': '2007 Marcopolo Torino OF 1722M (measured initial profile)',
+        'supported_profile': 'Torino 2007 OF 1722M (explicit) + automatic accessibility discovery',
+        'geometry_samples': ['Ian Santos Vip III B270F', 'Edu231 Vip IV OF-1721/1724', 'MAN EN92', 'Solaris Urbino 12/15'],
+        'original_equipment_macro_tests': 'CPU-only original scripts and animations against a simulated curb; see VALIDACAO.md',
         'stable_updater_modified': False,
     }
     (stage / 'beta-manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2)+'\n', encoding='utf-8')
-    sources = output / 'OpenOMSI-Cadeirantes-Beta1-fontes.zip'
+    sources = output / 'OpenOMSI-Cadeirantes-Beta2-fontes.zip'
     subprocess.run(['git', 'archive', '--format=zip', '-o', str(sources.resolve()), 'HEAD'], cwd=ROOT, check=True)
-    archive = output / 'OpenOMSI-Cadeirantes-Beta1-Windows-x64.zip'
+    archive = output / 'OpenOMSI-Cadeirantes-Beta2-Windows-x64.zip'
     with zipfile.ZipFile(archive, 'w', zipfile.ZIP_DEFLATED, compresslevel=6) as z:
         for p in sorted(stage.rglob('*')):
             if p.is_file(): z.write(p, p.relative_to(output))

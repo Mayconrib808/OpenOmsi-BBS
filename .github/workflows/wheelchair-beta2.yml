@@ -1,0 +1,171 @@
+name: Wheelchair beta 2 - native Windows test package
+on:
+  push:
+    branches: [beta/wheelchair-adaptive-2]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: wheelchair-beta-${{ github.sha }}
+  cancel-in-progress: true
+jobs:
+  installer:
+    runs-on: windows-2022
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Test installer in Windows PowerShell before compiling
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $kit = Join-Path $env:RUNNER_TEMP 'wheelchair-installer-contract'
+          New-Item -ItemType Directory -Path $kit -Force | Out-Null
+          Copy-Item coop-assets/wheelchair-beta/* -Destination $kit -Recurse -Force
+          # This sentinel only tests file placement/hash/rollback; it is never run or shipped.
+          [IO.File]::WriteAllBytes((Join-Path $kit 'openomsi.exe'),[Text.Encoding]::ASCII.GetBytes('MZ-installer-fixture-only'))
+          @{ version='installer-fixture'; native_sha256=(Get-FileHash (Join-Path $kit 'openomsi.exe') -Algorithm SHA256).Hash.ToLowerInvariant() } | ConvertTo-Json | Set-Content (Join-Path $kit 'beta-manifest.json')
+          $root = Join-Path $env:RUNNER_TEMP 'wheelchair-installer-fixture'
+          New-Item -ItemType Directory -Path (Join-Path $root 'maps'),(Join-Path $root 'Vehicles/2007 Marcopolo Torino OF 1722M') -Force | Out-Null
+          'original-omsi' | Set-Content (Join-Path $root 'Omsi.exe')
+          'stable-native-retained' | Set-Content (Join-Path $root 'openomsi.exe')
+          $profile = Join-Path $root 'Vehicles/2007 Marcopolo Torino OF 1722M/wheelchair.json'
+          'prior-profile-retained' | Set-Content $profile
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Installer failed in Windows PowerShell' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'BridgeWheelchairBeta/Instalar_Beta.ps1') -Uninstall -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Uninstaller failed in Windows PowerShell' }
+          if ((Get-Content $profile -Raw).Trim() -ne 'prior-profile-retained') { throw 'Prior profile not restored' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Second installation failed' }
+          'edited-after-install' | Set-Content $profile
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'BridgeWheelchairBeta/Instalar_Beta.ps1') -Uninstall -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Edited-profile removal failed' }
+          if ((Get-Content $profile -Raw).Trim() -ne 'edited-after-install') { throw 'User edit was lost on removal' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Reinstallation with edited profile failed' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'BridgeWheelchairBeta/Instalar_Beta.ps1') -Uninstall -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Reinstallation rollback failed' }
+          if ((Get-Content $profile -Raw).Trim() -ne 'edited-after-install') { throw 'Reinstall did not preserve edited backup' }
+          if ((Get-Content (Join-Path $root 'openomsi.exe') -Raw).Trim() -ne 'stable-native-retained') { throw 'Stable executable changed' }
+          if ((Get-Content (Join-Path $root 'Omsi.exe') -Raw).Trim() -ne 'original-omsi') { throw 'Original game changed' }
+
+  windows:
+    needs: installer
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      OPENOMSI_VERSION: 0.3.47-coop.16-wheelchair-beta.2
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      OPENOMSI_WHEELCHAIR_BETA: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '3'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      OMSI_NO_UPDATE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: visual-hail-route-2225
+      - name: Accessibility state machine, mesh validity and simulation regression
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim --lib
+          if ($LASTEXITCODE -ne 0) { throw 'Simulation tests failed' }
+      - name: Build native P16 game and check executable entry point
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Native build failed' }
+          & target/release/openomsi.exe --help | Out-File native-help.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native executable failed to start' }
+      - name: Package isolated accessibility beta with install and rollback
+        shell: pwsh
+        run: |
+          python scripts/package_wheelchair_beta.py --binary target/release/openomsi.exe --out dist
+          if ($LASTEXITCODE -ne 0) { throw 'Beta packaging failed' }
+      - name: Check installation and rollback without replacing the stable game
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Expand-Archive dist/OpenOMSI-Cadeirantes-Beta2-Windows-x64.zip -DestinationPath install-test
+          $kit = Join-Path $PWD 'install-test/OpenOMSI-Cadeirantes-Beta2'
+          $root = Join-Path $env:RUNNER_TEMP 'OMSI wheelchair install fixture with spaces'
+          New-Item -ItemType Directory -Path (Join-Path $root 'maps'),(Join-Path $root 'Vehicles/2007 Marcopolo Torino OF 1722M') -Force | Out-Null
+          'original-omsi' | Set-Content (Join-Path $root 'Omsi.exe')
+          'stable-native-retained' | Set-Content (Join-Path $root 'openomsi.exe')
+          $profile = Join-Path $root 'Vehicles/2007 Marcopolo Torino OF 1722M/wheelchair.json'
+          'prior-profile-retained' | Set-Content $profile
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Beta installation failed' }
+          if ((Get-Content (Join-Path $root 'openomsi.exe') -Raw).Trim() -ne 'stable-native-retained') { throw 'Stable executable changed' }
+          $installed = Join-Path $root 'BridgeWheelchairBeta'
+          $newsPath = Join-Path $installed 'CHANGELOG_INSTALADO.html'
+          if (-not (Select-String -LiteralPath $newsPath -Pattern 'BETA1_START' -Quiet)) { throw 'Fresh installation lost cumulative beta 1 changes' }
+          $statePath = Join-Path $installed 'install-state.json'
+          $state = Get-Content $statePath -Raw | ConvertFrom-Json
+          $state.version = 'wheelchair-beta.1'
+          $state | ConvertTo-Json -Depth 6 | Set-Content $statePath -Encoding UTF8
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $kit 'Instalar_Beta.ps1') -OmsiRoot $root -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Upgrade failed' }
+          if (Select-String -LiteralPath $newsPath -Pattern 'BETA1_START' -Quiet) { throw 'Upgrade repeated already installed beta 1 changes' }
+          'wheelchair-beta.2' | Set-Content (Join-Path $installed 'changelog-beta2-visto.txt')
+          $launchTest = Join-Path $env:RUNNER_TEMP 'test-beta-launcher.ps1'
+          @'
+          param([string]$BetaPath)
+          $ErrorActionPreference = 'Stop'
+          & (Join-Path $BetaPath 'Iniciar_Beta.ps1') -GameArgs @('--help')
+          '@ | Set-Content $launchTest -Encoding UTF8
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File $launchTest -BetaPath $installed
+          if ($LASTEXITCODE -ne 0) { throw 'Native beta launcher failed' }
+          if (-not (Select-String -LiteralPath (Join-Path $installed 'logs/game-beta-stdout.log') -Pattern 'Usage:' -Quiet)) { throw 'Native help was not captured in session log' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $installed 'Recolher_Logs.ps1') -NoOpen
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $installed 'Logs-Beta2.zip'))) { throw 'Log collection failed' }
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File (Join-Path $root 'BridgeWheelchairBeta/Instalar_Beta.ps1') -Uninstall -NoOpen
+          if ($LASTEXITCODE -ne 0) { throw 'Beta uninstall failed' }
+          if ((Get-Content $profile -Raw).Trim() -ne 'prior-profile-retained') { throw 'Original profile was not restored' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-Cadeirantes-Beta2-Windows-x64
+          path: dist/
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+
+  beta-download:
+    needs: windows
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-Cadeirantes-Beta2-Windows-x64
+          path: approved
+      - name: Publish the tested isolated prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current_head=$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/beta/wheelchair-adaptive-2" --jq '.object.sha')
+          if [ "$current_head" != "$GITHUB_SHA" ]; then
+            echo "A newer beta commit is being tested; skipping publication."
+            exit 0
+          fi
+          gh release create wheelchair-beta.2-20261104-r1 \
+            approved/OpenOMSI-Cadeirantes-Beta2-Windows-x64.zip \
+            approved/OpenOMSI-Cadeirantes-Beta2-fontes.zip \
+            approved/SHA256SUMS \
+            --target "$GITHUB_SHA" --prerelease --latest=false \
+            --title "OpenOMSI Cadeirantes - Beta 2" \
+            --notes-file coop-assets/wheelchair-beta/RELEASE.md

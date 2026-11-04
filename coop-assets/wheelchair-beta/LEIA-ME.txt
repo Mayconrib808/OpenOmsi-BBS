@@ -1,74 +1,68 @@
-OPENOMSI · CADEIRANTES · BETA 1
-
-Esta beta usa o motor 0.3.47 / Coop 16 com um controlador de acessibilidade próprio.
+OPENOMSI · CADEIRANTES · BETA 2
 
 INSTALAÇÃO
-1. Extraia o ZIP em uma pasta.
-2. Execute Instalar_Beta.cmd e escolha sua pasta do OMSI 2.
-3. Abra INICIAR_BETA.cmd na pasta BridgeWheelchairBeta criada dentro do OMSI 2.
-4. Escolha um mapa e o Torino 2007 OF 1722M do pacote original enviado.
+1. Extraia o ZIP e execute Instalar_Beta.cmd.
+2. Escolha a pasta OMSI 2 que contém Omsi.exe, maps e Vehicles.
+3. Abra BridgeWheelchairBeta/INICIAR_BETA.cmd.
+4. Escolha seu mapa e ônibus no menu. MAN/Grundorf são a situação inicial do
+   motor; não indicam que você escolheu a instalação errada.
+O changelog abre após a instalação, acumulando a Beta 1 numa instalação nova.
+Os mods originais precisam estar instalados.
 
 CONTROLES
-Ctrl+Alt+W: cria um passageiro de teste, com o ônibus completamente parado.
-Ctrl+Alt+E: inicia assistência no embarque ou no desembarque solicitado.
-Ctrl+Alt+D: passageiro solicita desembarque.
-Os controles funcionam também com o motorista a pé.
+Ctrl+Alt+W: passageiro de teste, com o ônibus parado.
+Ctrl+Alt+E: assistência de embarque ou desembarque solicitado.
+Ctrl+Alt+D: solicitar desembarque.
+Os controles também funcionam com o motorista a pé.
+Abra por completo a porta acessível. Aguarde a acomodação e o recolhimento do
+equipamento antes de partir. A mensagem mostra a etapa ou o motivo da espera.
+O desembarque automático continua após duas mudanças de parada reconhecidas.
 
-Abra a porta acessível antes de iniciar a assistência. A legenda informa a etapa
-ou o motivo da espera. Aguarde a acomodação e o recolhimento do equipamento antes
-de tentar sair. O desembarque também é solicitado após duas mudanças de parada.
+MODELOS ANALISADOS
+Caio By Ian Santos: Vip III B270F Euro 5 enviado, elevador estático central.
+Caio Induscar By Edu231: Vip IV OF-1721/1724 enviados, elevador estático central.
+MAN NL202 EN92: rampa original na segunda porta.
+Solaris Urbino 12/15: rampa original na porta central.
+Torino 2007 OF 1722M: mantém o perfil medido da Beta 1 na porta traseira.
+Millennium IV articulado: equipamento nativo reconhecido; trajeto pendente de
+calibração. Solaris 18: também precisa do trailer correto.
+A detecção é automática em outros modelos quando há evidência suficiente.
+Um botão de sinal ou variáveis apenas declaradas não comprovam uma rampa.
+Um perfil wheelchair.json medido continua tendo prioridade sobre o detector.
 
-VEÍCULO INCLUÍDO NO PERFIL
-2007 Marcopolo Torino OF 1722M, configurações Manual Real e Auto.
-Esse modelo enviado tem duas portas: a área de cadeira de rodas fica em frente
-à porta TRASEIRA. O perfil usa essa porta real. Ele não inventa uma porta central.
-Em um ônibus de três portas, um perfil próprio pode selecionar a porta do meio.
-O pacote contém somente o perfil adicional; o mod original continua necessário.
+EQUIPAMENTO ORIGINAL
+Solaris: habilite os controles normais, abra a porta central e aproxime-se da
+calçada. Use o ajoelhamento quando necessário. Ctrl+Alt+E solicita a rampa; a
+cadeira espera o movimento terminar e o apoio no chão. Aguarde o recolhimento
+antes de fechar a porta. Uma rampa suspensa ou muito inclinada não libera acesso.
+MAN: habilite energia, freio de parada, portas manuais e a chave do sistema
+Hublift/Rampe no painel lateral. Ctrl+Alt+E solicita a rampa original.
+Depois da acomodação, feche a porta e desligue o comando manual para recolher
+pela sequência original. O freio da assistência é liberado após o recolhimento.
+A beta opera comandos existentes; não escreve posições artificiais nas peças.
+Nos Vip analisados, a peça estática é ocultada durante o uso da plataforma
+adicional e volta ao estado original depois da operação. O detector não edita
+os arquivos do mod. Banco ocupado e passagem ocupada fazem a cadeira aguardar.
 
-OUTROS ÔNIBUS
-As rampas/elevadores nativos são integrados por wheelchair.json ao lado do .bus.
-Um arquivo com o mesmo nome do ônibus e extensão .wheelchair.json tem prioridade.
-O perfil precisa de medidas da porta, trajeto, área reservada e feedback real
-do equipamento. Um botão de sinal sozinho não certifica acessibilidade.
-Esta beta não declara compatibilidade universal com mods não medidos.
-
-VERIFICAÇÃO VISUAL
-A compilação e os testes da simulação são separados do teste visual no seu jogo.
-Confira as mãos nos aros, apoio dos pés, manobra no espaço e encaixe do elevador.
-O teste visual completo em mapas de terceiros e o multiplayer dependem de uma
-sessão real; consulte beta-manifest.json para a validação registrada no pacote.
+POSTURA E APARÊNCIA
+Os pés têm alvos separados nos apoios. Os testes cobrem escalas e orientações
+diferentes do personagem. Confira no jogo os joelhos, roupas, mãos nos aros,
+manobras, rodas no piso e encaixe da plataforma. A validação visual desta versão
+em seus mapas continua necessária; os testes de código não substituem isso.
 
 LOGS
-Os registros de etapas começam com WHEELCHAIR no game.log.
-Recolher_Logs.cmd copia o último game.log para a pasta da beta.
-Ao relatar um problema, inclua o log e o nome exato do ônibus.
-
-REMOÇÃO
-Execute Desinstalar_Beta.cmd. Perfis anteriores são restaurados quando possível;
-arquivos modificados pelo usuário depois da instalação são preservados.
-
-Os fontes e a licença correspondente estão no ZIP de fontes, ou no commit
-indicado em beta-manifest.json. Nenhum arquivo original de ônibus é distribuído.
-
+INICIAR_BETA.cmd grava logs/game-beta.log e logs/game-beta-stdout.log da sessão,
+preservando uma cópia da anterior. Feche o jogo e execute Recolher_Logs.cmd.
+Envie Logs-Beta2.zip, o nome exato do ônibus e a etapa em que ocorreu o problema.
+O diagnóstico do detector começa com WHEELCHAIR DETECTION.
 
 MULTIPLAYER
-Todos que precisam ver a cadeira e a plataforma devem iniciar esta mesma beta.
-O dono do ônibus executa a simulação; os demais reproduzem o estado recebido.
-O servidor P16 instalado continua sendo usado. Troca de motorista e reconexão
-em uma sessão real ainda precisam ser confirmadas pelos testes de jogo.
+Todos os observadores precisam usar esta mesma beta. O dono do ônibus controla
+a simulação. Reconexão, troca de motorista e inclinação nos observadores ainda
+precisam de uma sessão real de validação. Consulte beta-manifest.json.
 
-A beta está ativada no próprio executável compilado. O arquivo INICIAR_BETA.cmd
-configura o início isolado. OMSI_WHEELCHAIR_BETA=0 desativa o recurso para comparar.
-
-EQUIPAMENTO NATIVO
-native_height_var deve fornecer altura em metros no sistema local do ônibus,
-não apenas um valor normalizado de animação. Se necessário, o script do veículo
-precisa expor essa variável. ground/floor/stowed são confirmações de posição.
-deploy_trigger, raise_trigger, lower_trigger, alight_trigger e stow_trigger são
-comandos opcionais, disparados uma vez por etapa. alight_trigger prepara a
-plataforma no nível do piso para o desembarque. Sem esses comandos o motorista
-usa os controles originais; o passageiro espera pelo feedback verdadeiro.
-
-O canal de acessibilidade limita seus envios para reservar espaço aos comandos
-normais do P16. A frequência por observador diminui em salas com muitos jogadores.
-A validação desta beta em sessões grandes ainda está pendente.
+REMOÇÃO
+Execute Desinstalar_Beta.cmd. Perfis anteriores são restaurados; alterações do
+usuário posteriores à instalação são preservadas.
+Os fontes acompanham a publicação. O pacote não redistribui modelos ou texturas
+dos mods analisados. OMSI_WHEELCHAIR_BETA=0 desativa o recurso para comparação.

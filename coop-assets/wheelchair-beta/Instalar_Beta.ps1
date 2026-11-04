@@ -76,7 +76,16 @@ try {
         $records += @{ destination=$dest; backup=$backup; installed_hash=$installed }
     }
     @{ root=$OmsiRoot; version=$manifest.version; profiles=$records } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $target 'install-state.json') -Encoding UTF8
-    if (-not $NoOpen) { Start-Process (Join-Path $target 'CHANGELOG.html') }
-    if ($records.Count -eq 0) { Write-Host 'Torino original nao encontrado. Os outros onibus precisam de um perfil medido.' -ForegroundColor Yellow }
+    $news = Get-Content -LiteralPath (Join-Path $target 'CHANGELOG.html') -Encoding UTF8 -Raw
+    if ($oldState -and $oldState.version -in @('wheelchair-beta.1','wheelchair-beta.2')) {
+        $news = [regex]::Replace($news, '(?s)<!--BETA1_START-->.*?<!--BETA1_END-->', '')
+    }
+    $newsPath = Join-Path $target 'CHANGELOG_INSTALADO.html'
+    [IO.File]::WriteAllText($newsPath, $news, (New-Object System.Text.UTF8Encoding($false)))
+    if (-not $NoOpen) {
+        Start-Process $newsPath
+        'wheelchair-beta.2' | Set-Content -LiteralPath (Join-Path $target 'changelog-beta2-visto.txt')
+    }
+    if ($records.Count -eq 0) { Write-Host 'Torino original nao encontrado. O detector tentara reconhecer o acesso dos outros onibus ao carregar.' -ForegroundColor Yellow }
     Write-Host "Beta instalada. Abra: $target\INICIAR_BETA.cmd" -ForegroundColor Green
 } catch { Write-Host $_ -ForegroundColor Red; exit 1 }

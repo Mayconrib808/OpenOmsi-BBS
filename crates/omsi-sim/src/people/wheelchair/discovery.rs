@@ -650,30 +650,16 @@ impl Geometry {
         false
     }
     fn height(&self, p: Vec3) -> Option<f32> {
-        self.floor
-            .iter()
-            .filter_map(|t| {
-                let a = (t[1] - t[0]).truncate();
-                let b = (t[2] - t[0]).truncate();
-                let v = (p - t[0]).truncate();
-                let den = a.perp_dot(b);
-                if den.abs() < 1e-7 {
-                    return None;
-                }
-                let u = v.perp_dot(b) / den;
-                let w = a.perp_dot(v) / den;
-                let z = t[0].z + u * (t[1].z - t[0].z) + w * (t[2].z - t[0].z);
-                (u >= -0.001 && w >= -0.001 && u + w <= 1.001 && (z - p.z).abs() < 0.15)
-                    .then_some(z)
-            })
-            .max_by(f32::total_cmp)
+        floor_height(&self.floor, p)
     }
     fn chair_clear(&self, p: Vec3, heading: f32) -> bool {
         let (s, c) = heading.to_radians().sin_cos();
         let mut forward = Vec3::new(s, c, 0.0);
         let mut right = Vec3::new(c, -s, 0.0);
-        let up=contact_normal(p,heading,|at|self.height(at)).unwrap_or(Vec3::Z);
-        let tilt=glam::Quat::from_rotation_arc(Vec3::Z,up);forward=tilt*forward;right=tilt*right;
+        let up = contact_normal(p, heading, |at| self.height(at)).unwrap_or(Vec3::Z);
+        let tilt = glam::Quat::from_rotation_arc(Vec3::Z, up);
+        forward = tilt * forward;
+        right = tilt * right;
         // Wheels, footrests, legs, arms, torso, head and back frame.
         [
             (0.0, 0.33, Vec3::new(0.38, 0.32, 0.30)),
@@ -734,14 +720,137 @@ impl Geometry {
     }
 }
 /// Fit the chair's rear wheels and front casters to a gently sloping floor.
-pub fn contact_normal(at:Vec3,heading:f32,height:impl Fn(Vec3)->Option<f32>)->Option<Vec3>{
-    let (s,c)=heading.to_radians().sin_cos();let forward=Vec3::new(s,c,0.0);let right=Vec3::new(c,-s,0.0);
-    let rear=[height(at-right*0.30).unwrap_or(at.z),height(at+right*0.30).unwrap_or(at.z)];
-    let front=[height(at+forward*0.42-right*0.18).unwrap_or(at.z),height(at+forward*0.42+right*0.18).unwrap_or(at.z)];
-    let sideways=(rear[1]-rear[0])/0.60;let ahead=((front[0]+front[1])-(rear[0]+rear[1]))*0.5/0.42;
-    let normal=(Vec3::Z-right*sideways-forward*ahead).normalize_or_zero();
-    (normal.is_finite()&&normal.z>0.85).then_some(normal)
+pub fn contact_normal(
+    at: Vec3,
+    heading: f32,
+    height: impl Fn(Vec3) -> Option<f32>,
+) -> Option<Vec3> {
+    let (s, c) = heading.to_radians().sin_cos();
+    let forward = Vec3::new(s, c, 0.0);
+    let right = Vec3::new(c, -s, 0.0);
+    let rear = [
+        height(at - right * 0.30).unwrap_or(at.z),
+        height(at + right * 0.30).unwrap_or(at.z),
+    ];
+    let front = [
+        height(at + forward * 0.42 - right * 0.18).unwrap_or(at.z),
+        height(at + forward * 0.42 + right * 0.18).unwrap_or(at.z),
+    ];
+    let sideways = (rear[1] - rear[0]) / 0.60;
+    let ahead = ((front[0] + front[1]) - (rear[0] + rear[1])) * 0.5 / 0.42;
+    let normal = (Vec3::Z - right * sideways - forward * ahead).normalize_or_zero();
+    (normal.is_finite() && normal.z > 0.85).then_some(normal)
 }
+fn floor_height(triangles: &[[Vec3; 3]], p: Vec3) -> Option<f32> {
+    triangles
+        .iter()
+        .filter_map(|t| {
+            let a = (t[1] - t[0]).truncate();
+            let b = (t[2] - t[0]).truncate();
+            let v = (p - t[0]).truncate();
+            let den = a.perp_dot(b);
+            if den.abs() < 1e-7 {
+                return None;
+            }
+            let u = v.perp_dot(b) / den;
+            let w = a.perp_dot(v) / den;
+            let z = t[0].z + u * (t[1].z - t[0].z) + w * (t[2].z - t[0].z);
+            (u >= -0.001 && w >= -0.001 && u + w <= 1.001 && (z - p.z).abs() < 0.15).then_some(z)
+        })
+        .max_by(f32::total_cmp)
+}
+/// Only floor triangles are retained; rendering meshes are not held by this sampler.
+pub struct FloorSurface {
+    triangles: Vec<[Vec3; 3]>,
+    last: Mutex<Option<(Vec<u32>, Vec3)>>,
+}
+impl FloorSurface {
+    pub fn load(v: &VehicleInstance) -> Self {
+        let mut triangles = Vec::new();
+        for (i, m) in v.ty.meshes.iter().enumerate() {
+            let d = &v.ty.model.meshes[m.def_index];
+            if !v.mesh_props.get(i).is_some_and(|p| p.visible)
+                || !d.animations.is_empty()
+                || d.anim_parent.is_some()
+                || equipment_name(&d.file)
+            {
+                continue;
+            }
+            for t in m.data.indices.chunks_exact(3) {
+                let p = t.map_positions(&m.data.positions);
+                if p.iter().all(|p| p.is_finite())
+                    && (p[1] - p[0]).cross(p[2] - p[0]).normalize_or_zero().z.abs() > 0.95
+                {
+                    triangles.push(p);
+                }
+            }
+        }
+        Self {
+            triangles,
+            last: Mutex::new(None),
+        }
+    }
+    pub fn normal(
+        &self,
+        at: Vec3,
+        heading: f32,
+        p: &Profile,
+        ground: f32,
+        surface: Option<[Vec3; 3]>,
+        active: bool,
+    ) -> Vec3 {
+        let mut key: Vec<_> = at
+            .to_array()
+            .into_iter()
+            .chain([heading, ground])
+            .map(f32::to_bits)
+            .collect();
+        key.push(u32::from(active));
+        key.push(u32::from(surface.is_some()));
+        if let Some(s) = surface {
+            for point in s {
+                key.extend(point.to_array().map(f32::to_bits));
+            }
+        }
+        if let Ok(last) = self.last.lock() {
+            if let Some((k, n)) = &*last {
+                if k == &key {
+                    return *n;
+                }
+            }
+        }
+        let ramp = active && matches!(p.equipment, Equipment::AddedRamp | Equipment::NativeRamp);
+        let normal = contact_normal(at, heading, |point| {
+            if (point.x - p.threshold.x) * p.side() > 0.0 {
+                Some(if ramp {
+                    ramp_height(p, point.truncate(), ground, surface)
+                } else {
+                    at.z
+                })
+            } else {
+                floor_height(&self.triangles, point)
+            }
+        })
+        .unwrap_or(Vec3::Z);
+        if let Ok(mut last) = self.last.lock() {
+            *last = Some((key, normal));
+        }
+        normal
+    }
+}
+pub fn ramp_height(p: &Profile, at: Vec2, ground: f32, surface: Option<[Vec3; 3]>) -> f32 {
+    let t = ((at.x - p.threshold.x) * p.side() / p.platform_length).clamp(0.0, 1.0);
+    if t >= 1.0 {
+        return ground;
+    }
+    let measured = surface.and_then(|s| height_on_plane(s, at));
+    let lip = surface
+        .and_then(|s| height_on_plane(s, p.threshold.truncate()))
+        .map_or(0.0, |h| p.threshold.z - h);
+    measured.unwrap_or(p.threshold.z + (ground - p.threshold.z) * t)
+        + lip * (1.0 - t * p.platform_length / 0.20).clamp(0.0, 1.0)
+}
+
 fn triangle_box(p: [Vec3; 3], centre: Vec3, half: Vec3) -> bool {
     let p = p.map(|p| p - centre);
     let edges = [p[1] - p[0], p[2] - p[1], p[0] - p[2]];
@@ -919,11 +1028,11 @@ pub fn feedback(v: &VehicleInstance, p: &Profile) -> Feedback {
     }
     let contact_edge = outer - normal * n.thickness;
     let world = v.position + v.body_rotation().transform_vector3(contact_edge).as_dvec3();
-    let contact = v
-        .ground
-        .as_ref()
-        .and_then(|g| g(world.x, world.y))
-        .is_some_and(|z| (world.z - z).abs() < 0.035);
+    let ground = match &v.contact {
+        Some(c) => c.probe(world.x, world.y, world.z + 0.5).below,
+        None => v.ground.as_ref().and_then(|g| g(world.x, world.y)),
+    };
+    let contact = ground.is_some_and(|z| (world.z - z).abs() < 0.035);
     let settled = v.animators.get(i).is_some_and(|m| {
         m.anims.iter().all(|(a, _, s)| {
             v.var(&a.variable).is_some_and(|x| {
@@ -965,6 +1074,7 @@ pub fn feedback(v: &VehicleInstance, p: &Profile) -> Feedback {
         equipment_height: None,
         surface: ground_ready.then_some([corners[0], corners[1], corners[3]]),
         bay_ready: p.fold.as_ref().map(|_| fold_ready(v, p)),
+        floor_normal: None,
     }
 }
 
@@ -1149,5 +1259,13 @@ mod tests {
             v.animators[1].update(0.02, &v.state.vars);
         }
         assert!(doors_ready(&v, &p));
+    }
+    #[test]
+    fn wheel_contacts_fit_the_same_sloping_floor_while_the_chair_turns() {
+        let expected = Vec3::new(-0.10, -0.05, 1.0).normalize();
+        for heading in [0.0, 90.0, 180.0, 270.0] {
+            let n = contact_normal(Vec3::ZERO, heading, |p| Some(0.10 * p.x + 0.05 * p.y)).unwrap();
+            assert!((n - expected).length() < 1e-5);
+        }
     }
 }

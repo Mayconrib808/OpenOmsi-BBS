@@ -1,14 +1,13 @@
-Beta experimental de cadeirantes para testes no openOMSI 0.3.47 / Coop 16.
+Beta 2 de cadeirantes para **openOMSI 0.3.47 / Coop 16**.
 
-- Cadeira original, postura sentada, mãos nos aros e rodas independentes.
-- Embarque e desembarque por um percurso contínuo, com elevador adicional e ponte sobre o vão da escada.
-- Espera por passagem livre, verificação da porta e bloqueio de partida durante a operação.
-- Sincronização adicional da cadeira e da plataforma entre clientes desta beta.
-- Instalação em pasta própria, backup dos perfis anteriores e remoção com restauração.
+- Correção dos pés e joelhos na postura sentada.
+- Detector automático de portas, piso, área livre e manobras.
+- Plataforma adicional nos Vip III de Ian Santos e Vip IV de Edu231 analisados.
+- Rampas originais do MAN EN92 e Solaris Urbino 12/15, com confirmação do movimento e apoio no chão.
+- Saída em ré, banco retrátil, acompanhamento do piso e atualização da altura da calçada.
+- Logs próprios da sessão e changelog após instalação.
 
-O perfil inicial é do **2007 Marcopolo Torino OF 1722M enviado**, com acesso pela porta **traseira**, junto à área reservada. Esse modelo tem duas portas. Ônibus com porta central acessível precisam de seu próprio perfil. Outros mods e equipamentos europeus ainda exigem medidas e variáveis específicas; não há compatibilidade universal certificada.
-
-Extraia o ZIP de Windows, execute **Instalar_Beta.cmd** e depois **INICIAR_BETA.cmd** na pasta instalada. Abra a porta acessível antes da assistência.
+Extraia **OpenOMSI-Cadeirantes-Beta2-Windows-x64.zip**, execute **Instalar_Beta.cmd** e abra **INICIAR_BETA.cmd** na pasta instalada. Escolha seu ônibus no menu. Os mods originais continuam necessários.
 
 | Comando | Ação |
 |---|---|
@@ -16,6 +15,8 @@ Extraia o ZIP de Windows, execute **Instalar_Beta.cmd** e depois **INICIAR_BETA.
 | Ctrl+Alt+E | Assistência |
 | Ctrl+Alt+D | Solicitar desembarque |
 
-A publicação exige testes da simulação, compilação de Windows, abertura de --help e verificação de instalação/remoção. O pacote registra o commit e o SHA-256 do executável.
+No Solaris, abra por completo a porta central e ajoelhe o ônibus quando necessário. No MAN, habilite o sistema de rampa, freio de parada e portas manuais; recolha pela sequência original depois da acomodação. Consulte LEIA-ME.txt.
 
-**A aparência e o comportamento em uma viagem real ainda precisam de teste no jogo.** Reconexão e troca de motorista no multiplayer também aguardam validação de uma sessão real. A versão estável e o feed Buscar atualizações continuam separados desta beta.
+**Compatibilidade experimental com os arquivos analisados.** Millennium articulado ainda aguarda calibração do trajeto; Solaris 18 aguarda o trailer. Outros mods podem exigir perfil medido. O perfil anterior do Torino foi preservado.
+
+A publicação exige testes da simulação, compilação de Windows, abertura do executável e instalação/remoção. **Aparência e uma viagem real nesta versão precisam de teste no jogo**, assim como o multiplayer. Consulte VALIDACAO.md e beta-manifest.json.
