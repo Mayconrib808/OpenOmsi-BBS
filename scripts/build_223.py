@@ -66,6 +66,7 @@ def main():
  assert launcher_meta['path']==launcher_name
  assert sha(launcher_binary)==launcher_meta['launcher_sha256'] and launcher_binary[:2]==b'MZ'
  assert launcher_name in before, 'Missing old launcher: check baseline layout'
+ assert sha(launcher_binary)!=before[launcher_name], 'Old desktop lobby cannot provide the new accessibility settings'
  files[launcher_name]=launcher_binary
  marker=json.loads(files[marker_name])
  marker.update(bridge_line=VERSION,source_commit=evidence['commit'],native_version=NATIVE_VERSION,native_sha256=sha(native),protocol=16,version=NATIVE_VERSION,openomsi_version='0.3.47',upstream_commit=UPSTREAM)
