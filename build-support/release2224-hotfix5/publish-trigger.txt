@@ -1,0 +1,6 @@
+Release: 2.2.2.4-hotfix.5
+Sequence: 2026110402
+Approved Windows run: 41871370040
+Approved artifact: 13348256683
+Signed manifest: build-support/release2224-hotfix5/stable.json
+Private signing key: retained offline, NOT committed.
