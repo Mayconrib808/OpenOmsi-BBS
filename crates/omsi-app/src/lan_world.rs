@@ -185,6 +185,8 @@ pub struct LanWorld {
     next_up_id: u32,
     epoch: Option<Instant>,
     log_t: f32,
+    /// Periodic audit of authoritative and mirrored passengers (no debug flag needed).
+    passenger_audit_elapsed: f32,
     trace: Option<std::io::BufWriter<std::fs::File>>,
     trace_t: f32,
     trace_opened: bool,
@@ -602,8 +604,25 @@ impl LanWorld {
         self.views.retain(|id, _| players.iter().any(|p| p.0 == *id));
         let players_at = players.clone();
         let lan_me_pos = me;
+        self.passenger_audit_elapsed += dt.max(0.0);
+        let passenger_audit_due = self.passenger_audit_elapsed >= 60.0;
+        if passenger_audit_due {
+            self.passenger_audit_elapsed = 0.0;
+        }
         for (id, at) in players {
             let view = self.views.entry(id).or_default();
+            if passenger_audit_due {
+                if let Some(h) = h_ref {
+                    let nearby = h.lan_people(at, PERSON_RADIUS);
+                    let waiting = nearby.iter().filter(|p| p.waiting.is_some()).count();
+                    log::info!(
+                        "PASSENGER_LAN_AUDIT role=host peer={id} at=({:.1},{:.1}) radius_m={:.0} authoritative_nearby={} authoritative_waiting={} previous_frame_people={} world_stream_bytes={}",
+                        at.x, at.y, PERSON_RADIUS, nearby.len(), waiting, view.last_counts.0, view.bytes
+                    );
+                } else {
+                    log::info!("PASSENGER_LAN_AUDIT role=host peer={id} unavailable=no_humans");
+                }
+            }
             view.acc += dt;
             view.lights_acc += dt;
             for s in view.sent.values_mut() {
@@ -839,6 +858,16 @@ impl LanWorld {
         m.people.retain(|_, t| t.heard.elapsed() < forget);
         if let Some(h) = humans.as_deref_mut() {
             m.update_people(lan, h, view, world, renderer, scene, render_ms);
+        }
+        self.passenger_audit_elapsed += dt.max(0.0);
+        if self.passenger_audit_elapsed >= 60.0 {
+            self.passenger_audit_elapsed = 0.0;
+            let waiting = m.people.values().filter(|t| t.samples.last().is_some_and(|s|
+                matches!(s.v.place, PersonPlace::Foot { waiting: Some(_), .. }))).count();
+            log::info!(
+                "PASSENGER_LAN_AUDIT role=client mirrored_people={} mirrored_waiting={} drawn_people={} claims_granted={} claims_denied={} world_received_bytes={}",
+                m.people.len(), waiting, m.drawn_people.len(), m.granted, m.denied, lan.world_received
+            );
         }
         if let Some(f) = self.trace.as_mut() {
             self.trace_t -= dt;
