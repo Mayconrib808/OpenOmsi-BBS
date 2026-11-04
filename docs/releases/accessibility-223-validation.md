@@ -1,6 +1,6 @@
 # Validação de acessibilidade 2.2.3
 
-Base: **2.2.2.4 Hotfix 5**. A suíte de simulação passou com 1.003 testes aprovados, 31 ignorados e nenhuma falha. O ensaio abaixo usa CPU, os arquivos fornecidos e o controlador de cadeira; não executa renderização, a viagem completa da demanda de passageiros nem uma sessão multiplayer real.
+Base: **2.2.2.4 Hotfix 5**. A suíte de simulação passou com 1.004 testes aprovados, 31 ignorados e nenhuma falha. O ensaio abaixo usa CPU, os arquivos fornecidos e o controlador de cadeira; não executa renderização, a viagem completa da demanda de passageiros nem uma sessão multiplayer real.
 
 **19 variantes completaram o ciclo automatizado; 9 variantes principais continuam bloqueadas; 3 arquivos são componentes traseiros de articulados.** Nenhum resultado equivale a garantia visual em jogo. As três partes traseiras não são veículos principais independentes.
 

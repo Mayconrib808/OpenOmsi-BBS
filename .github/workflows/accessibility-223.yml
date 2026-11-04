@@ -138,7 +138,8 @@ jobs:
         with:
           workspaces: |
             launcher/src-tauri -> target
-          key: 2222-desktop-launcher
+          key: 2222-desktop-launcher-windows
+          add-job-id-key: false
       - name: Verify existing settings and accessibility controls
         shell: pwsh
         run: |

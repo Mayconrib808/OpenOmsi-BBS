@@ -304,7 +304,7 @@ impl LanWorld {
                 v.described.insert(id, 0.0);
                 describe_left -= 1;
                 if returning { v.return_described.insert(id); }
-                lan.send_desc_up(&Desc::Person { wheelchair: p.wheelchair, 
+                lan.send_desc_up(&Desc::Person { wheelchair: p.wheelchair,
                     intent: p.waiting.and_then(|_| person_intent(h,p.id,lan.my_id)),
                     id,
                     file: Humans::type_file(&p.ty),
@@ -342,7 +342,7 @@ impl LanWorld {
             if describe_left > 0 && v.described.get(&id).is_none_or(|age| *age >= 5.0) {
                 v.described.insert(id, 0.0);
                 describe_left -= 1;
-                lan.send_desc_up(&Desc::Person { wheelchair: p.wheelchair, 
+                lan.send_desc_up(&Desc::Person { wheelchair: p.wheelchair,
                     intent: None,
                     id,
                     file: Humans::type_file(&p.ty),
@@ -1438,7 +1438,7 @@ fn gather_people(view: &mut View, h: &Humans, table: Option<&omsi_net::traffic_t
         g.ids_hash ^= fnv(&(p.id as u64 | 1 << 40).to_le_bytes());
         if !view.described.contains_key(&key) {
             view.described.insert(key, 0);
-            g.descs.push(Desc::Person { wheelchair: p.wheelchair, 
+            g.descs.push(Desc::Person { wheelchair: p.wheelchair,
                 intent: person_intent(h,p.id,1),
                 id: p.id,
                 file: Humans::type_file(&p.ty),
@@ -1595,7 +1595,7 @@ fn describe(humans: Option<&Humans>, r: EntityRef) -> Option<Desc> {
         return None;
     }
     let p = humans?.lan_people_by_id(r.id)?;
-    Some(Desc::Person { wheelchair: humans?.wheelchairs.is_chair(r.id), 
+    Some(Desc::Person { wheelchair: humans?.wheelchairs.is_chair(r.id),
         intent: person_intent(humans?,r.id,1),
         id: r.id,
         file: Humans::type_file(&p),

@@ -187,7 +187,7 @@ impl PeopleSim {
         }
         let _=(bus,world);
     }
-    pub(super) fn finish_wheelchair_service(&mut self,i:usize,bn:&BusNow,buses:&[BusNow],world:&dyn World) {
+    pub(crate) fn finish_wheelchair_service(&mut self,i:usize,bn:&BusNow,buses:&[BusNow],world:&dyn World) {
         let Some(j)=self.wheelchairs.journey.as_ref()else{return;};
         if j.deployment>0.0001{return;}
         let riding=j.stage==Stage::Riding;
@@ -200,9 +200,11 @@ impl PeopleSim {
         if riding {
             let profile=self.wheelchairs.profile.clone().unwrap();
             let reserved=std::mem::take(&mut self.wheelchairs.reserved);
+            let boarding_km=self.odometer.get(&BusId::Player).copied().unwrap_or(0.0);
             if let Some(p)=self.pax_mut(i){
                 p.task=Task::SittingInBus;p.st=0;p.pax_state=2.0;p.pos=journey.local.as_dvec3();
                 p.inside=Some(BusId::Player);p.bus=Some(BusId::Player);p.seat=None;
+                p.km_start=boarding_km;
             }
             self.wheelchairs.riders.insert(id,Rider{profile,journey,reserved});
             log::info!("WHEELCHAIR bay_secured person={id} occupied={} capacity={}",self.wheelchairs.riders.len(),self.wheelchairs.profiles.len());

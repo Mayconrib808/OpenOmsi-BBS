@@ -726,7 +726,7 @@ mod tests {
             let parts: Vec<&str> = bad.split('|').collect();
             assert!(Desc::decode(&parts).is_none(), "{bad}");
         }
-        let p = Desc::Person { wheelchair: false, 
+        let p = Desc::Person { wheelchair: false,
             id: 5,
             file: "Humans\\Generic\\m1.hum".into(),
                 intent: None,
@@ -735,7 +735,7 @@ mod tests {
         let parts: Vec<&str> = text.split('|').collect();
         assert_eq!(
             Desc::decode(&parts).unwrap(),
-            Desc::Person { wheelchair: false, 
+            Desc::Person { wheelchair: false,
                 id: 5,
                 file: "Humans/Generic/m1.hum".into(),
                 intent: None,

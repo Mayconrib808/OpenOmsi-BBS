@@ -1067,6 +1067,36 @@ mod connection_tests {
             dests:vec![("Cidade".into(),1.)],lines:vec![("Cidade".into(),HashSet::from(["Destino".into()]))] }
     }
     #[test]
+    fn wheelchair_boarding_starts_a_new_ride_and_alighting_keeps_the_person() {
+        use crate::people::wheelchair::{Journey,Profile,Stage};
+        let (root,mut h,world,i)=fixture("wheelchair-ride-history");
+        h.transfer_percent=0.0;
+        let bn=bus(&root,BusId::Player,"Destino",DVec3::ZERO);
+        let profile:Profile=serde_json::from_str(include_str!("../../../../accessibility-profiles/torino2007.json")).unwrap();
+        let id=h.people[i].id;
+        h.register_wheelchair(i);
+        h.odometer.insert(BusId::Player,42.0);
+        let mut journey=Journey::new(&profile,0.0,270.0);
+        journey.stage=Stage::Riding;journey.boarded=true;journey.local=profile.bay;
+        h.wheelchairs.profile=Some(profile.clone());h.wheelchairs.person=Some(id);h.wheelchairs.journey=Some(journey);
+        h.finish_wheelchair_service(i,&bn,&[bn.clone()],&world);
+        assert_eq!(h.pax(i).unwrap().km_start,42.0,"past bus mileage must not make a new rider immediately want to alight");
+        assert_eq!(h.people[i].id,id);
+        assert!(h.wheelchairs.is_chair(id));
+        assert!(h.wheelchairs.riders.contains_key(&id));
+        let mut rider=h.wheelchairs.riders.remove(&id).unwrap();
+        rider.journey.stage=Stage::Finished;rider.journey.boarded=false;
+        rider.journey.local=profile.outside(0.0);
+        h.people[i].position=profile.outside(0.0).as_dvec3();
+        h.wheelchairs.person=Some(id);h.wheelchairs.journey=Some(rider.journey);
+        h.finish_wheelchair_service(i,&bn,&[bn.clone()],&world);
+        assert_eq!(h.people.len(),1);
+        assert_eq!(h.people[i].id,id);
+        assert!(h.wheelchairs.is_chair(id));
+        assert!(matches!(h.people[i].state,State::Leaving{..}|State::Strolling(_)));
+        std::fs::remove_dir_all(root).unwrap();
+    }
+    #[test]
     fn connections_reuse_person_avoid_a_lone_terminus_and_obey_zero() {
         let root=std::env::temp_dir().join(format!("connection-{}",std::process::id()));
         let dir=root.join("Humans/Test");std::fs::create_dir_all(&dir).unwrap();
