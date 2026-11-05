@@ -1,0 +1,36 @@
+name: Prepare directory P17 for OpenOMSI 2.2.3.1
+on:
+  push:
+    branches: [fix/directory-p17-2231]
+    paths: ['relay/**', '.github/workflows/directory-p17-2231.yml', 'docs/releases/directory-p17.1.md']
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: cloudflare-directory-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate legacy and P17 company profile lifecycles; retain v3 service
+        working-directory: relay
+        run: npm test
+      - name: Deploy backward-compatible directory with existing original Cloudflare bindings
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: relay
+          wranglerVersion: '4.149.0'
+          command: deploy --config wrangler.jsonc
+      - name: Verify live P17 and previous protocol support
+        working-directory: relay
+        run: node verify-live.mjs
