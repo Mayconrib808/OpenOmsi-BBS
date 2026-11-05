@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -159,10 +160,42 @@ func adminAction(dir, action string) error {
 		if e == nil {
 			fmt.Printf("%s: %s\n", localText(c.Language, "Auxiliar BCS preparado", "BCS helper prepared", "BBS-Hilfsprogramm bereitgestellt"), d.Path)
 			logSetup(dir, fmt.Sprintf("plugin-helper path=%s created=%t", d.Path, d.Created), nil)
+			return nil
+		}
+		// Protected IFEO on some machines (including a reported Spanish locale)
+		// must not prevent BCS native OpenOMSI mode from working. Never bypass
+		// Windows permissions: use BCS's own supported adapter selection after
+		// a fully rolled-back, specifically denied Registry write.
+		var denied *registryWriteFailure
+		if errors.As(e, &denied) && errors.Is(e, os.ErrPermission) &&
+			!strings.Contains(e.Error(), "rollback incomplete") &&
+			!strings.Contains(e.Error(), "bridge-key cleanup failed") &&
+			!strings.Contains(e.Error(), "helper rollback failed") {
+			native, nativeErr := enableNativeBCSFallback(dir, c)
+			if native && nativeErr == nil {
+				logSetup(dir, "native BCS activation after denied IFEO; previous BCS settings backed up", nil)
+				return nil
+			}
+			if nativeErr != nil {
+				return fmt.Errorf("%w; native BCS fallback unavailable: %v", e, nativeErr)
+			}
 		}
 		return e
 	}
-	return deactivateRegistryWithHost(newWindowsRegistry(), bridge)
+	restored, e := restoreNativeBCSFallback(dir, c)
+	if e != nil {
+		return e
+	}
+	if e = deactivateRegistryWithHost(newWindowsRegistry(), bridge); e != nil {
+		if restored {
+			return fmt.Errorf("native BCS preferences restored; Registry deactivation failed: %w", e)
+		}
+		return e
+	}
+	if restored {
+		logSetup(dir, "native BCS preferences restored on deactivation", nil)
+	}
+	return nil
 }
 func (u *setupUI) changeActivation(action string) error {
 	if action == "activate" {
