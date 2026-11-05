@@ -281,7 +281,7 @@ func TestNativeBCSAccessDeniedFallbackBacksUpAndRestoresExactSettings(t *testing
 	if err := os.WriteFile(config, original, 0644); err != nil { t.Fatal(err) }
 	c := defaultConfig()
 	c.Root = root
-	enabled, err := enableNativeBCSFallback(dir, c)
+	enabled, err := enableNativeBCSFallback(dir, c, nil)
 	if err != nil || !enabled || !setupNativeSelected(dir, c) {
 		t.Fatalf("IFEO denied should select BCS native adapter: %v, %t", err, enabled)
 	}
@@ -296,7 +296,7 @@ func TestNativeBCSAccessDeniedFallbackBacksUpAndRestoresExactSettings(t *testing
 	if !bytes.Equal(updated, []byte(strings.Join(expectedLines, "\r\n"))) {
 		t.Fatal("native fallback altered an unrelated BCS setting")
 	}
-	restored, err := restoreNativeBCSFallback(dir, c)
+	restored, err := restoreNativeBCSFallback(dir, c, nil)
 	if err != nil || !restored {
 		t.Fatalf("native deactivation could not restore previous BCS preferences: %v", err)
 	}
