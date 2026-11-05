@@ -52,6 +52,8 @@ jobs:
           git -c user.name='Bridge Candidate' -c user.email='audit@localhost.invalid' commit -m 'Temporary source-only upstream 0.3.49 merge (conflicting hunks favor Bridge)' 
           git status --short
           git show --stat --oneline --format=short HEAD > integration-report/merge-stat.txt
+      - name: Reconcile 0.3.49 protocol, traffic, passenger and source conflicts before compile
+        run: python3 tools/bridge-2231-reconcile-0349.py
       - name: Compile merged engine and check P17 simulation/network/launcher
         shell: bash
         run: |
@@ -67,6 +69,8 @@ jobs:
         run: |
           set -euo pipefail
           test -n "$GH_TOKEN"
+          git add -A
+          git -c user.name='Bridge Candidate' -c user.email='audit@localhost.invalid' commit -m 'Reconcile v0.3.49/P17 collision points with Bridge fixes'
           tree=$(git rev-parse 'HEAD^{tree}')
           candidate=$(printf 'WIP 2.2.3.1 engine 0.3.49 (P17) candidate; manual conflict review still required\n\nNo distribution changes.\n' | git -c user.name='Bridge Candidate' -c user.email='audit@localhost.invalid' commit-tree "$tree" -p "$ORIGINAL_BRIDGE_SHA")
           git -c credential.helper= push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$candidate:refs/heads/recovery/2231-0349-source-candidate"
