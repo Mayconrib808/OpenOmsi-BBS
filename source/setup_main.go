@@ -171,7 +171,7 @@ func adminAction(dir, action string) error {
 			!strings.Contains(e.Error(), "rollback incomplete") &&
 			!strings.Contains(e.Error(), "bridge-key cleanup failed") &&
 			!strings.Contains(e.Error(), "helper rollback failed") {
-			native, nativeErr := enableNativeBCSFallback(dir, c)
+			native, nativeErr := enableNativeBCSFallback(dir, c, checkBCSClosedForUpdate)
 			if native && nativeErr == nil {
 				logSetup(dir, "native BCS activation after denied IFEO; previous BCS settings backed up", nil)
 				return nil
@@ -182,7 +182,7 @@ func adminAction(dir, action string) error {
 		}
 		return e
 	}
-	restored, e := restoreNativeBCSFallback(dir, c)
+	restored, e := restoreNativeBCSFallback(dir, c, checkBCSClosedForUpdate)
 	if e != nil {
 		return e
 	}
