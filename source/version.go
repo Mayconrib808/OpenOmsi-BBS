@@ -18,6 +18,12 @@ func normalizeLanguage(s string) string {
 		return "en"
 	case "de", "de-de", "de-at", "de-ch":
 		return "de"
+	case "es", "es-es", "es-uy", "es-ar", "es-mx", "es-419":
+		return "es"
+	case "fr", "fr-fr", "fr-ca", "fr-be", "fr-ch":
+		return "fr"
+	case "ru", "ru-ru", "ru-by", "ru-kz":
+		return "ru"
 	default:
 		return "pt"
 	}
@@ -29,6 +35,10 @@ func localText(lang, pt, en, de string) string {
 		return en
 	case "de":
 		return de
+	case "es", "fr", "ru":
+		// Legacy messages still use three translations. Do not silently
+		// switch Spanish, French or Russian users back to Portuguese.
+		return en
 	default:
 		return pt
 	}
