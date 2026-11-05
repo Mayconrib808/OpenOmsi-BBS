@@ -153,6 +153,18 @@ type registryUndo struct {
 	value     registryValue
 }
 
+// registryWriteFailure preserves the actual Windows permission error while
+// allowing Setup to offer the native BCS path only for denied IFEO writes.
+type registryWriteFailure struct {
+	view int
+	key, name string
+	cause error
+}
+func (e *registryWriteFailure) Error() string {
+	return fmt.Sprintf("writing %d-bit Windows Registry %s\\%s: %v", e.view, e.key, e.name, e.cause)
+}
+func (e *registryWriteFailure) Unwrap() error { return e.cause }
+
 func setWithUndo(r registryAPI, undo *[]registryUndo, view int, key, name string, v registryValue) error {
 	old, e := r.Read(view, key, name)
 	if e != nil {
@@ -162,7 +174,7 @@ func setWithUndo(r registryAPI, undo *[]registryUndo, view int, key, name string
 	// succeeded; otherwise a denied write can trigger a second, misleading
 	// "rollback incomplete: Access is denied" against a protected key.
 	if e = r.Write(view, key, name, v); e != nil {
-		return fmt.Errorf("writing %d-bit Windows Registry %s\\%s: %w", view, key, name, e)
+		return &registryWriteFailure{view: view, key: key, name: name, cause: e}
 	}
 	*undo = append(*undo, registryUndo{view, key, name, old})
 	return nil
