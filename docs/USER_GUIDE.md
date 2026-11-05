@@ -158,8 +158,10 @@ the cursor smoothly (a short easing, no steps). With *Smooth mouse steering* off
 Driving) the wheel and the pedals are where the cursor says at once, as in OMSI. While the mouse
 steers the cursor is held, so the wheel reaches its full lock past the window's edges and a
 cross shows where it steers; with *Hold the cursor while the mouse steers* off the system's
-crosshair stays free (it follows the hand without the frame's delay, and a graphics tablet's
-pen works with it) and the window's edges are the lock, as in OMSI.
+crosshair is shown (it follows the hand without the frame's delay, and a graphics tablet's
+pen works with it), kept inside the window while the mouse steers, and the window's edges are
+the lock, as in OMSI (on Windows and Linux: macOS does not let a game keep the cursor inside
+its window).
 
 Three switches there change the steering keys (all off by default): *Steering linearity* turns
 the wheel at OMSI's own steady pace (the curvature grows by the same amount every millisecond
@@ -608,7 +610,7 @@ vignette.
 `OMSI_RT_REFL_HALF=1` traces the reflections at half size, `OMSI_DEBUG_RT=n` (see
 `crates/omsi-render/src/rt.rs`) shows its buffers.
 
-*Road sunlight glare* (`road_glare=0..2`, default 1) scales direct sun highlights on roads and ground in Enhanced without changing diffuse daylight or puddle reflections. *Traffic headlight brightness* (`traffic_headlights=0..2`, default 1) changes white headlamp glows and projected road beams on other vehicles in Vanilla, Vanilla+ and Enhanced, not the player's lamps or the street lamps. Both controls apply while driving.
+*Road glare* (`road_glare=0..2`, default 1) scales the highlights of the sun, the headlights and the street lamps on roads and ground in Enhanced, wet roads included, without changing diffuse daylight. *Traffic headlight brightness* (`traffic_headlights=0..2`, default 1) changes white headlamp glows and projected road beams on other vehicles in Vanilla, Vanilla+ and Enhanced, not the player's lamps or the street lamps. Both controls apply while driving.
 
 Built-up snow on roads and roofs (`road_snow=0|1`) is **off by default**; enabling it in Graphics adds gradual snow accumulation and tyre tracks. With it off, the weather's conventional OMSI 2 road snow remains available. Existing saved preferences are preserved.
 

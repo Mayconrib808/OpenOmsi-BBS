@@ -13,6 +13,13 @@ pub(crate) struct SoundPlan {
     clips: Vec<std::path::PathBuf>,
 }
 
+fn own_horn(cfg: &omsi_vehicle::SoundCfg) -> Option<&str> {
+    cfg.sounds.iter().map(|s| s.file.trim()).find(|f| {
+        let f = f.to_ascii_lowercase();
+        f.contains("hupe") || f.contains("horn")
+    })
+}
+
 /// The `SoundPlan` of `def`, made the first time it is asked for (None, remembered too: the
 /// definition names no sound, or its configuration does not load).
 fn sound_plan(
@@ -105,10 +112,10 @@ impl Traffic {
                     if ready {
                         let number = &c.number;
                         let mut ss = omsi_audio::SoundSet::new_exterior(audio, &plan.cfg.chosen_for(number), &plan.dir);
+                        ss.master = volume;
                         for (i, part) in &parts {
                             ss.add_part(*i, omsi_audio::SoundSet::new_exterior(audio, &part.cfg.chosen_for(number), &part.dir));
                         }
-                        ss.master = volume;
                         triggers.push((c.id, ss.curve_triggers().into_iter().collect()));
                         self.sounds.insert(c.id, ss);
                     }
@@ -247,23 +254,24 @@ impl Traffic {
             s.stop_all(audio);
         }
         if self.riding_sounds.is_none() {
-            let def = &c.vehicle.ty.def;
-            let Some(rel) = def.sound.clone().or_else(|| def.sound_ai.clone()) else { return };
-            let path = omsi_cfg::resolve_path(def.dir(), &rel);
-            let Some(cfg) = self
-                .sound_cfgs
-                .entry(path.clone())
-                .or_insert_with(|| omsi_vehicle::SoundCfg::load(&path).map_err(|e| log::warn!("{e}")).ok().map(Arc::new))
-                .clone()
-            else {
-                return;
+            let cfgs = &mut self.sound_cfgs;
+            let mut load = |def: &omsi_vehicle::Vehicle| {
+                let rel = def.sound.clone().or_else(|| def.sound_ai.clone())?;
+                let path = omsi_cfg::resolve_path(def.dir(), &rel);
+                let cfg = cfgs.entry(path.clone()).or_insert_with(|| omsi_vehicle::SoundCfg::load(&path).map_err(|e| log::warn!("{e}")).ok().map(Arc::new)).clone()?;
+                Some((cfg, path.parent().map(|p| p.to_path_buf()).unwrap_or_default()))
             };
-            let dir = path.parent().map(|p| p.to_path_buf()).unwrap_or_default();
-            if !audio.clips_ready(&omsi_audio::SoundSet::clip_paths(&cfg, &dir)) {
+            let Some((cfg, dir)) = load(&c.vehicle.ty.def) else { return };
+            let parts: Vec<_> = c.vehicle.trailers.iter().enumerate().filter_map(|(i, t)| load(&t.ty.def).map(|p| (i, p))).collect();
+            if !audio.clips_ready(&omsi_audio::SoundSet::clip_paths(&cfg, &dir)) || !parts.iter().all(|(_, (c, d))| audio.clips_ready(&omsi_audio::SoundSet::clip_paths(c, d))) {
                 return;
             }
-            let mut ss = omsi_audio::SoundSet::new(audio, &cfg.chosen_for(&c.vehicle.number()), &dir);
+            let number = c.vehicle.number();
+            let mut ss = omsi_audio::SoundSet::new(audio, &cfg.chosen_for(&number), &dir);
             ss.master = volume;
+            for (i, (pc, pd)) in &parts {
+                ss.add_part(*i, omsi_audio::SoundSet::new(audio, &pc.chosen_for(&number), pd));
+            }
             self.riding_sounds = Some((id, ss));
         }
         if let Some((_, ss)) = self.riding_sounds.as_mut() {
@@ -282,9 +290,24 @@ impl Traffic {
                 v.var_slot(n).and_then(|i| vals.get(i).copied())
             };
             ss.update_fired(audio, &|n| v.var(n), &xf, &fired, &at_fire);
+            ss.update_parts(audio, &|n| v.var(n), &|i| v.trailers.get(i).map(|t| t.world_transform()), &fired, &at_fire);
             for (t, f) in &fired_files {
                 ss.play_file_trigger(audio, t, f, &|n| v.var(n), &xf);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod horn_tests {
+    #[test]
+    fn an_ai_bus_honks_with_the_horn_of_its_own_sound_set() {
+        let dir = std::env::temp_dir().join(format!("openomsi_horn_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let cfg = dir.join("sound_AI.cfg");
+        std::fs::write(&cfg, "[sound]\nengine.wav\n1\n\n[sound]\nSD_hupe_lang.wav\n1\n\n[volcurve]\ncockpit_hupe_volume\n").unwrap();
+        let loaded = omsi_vehicle::SoundCfg::load(&cfg).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(super::own_horn(&loaded), Some("SD_hupe_lang.wav"));
     }
 }

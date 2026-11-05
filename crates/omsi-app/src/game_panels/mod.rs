@@ -18,6 +18,7 @@ mod coop_panel;
 mod character_panel;
 mod multiplayer;
 mod move_here;
+pub(crate) mod radio_panel;
 mod wheelchair;
 pub(crate) use dest_form::open as open_dest_form;
 pub(crate) use move_here::ask as ask_move;
@@ -33,6 +34,7 @@ const GAME: u64 = 1;
 /// The panels and what they show.
 #[derive(Default)]
 pub(crate) struct GamePanels {
+    pub(crate) laid_out: Option<([f32; 4], f32)>,
     ui: UiState,
     draw: crate::plugin_ui::PluginPanels,
     /// A slider the left button holds: its panel, id and track on the window (physical
@@ -46,6 +48,7 @@ pub(crate) struct GamePanels {
     pub(crate) dest: Option<dest_form::DestForm>,
     pub(crate) multiplayer: Option<multiplayer::Multiplayer>,
     pub(crate) view: Option<view_editor::ViewEditor>,
+    pub(crate) radio: Option<radio_panel::RadioPanel>,
     /// Where the map camera's click asks to move the bus to.
     pub(crate) move_to: Option<glam::DVec3>,
 }
@@ -147,6 +150,7 @@ impl crate::App {
                 "multiplayer" => multiplayer::click(self, el),
                 "view" => view_editor::click(self, el),
                 "move" => move_here::click(self, el),
+                "radio" => radio_panel::click(self, el),
                 _ => {}
             }
         }
@@ -194,6 +198,7 @@ impl crate::App {
             ("quick", self.menus.game_panels.quick.as_ref().map(|q| q.panel(self))),
             ("wheelchair", self.menus.game_panels.wheelchair.then(||wheelchair::panel(self,pal))),
             ("move", self.menus.game_panels.move_to.map(|at| move_here::panel(at, pal))),
+            ("radio", self.menus.game_panels.radio.as_ref().map(|r| r.panel(self, pal))),
         ];
         let gp = &mut self.menus.game_panels;
         for (id, p) in panels {
@@ -207,6 +212,7 @@ impl crate::App {
             }
         }
         let coop_height = self.net.coop.panel.then(|| 80.0 + coop_panel::panel(self).children.len() as f32 * 43.0);
+        let clean = self.clean_screen_shown();
         let (Some(r), Some(scene)) = (self.renderer.as_ref(), self.scene.as_mut()) else { return };
         let dpi = self.window.as_ref().map_or(1.0, |w| w.scale_factor() as f32);
         let mut size = crate::ui::size_factor(hud[3], dpi, self.settings.ui_scale, self.settings.ui_scale_window);
@@ -217,8 +223,9 @@ impl crate::App {
         if let Some((w, h)) = self.menus.game_panels.trip.as_ref().map(|t| t.extent()) {
             size = size.min(hud[2] * 0.96 / (w * dpi)).min(hud[3] * 0.96 / (h * dpi));
         }
+        self.menus.game_panels.laid_out = Some((hud, dpi * size));
         let map_open = self.menus.navigator.as_ref().is_some_and(|n| n.map_open());
-        let hidden = vr_active || self.menus.game_menu.is_some() || self.menus.chooser.is_some() || map_open || self.photo.is_some();
+        let hidden = vr_active || self.menus.game_menu.is_some() || self.menus.chooser.is_some() || map_open || self.photo.is_some() || clean;
         let frame = crate::plugin_ui::PanelsFrame {
             hud,
             scale: dpi * size,

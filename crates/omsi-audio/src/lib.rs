@@ -8,6 +8,7 @@ pub mod soundset;
 pub mod spsc;
 pub mod stream;
 pub mod trace;
+pub mod trolley;
 pub mod wav;
 
 pub use mixer::{AudioEngine, Clip, Listener, VoiceId, VoiceParams};

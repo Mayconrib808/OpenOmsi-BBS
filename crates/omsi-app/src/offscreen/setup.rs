@@ -328,6 +328,7 @@ impl<'a> Offscreen<'a> {
             cabin_air,
             srv_admin,
             srv_clock,
+            srv_wall: Default::default(),
             srv_metar,
             srv_metar_due,
             srv_metar_rx,
@@ -355,6 +356,7 @@ fn new_traffic(
     t.optional_features = settings::Settings::load().optional_features;
     t.lights_only = !(args.traffic > 0 || args.schedule || crate::rail_drive::args_rail(args) || args.lan_join.is_some());
     t.no_timetable_buses = args.no_timetable_buses;
+    t.drive_through_parked = args.ai_drive_through_parked;
     if let Some(seed) = lan_seed {
         t.set_lan_seed(seed);
     }

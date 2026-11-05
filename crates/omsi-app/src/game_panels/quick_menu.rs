@@ -26,7 +26,7 @@ pub(crate) const PER_PAGE: usize = 15;
 const WIDTH: f32 = 5.0 * 84.0 + 4.0 * 8.0 + 2.0 * 14.0;
 
 /// The tiles: id, label, icon - in OMSI's order, five to a row, fifteen to a page.
-pub(crate) const TILES: [(&str, &str, &str); 30] = [
+pub(crate) const TILES: [(&str, &str, &str); 32] = [
     ("place", "Place a vehicle", "add"),
     ("switch", "Change vehicle", "sync_alt"),
     ("remove", "Remove vehicle", "delete"),
@@ -45,6 +45,7 @@ pub(crate) const TILES: [(&str, &str, &str); 30] = [
     ("stats", "Statistics", "receipt_long"),
     // the second page: the game menu's lines
     ("camera", "Camera", "videocam"),
+    ("view_editor", "Seat, view and mirrors", "airline_seat_recline_normal"),
     ("vehicle", "Vehicle options...", "tune"),
     ("world", "World options...", "public"),
     ("options", "Options", "settings"),
@@ -58,6 +59,7 @@ pub(crate) const TILES: [(&str, &str, &str); 30] = [
     ("players", "Player list", "group"),
     ("admin", "Administration", "dns"),
     ("coop", "Cooperative", "directions_bus"),
+    ("radio", "Radio", "radio"),
 ];
 
 /// The tiles that are the game menu's lines, offered only when it offers them now.
@@ -89,6 +91,7 @@ pub(crate) struct QuickMenu {
     pub(crate) focus: usize,
     /// Where the cursor was when it last chose a tile: the keys' choice stays until it moves.
     pub(crate) cursor: Option<(f32, f32)>,
+    pub(crate) mouse_kept: bool,
 }
 
 /// What the tiles show now: which are greyed and which are lit.
@@ -108,6 +111,9 @@ impl TileState {
         }
         if app.session.duty.is_some() {
             lit.push("duty");
+        }
+        if app.player.is_none() || app.session.on_foot.is_some() || app.vr_active() {
+            off.push("view_editor");
         }
         TileState { off, lit }
     }
@@ -230,7 +236,7 @@ pub(crate) fn toggle(app: &mut crate::App) {
 /// the page keys turn the page. True when the key was the menu's.
 pub(crate) fn key(app: &mut crate::App, code: winit::keyboard::KeyCode) -> bool {
     use winit::keyboard::KeyCode as K;
-    let Some(q) = app.menus.game_panels.quick.as_mut() else { return false };
+    let Some(q) = app.menus.game_panels.quick.as_mut().filter(|q| !q.mouse_kept) else { return false };
     match code {
         K::ArrowLeft => q.step(-1, 0),
         K::ArrowRight => q.step(1, 0),
@@ -241,7 +247,7 @@ pub(crate) fn key(app: &mut crate::App, code: winit::keyboard::KeyCode) -> bool 
         K::Enter | K::NumpadEnter => {
             let chosen = q.chosen();
             if let Some(id) = chosen.filter(|id| !TileState::of(app).off.contains(id)) {
-                click(app, id);
+                start(app, id, false);
             }
         }
         _ => return false,
@@ -251,18 +257,23 @@ pub(crate) fn key(app: &mut crate::App, code: winit::keyboard::KeyCode) -> bool 
 
 /// A tile clicked: what it starts, the menu closing (the page arrow turns the page).
 pub(crate) fn click(app: &mut crate::App, id: &str) {
+    start(app, id, true);
+}
+
+fn start(app: &mut crate::App, id: &str, mouse: bool) {
     if id == "next" {
         if let Some(q) = app.menus.game_panels.quick.as_mut() {
             q.turn(1);
         }
         return;
     }
-    app.menus.game_panels.quick = None;
+    let kept = app.menus.game_panels.quick.take();
     match id {
         "wheelchair" => app.menus.game_panels.wheelchair = true,
         "coop" => app.net.coop.panel = true,
         "camera" => super::view_editor::open(app),
         "dest" => super::dest_form::open(app),
+        "radio" => super::radio_panel::open(app),
         "arrows" => {
             crate::game_lists::option_do(app, "nav_arrows", "", crate::game_lists::Move::Next);
         }
@@ -283,6 +294,14 @@ pub(crate) fn click(app: &mut crate::App, id: &str) {
     }
     if app.menus.chooser.is_some() && app.menus.game_menu.is_none() {
         app.open_game_menu();
+    }
+    let elsewhere = app.menus.game_menu.is_some()
+        || app.menus.chooser.is_some()
+        || app.photo.is_some()
+        || app.menus.navigator.as_ref().is_some_and(|n| n.map_open())
+        || app.menus.game_panels.any();
+    if !elsewhere {
+        app.menus.game_panels.quick = kept.map(|q| QuickMenu { mouse_kept: q.mouse_kept || mouse, ..q });
     }
 }
 
@@ -319,6 +338,18 @@ mod tests {
     }
 
     #[test]
+    fn after_a_tile_clicked_the_arrows_drive_the_bus_again() {
+        use winit::keyboard::KeyCode as K;
+        let mut a = app();
+        a.menus.game_panels.quick = Some(QuickMenu::default());
+        assert!(key(&mut a, K::ArrowUp), "worked from the keys, the menu has the arrows");
+        a.menus.game_panels.quick = Some(QuickMenu { mouse_kept: true, ..Default::default() });
+        for k in [K::ArrowUp, K::ArrowDown, K::ArrowLeft, K::ArrowRight, K::Enter, K::Tab, K::PageUp] {
+            assert!(!key(&mut a, k), "{k:?} goes to the game");
+        }
+    }
+
+    #[test]
     fn the_arrows_walk_the_grid_and_turn_the_page() {
         let mut q = QuickMenu::default();
         q.step(1, 0);
@@ -330,7 +361,7 @@ mod tests {
         assert_eq!(q.focus, 11, "no row under the last");
         q.focus = 14;
         q.step(1, 0);
-        // the second page has 13 tiles: its third row ends at 12
+        // the second page has 14 tiles: its third row ends at 13
         assert_eq!((q.page, q.focus), (1, 10));
         q.step(-1, 0);
         assert_eq!((q.page, q.focus), (0, 14));

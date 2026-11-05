@@ -72,6 +72,10 @@ fn packet(data: &[u8], proto: u8) -> Option<Packet<'_>> {
     }
     Some(p)
 }
+/// Is `data` an acknowledgement (a header and nothing else)?
+pub(crate) fn is_ack(data: &[u8], proto: u8) -> bool {
+    packet(data, proto).is_some_and(|p| p.ack)
+}
 pub(crate) fn address(data: &[u8], proto: u8) -> Option<Address> {
     Some(packet(data, proto)?.addr)
 }
@@ -151,7 +155,15 @@ struct Tx {
     seq: u64,
     data: Vec<u8>,
     wait: f32,
+    /// Times sent: each resend waits twice as long as the last (`RESEND`), so a slow or
+    /// throttled link is not answered with ever more of the same packets.
+    tries: u32,
 }
+/// The first resend of an unacknowledged event, and the longest wait between resends. A
+/// fixed 0.1 s through a tunnel of a few hundred ms sent every event several times over to
+/// every player; past the host's sound rate those were dropped, acknowledgements with them,
+/// and every drop made more resends.
+const RESEND: (f32, f32) = (0.1, 2.0);
 #[derive(Default)]
 struct Sender {
     next: u64,
@@ -206,6 +218,7 @@ impl Sync {
                 seq: s.next,
                 data: data.clone(),
                 wait: 0.0,
+                tries: 0,
             });
         }
     }
@@ -360,7 +373,7 @@ mod tests {
             vec![event("door", None), event("announce", Some(&long))]
         );
         // Lost ACK: retry is acknowledged again without replaying anything.
-        for v in a.tick(11, 1, 0.11) {
+        for v in a.tick(11, 1, 0.21) {
             let ack = b.receive(11, 2, &v).unwrap();
             a.receive(11, 1, &ack);
         }

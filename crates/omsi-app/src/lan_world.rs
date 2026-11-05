@@ -1635,7 +1635,7 @@ fn describe(humans: Option<&Humans>, r: EntityRef) -> Option<Desc> {
 mod tests;
 
 mod display;
-pub(crate) use display::car_display;
+pub(crate) use display::{car_display, car_meta};
 use display::show_car_destination;
 
 mod lifecycle;

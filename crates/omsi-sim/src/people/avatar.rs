@@ -379,7 +379,7 @@ impl PeopleSim {
     }
     pub fn cabin_world(&self, bus: BusId, local: Vec3) -> Option<(DVec3, f64)> {
         let bn = self.last_buses.iter().find(|b| b.id == bus)?;
-        Some((bn.world(local), bn.heading))
+        Some((bn.world(local), bn.heading_at(local)))
     }
 
     /// The free seat of bus `bus` nearest the world point `at` (for a walker inside it).
@@ -395,6 +395,11 @@ impl PeopleSim {
             .filter(|(_, d)| *d < reach)
             .min_by(|a, b| a.1.total_cmp(&b.1))
             .map(|x| x.0)
+    }
+
+    /// Where seat `seat` of bus `bus` has its floor (cabin frame).
+    pub fn seat_floor(&self, bus: BusId, seat: usize) -> Option<Vec3> {
+        self.last_buses.iter().find(|b| b.id == bus)?.cabin.seats.get(seat).map(|s| s.floor)
     }
 
     /// The cabin path point nearest seat `seat` of bus `bus` (where one stands up to).
@@ -434,11 +439,6 @@ impl PeopleSim {
     /// Where bus `bus` stands (its origin), as of the last tick.
     pub fn bus_center(&self, bus: BusId) -> Option<DVec3> {
         self.last_buses.iter().find(|b| b.id == bus).map(|b| b.pos)
-    }
-
-    /// The compass heading of bus `bus` (degrees), as of the last tick.
-    pub fn bus_heading(&self, bus: BusId) -> Option<f64> {
-        self.last_buses.iter().find(|b| b.id == bus).map(|b| b.heading)
     }
 
     /// Is `bus` among the buses of the last tick?
