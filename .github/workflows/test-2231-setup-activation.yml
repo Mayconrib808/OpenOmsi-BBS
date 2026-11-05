@@ -45,7 +45,7 @@ jobs:
           python tools/test-2231-setup-activation.py
           if ($LASTEXITCODE -ne 0) { throw 'The 2.2.3.1 Save and activate integrity regression failed' }
 
-      - name: Assemble SHA-guarded original-version Setup repair kit
+      - name: Assemble SHA-guarded Setup repair with exact Windows CRLF installer
         shell: pwsh
         run: |
           python tools/assemble-2231-setup-repair.py
