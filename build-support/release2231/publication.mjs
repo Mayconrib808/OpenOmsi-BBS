@@ -62,7 +62,7 @@ function inspectApproved(){
   const game=prefix+'programa/openomsi.exe',p17='app/server-dinamico-p17/openomsi.exe',lobby=prefix+'programa/openomsi-launcher-app.exe';
   if(spec.files[game]!==report.native_client_sha256['openomsi.exe']||spec.files[p17]!==spec.files[game]||spec.files[lobby]!==report.desktop_launcher_sha256||!spec.files['app/hosts-p17/HostAgent.exe']||!spec.files['app/hosts-p17/CompanyHost.exe'])throw Error('Missing exact matching Windows game, launcher, server or P17 hosts');
   if(!Array.isArray(spec.parts)||spec.parts.length<1||Object.keys(spec.files).length<200)throw Error('Incomplete cumulative package');
-  if(spec.files['app/hosts-p16/HostAgent.exe']!==report.retained_runtime_sha256['app/hosts-p16/HostAgent.exe'] && !spec.files['app/hosts-p16/HostAgent.exe'])throw Error('P16 retained host missing');
+  for(const path of ['app/hosts-p16/HostAgent.exe','app/hosts-p16/CompanyHost.exe','app/server-dinamico-p16/openomsi.exe','app/server-dinamico-p15/openomsi.exe','app/server-dinamico-p14/openomsi.exe'])if(!spec.files[path])throw Error('Previous server/host absent from cumulative archive: '+path);
   if(!spec.files[prefix+'CHANGELOG-2.2.3.1.md']||!spec.files['docs/TESTE-2.2.3.1-pt-BR.md'])throw Error('Missing cumulative changelog or tester notes');
   for(const part of spec.parts){
     const buf=readFileSync('approved-new/coop-assets/'+part.sha256+'.bin');
