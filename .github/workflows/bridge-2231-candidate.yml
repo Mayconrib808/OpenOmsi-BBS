@@ -2,7 +2,7 @@ name: Bridge 2.2.3.1 - 0.3.49 merge candidate (not a release)
 on:
   push:
     branches: [feature/openomsi-0349-bridge2231]
-    paths: ['.github/workflows/bridge-2231-candidate.yml']
+    paths: ['.github/workflows/bridge-2231-candidate.yml', 'tools/bridge-2231-reconcile-0349.py']
   workflow_dispatch: {}
 permissions:
   contents: write
