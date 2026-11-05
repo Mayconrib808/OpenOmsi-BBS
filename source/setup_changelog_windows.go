@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.3-hotfix.1"
+const changelogSeenVersion = "2.2.3-hotfix.2"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -818,8 +818,10 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
 // Every release, including both preceding hotfixes, has its own history boundary.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    result:=[]logSection{accessibility223Hotfix1LogSection()}
-    if from==changelogSeenVersion || from=="2.2.3" {return result}
+    result:=[]logSection{passenger223Hotfix2LogSection()}
+    if from==changelogSeenVersion || from=="2.2.3-hotfix.1" {return result}
+    result=append(result,accessibility223Hotfix1LogSection())
+    if from=="2.2.3" {return result}
     result=append(result,accessibility223LogSection())
     if from=="2.2.2.4-hotfix.5" {return result}
     result=append(result,boardingHotfix5LogSection())
@@ -887,3 +889,24 @@ func routeHotfix4LogSection() logSection {
     }}
 }
 
+
+func passenger223Hotfix2LogSection() logSection {
+    return logSection{
+        label:logT("🚌 2.2.3 HOTFIX 2","🚌 2.2.3 HOTFIX 2","🚌 2.2.3 HOTFIX 2"),
+        accent:logAccent(85,190,255),
+        entries:[]logEntry{
+            {logT("Fila inicial dos pontos","Existing stop queues","Anfangswarteschlangen"),
+             logT("Remove o corte fixo de 70% da fila inicial, que podia deixar pontos vazios por minutos. Ao carregar uma região, a demanda do mapa pode colocar até quatro pessoas que já aguardavam em cada ponto. Novas chegadas continuam graduais, sem encher novamente a fila quando um ônibus chega.",
+                  "Removes the fixed 70% initial-queue reduction that could leave stops empty for minutes. A newly loaded stop may immediately show up to four existing waiters according to map demand. Later arrivals remain gradual and a bus arriving does not refill the queue.",
+                  "Entfernt die pauschale Kürzung der Anfangswarteschlange um 70%. Neu geladene Haltestellen dürfen entsprechend dem Kartenbedarf sofort bis zu vier bereits wartende Personen anzeigen. Spätere Ankünfte bleiben schrittweise; ein ankommender Bus füllt die Schlange nicht neu.")},
+            {logT("Embarque no multiplayer","Multiplayer boarding","Einstieg im Mehrspieler"),
+             logT("Quando a identificação de linha do servidor não é reconhecida localmente, a viagem pública ativa pode comprovar que atende o ponto e depois o destino exato do passageiro. O host continua autorizando a transferência e o destino é preservado após o embarque ser autorizado.",
+                  "When a host line key cannot be resolved locally, an active public duty may prove that it calls at this stop and subsequently at the passenger's exact destination. The host still authorizes ownership transfer and the destination is retained after grant.",
+                  "Kann der Client einen Linienschlüssel des Hosts nicht auflösen, darf ein aktiver öffentlicher Fahrplan den aktuellen Halt und das anschließende genaue Fahrgastziel belegen. Der Host bestätigt weiterhin die Übergabe; das Ziel bleibt erhalten.")},
+            {logT("Diagnóstico e compatibilidade","Diagnostics and compatibility","Diagnose und Kompatibilität"),
+             logT("O log registra pedidos de embarque, linhas não reconhecidas, pontos registrados, destino e situação da viagem. A contagem de sinalização inclui passageiros recebidos do servidor. Mantém as correções do Alt, da área ocupada e do localizador da Hotfix 1. A suíte automatizada acompanha a entrada na cabine; a nova viagem interativa será confirmada pelo próximo log do jogador.",
+                  "Logs record boarding claims, unresolved line keys, registered stops, destination and duty state. Hailing counts include mirrored passengers. Preserves Hotfix 1 Alt, occupied-bay and discovery fixes. Automated coverage follows cabin entry; the reported interactive trip awaits a new player capture.",
+                  "Protokolle erfassen Einstiegsanfragen, unbekannte Linienschlüssel, registrierte Haltestellen, Ziel und Fahrplanstatus. Haltezeichenzähler enthalten gespiegelte Fahrgäste. Erhält die Alt-, Stellplatz- und Erkennungskorrekturen von Hotfix 1. Der automatische Test prüft den Kabineneinstieg; die gemeldete Spielreise benötigt einen neuen Mitschnitt.")},
+        },
+    }
+}
