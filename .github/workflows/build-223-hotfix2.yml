@@ -1,0 +1,132 @@
+name: Build and verify full Bridge 2.2.3 Hotfix 2
+on:
+  push:
+    branches: [release-candidate/2.2.3-hotfix2]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-223-hotfix2-candidate
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: '1'
+      OMSI_NO_UPDATE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.2
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Require the exact successful native and lobby build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          @'
+          import json,os,subprocess
+          from pathlib import Path
+          pin=json.loads(Path('build-support/release223-hotfix2/native-build.json').read_text())
+          root='repos/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+str(pin['run_id'])
+          run=json.loads(subprocess.check_output(['gh','api',root],text=True))
+          assert run['status']=='completed' and run['conclusion']=='success'
+          assert run['head_sha']==pin['commit'] and run['path']==pin['workflow']
+          artifacts=json.loads(subprocess.check_output(['gh','api',root+'/artifacts'],text=True))['artifacts']
+          for kind in ('native','launcher'):
+              a=next(a for a in artifacts if a['id']==pin[kind+'_artifact_id'])
+              assert not a['expired'] and a['digest']=='sha256:'+pin[kind+'_artifact_sha256']
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Native and lobby provenance failed' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.3-Hotfix2-native-CANDIDATE
+          run-id: 41956421204
+          github-token: ${{ github.token }}
+          path: native
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.3-Hotfix2-launcher-CANDIDATE
+          run-id: 41956421204
+          github-token: ${{ github.token }}
+          path: launcher
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.5-FULL-CANDIDATE
+          run-id: 41871370040
+          github-token: ${{ github.token }}
+          path: baseline
+      - name: Build full update and verify actual Windows installation
+        shell: pwsh
+        run: |
+          python -m py_compile scripts/build_223_hotfix2.py
+          python scripts/build_223_hotfix2.py --baseline baseline --parts baseline --native native --launcher launcher --output build/release223-hotfix2
+          if ($LASTEXITCODE -ne 0) { throw 'Hotfix 2 full installer validation failed' }
+          Compress-Archive -Path build/release223-hotfix2/runtime/* -DestinationPath build/release223-hotfix2/OpenOMSI-BCS-Bridge-2.2.3-Hotfix-2-FULL.zip
+          if ($LASTEXITCODE -ne 0) { throw 'Full portable archive failed' }
+          @'
+          from pathlib import Path
+          import json,hashlib
+          root=Path('build/release223-hotfix2')
+          path=root/'OpenOMSI-BCS-Bridge-2.2.3-Hotfix-2-FULL.zip'
+          report=json.loads((root/'build-report.json').read_text())
+          with path.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+          report.update(portable_sha256=digest,portable_size=path.stat().st_size,portable_file=path.name)
+          (root/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Portable provenance failed' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Bridge-2.2.3-Hotfix2-failure-diagnostics
+          path: |
+            build/release223-hotfix2/one-click-install-setup.log
+            build/release223-hotfix2/runtime/app/setup-v1.1.3.log
+            build/release223-hotfix2/setup-previews/*
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3-Hotfix2-FULL-CANDIDATE
+          path: |
+            build/release223-hotfix2/OpenOMSI-BCS-Bridge-2.2.3-Hotfix-2-FULL.zip
+            build/release223-hotfix2/Atualizar-Bridge.exe
+            build/release223-hotfix2/build-report.json
+            build/release223-hotfix2/coop-spec.json
+            build/release223-hotfix2/coop-assets/*
+            build/release223-hotfix2/native-p16-controls.json
+            build/release223-hotfix2/one-click-install-test.json
+            build/release223-hotfix2/accessibility-223-validation.md
+            build/release223-hotfix2/accessibility-223-vehicle-validation.json
+            build/release223-hotfix2/setup-previews/*
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3-Hotfix2-PUBLISH-INPUTS
+          path: |
+            build/release223-hotfix2/Atualizar-Bridge.exe
+            build/release223-hotfix2/build-report.json
+            build/release223-hotfix2/coop-spec.json
+            build/release223-hotfix2/native-p16-controls.json
+            build/release223-hotfix2/one-click-install-test.json
+            build/release223-hotfix2/accessibility-223-vehicle-validation.json
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3-Hotfix2-PORTABLE
+          path: build/release223-hotfix2/OpenOMSI-BCS-Bridge-2.2.3-Hotfix-2-FULL.zip
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
