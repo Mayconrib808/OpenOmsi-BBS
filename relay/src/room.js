@@ -4,7 +4,7 @@ import { multiplayer3 } from './multiplayer3.js';
 const idPattern = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 // Discovery metadata follows the same explicit allowlist as the Bridge.
 // This does not translate native multiplayer packets between protocols.
-const supportedProtocols = new Set([6, 7, 14, 15, 16]);
+const supportedProtocols = new Set([6, 7, 14, 15, 16, 17]);
 const states = new Set(['offline','starting','online','stopping','error','disabled']);
 const limit = 8 * 1024 * 1024;
 const weatherRanges = {vis:[50,50000],br:[0,1.5],wd:[0,360],ws:[0,50],t:[-40,50],rh:[0,100],p:[900,1100],c:[0,4],cb:[50,5000],pt:[0,2],pi:[0,255],wet:[0,1],snow:[0,1],snowroad:[0,1]};
@@ -56,7 +56,7 @@ export class RoomProtocol {
       if(!match || url.search) return fail('not found',404);
       const action=match[2];
       if(action==='capabilities') return request.method==='GET'
-        ? json({release:'directory-p16.1',supported_protocols:[...supportedProtocols]})
+        ? json({release:'directory-p17.1',supported_protocols:[...supportedProtocols]})
         : fail('method not allowed',405);
       const privateAction=['publish','heartbeat','requests'].includes(action);
       if(privateAction && (!this.hostKey || this.hostKey.length<32 || request.headers.get('Authorization')!==`Bearer ${this.hostKey}`)) return fail('unauthorized',401);
