@@ -5,11 +5,11 @@ for(let attempt=1;attempt<=8;attempt++){
  try{
   const current=await fetch(base+'/capabilities',{signal:AbortSignal.timeout(15000),cache:'no-store'});
   assert.equal(current.status,200);
-  assert.deepEqual(await current.json(),{release:'directory-p16.1',supported_protocols:[6,7,14,15,16]});
+  assert.deepEqual(await current.json(),{release:'directory-p17.1',supported_protocols:[6,7,14,15,16,17]});
   const legacy=await fetch(base+'/v3/capabilities',{signal:AbortSignal.timeout(15000),cache:'no-store'});
   assert.equal(legacy.status,200);
   const body=await legacy.json();assert.equal(body.version,3);assert.equal(body.lease_ms,60000);
-  console.log('LIVE VERIFIED: directory-p16.1 accepts Bridge discovery protocols 6/7/14/15/16; existing v3 capabilities preserved.');
+  console.log('LIVE VERIFIED: directory-p17.1 accepts Bridge discovery protocols 6/7/14/15/16/17; existing v3 capabilities preserved.');
   process.exit(0);
  }catch(error){
   if(attempt===8)throw error;
