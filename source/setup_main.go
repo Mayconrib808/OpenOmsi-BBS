@@ -281,6 +281,15 @@ func main() {
 		}
 		return
 	}
+	// CI probes the same integrity gate as the graphical Save and activate
+	// without launching a GUI, modifying the registry or prompting for input.
+	if len(os.Args) == 2 && os.Args[1] == "--verify-activation" {
+		if _, err := verifyPackageForActivation(dir); err != nil {
+			logSetup(dir, "verify-activation", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "--cli" {
 		os.Args = append([]string{os.Args[0]}, os.Args[2:]...)
 	}
