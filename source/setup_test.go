@@ -163,6 +163,57 @@ func TestRegistryFailureRollsBackBothViews(t *testing.T) {
 		}
 	}
 }
+// Simulate an elevated Setup on a machine where Windows or a security policy
+// denies IFEO writes in exactly one Registry view. A rejected write must never
+// be "reversed" with a second denied operation against that untouched key.
+type deniedRegistryView struct {
+	*memoryRegistry
+	view int
+	deniedUndo int
+}
+func (r *deniedRegistryView) Write(view int, key, name string, value registryValue) error {
+	if view == r.view {
+		return fmt.Errorf("Access is denied")
+	}
+	return r.memoryRegistry.Write(view, key, name, value)
+}
+func (r *deniedRegistryView) DeleteValue(view int, key, name string) error {
+	if view == r.view {
+		r.deniedUndo++
+		return fmt.Errorf("Access is denied")
+	}
+	return r.memoryRegistry.DeleteValue(view, key, name)
+}
+func (r *deniedRegistryView) DeleteKey(view int, key string) error {
+	if view == r.view {
+		r.deniedUndo++
+		return fmt.Errorf("Access is denied")
+	}
+	return r.memoryRegistry.DeleteKey(view, key)
+}
+func TestDeniedIFEOActivationReportsOriginalErrorWithoutFalseRollback(t *testing.T) {
+	for _, blocked := range []int{64, 32} {
+		t.Run(fmt.Sprintf("blocked-%d-bit", blocked), func(t *testing.T) {
+			reg := &deniedRegistryView{memoryRegistry:newMemoryRegistry(false),view:blocked}
+			before := cloneValues(reg.memoryRegistry)
+			err := activateRegistry(reg, `C:\\OMSI\Omsi.exe`, `C:\\Bridge\OpenOMSI_BCS_Bridge.exe`)
+			if err == nil || !strings.Contains(err.Error(), "Access is denied") ||
+				!strings.Contains(err.Error(), fmt.Sprintf("%d-bit Windows Registry", blocked)) {
+				t.Fatalf("expected precise denied IFEO write, got: %v", err)
+			}
+			if strings.Contains(err.Error(), "rollback incomplete") || strings.Contains(err.Error(), "bridge-key cleanup failed") {
+				t.Fatalf("attempted rollback of an untouched protected Registry key: %v", err)
+			}
+			if reg.deniedUndo != 0 {
+				t.Fatalf("attempted %d denied undo operations on a key that was never written", reg.deniedUndo)
+			}
+			if !reflect.DeepEqual(before, reg.values) {
+				t.Fatalf("partial activation remained after permitted cleanup: before=%v after=%v", before, reg.values)
+			}
+		})
+	}
+}
+
 func TestRegistryPreservesOtherToolsAndRejectsConflicts(t *testing.T) {
 	original := `C:\OMSI\Omsi.exe`
 	bridge := `C:\Bridge\OpenOMSI_BCS_Bridge.exe`
