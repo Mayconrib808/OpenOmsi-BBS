@@ -65,6 +65,26 @@ replace_exact(
     "}\n",
 )
 
+# P17 adds the SoundAcks category to an existing BCS-specific per-traffic
+# rate-limit counter. Its last index is 12, so both storage and diagnostics
+# must expand without clobbering the 12 earlier categories.
+replace_exact(
+    "crates/omsi-net/src/lib.rs",
+    "    drop_counts: [u32; 12],",
+    "    drop_counts: [u32; 13],",
+)
+replace_exact(
+    "crates/omsi-net/src/lib.rs",
+    "            drop_counts: [0; 12],",
+    "            drop_counts: [0; 13],",
+)
+replace_exact(
+    "crates/omsi-net/src/lib.rs",
+    "                p.drop_counts[11]\\n",
+    "                p.drop_counts[11],\\n"
+    "                p.drop_counts[12]\\n",
+)
+
 # New upstream population tests must initialize the Bridge's network seat field.
 replace_exact(
     "crates/omsi-sim/src/people/population_limit_tests.rs",
