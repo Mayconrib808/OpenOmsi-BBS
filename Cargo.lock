@@ -4339,9 +4339,9 @@ dependencies = [
 name = "omsi-sim"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "anyhow",
  "arc-swap",
- "base64 0.22.1",
  "glam",
  "hashbrown 0.17.1",
  "log",

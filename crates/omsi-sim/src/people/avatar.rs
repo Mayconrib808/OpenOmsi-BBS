@@ -377,6 +377,7 @@ impl PeopleSim {
         let bn = self.last_buses.iter().find(|b| b.id == bus)?;
         Some((bn.pos, bn.rot))
     }
+    /// Where the cabin point `local` of bus `bus` is in the world now, and the heading of the section it is in.
     pub fn cabin_world(&self, bus: BusId, local: Vec3) -> Option<(DVec3, f64)> {
         let bn = self.last_buses.iter().find(|b| b.id == bus)?;
         Some((bn.world(local), bn.heading_at(local)))

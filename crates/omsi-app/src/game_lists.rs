@@ -765,13 +765,7 @@ pub(crate) fn items(app: &App, kind: &ListKind) -> Vec<(String, String)> {
                 out.push((tr("There is no other vehicle to drive"), "back".into()));
             }
         }
-        ListKind::Liveries => {
-            out.push(("Original".into(), "repaint original".into()));
-            if let Some(p) = app.player.as_ref() {
-                out.extend(p.vehicle.ty.paint_schemes.iter().enumerate().map(|(i,p)| (p.name.clone(), format!("repaint {i}"))));
-            }
-        }
-        ListKind::Streets => out = streets::street_rows(app.menus.navigator.as_ref().map_or(Some(Vec::new()), |n| n.street_names())),
+        ListKind::Streets => out = street_rows(app.menus.navigator.as_ref().map_or(Some(Vec::new()), |n| n.street_names())),
         ListKind::Numbers => {
             if let Some(p) = app.player.as_ref() {
                 let mut numbers = fleet_numbers(&p.vehicle);
@@ -1218,14 +1212,12 @@ pub(crate) fn run_move(app: &mut App, kind: &ListKind, action: &str, mv: Move) -
             None
         }
         ListKind::Liveries => {
-            if verb == "repaint" {
-                if arg == "original" { app.repaint_current_vehicle(None); }
-                else if let Ok(index) = arg.parse() { app.repaint_current_vehicle(Some(index)); }
-                app.close_game_menu();
+            if let Some(scheme) = liveries::chosen(arg) {
+                app.repaint_driven(scheme);
             }
-            None
+            Some(kind.clone())
         }
-        ListKind::Streets => streets::show_street(app, arg),
+        ListKind::Streets => show_street(app, arg),
         ListKind::Numbers => {
             if let (Some((n, reg)), Some(p)) = (arg.split_once('\u{1}'), app.player.as_mut()) {
                 set_identity_to_player_vehicle(p, n, Some(reg));

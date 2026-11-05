@@ -945,7 +945,7 @@ mod preparation_tests {
 pub(crate) fn coop13_test_player(vehicle: omsi_sim::VehicleInstance) -> Player {
     let ty = vehicle.ty.clone();
     let render = scene::VehicleRender {
-        window_wipers: None, instances: vec![], far: vec![], own_materials: vec![], set: None,
+        window_wipers: None, instances: vec![], far: vec![], own_materials: vec![], set: None, own_set: None,
         variants: vec![], text_textures: vec![], script_textures: vec![],
         shared_script: false, displays_far: false, display_tick: 0, skinned: vec![],
         damaged: vec![], glass_cracks: vec![], hidden: false,

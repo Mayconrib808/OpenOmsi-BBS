@@ -127,3 +127,36 @@ mod tests {
         }
     }
 }
+
+/// A quick H tap and its complete sample have independent lifetimes.
+#[derive(Debug,Clone,Copy,PartialEq)]
+pub enum PressEvent { Button(bool), Sound(bool) }
+pub struct PressSequence { at:f32, next:usize, edges:[(f32,PressEvent);8], end:f32 }
+impl PressSequence {
+    pub fn new(sample:f32,tail:f32)->Self {
+        let sample=if sample.is_finite(){sample.clamp(0.18,20.0)}else{0.18};
+        let tail=if tail.is_finite(){tail.clamp(0.0,20.0)}else{0.0};let again=sample+tail+0.08;
+        use PressEvent::*;
+        Self{at:0.0,next:0,edges:[(0.0,Button(true)),(0.0,Sound(true)),(0.10,Button(false)),(sample,Sound(false)),(again,Button(true)),(again,Sound(true)),(again+0.10,Button(false)),(again+sample,Sound(false))],end:again+sample+tail+0.05}
+    }
+    pub fn advance(&mut self,dt:f32)->Vec<PressEvent> {
+        if dt.is_finite()&&dt>0.0{self.at+=dt;}let mut out=Vec::new();
+        while self.next<8&&self.at>=self.edges[self.next].0{out.push(self.edges[self.next].1);self.next+=1;}out
+    }
+    pub fn finished(&self)->bool{self.at>=self.end&&self.next==8}
+}
+#[cfg(test)]
+mod press_tests {
+    use super::*;
+    #[test]
+    fn two_quick_taps_keep_each_complete_sample_and_release_before_the_next() {
+        for (sample,tail) in [(0.401,0.12),(1.2,0.35),(0.18,0.0)] {
+            let mut s=PressSequence::new(sample,tail);let mut buttons=Vec::new();let mut sounds=Vec::new();
+            for frame in 0..1000 {for event in s.advance(0.01){match event {PressEvent::Button(on)=>buttons.push((frame as f32*0.01,on)),PressEvent::Sound(on)=>sounds.push((frame as f32*0.01,on))}}if s.finished(){break;}}
+            for e in [&buttons,&sounds]{assert_eq!(e.iter().map(|x|x.1).collect::<Vec<_>>(),vec![true,false,true,false]);}
+            assert!((buttons[1].0-buttons[0].0-0.1).abs()<0.02);assert!((buttons[3].0-buttons[2].0-0.1).abs()<0.02);
+            assert!(sounds[1].0-sounds[0].0>=sample-0.02);assert!(sounds[3].0-sounds[2].0>=sample-0.02);
+            assert!(sounds[2].0-sounds[1].0>=tail+0.06);assert!(s.finished());
+        }
+    }
+}

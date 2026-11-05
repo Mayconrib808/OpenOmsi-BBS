@@ -614,6 +614,7 @@ impl App {
                     h.stand_chance = self.settings.standing_chance;
                     h.brazilian_voice_dir = crate::humans::brazilian_voice_dir(&self.settings.language);
         h.voices = match self.settings.pax_voices.as_str() { "off" => 2, "tickets" => 1, _ => 0 };
+                    h.short_rides_stand = self.settings.pax_short_rides_stand;
                     if let Some(p) = self.player.as_mut() {
                         h.set_cabin(&mut p.vehicle);
                         h.ticket_key = ticket_key_name(&self.args.root, &p.bindings);

@@ -246,7 +246,8 @@ impl Sync {
                 if t.wait > 0.0 {
                     continue;
                 }
-                t.wait = 0.1;
+                t.wait = (RESEND.0 * 2f32.powi(t.tries.min(8) as i32)).min(RESEND.1);
+                t.tries += 1;
                 let cost = t.data.len().div_ceil(CHUNK);
                 budget -= cost;
                 s.credit -= cost as f32;
@@ -398,6 +399,26 @@ mod tests {
         assert_eq!(count, 256);
         assert!(max_burst <= 8, "sound backlog flooded a frame with {max_burst} packets");
         assert!(a.tick(15, 1, 1.0).is_empty());
+    }
+    #[test]
+    fn an_unacknowledged_event_is_sent_again_ever_less_often() {
+        let mut a = Sync::default();
+        a.publish(&[2], event("door", None));
+        assert_eq!(a.tick(11, 1, 0.0).len(), 1);
+        // 0.1 s, then 0.2, 0.4 ... up to 2 s between sends: over 10 s a handful, not a hundred
+        let mut sent = 1;
+        for _ in 0..1000 {
+            sent += a.tick(11, 1, 0.01).len();
+        }
+        assert!((5..=12).contains(&sent), "{sent} sends in 10 s");
+    }
+    #[test]
+    fn an_acknowledgement_is_told_from_an_event() {
+        let (mut a, mut b) = (Sync::default(), Sync::default());
+        a.publish(&[2], event("door", None));
+        let data = a.tick(11, 1, 0.0).remove(0);
+        let ack = b.receive(11, 2, &data).unwrap();
+        assert!(is_ack(&ack, 11) && !is_ack(&data, 11) && !is_ack(&ack, 10));
     }
     #[test]
     fn validates_bounds_protocol_and_recipient() {

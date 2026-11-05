@@ -145,6 +145,18 @@ mod brazilian_hail_tests {
     }
 
     #[test]
+    fn seated_driver_wave_changes_bones_without_a_wheel_and_preserves_other_arm() {
+        let rig = rig(1.77); let mut pose = Pose::new(42);
+        for _ in 0..90 { pose.advance(&rig, &PoseInput { activity: Activity::Sit, seat: Some(Vec3::new(0.0, 0.0, 0.65)), ..Default::default() }, 1.0/30.0); }
+        for side in 0..2 {
+            let mut posed=pose.bones(&rig);let old=posed.clone();
+            assert_eq!(driver_greeting(&rig,&mut posed,side,0.0,0.4),0.0);assert_eq!(posed.bones,old.bones);
+            assert!(driver_greeting(&rig,&mut posed,side,1.0,0.4)>0.10);
+            assert_eq!(posed.bones[HAND[1-side]],old.bones[HAND[1-side]]);
+            assert!(posed.bones.iter().all(|b|b.is_finite()));assert!(posed.wrist[side].z>posed.elbow[side].z);
+        }
+    }
+    #[test]
     fn hail_extends_from_shoulder_in_body_frame_at_different_sizes_and_headings() {
         for height in [1.10, 1.45, 1.77, 2.05] {
             let r = rig(height);
@@ -367,4 +379,18 @@ pub fn accessory_arm(rig: &Rig, bones: &mut [Affine3A; SLOTS], side: usize, targ
     bones[UPPER[side]]=joint_xf(rig.shoulder[side],sh,upper);
     bones[FORE[side]]=joint_xf(rig.elbow[side],el,fore);
     bones[HAND[side]]=joint_xf(rig.wrist[side],wr,hand);
+}
+
+/// Driver gesture applied directly to the bones that are skinned this frame.
+pub fn driver_greeting(rig: &Rig, posed: &mut Posed, side: usize, amount: f32, phase: f32) -> f32 {
+    if !posed.ok || !amount.is_finite() || amount <= 0.0 || !phase.is_finite() { return 0.0; }
+    let side = side.min(1);
+    let before = posed.bones[HAND[side]].transform_point3(rig.wrist[side]);
+    let shoulder = posed.bones[MAIN].transform_point3(rig.shoulder[side]);
+    let scale = (rig.upper_arm + rig.forearm).clamp(0.3, 1.0);
+    let target = shoulder + Vec3::new(SIDE[side] * 0.24, 0.20, 0.40 + (phase * 16.0).sin() * 0.06) * scale;
+    accessory_arm(rig, &mut posed.bones, side, target, amount, false, (phase * 16.0).sin() * 0.22);
+    posed.elbow[side] = posed.bones[FORE[side]].transform_point3(rig.elbow[side]);
+    posed.wrist[side] = posed.bones[HAND[side]].transform_point3(rig.wrist[side]);
+    before.distance(posed.wrist[side])
 }

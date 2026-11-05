@@ -4,10 +4,13 @@ use super::*;
 use super::pax_stops::entry_on_platform;
 
 const SHORT_RIDE_KM: f32 = 3.0;
+
 pub(super) fn short_ride(dest: Option<&str>, ride_km: f32) -> bool {
     dest.is_none() && ride_km > 0.0 && ride_km < SHORT_RIDE_KM
 }
 
+// A direct connection must have loaded walking ground all the way, not just a clear ray
+// above a fence. Keep unsupported stairs/gaps out until actual pavement routing is added.
 fn connection_walkable(from: DVec3, to: DVec3, height: impl Fn(f64, f64, f64) -> Option<f64>) -> bool {
     if !from.is_finite() || !to.is_finite() || (to - from).length_squared() > 80.0 * 80.0 { return false; }
     let steps = ((to - from).truncate().length() / 2.0).ceil().clamp(1.0, 40.0) as usize;

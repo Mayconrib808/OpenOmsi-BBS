@@ -1202,7 +1202,7 @@ pub struct Peer {
     /// Datagrams of this player the host threw away (too many at once).
     pub dropped: u32,
     /// Rate-limit rejections by PeerTraffic category (no payloads stored).
-    drop_counts: [u32; 13],
+    drop_counts: [u32; PeerTraffic::SoundAcks as usize + 1],
     /// The nonce of the player's hellos (host side).
     nonce: Option<u64>,
     secret: [u8; 16],
@@ -1250,7 +1250,7 @@ impl Peer {
             chat: Bucket::new(CHAT_RATE.1),
             sound_acks: Bucket::new(SOUND_ACK_RATE.1),
             dropped: 0,
-            drop_counts: [0; 13],
+            drop_counts: [0; PeerTraffic::SoundAcks as usize + 1],
             history: std::collections::VecDeque::new(),
             nonce: None,
             secret: admission::random_bytes(),
@@ -2386,7 +2386,7 @@ impl LanSession {
                 continue;
             };
             log::warn!(
-                "LAN: player {id} timed out after {:.1} s without an accepted datagram (loading={}, rate-limited total={}, state={}, variables={}, animations={}, textures={}, sounds={}, voice={}, tack={}, messages={}, chat={}, sound acks={})",
+                "LAN: player {id} timed out after {:.1} s without an accepted datagram (loading={}, rate-limited total={}, state={}, variables={}, animations={}, textures={}, sounds={}, voice={}, tack={}, person descriptions={}, person control={}, person world={}, messages={}, chat={}, sound acks={})",
                 now.duration_since(p.last_seen).as_secs_f32(),
                 !p.has_pose,
                 p.dropped,
@@ -2397,6 +2397,9 @@ impl LanSession {
                 p.drop_counts[4],
                 p.drop_counts[5],
                 p.drop_counts[6],
+                p.drop_counts[7],
+                p.drop_counts[8],
+                p.drop_counts[9],
                 p.drop_counts[10],
                 p.drop_counts[11],
                 p.drop_counts[12]

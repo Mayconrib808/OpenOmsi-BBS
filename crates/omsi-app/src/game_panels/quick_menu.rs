@@ -26,7 +26,7 @@ pub(crate) const PER_PAGE: usize = 15;
 const WIDTH: f32 = 5.0 * 84.0 + 4.0 * 8.0 + 2.0 * 14.0;
 
 /// The tiles: id, label, icon - in OMSI's order, five to a row, fifteen to a page.
-pub(crate) const TILES: [(&str, &str, &str); 32] = [
+pub(crate) const TILES: &[(&str, &str, &str)] = &[
     ("place", "Place a vehicle", "add"),
     ("switch", "Change vehicle", "sync_alt"),
     ("remove", "Remove vehicle", "delete"),
@@ -467,6 +467,17 @@ mod tests {
             assert!(app.menus.game_panels.quick.is_none());
             assert_eq!(app.paused, paused);
         }
+    }
+    #[test]
+    fn a_tile_done_in_place_keeps_the_menu_open_on_its_page() {
+        let mut app = app();
+        toggle(&mut app);
+        click(&mut app, "next");
+        click(&mut app, "arrows");
+        assert!(app.menus.game_panels.quick.as_ref().is_some_and(|q| q.page == 1), "the menu stays, as in OMSI 2");
+        assert!(app.settings.nav_arrows);
+        click(&mut app, "time");
+        assert!(app.menus.game_panels.quick.is_none(), "a list takes over");
     }
 
     #[test]

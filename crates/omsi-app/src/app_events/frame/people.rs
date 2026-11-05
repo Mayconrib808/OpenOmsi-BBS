@@ -14,6 +14,9 @@ impl App {
     /// The player's duty, the personnel file's step, the placing of vehicles, the host's map
     /// edits and `--on-foot`.
     pub(super) fn frame_duty(&mut self, dt: f32) {
+        if self.session.depot_prev.is_some() {
+            self.settle_depot_switch(false);
+        }
         let s=&self.settings;
         omsi_sim::people::TICKET_CHANCE_PERCENT.store(if s.ticket_chance_enabled {s.ticket_chance_percent.round() as i32}else{-1},std::sync::atomic::Ordering::Relaxed);
         if self.player.as_ref().is_some_and(|p| p.borrowed_from.is_some()) {

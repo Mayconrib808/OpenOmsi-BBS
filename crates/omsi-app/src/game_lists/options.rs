@@ -433,6 +433,7 @@ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
         "passenger_full_bus_reaction"=>s.passenger_full_bus_reaction,
         "passenger_connections"=>s.passenger_connections,
         "pax_hailing_map"=>crate::view_sync::people::extras::map_enabled(&s.passenger_hailing_maps,&app.args.map),
+        "pax_short_rides_stand" => s.pax_short_rides_stand,
         "navigator" => if app.vr_active() { app.vr_nav_profile().enabled } else { app.menus.navigator.as_ref().is_some_and(|n| n.enabled) },
         "nav_ai" => app.menus.navigator.as_ref().map_or(s.nav_ai, |n| n.show_ai),
         "nav_ai_cars" => app.menus.navigator.as_ref().map_or(s.nav_ai_cars, |n| n.show_cars),

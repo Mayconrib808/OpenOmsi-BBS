@@ -130,6 +130,17 @@ fn wheelchair_boarding_yields_past_an_occupied_bay_with_no_free_standing_place()
 }
 
 #[test]
+fn a_waiting_person_at_the_lift_moves_aside_before_the_crowd_timeout() {
+    use wheelchair::Stage;
+    let (mut h,bn,view,world)=wheelchair_service("wheelchair-curb-yield");let (mut crowd,_,_,_)=wheelchair_service("wheelchair-curb-crowd");
+    let id=h.people[0].id;let mut other=crowd.people.pop().unwrap();other.id=2;other.position=h.people[0].position+glam::DVec3::Y*0.2;let pos=other.position;
+    if let State::Pax(x)=&mut other.state{x.pos=pos;x.stop=None;x.inside=None;x.seat=None;}h.people.push(other);
+    assert!(h.begin_wheelchair_boarding(0,&bn,&world));h.wheelchairs.assisted=true;
+    for _ in 0..12000 {h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));if let Some(j)=h.wheelchairs.journey.as_ref(){assert!(!j.crowd_priority_active());}if h.wheelchairs.riders.contains_key(&id){break;}}
+    assert!(h.wheelchairs.riders.contains_key(&id));assert_eq!(h.wheelchairs.riders[&id].journey.stage,Stage::Riding);assert_eq!(h.people.len(),2);assert!((h.people[1].position-pos).length()>0.6);
+}
+
+#[test]
 fn connection_rejects_unloaded_ground_and_large_steps() {
     let from = DVec3::ZERO;
     let to = DVec3::X * 10.0;

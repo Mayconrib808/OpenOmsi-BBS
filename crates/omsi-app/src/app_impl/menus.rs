@@ -425,7 +425,6 @@ impl App {
             "driver" => self.open_list(crate::game_lists::ListKind::Drivers),
             "livery" => self.open_list(crate::game_lists::ListKind::Liveries),
             "number" => self.open_list(crate::game_lists::ListKind::Numbers),
-            "livery" => self.open_list(crate::game_lists::ListKind::Liveries),
             "dest" => self.open_list(crate::game_lists::ListKind::Destinations),
             "hof" => self.open_list(crate::game_lists::ListKind::Hofs),
             "tplist" => self.open_list(crate::game_lists::ListKind::Spots),

@@ -64,6 +64,7 @@ pub struct Traffic {
     pub(crate) sound_frame: omsi_sim::view_events::SoundFrame,
     /// `[sound_ai]` set of each car near the listener, by car id (see `audio`).
     pub(crate) sounds: HashMap<u64, omsi_audio::SoundSet>,
+    pub(crate) greeting_horns: HashMap<u64, crate::view_sync::traffic_audio::GreetingHorn>,
     /// Sound sets of despawned cars, stopped at the next audio update.
     pub(crate) orphan_sounds: Vec<omsi_audio::SoundSet>,
     /// The bus the player rides in on foot, heard from inside: its whole `[sound]` set as
@@ -121,6 +122,7 @@ impl Traffic {
             looks: Default::default(),
             sound_frame: Default::default(),
             sounds: HashMap::new(),
+            greeting_horns: HashMap::new(),
             orphan_sounds: Vec::new(),
             riding_sounds: None,
             ridden: None,

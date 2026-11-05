@@ -17,7 +17,7 @@ pub struct SoundFrame {
     parts: Vec<Mat4>,
     /// The cars that honked (`TrafficSim::honked`) and are on the road: (heavy, where, type).
     pub honks: Vec<(bool, DVec3, Arc<VehicleType>)>,
-    pub greeting_honks: Vec<(bool, DVec3, Arc<VehicleType>)>,
+    pub greeting_honks: Vec<(u64, bool, DVec3, Arc<VehicleType>)>,
 }
 
 /// One AI car, as its sounds read it.
@@ -86,7 +86,7 @@ impl crate::ai_traffic::TrafficSim {
             let heard = (v.position - listener).length() <= within && riding != Some(c.id);
             let greeting = v.host.fired_triggers.iter().any(|t| t == crate::ai_traffic::greetings::HORN_EVENT);
             v.host.fired_triggers.retain(|t| t != crate::ai_traffic::greetings::HORN_EVENT);
-            if greeting && heard { out.greeting_honks.push((true, v.position, v.ty.clone())); }
+            if greeting && heard { out.greeting_honks.push((c.id, true, v.position, v.ty.clone())); }
             let mut car = CarSound {
                 id: c.id,
                 heard,

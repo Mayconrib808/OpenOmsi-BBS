@@ -366,11 +366,13 @@ impl Journey {
         self.deployment > 0.0001
             || !matches!(self.stage, Stage::Waiting | Stage::Riding | Stage::Finished)
     }
+    pub fn crowd_priority_active(&self)->bool {self.crowd_priority}
     pub fn doorway_busy(&self)->bool {
         !matches!(self.stage,Stage::Waiting|Stage::Riding|Stage::Finished)
     }
     fn crowd_allows_motion(&mut self, blocked:bool, dt:f32)->bool {
-        if !blocked||self.crowd_priority{return true;}
+        if !blocked {self.crowd_wait=0.0;return true;}
+        if self.crowd_priority{return true;}
         self.crowd_wait+=dt.clamp(0.0,0.1);
         if self.crowd_wait<1.5 {
             self.hold_reason="Passagem ocupada: solicitando espaço aos passageiros";
@@ -718,6 +720,7 @@ pub struct Wheelchairs {
     pub auto_spawn: bool,
     pub bay_occupied: bool,
     floor_surface:Option<discovery::FloorSurface>,
+    crowd_targets: HashMap<u32,(Vec3,bool)>,
     pub served: HashSet<i64>,
     reserved: Vec<usize>,
     remotes: HashMap<u32, network::Remote>,
@@ -745,6 +748,7 @@ impl Default for Wheelchairs {
             auto_spawn: false,
             bay_occupied: false,
             floor_surface:None,
+            crowd_targets: HashMap::new(),
             served: HashSet::new(),
             reserved: Vec::new(),
             remotes: HashMap::new(),
@@ -805,6 +809,7 @@ impl PeopleSim {
             }
         }
         self.wheelchairs.journey = None;
+        self.wheelchairs.crowd_targets.clear();
         self.wheelchairs.equipment = None;
         self.wheelchairs.profiles.clear();
         self.wheelchairs.riders.clear();
@@ -926,7 +931,7 @@ impl PeopleSim {
                 }
             }
         }
-        self.clear_wheelchair_corridor(id, &profile, bn, dt);
+        self.clear_wheelchair_corridor(id,&profile,&journey,bn,world,dt);
         let blockers: Vec<Vec3> = self
             .people
             .iter()

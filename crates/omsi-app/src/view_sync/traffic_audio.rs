@@ -1,5 +1,7 @@
 //! The AI vehicles' sounds: the view sync's side of the traffic that is heard.
 
+mod greeting;
+pub(crate) use greeting::GreetingHorn;
 use crate::traffic::Traffic;
 use glam::DVec3;
 use hashbrown::HashMap;
@@ -143,6 +145,7 @@ impl Traffic {
             self.sim.set_sound_triggers(id, t);
         }
         self.play_horns(audio, &frame, listener, muffled, volume);
+        self.play_greeting_horns(audio, &frame, muffled, volume);
         self.sound_frame = frame;
     }
 
@@ -151,8 +154,8 @@ impl Traffic {
     /// sounds OMSI's own AI horn (`Sounds/AI_Cars`, the lorry's for the heavy ones) where it
     /// stands - the stock cars have nothing on that trigger, and the AI's honking was never heard.
     fn play_horns(&mut self, audio: &omsi_audio::AudioEngine, frame: &omsi_sim::view_events::SoundFrame, listener: DVec3, muffled: bool, volume: f32) {
-        for ((heavy, position, ty), greeting) in frame.honks.iter().map(|h|(h,false))
-            .chain(frame.greeting_honks.iter().map(|h|(h,true))) {
+        for (heavy, position, ty) in &frame.honks {
+            let greeting=false;
             if (*position - listener).length() > 250.0 {
                 continue;
             }

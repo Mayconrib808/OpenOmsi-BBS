@@ -170,8 +170,6 @@ pub struct TrafficSim {
     /// on the roads - no aircraft, no parked car pulling out - while `target` is 0.
     pub lights_only: bool,
     pub spawn_radius: f64,
-    /// When local AI has remained below its requested population.
-    pub starved_since: Option<f32>,
     pub time: f32,
     /// Where the camera is (the window sets it before `sync`): far cars show their script
     /// textures as stand-ins.

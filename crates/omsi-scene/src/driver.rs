@@ -287,6 +287,7 @@ pub struct DriverFigure {
     /// Presentation-only gesture in the free arm; 0 is the exact stock pose.
     greeting_wave: f32,
     greeting_wave_phase: f32,
+    greeting_applied: bool,
     /// The wheel's angle seen from the seat (degrees, clockwise) now and a frame ago, and
     /// how long it has been held still (s).
     theta: f32,
@@ -524,6 +525,7 @@ impl DriverFigure {
             hands_placed: false,
             greeting_wave: 0.0,
             greeting_wave_phase: 0.0,
+            greeting_applied: false,
             theta: 0.0,
             last_theta: 0.0,
             still: 0.0,
@@ -583,6 +585,7 @@ impl DriverFigure {
         self.hands_placed = false;
         self.greeting_wave = 0.0;
         self.greeting_wave_phase = 0.0;
+        self.greeting_applied = false;
         self.elbows = None;
         self.frames = [None; 2];
         self.rolls = [None; 2];
@@ -634,6 +637,7 @@ impl DriverFigure {
     /// Optional AI-only waving. Never feeds back into bus scripts or vehicle control.
     /// Other users of DriverFigure leave it at its zero default.
     pub fn set_greeting_wave(&mut self, level: f32, phase: f32) {
+        if level <= 0.01 { self.greeting_applied = false; }
         self.greeting_wave = if level.is_finite() { level.clamp(0.0, 1.0) } else { 0.0 };
         self.greeting_wave_phase = if phase.is_finite() { phase.max(0.0) } else { 0.0 };
     }
@@ -735,7 +739,15 @@ impl DriverFigure {
         let input = self.pose_input(targets.as_ref(), fwd);
         let floor = self.floor + fwd * self.slide;
         self.pose.advance(&self.ty.rig, &input, dt);
-        let posed = self.pose.bones(&self.ty.rig);
+        let mut posed = self.pose.bones(&self.ty.rig);
+        // Skin the greeting after steering IK, including add-ons with no detected wheel.
+        let side = if self.hip.x <= 0.0 { 0 } else { 1 };
+        let amount = if self.away()[side] { 0.0 } else { self.greeting_wave };
+        let moved = omsi_sim::human::driver_greeting(&self.ty.rig, &mut posed, side, amount, self.greeting_wave_phase);
+        if moved > 0.025 && !self.greeting_applied && !self.meshes.is_empty() {
+            log::info!("FEATURE AUDIT ai_driver_wave model_applied model={} hand={} wrist_motion_m={moved:.3} meshes={} wheel_detected={}", self.ty.def.path.display(), side, self.meshes.len(), self.wheel.is_some());
+            self.greeting_applied = true;
+        }
         if posed.ok {
             self.keep_elbows(&posed.elbow);
         }
@@ -784,7 +796,7 @@ impl DriverFigure {
             return;
         }
         self.skins.resize_with(self.ty.meshes.len(), Default::default);
-        let open = [0, 1].map(|k| self.hands[k].open().max(self.shift_open(k)));
+        let open = [0, 1].map(|k| self.hands[k].open().max(self.shift_open(k)).max(if k == side { amount } else { 0.0 }));
         for (k, m) in self.ty.meshes.iter().enumerate() {
             let (pos, nrm) = &mut self.skins[k];
             if open.iter().any(|&o| o > 0.01) {
@@ -1056,22 +1068,6 @@ impl DriverFigure {
             // lifted on the way) and turns into the hold the knob asks for.
             let mut tube = tube;
             let (mut dir, mut palm) = (dir, palm);
-            // Greet an approaching bus with the arm nearest the side window.
-            // The other hand remains on the wheel; shifting takes priority.
-            let greeting_hand = if self.hip.x <= 0.0 { 0 } else { 1 };
-            if k == greeting_hand && self.greeting_wave > 0.01 && !self.away()[k] {
-                let outward = if k == 0 { Vec3::new(-fwd.y, fwd.x, 0.0) }
-                    else { Vec3::new(fwd.y, -fwd.x, 0.0) };
-                let raised = self.hip + fwd * 0.17 + outward * 0.34
-                    + Vec3::Z * (0.51 + (self.greeting_wave_phase * 16.0).sin() * 0.06);
-                let weight = self.greeting_wave;
-                tube = tube.lerp(raised, weight);
-                let wave_dir = (outward * 0.35 + Vec3::Z * 0.9).normalize_or(Vec3::Z);
-                let wave_palm = (fwd - wave_dir * wave_dir.dot(fwd)).normalize_or(fwd);
-                let q = frame_quat(dir, palm).slerp(frame_quat(wave_dir, wave_palm), weight).normalize();
-                dir = q * Vec3::X;
-                palm = q * Vec3::Y;
-            }
             if let Some((lh, e, knob, ldir, lpalm)) = lever {
                 if lh == k {
                     tube = tube.lerp(knob, e) + Vec3::Z * (0.04 * (e * std::f32::consts::PI).sin());

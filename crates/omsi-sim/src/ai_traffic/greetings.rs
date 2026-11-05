@@ -282,8 +282,8 @@ impl Greetings {
             self.last.insert(id,now);
             self.waves.insert(id, now);
             self.audit_waves += 1;
-            // A real visual gesture was scheduled, not merely enabled in settings.
-            log::info!("FEATURE AUDIT ai_driver_wave performed ai_bus={} other={:?} response_to_signal={} traffic_mirror={}",id,other,response,sim.mirror);
+            // Scheduling is distinct from applying a gesture to a drawable model.
+            log::info!("FEATURE AUDIT ai_driver_wave scheduled ai_bus={} other={:?} response_to_signal={} traffic_mirror={}",id,other,response,sim.mirror);
             if !signals_enabled { continue; }
             log::info!("FEATURE AUDIT ai_bus_greeting_emitted ai_bus={} other={:?} response_to_signal={} network_capture={} event={}",
                 id,other,response,car.vehicle.host.capture_sound_triggers,HORN_EVENT);

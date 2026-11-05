@@ -109,11 +109,11 @@ pub struct AiCar {
     /// That decision was taken standing first at the light's line as it went green.
     pub amber_start: bool,
     pub passing: Option<Passing>,
-    /// 0.3.49: current traffic light decision, including amber/red.
-    pub current_light: Option<(usize, usize)>,
-    pub amber_decision: f32,
     /// Optional multi-lane bus-to-bus overtake that preserves the fixed timetable route.
     pub bus_lane_pass: Option<BusLanePass>,
+    /// The current light this car has decision about (passing on amber/red) and a random factor variable
+    pub current_light: Option<(usize, usize)>,
+    pub amber_decision: f32,
     /// Finished (a dead end, the end of a timetable trip, given up): taken off the road as
     /// soon as nobody can see it.
     pub gone: bool,
@@ -745,9 +745,9 @@ impl TrafficSim {
             amber: None,
             amber_start: false,
             passing: None,
+            bus_lane_pass: None,
             current_light: None,
             amber_decision: 0.0,
-            bus_lane_pass: None,
             gone: false,
             fresh: 1.5,
             merge_after: None,

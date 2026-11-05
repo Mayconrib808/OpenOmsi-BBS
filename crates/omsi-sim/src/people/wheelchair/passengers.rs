@@ -158,6 +158,7 @@ impl PeopleSim {
         if (local.z-profile.threshold.z).abs()>1.6{return false;}
         let mut journey=Journey::new(&profile,local.z,angle_delta(bn.heading,self.people[i].heading));
         journey.local=local;journey.outside_world=Some(at);journey.board_stop=stop;
+        self.wheelchairs.crowd_targets.clear();
         self.wheelchairs.profile=Some(profile.clone());
         self.wheelchairs.person=Some(self.people[i].id);
         self.wheelchairs.journey=Some(journey);
@@ -198,7 +199,7 @@ impl PeopleSim {
         if riding&&j.alight_requested{return;}
         let journey=self.wheelchairs.journey.take().unwrap();
         let Some(id)=self.wheelchairs.person.take()else{return;};
-        self.wheelchairs.equipment=None;self.wheelchairs.assisted=false;
+        self.wheelchairs.equipment=None;self.wheelchairs.assisted=false;self.wheelchairs.crowd_targets.clear();
         self.people[i].puppet=None;
         if let Some(m)=self.wheelchairs.mobile.get_mut(&id){m.pose=journey.pose;m.pose.moving=0.0;}
         if riding {
@@ -226,32 +227,57 @@ impl PeopleSim {
         }
         INTERLOCK.store(false,Ordering::Release);
     }
-    pub(super) fn clear_wheelchair_corridor(&mut self,id:u32,profile:&Profile,bn:&BusNow,_dt:f32) {
-        let corridor=|at:Vec3| {
-            (at-profile.bay).truncate().length()<0.85
-                ||profile.route.iter().any(|p|(at-*p).truncate().length()<0.64)
-        };
+    pub(super) fn clear_wheelchair_corridor(&mut self,id:u32,profile:&Profile,journey:&Journey,bn:&BusNow,world:&dyn World,dt:f32) {
+        if !dt.is_finite()||dt<=0.0||bn.speed.abs()>0.025{return;}
+        let mut path=vec![journey.local,profile.outside(journey.ground_height),profile.threshold];path.extend_from_slice(&profile.route);path.push(profile.bay);
+        let corridor=|at:Vec3|corridor_contains(&path,at,0.8);
         let movers:Vec<_>=self.people.iter().enumerate().filter_map(|(i,p)| {
-            let State::Pax(x)=&p.state else{return None};
-            if p.id==id||self.wheelchairs.is_chair(p.id)||x.inspector||x.responder_hold
-                ||x.inside!=Some(BusId::Player)||x.task!=Task::SittingInBus{return None;}
-            let fold=profile.fold.is_some()&&(x.pos.as_vec3()-profile.bay).truncate().length()<1.0;
-            (corridor(x.pos.as_vec3())&&(x.seat.is_none_or(|k|bn.cabin.seats.get(k).is_none_or(|s|!s.seated))||fold)).then_some(i)
+            let State::Pax(x)=&p.state else{return None};if p.id==id||self.wheelchairs.is_chair(p.id){return None;}
+            let inside=x.inside==Some(BusId::Player);let at=bn.to_local(p.position);
+            let seated=inside&&x.seat.and_then(|k|bn.cabin.seats.get(k)).is_some_and(|s|s.seated);
+            let fold=profile.fold.is_some()&&(at-profile.bay).truncate().length()<1.0;
+            let ground=x.inside.is_none()&&(p.position-bn.world(journey.local)).length_squared()<25.0;
+            ((inside&&(!seated||fold)||ground)&&(corridor(at)||self.wheelchairs.crowd_targets.contains_key(&p.id))).then_some((i,at,!inside))
         }).collect();
-        for i in movers {
-            let group=self.pax(i).and_then(|p|p.seat).and_then(|k|bn.cabin.seats.get(k)).map(|s|s.group);
-            let off:Vec<_>=bn.cabin.seats.iter().enumerate().map(|(k,s)|
-                !s.floor.is_finite()||s.floor.abs().max_element()>100.0||corridor(s.floor)
-                    ||group.is_some_and(|g|g!=s.group)||bn.places_off.get(k).copied().unwrap_or(false)).collect();
-            let Some(k)=self.reserve_place(BusId::Player,&bn.cabin.seats,&off)else{continue};
-            if let Some(old)=self.pax(i).and_then(|p|p.seat){self.free_seat(BusId::Player,old);}
-            let all=bn.cabin.all_points();
-            let at=self.pax(i).unwrap().pos.as_vec3();
-            let pt=bn.cabin.omsi_nearest(at,&all,false,false,None,None);
-            let p=self.pax_mut(i).unwrap();
-            p.seat=Some(k);p.task=Task::InBusToPlace;p.pt=pt;p.ticket=0;p.pax_state=1.0;p.target_bus=true;
-            self.route_to_place(i,bn);
-            log::info!("WHEELCHAIR make_room person={} new_place={k}",self.people[i].id);
+        for (i,at,ground) in movers {
+            let pid=self.people[i].id;
+            if !self.wheelchairs.crowd_targets.contains_key(&pid) {
+                let target=if ground {
+                    [1.05f32,-1.05,1.5,-1.5,2.0,-2.0].into_iter().filter_map(|dy| {
+                        let mut q=at+Vec3::Y*dy;let from=bn.world(at);let to=bn.world(q);let z=world.walk_height_near(to.x,to.y,from.z)?;
+                        if (z-from.z).abs()>0.2||corridor(q)||world.collision().ray_blocked(from+DVec3::Z*0.45,to+DVec3::Z*0.45,0.25,0.6){return None;}
+                        q.z=bn.to_local(DVec3::new(to.x,to.y,z)).z;Some(q)
+                    }).next()
+                }else{
+                    // Compress a full standing crowd into existing standing places;
+                    // preserve the other wheelchair bays and the model's floor.
+                    let taken=self.seats.get(&BusId::Player);
+                    bn.cabin.seats.iter().enumerate().filter(|(k,s)|!s.seated&&s.floor.is_finite()&&!corridor(s.floor)&&!bn.places_off.get(*k).copied().unwrap_or(false)&&(s.floor.z-at.z).abs()<0.35&&!self.wheelchairs.riders.values().any(|r|(s.floor-r.profile.bay).truncate().length()<0.9))
+                    .min_by(|(ka,a),(kb,b)| {
+                        let score=|k:usize,q:Vec3|(q-at).length_squared()+if taken.and_then(|t|t.get(k)).copied().unwrap_or(false){100.0}else{0.0}+if self.wheelchairs.crowd_targets.values().any(|(t,g)|!*g&&(*t-q).length()<0.35){20.0}else{0.0};
+                        score(*ka,a.floor).total_cmp(&score(*kb,b.floor))
+                    }).map(|(_,s)|s.floor)
+                };
+                let Some(target)=target else{continue};self.wheelchairs.crowd_targets.insert(pid,(target,ground));
+                log::info!("WHEELCHAIR make_room person={pid} ground={ground} from={at:?} target={target:?}");
+            }
+            let (target,was_ground)=self.wheelchairs.crowd_targets[&pid];if was_ground!=ground{self.wheelchairs.crowd_targets.remove(&pid);continue;}
+            let next=at+(target-at).clamp_length_max(dt.clamp(0.0,0.1)*1.2);let new_world=bn.world(next);
+            let old=self.pax(i).and_then(|x|x.seat);if !ground{if let Some(k)=old{self.free_seat(BusId::Player,k);}}
+            if let Some(x)=self.pax_mut(i){x.pos=if ground{new_world}else{next.as_dvec3()};if !ground{x.seat=None;x.seat_h=0.0;x.pax_state=1.0;}}
+            self.people[i].position=new_world;if !ground{self.people[i].place=Place::Bus(BusId::Player,next);}
         }
+    }
+}
+fn corridor_contains(path:&[Vec3],at:Vec3,radius:f32)->bool {
+    path.windows(2).any(|p|{let d=p[1]-p[0];let t=((at-p[0]).truncate().dot(d.truncate())/d.truncate().length_squared().max(1e-6)).clamp(0.0,1.0);let near=p[0]+d*t;(at.z-near.z).abs()<1.5&&(at-near).truncate().length()<radius})
+}
+#[cfg(test)]
+mod corridor_tests {
+    use super::*;
+    #[test] fn people_between_route_vertices_and_at_the_curb_also_yield() {
+        let path=[Vec3::new(2.0,0.0,0.0),Vec3::ZERO,Vec3::new(0.0,4.0,0.3)];
+        assert!(corridor_contains(&path,Vec3::new(0.3,2.0,0.3),0.8));assert!(corridor_contains(&path,Vec3::new(1.7,0.2,0.0),0.8));
+        assert!(!corridor_contains(&path,Vec3::new(1.5,2.0,0.3),0.8));assert!(!corridor_contains(&path,Vec3::new(0.0,2.0,3.0),0.8));
     }
 }
