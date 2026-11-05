@@ -18,6 +18,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23.2'
+      - name: Unit tests for Windows IFEO activation and rollback
+        shell: pwsh
+        run: |
+          python scripts/build_2203.py --tests-only
+          if ($LASTEXITCODE -ne 0) { throw 'Registry transaction and activation unit tests failed' }
       - name: Require approved 2.2.3.1 full package
         env:
           GH_TOKEN: ${{ github.token }}
