@@ -1,0 +1,101 @@
+name: Build and verify full Bridge 2.2.3 Hotfix 1
+on:
+  push:
+    branches: [release-candidate/2.2.3-hotfix1]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-223-hotfix1-candidate
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: '1'
+      OMSI_NO_UPDATE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.23.2
+          cache: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Require the exact successful native and lobby build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          @'
+          import json,os,subprocess
+          from pathlib import Path
+          pin=json.loads(Path('build-support/release223-hotfix1/native-build.json').read_text())
+          root='repos/'+os.environ['GITHUB_REPOSITORY']+'/actions/runs/'+str(pin['run_id'])
+          run=json.loads(subprocess.check_output(['gh','api',root],text=True))
+          assert run['status']=='completed' and run['conclusion']=='success'
+          assert run['head_sha']==pin['commit'] and run['path']==pin['workflow']
+          artifacts=json.loads(subprocess.check_output(['gh','api',root+'/artifacts'],text=True))['artifacts']
+          for kind in ('native','launcher'):
+              a=next(a for a in artifacts if a['id']==pin[kind+'_artifact_id'])
+              assert not a['expired'] and a['digest']=='sha256:'+pin[kind+'_artifact_sha256']
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Native and lobby provenance failed' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.3-native-CANDIDATE
+          run-id: 41946684898
+          github-token: ${{ github.token }}
+          path: native
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.3-launcher-CANDIDATE
+          run-id: 41946684898
+          github-token: ${{ github.token }}
+          path: launcher
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.5-FULL-CANDIDATE
+          run-id: 41871370040
+          github-token: ${{ github.token }}
+          path: baseline
+      - name: Build full update and verify actual Windows installation
+        shell: pwsh
+        run: |
+          python -m py_compile scripts/build_223.py
+          python scripts/build_223.py --baseline baseline --parts baseline --native native --launcher launcher --output build/release223-hotfix1
+          if ($LASTEXITCODE -ne 0) { throw 'Hotfix 1 full installer validation failed' }
+          Compress-Archive -Path build/release223-hotfix1/runtime/* -DestinationPath build/release223-hotfix1/OpenOMSI-BCS-Bridge-2.2.3-Hotfix-1-FULL.zip
+          if ($LASTEXITCODE -ne 0) { throw 'Full portable archive failed' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Bridge-2.2.3-Hotfix1-failure-diagnostics
+          path: |
+            build/release223-hotfix1/one-click-install-setup.log
+            build/release223-hotfix1/runtime/app/setup-v1.1.3.log
+            build/release223-hotfix1/setup-previews/*
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3-Hotfix1-FULL-CANDIDATE
+          path: |
+            build/release223-hotfix1/OpenOMSI-BCS-Bridge-2.2.3-Hotfix-1-FULL.zip
+            build/release223-hotfix1/Atualizar-Bridge.exe
+            build/release223-hotfix1/build-report.json
+            build/release223-hotfix1/coop-spec.json
+            build/release223-hotfix1/coop-assets/*
+            build/release223-hotfix1/native-p16-controls.json
+            build/release223-hotfix1/one-click-install-test.json
+            build/release223-hotfix1/accessibility-223-validation.md
+            build/release223-hotfix1/accessibility-223-vehicle-validation.json
+            build/release223-hotfix1/setup-previews/*
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error

@@ -1,16 +1,16 @@
-"""Build Bridge 2.2.3 over the verified Hotfix 5 package, retaining every host."""
+"""Build Bridge 2.2.3-hotfix.1 over the verified Hotfix 5 package, retaining every host."""
 import argparse,hashlib,io,json,os,shutil,subprocess,tarfile,tempfile,zipfile
 from pathlib import Path
 import build,build_bridge_update,setup_resources
 from build_runtime_2203 import embedded_payload,EXPECTED
 
 ROOT=Path(__file__).resolve().parents[1]
-VERSION='2.2.3';SEQUENCE=2026110403
+VERSION='2.2.3-hotfix.1';SEQUENCE=2026110404
 COOP='OpenOmsi Coop 0.3.41'  # Existing installation path; actual runtime is 0.3.47.
 ORIGIN='https://openomsi-bbs-updates.maycongamesmaximo.workers.dev'
 BASE_UPDATER='57001cce318b3a19fc2f1632dbc6c13241df753108bb099b254d5758ecfebea4'
 BASE_COOP='8e38d78f74b820a38e36609587255fe3a492a1d6a42d630415b11c1357e3bc99'
-NATIVE_VERSION='0.3.47-coop.16-2.2.3'
+NATIVE_VERSION='0.3.47-coop.16-2.2.3-hotfix.1'
 UPSTREAM='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6'
 REBUILD=('Setup.exe','PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe','app/compat/Omsi.exe')
 sha=lambda data:hashlib.sha256(data).hexdigest()
@@ -38,7 +38,7 @@ def main():
   files={name:z.read(spec['prefix']+name)for name in spec['files']}
  for name,data in files.items():assert sha(data)==spec['files'][name],name
  before={name:sha(data)for name,data in files.items()}
- evidence=readjson(a.native/'SOURCE.json');pin=readjson(ROOT/'build-support/release223/native-build.json')
+ evidence=readjson(a.native/'SOURCE.json');pin=readjson(ROOT/'build-support/release223-hotfix1/native-build.json')
  assert evidence['commit']==pin['commit']
  assert evidence['run_id']==pin['run_id'], 'Native executable does not match the verified accessibility run'
  assert pin['workflow']=='.github/workflows/accessibility-223.yml'
@@ -58,7 +58,7 @@ def main():
  launcher_name=COOP+'/programa/openomsi-launcher-app.exe'
  launcher_meta=readjson(a.launcher/'BUILD-INFO.json')
  launcher_binary=(a.launcher/'openomsi-launcher-app.exe').read_bytes()
- launcher_pin=readjson(ROOT/'build-support/release223/native-build.json')
+ launcher_pin=readjson(ROOT/'build-support/release223-hotfix1/native-build.json')
  assert launcher_pin['commit']==evidence['commit'], 'Native source pin changed during packaging'
  assert launcher_meta['version']==NATIVE_VERSION, 'Launcher must match the full 0.3.47 game and P16 server'
  assert launcher_meta['source_commit']==evidence['commit'], 'Lobby and game must share the tested accessibility source'
@@ -71,14 +71,14 @@ def main():
  marker=json.loads(files[marker_name])
  marker.update(bridge_line=VERSION,source_commit=evidence['commit'],native_version=NATIVE_VERSION,native_sha256=sha(native),protocol=16,version=NATIVE_VERSION,openomsi_version='0.3.47',upstream_commit=UPSTREAM)
  files[marker_name]=(json.dumps(marker,indent=2)+'\n').encode()
- notes=(ROOT/'docs/releases/2.2.3.md').read_bytes()
+ notes=(ROOT/'docs/releases/2.2.3-hotfix.1.md').read_bytes()
  info_name=COOP+'/source/BUILD-INFO.json';info=json.loads(files[info_name])
  info.update(version=NATIVE_VERSION,bridge_version=VERSION,game_sha256=sha(native),native_candidate_run=evidence['run_id'],native_candidate_commit=evidence['commit'],native_build_commit=evidence['build_commit'],dynamic_p16_sha256=sha(native),dynamic_p16_version=NATIVE_VERSION,launcher_sha256=sha(launcher_binary),launcher_build_commit=launcher_meta['source_commit'],upstream_commit=UPSTREAM)
  files[info_name]=(json.dumps(info,indent=2)+'\n').encode()
- files[COOP+'/source/openomsi-2.2.3-source.tar.gz']=source
- files[COOP+'/source/SOURCE-2.2.3.json']=(json.dumps(evidence,indent=2)+'\n').encode()
- files[COOP+'/CHANGELOG-2.2.3.md']=notes
- files['docs/TESTE-2.2.3-pt-BR.md']=(ROOT/'docs/TESTE-2.2.3-pt-BR.md').read_bytes()
+ files[COOP+'/source/openomsi-2.2.3-hotfix.1-source.tar.gz']=source
+ files[COOP+'/source/SOURCE-2.2.3-hotfix.1.json']=(json.dumps(evidence,indent=2)+'\n').encode()
+ files[COOP+'/CHANGELOG-2.2.3-hotfix.1.md']=notes
+ files['docs/TESTE-2.2.3-hotfix.1-pt-BR.md']=(ROOT/'docs/TESTE-2.2.3-hotfix.1-pt-BR.md').read_bytes()
  # Publish the compatibility evidence from the exact pinned native source as
  # ordinary documentation, so testers need not unpack a source archive.
  compatibility_reports={}
@@ -90,10 +90,26 @@ def main():
    files['docs/'+name]=data
    (out/name).write_bytes(data)
    compatibility_reports[name]=sha(data)
- vehicle_validation=json.loads(files['docs/accessibility-223-vehicle-validation.json'])
+ files['docs/accessibility-223-original-vehicle-validation.json']=files['docs/accessibility-223-vehicle-validation.json']
+ files['docs/accessibility-223-original-validation.md']=files['docs/accessibility-223-validation.md']
+ with tarfile.open(fileobj=io.BytesIO(source),mode='r:gz')as archive:
+  data=archive.extractfile('openomsi-223/docs/releases/wheelchair-nine-2.2.3-hotfix.1.json').read()
+ nine=json.loads(data)
+ assert len(nine['models'])==9 and all(m['status']=='CICLO_CPU_APROVADO' for m in nine['models'])
+ for model in nine['models']:
+  cycle=model['controller']
+  assert cycle['boarding']=='Riding' and cycle['alighting']=='Finished' and cycle['interlocked_after_stow'] is False
+ nine.update(bridge_version=VERSION,base_release='2.2.2.4-hotfix.5',native_source_commit=evidence['commit'],native_run_id=evidence['run_id'],gameplay_visual_tested=False,paired_gameplay_tested=False,summary=dict(models=9,controller_cycle_passed=9,access_blocked=0))
+ data=(json.dumps(nine,indent=2,ensure_ascii=False)+'\n').encode('utf-8')
+ files['docs/accessibility-223-vehicle-validation.json']=data
+ (out/'accessibility-223-vehicle-validation.json').write_bytes(data)
+ files['docs/accessibility-223-validation.md']=notes
+ (out/'accessibility-223-validation.md').write_bytes(notes)
+ compatibility_reports={name:sha(files['docs/'+name])for name in ('accessibility-223-validation.md','accessibility-223-vehicle-validation.json')}
+ vehicle_validation=nine
  assert vehicle_validation['bridge_version']==VERSION and vehicle_validation['base_release']=='2.2.2.4-hotfix.5'
  assert vehicle_validation['gameplay_visual_tested'] is False and vehicle_validation['paired_gameplay_tested'] is False
- files[COOP+'/validation/version-2.2.3.txt']=version.encode()
+ files[COOP+'/validation/version-2.2.3-hotfix.1.txt']=version.encode()
  # Fallback content is installed beside each actual runtime. No commercial map,
  # human, bus, BCS class or user configuration is included.
  assets=a.native/'bcs-assets';assert (assets/'LICENSE-emergency-fallbacks.txt').is_file()
@@ -143,7 +159,7 @@ def main():
  p15={name:digest for name,digest in before.items()if name.startswith('app/server-dinamico-p15/')};assert p15
  assert all(sha(files[name])==digest for name,digest in p15.items())
  assert files[game]==files[server]
- prefix='Bridge-2.2.3/'
+ prefix='Bridge-2.2.3-hotfix.1/'
  bundle=io.BytesIO()
  with zipfile.ZipFile(bundle,'w',zipfile.ZIP_DEFLATED,compresslevel=6)as z:
   for name,data in sorted(files.items()):
@@ -156,7 +172,7 @@ def main():
  biggest=max((len(data),name) for name,data in files.items())
  raw_bytes=sum(map(len,files.values()))
  packed_bytes=len(packed)
- print('2.2.3 package budget: single=%d MiB, compressed=%d MiB, unpacked=%d MiB' %
+ print('2.2.3-hotfix.1 package budget: single=%d MiB, compressed=%d MiB, unpacked=%d MiB' %
        (biggest[0]>>20,packed_bytes>>20,raw_bytes>>20),flush=True)
  print('Largest entry:',biggest[1],flush=True)
  # Keep bounded limits and enforce compression/expanded size independently.
@@ -186,7 +202,10 @@ def main():
     flags+=' -X=main.bridgeUpdateOrigin='+ORIGIN+' -X=main.bridgeUpdateSequence='+str(SEQUENCE);sources=['.'];local_env=dict(env,GO111MODULE='on')
    else:work=build.SOURCE;sources=build.PROGRAMS[name];local_env=env
    subprocess.run(['go','build','-trimpath','-buildvcs=false','-ldflags='+flags,'-o',str(package/name),*sources],cwd=work,env=local_env,check=True)
-   if name=='Setup.exe':setup_resources.verify_executable(package/name,resources)
+   if name=='Setup.exe':
+    setup_resources.verify_executable(package/name,resources)
+    shutil.copy2(build.SOURCE/'setup_changelog_hotfix1_test.go',work/'setup_changelog_hotfix1_test.go')
+    subprocess.run(['go','test','-count=1','.'],cwd=work,env=local_env,check=True)
    payload[name]=(package/name).read_bytes()
  assert all(sha(payload[name])==digest for name,digest in runtime_before.items()if name not in REBUILD)
  assert all(sha(payload[name])==old['components_sha256'][name]for name in('HostAgent.exe','CompanyHost.exe'))
@@ -235,7 +254,9 @@ def main():
   updater_architecture="amd64",rollback_storage="disk")
  subprocess.run(['python',str(ROOT/'scripts/test_2222_test2_install.py'),str(out),'--baseline',str(a.baseline)],check=True)
  report['actual_updater_first_attempt_windows_tested']=True
+ report.update(wheelchair_nine_controller_cycles_passed=9,wheelchair_alt_request_persistent=True,wheelchair_occupied_bay_priority=True,simulation_tests_passed=1013,network_tests_passed=208,setup_hotfix_cumulative_changelog_tested=True)
  (out/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
- print('2.2.3 cumulative update built with matching desktop launcher:',report['updater_sha256'])
+ print('2.2.3-hotfix.1 cumulative update built with matching desktop launcher:',report['updater_sha256'])
 
 if __name__=='__main__':main()
+

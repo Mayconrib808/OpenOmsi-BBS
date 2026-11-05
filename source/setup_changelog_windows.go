@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.3"
+const changelogSeenVersion = "2.2.3-hotfix.1"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -818,13 +818,39 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
 // Every release, including both preceding hotfixes, has its own history boundary.
 func selectLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
-    result:=[]logSection{accessibility223LogSection()}
-    if from==changelogSeenVersion || from=="2.2.2.4-hotfix.5" {return result}
+    result:=[]logSection{accessibility223Hotfix1LogSection()}
+    if from==changelogSeenVersion || from=="2.2.3" {return result}
+    result=append(result,accessibility223LogSection())
+    if from=="2.2.2.4-hotfix.5" {return result}
     result=append(result,boardingHotfix5LogSection())
     if from=="2.2.2.4-hotfix.4" {return result}
     result=append(result,routeHotfix4LogSection())
     if from=="2.2.2.4-hotfix.3" {return result}
     return append(result,selectLegacyLogSections(from)...)
+}
+func accessibility223Hotfix1LogSection() logSection {
+    return logSection{
+        label:logT("♿ 2.2.3 HOTFIX 1","♿ 2.2.3 HOTFIX 1","♿ 2.2.3 HOTFIX 1"),
+        accent:logAccent(112,219,164),
+        entries:[]logEntry{
+            {logT("Desembarque disponível no Alt","Alighting available in Alt","Ausstieg im Alt-Menü verfügbar"),
+             logT("O pedido de desembarque permanece disponível até a assistência terminar. Corrige o ciclo de ‘cadeira fixada’ que fazia a opção desaparecer. Pare no ponto, abra a porta acessível e use a assistência do menu Alt.",
+                  "The alighting request remains available until assistance completes. Fixes the secured-chair loop that hid the action. Stop at the bus stop, open the accessible door and use assistance in the Alt menu.",
+                  "Der Ausstiegswunsch bleibt bis zum Ende der Unterstützung verfügbar. Behebt die Schleife des gesicherten Rollstuhls, durch die die Option verschwand. Anhalten, Zugangstür öffnen und die Unterstützung im Alt-Menü verwenden.")},
+            {logT("Prioridade com a área ocupada","Priority with an occupied bay","Vorrang bei belegtem Stellplatz"),
+             logT("Os passageiros tentam ceder espaço e, após uma espera curta, a cadeira recebe prioridade de passagem mesmo sem outro lugar em pé disponível. O banco retrátil acompanha o atendimento. Ônibus parado e porta aberta continuam obrigatórios.",
+                  "Passengers try to yield; after a short wait the chair gains passage priority even when no other standing place is free. The folding seat follows assistance. The bus must remain stopped with the door open.",
+                  "Fahrgäste versuchen Platz zu machen; nach kurzer Wartezeit erhält der Rollstuhl auch ohne freien anderen Stehplatz Vorrang. Der Klappsitz folgt der Unterstützung. Stillstand und geöffnete Tür bleiben erforderlich.")},
+            {logT("Localizador universal e nove ônibus","Universal discovery and nine buses","Universelle Erkennung und neun Busse"),
+             logT("O acesso assistido usa a porta detectada e o piso da cabine; a regra também atende estruturas semelhantes. Os nove modelos enviados completaram o ciclo automatizado: Scania articulado, Mi4 Voith/ZF, Torino 2007 VW T2 BH, Torino 2025, Torino S Rio Ita, VIP I de 3/4 portas e VIP III Volkswagen.",
+                  "Assisted access uses the detected door and cabin floor; the same rule handles similar layouts. All nine supplied models completed automated boarding, alighting and stowing: articulated Scania, Mi4 Voith/ZF, Torino 2007 VW T2 BH, Torino 2025, Torino S Rio Ita, three/four-door VIP I and VIP III Volkswagen.",
+                  "Der unterstützte Zugang nutzt die erkannte Tür und den Kabinenboden; die Regel gilt auch für ähnliche Strukturen. Alle neun eingesandten Modelle haben den automatisierten Zyklus abgeschlossen: Scania-Gelenkbus, Mi4 Voith/ZF, Torino 2007 VW T2 BH, Torino 2025, Torino S Rio Ita, VIP I mit drei/vier Türen und VIP III Volkswagen.")},
+            {logT("Sinalização, lobby e histórico","Hailing, lobby and history","Haltezeichen, Lobby und Verlauf"),
+             logT("Inclui as correções de sinalização Original/Enhanced e de rota no multiplayer preparadas desde a 2.2.3. Jogo, servidor P16 e lobby usam a mesma revisão. Quem vem de versões anteriores recebe também os capítulos ainda não vistos. As 41 regressões de acessibilidade fazem parte dos 1.013 testes de simulação aprovados.",
+                  "Includes Original/Enhanced passenger hailing and multiplayer route fixes prepared since 2.2.3. Game, P16 server and lobby share the same revision. Earlier installations also receive unseen release chapters. The 41 accessibility regressions are included in 1,013 passing simulation tests.",
+                  "Enthält die seit 2.2.3 vorbereiteten Original-/Enhanced-Handzeichen- und Mehrspielerroutenkorrekturen. Spiel, P16-Server und Lobby nutzen dieselbe Revision. Frühere Installationen erhalten ungelesene Kapitel. Die 41 Barrierefreiheitsregressionen sind in 1.013 bestandenen Simulationstests enthalten.")},
+        },
+    }
 }
 func accessibility223LogSection() logSection {
     return logSection{
@@ -860,3 +886,4 @@ func routeHotfix4LogSection() logSection {
         {logT("Rota e passageiros multiplayer","Multiplayer route and passengers","Mehrspielerroute und Fahrgäste"),logT("COOPROUTE1 deixa de ser enviado ao servidor dedicado sem veículo. PASSENGER_LAN_AUDIT compara geração autoritativa, quadros de rede, passageiros espelhados e embarques sem mudar a escala do BCS.","Navigator-only COOPROUTE1 no longer targets the headless server. PASSENGER_LAN_AUDIT compares authoritative demand, network frames, mirrored passengers and boarding without changing the BCS timetable.","Die reine Navigator-Meldung COOPROUTE1 wird nicht mehr an den Server ohne Fahrzeug gesendet. PASSENGER_LAN_AUDIT vergleicht autoritative Nachfrage, Netzwerkdaten, gespiegelte Fahrgäste und Einstiege ohne Änderung des BCS-Fahrplans.")},
     }}
 }
+
