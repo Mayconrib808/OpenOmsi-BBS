@@ -14,8 +14,8 @@ function profile(){return{schema_version:1,company_id:'transfort-br',company_nam
 function fixture(){let now=100000;const room=new RoomProtocol(new Storage(),key,()=>now);return{room,setNow:n=>now=n,call:async(path,method='GET',body=null,auth=false)=>room.fetch(new Request(base+path,{method,headers:{...(auth?{Authorization:`Bearer ${key}`}:{})},...(body?{body:JSON.stringify(body)}:{})}))};}
 test('all Bridge protocols publish, heartbeat, wake and rotate tunnels without rewriting metadata',async()=>{
  const {call}=fixture();
- for(const protocol of [6,7,14,15,16]){
-  const p={...profile(),protocol,openomsi_version:protocol===16?'0.3.47':'0.3.46'};
+ for(const protocol of [6,7,14,15,16,17]){
+  const p={...profile(),protocol,openomsi_version:protocol===17?'0.3.49':protocol===16?'0.3.47':'0.3.46'};
   assert.equal((await call('/publish','POST',p,true)).status,200,`publish P${protocol}`);
   assert.deepEqual(await(await call('/profile')).json(),p);
   assert.equal((await call('/heartbeat','POST',{sessions:[{session_id:'map-a',state:'offline',players:0},{session_id:'map-b',state:'disabled',players:0}]},true)).status,200);
@@ -32,7 +32,7 @@ test('all Bridge protocols publish, heartbeat, wake and rotate tunnels without r
 test('unsupported or malformed protocols are rejected without replacing the existing company',async()=>{
  const {call}=fixture();const p={...profile(),protocol:16};
  assert.equal((await call('/publish','POST',p,true)).status,200);
- for(const protocol of [null,'16',16.1,0,5,8,13,17,{},[]]){
+ for(const protocol of [null,'17',17.1,0,5,8,13,18,{},[]]){
   assert.equal((await call('/publish','POST',{...p,protocol},true)).status,400);
   assert.deepEqual(await(await call('/profile')).json(),p);
  }
@@ -41,7 +41,7 @@ test('unsupported or malformed protocols are rejected without replacing the exis
 test('capabilities are read-only and expose no stored profile or private credentials',async()=>{
  const{call,room}=fixture();const r=await call('/capabilities');
  assert.equal(r.status,200);assert.equal(r.headers.get('Cache-Control'),'no-store');
- assert.deepEqual(await r.json(),{release:'directory-p16.1',supported_protocols:[6,7,14,15,16]});
+ assert.deepEqual(await r.json(),{release:'directory-p17.1',supported_protocols:[6,7,14,15,16,17]});
  assert.equal((await call('/capabilities','POST',profile())).status,405);
  assert.equal(room.storage.data.size,0);
 });
