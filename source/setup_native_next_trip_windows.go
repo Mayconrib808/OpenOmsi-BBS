@@ -7,7 +7,7 @@ import (
 )
 
 func prepareSetupNativeTrip(dir string, c Config) error {
-	if _, err := verifyPackage(dir); err != nil {
+	if _, err := verifyPackageForActivation(dir); err != nil {
 		return err
 	}
 	state, err := prepareBCSNextTrip(c, checkBCSClosedForUpdate)
