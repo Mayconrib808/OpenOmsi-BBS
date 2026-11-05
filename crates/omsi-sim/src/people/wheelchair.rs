@@ -1271,7 +1271,8 @@ mod tests {
         j.transition(Stage::ToPlatform);
         let before = j.local;
         // The human at the lift must not keep the bus interlocked forever.
-        let person = p.platform(0.0);
+        // Start with the stationary person directly in front of the chair.
+        let person = before + Vec3::new(-0.1, 0.0, 0.0);
         let ready = Feedback { door_open: true, ..Default::default() };
         for _ in 0..10 {
             j.advance(&p, 0.1, 0.0, ready, true, &[person]);
@@ -1291,7 +1292,7 @@ mod tests {
         let p=profile();
         let mut j=Journey::new(&p,0.0,270.0);
         j.transition(Stage::ToPlatform);
-        let person=p.platform(0.0);
+        let person=j.local+Vec3::new(-0.1,0.0,0.0);
         let open=Feedback{door_open:true,..Default::default()};
         for _ in 0..20 {j.advance(&p,0.1,0.0,open,true,&[person]);}
         assert!(j.crowd_priority);
