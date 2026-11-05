@@ -156,10 +156,16 @@ type registryUndo struct {
 func setWithUndo(r registryAPI, undo *[]registryUndo, view int, key, name string, v registryValue) error {
 	old, e := r.Read(view, key, name)
 	if e != nil {
-		return e
+		return fmt.Errorf("reading %d-bit Windows Registry %s\\%s: %w", view, key, name, e)
+	}
+	// RegSetValueEx is atomic. Do not schedule an undo unless the write
+	// succeeded; otherwise a denied write can trigger a second, misleading
+	// "rollback incomplete: Access is denied" against a protected key.
+	if e = r.Write(view, key, name, v); e != nil {
+		return fmt.Errorf("writing %d-bit Windows Registry %s\\%s: %w", view, key, name, e)
 	}
 	*undo = append(*undo, registryUndo{view, key, name, old})
-	return r.Write(view, key, name, v)
+	return nil
 }
 func rollbackRegistry(r registryAPI, undo []registryUndo) error {
 	var failures []string
@@ -252,8 +258,16 @@ func activateRegistry(r registryAPI, original, bridge string) (result error) {
 		if e != nil {
 			return e
 		}
-		if !exists {
-			newViews = append(newViews, view)
+		// Only remove a newly created key on rollback after a successful
+		// write actually created/modified it. A protected IFEO key can deny
+		// the very first write; deleting it then is both wrong and denied.
+		newView := !exists
+		markedNewView := false
+		markNewView := func() {
+			if newView && !markedNewView {
+				newViews = append(newViews, view)
+				markedNewView = true
+			}
 		}
 		prev, e := r.Read(view, ifeoBridge, "PreviousUseFilterPresent")
 		if e != nil {
@@ -277,6 +291,7 @@ func activateRegistry(r registryAPI, original, bridge string) (result error) {
 				if e = setWithUndo(r, &undo, view, ifeoBridge, entry.name, entry.v); e != nil {
 					return e
 				}
+				markNewView()
 			}
 		}
 		for _, entry := range []struct {
@@ -286,6 +301,7 @@ func activateRegistry(r registryAPI, original, bridge string) (result error) {
 			if e = setWithUndo(r, &undo, view, ifeoBridge, entry.name, entry.v); e != nil {
 				return e
 			}
+			markNewView()
 		}
 		if e = setWithUndo(r, &undo, view, ifeoParent, "UseFilter", dwordValue(1)); e != nil {
 			return e
