@@ -75,7 +75,7 @@ func nativeBCSFallbackBytes(data []byte, root, adapter string) ([]byte, error) {
 	return bytes.Join(lines, end), nil
 }
 
-func enableNativeBCSFallback(dir string, c Config) (bool, error) {
+func enableNativeBCSFallback(dir string, c Config, checkClosed func(string) error) (bool, error) {
 	adapter := filepath.Join(dir, "PeDePeAdapter")
 	if !fileExists(filepath.Join(adapter, "openomsi.exe")) {
 		return false, fmt.Errorf("signed PeDePeAdapter is missing")
@@ -84,8 +84,8 @@ func enableNativeBCSFallback(dir string, c Config) (bool, error) {
 	if err != nil || jar == "" {
 		return false, fmt.Errorf("BCS installation not found for native fallback: %v", err)
 	}
-	if err = checkBCSClosedForUpdate(jar); err != nil {
-		return false, err
+	if checkClosed != nil {
+		if err = checkClosed(jar); err != nil { return false, err }
 	}
 	folder, err := nativeBCSSettingsDir(jar)
 	if err != nil {
@@ -139,7 +139,7 @@ func enableNativeBCSFallback(dir string, c Config) (bool, error) {
 	return true, nil
 }
 
-func restoreNativeBCSFallback(dir string, c Config) (bool, error) {
+func restoreNativeBCSFallback(dir string, c Config, checkClosed func(string) error) (bool, error) {
 	jar, err := installedBCSJar(c.Root)
 	if err != nil || jar == "" {
 		return false, err
@@ -164,8 +164,8 @@ func restoreNativeBCSFallback(dir string, c Config) (bool, error) {
 	if err != nil || !st.Mode().IsRegular() {
 		return false, fmt.Errorf("BCS config is not a regular file: %v", err)
 	}
-	if err = checkBCSClosedForUpdate(jar); err != nil {
-		return false, err
+	if checkClosed != nil {
+		if err = checkClosed(jar); err != nil { return false, err }
 	}
 	if err = writeNativeBCSConfigAtomically(path, original, st.Mode()); err != nil {
 		return false, err
