@@ -45,7 +45,7 @@ echo Nao use em versoes antigas, novas ou ja corrigidas.
 pause
 exit /B 1
 """
-(out / "APLICAR-REPARO-2231.cmd").write_text(cmd.replace("\n", "\r\n"), encoding="ascii")
+(out / "APLICAR-REPARO-2231.cmd").write_bytes(cmd.replace("\r\n", "\n").replace("\n", "\r\n").encode("ascii"))
 (out / "LEIA-ME-PT-BR.txt").write_text(
     "REPARO VERIFICADO - Bridge 2.2.3.1 (somente a versao original publicada)\n\n"
     "1. Feche BCS, OMSI, openOMSI e o Setup.\n"
