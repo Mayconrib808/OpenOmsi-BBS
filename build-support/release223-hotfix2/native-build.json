@@ -1,0 +1,9 @@
+{
+  "run_id": 41956421204,
+  "commit": "4688f56e6ba2e4dd851f0c241d0cac8f4d308232",
+  "workflow": ".github/workflows/boarding-223-hotfix2.yml",
+  "native_artifact_id": 13383519986,
+  "native_artifact_sha256": "e2e2de406cf0e832c2400b9cbb2bf4346f7447c5c2d540746d2ed0b8d5ff0054",
+  "launcher_artifact_id": 13384475459,
+  "launcher_artifact_sha256": "c1291ba9ff8887c07cb1b7017fe99f3e5ee3e43d5c1d30b259270c24b83aef30"
+}
