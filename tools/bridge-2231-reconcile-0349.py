@@ -253,3 +253,38 @@ for name,kind,anchor,default in required:
 settings_text=settings_text[:line_start]+initializer+settings_text[line_end:]
 (ROOT/settings).write_text(settings_text,encoding="utf-8")
 print("0.3.49 UI, AI and settings reconciliation complete (Bridge features retained)",flush=True)
+
+
+# The 0.3.49 Streets enum is restored above, but the Bridge-favoured
+# match arms in items/run_move still need the new variant. Preserve all
+# existing Bridge-specific list actions and use upstream's street workflow.
+lists="crates/omsi-app/src/game_lists.rs"
+source=(ROOT/lists).read_text(encoding="utf-8")
+def add_street_arm(begin: str, end: str, arm: str) -> None:
+    global source
+    a=source.find(begin)
+    b=source.find(end,a+len(begin)) if a>=0 else -1
+    if a<0 or b<0:
+        raise RuntimeError(f"game_lists: cannot isolate {begin!r} matching section")
+    section=source[a:b]
+    if "        ListKind::Streets =>" in section:
+        return
+    anchor="        ListKind::Numbers => {"
+    if section.count(anchor)!=1:
+        raise RuntimeError(f"game_lists: expected a single Numbers match arm in {begin!r}, got {section.count(anchor)}")
+    section=section.replace(anchor,arm+anchor)
+    source=source[:a]+section+source[b:]
+    print(f"game_lists: reconciled Streets match in {begin}",flush=True)
+
+add_street_arm(
+    "pub(crate) fn items(app: &App, kind: &ListKind)",
+    "/// What the open list tells the interface",
+    "        ListKind::Streets => out = streets::street_rows(app.menus.navigator.as_ref().map_or(Some(Vec::new()), |n| n.street_names())),\n",
+)
+add_street_arm(
+    "pub(crate) fn run_move(app: &mut App, kind: &ListKind",
+    "/// Updates the fleet number and license plate",
+    "        ListKind::Streets => streets::show_street(app, arg),\n",
+)
+(ROOT/lists).write_text(source,encoding="utf-8")
+print("v0.3.49 street chooser/list actions reconciled",flush=True)
