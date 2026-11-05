@@ -81,8 +81,95 @@ func verifyPackageForUpdate(dir string, payload map[string][]byte) (int, error) 
 // Setup activation needs a working Bridge, not a byte-for-byte copy of the
 // entire distributable. Custom CompanyHost/HostAgent builds are independent
 // applications; their hashes remain auditable with Setup.exe --verify.
+// The 2.2.3.1 cumulative updater authenticates its complete Coop archive through
+// the signed update manifest. The original release accidentally omitted
+// docs/SHA256.txt from that archive; an activator must not reject its own
+// verified install merely because that *legacy* file was not shipped.
+//
+// Never accept arbitrary hashes taken from the installed directory. The
+// replacement Setup embeds expected hashes for the Bridge executables at
+// build time, plus the signed Coop manifest for game/Launcher/P17 binaries.
+var activationPinnedRuntimeSHA256 string
+
 func verifyPackageForActivation(dir string) (int, error) {
-	return verifyPackageWithPolicy(dir, nil, true)
+	_, err := os.Stat(filepath.Join(dir, "docs", "SHA256.txt"))
+	if err == nil {
+		return verifyPackageWithPolicy(dir, nil, true)
+	}
+	if !os.IsNotExist(err) {
+		return 0, err
+	}
+	return verifySignedCumulativeActivation(dir)
+}
+
+func verifySignedCumulativeActivation(dir string) (int, error) {
+	if !bundledCoopDistribution.FullPaths ||
+		!strings.HasPrefix(bundledCoopDistribution.Prefix, "Bridge-2.2.3.1/") {
+		return 0, fmt.Errorf("legacy package manifest missing; this Setup has no 2.2.3.1 cumulative integrity proof")
+	}
+	const expectedPins = 4
+	pins := strings.Split(activationPinnedRuntimeSHA256, ":")
+	if len(pins) != expectedPins {
+		return 0, fmt.Errorf("Setup has no pinned Bridge executable hashes; repair with a signed installer")
+	}
+	names := []string{
+		"PeDePeAdapter/openomsi.exe",
+		"app/OpenOMSI_BCS_Bridge.exe",
+		"app/compat/Omsi.exe",
+		"app/compat/omsi-plugin-host32.exe",
+	}
+	digests := make([]string, 0, 8)
+	digests = append(digests, pins...)
+	coopNames := []string{
+		"OpenOmsi Coop 0.3.41/programa/openomsi.exe",
+		"OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe",
+		"app/server-dinamico-p17/openomsi.exe",
+		"app/hosts-p17/HostAgent.exe",
+	}
+	for _, name := range coopNames {
+		digests = append(digests, bundledCoopDistribution.Files[name])
+	}
+	for i, name := range append(names, coopNames...) {
+		expected := digests[i]
+		decoded, err := hex.DecodeString(expected)
+		if err != nil || len(decoded) != sha256.Size || expected != strings.ToLower(expected) {
+			return i, fmt.Errorf("unsigned or malformed pinned SHA-256 for %s", name)
+		}
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		info, err := os.Lstat(path)
+		if err != nil {
+			return i, fmt.Errorf("missing or inaccessible signed runtime %s: %w", name, err)
+		}
+		if !info.Mode().IsRegular() {
+			return i, fmt.Errorf("runtime is not a regular file: %s", name)
+		}
+		base, err := filepath.EvalSymlinks(dir)
+		if err != nil {
+			return i, err
+		}
+		full, err := filepath.EvalSymlinks(path)
+		if err != nil {
+			return i, err
+		}
+		inside, err := filepath.Rel(base, full)
+		if err != nil || inside == ".." || strings.HasPrefix(inside, ".."+string(os.PathSeparator)) {
+			return i, fmt.Errorf("runtime file outside installed package: %s", name)
+		}
+		in, err := os.Open(path)
+		if err != nil {
+			return i, err
+		}
+		h := sha256.New()
+		_, readErr := io.Copy(h, in)
+		closeErr := in.Close()
+		if readErr != nil || closeErr != nil {
+			return i, fmt.Errorf("cannot verify signed runtime %s: read=%v close=%v", name, readErr, closeErr)
+		}
+		if !bytes.Equal(h.Sum(nil), decoded) {
+			return i, fmt.Errorf("SHA256 mismatch in signed runtime: %s", name)
+		}
+	}
+	return len(digests), nil
 }
 
 func packageActivationRuntimeBinary(rel string) bool {
