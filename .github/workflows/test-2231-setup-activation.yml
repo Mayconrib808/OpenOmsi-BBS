@@ -1,0 +1,41 @@
+name: Test 2.2.3.1 Windows Setup activation against published artifact
+on:
+  push:
+    branches: [fix/2231-setup-activation]
+    paths: [.github/workflows/test-2231-setup-activation.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  activation:
+    runs-on: windows-2022
+    timeout-minutes: 70
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+      - name: Require approved 2.2.3.1 full package
+        env:
+          GH_TOKEN: \${{ github.token }}
+        shell: pwsh
+        run: |
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/42116052029 | ConvertFrom-Json
+          if($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '4a9f9c5bde053fcce92e100e65c544fb4163c9e7'){throw 'Unapproved candidate'}
+          $a=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/42116052029/artifacts | ConvertFrom-Json
+          $p=$a.artifacts | Where-Object { $_.id -eq 13457334107 }
+          if(!$p -or $p.digest -ne 'sha256:cbd0f2221a780b09433c4621b8f8158d235ef8226f0493cfbe798775ecec51ba'){throw 'Wrong full artifact hash'}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.1-FULL-CANDIDATE
+          run-id: 42116052029
+          github-token: \${{ github.token }}
+          path: approved-new
+      - name: Recompile corrected Setup, verify published package and tamper rejection
+        shell: pwsh
+        run: |
+          python tools/test-2231-setup-activation.py
+          if ($LASTEXITCODE -ne 0) { throw 'The 2.2.3.1 Save and activate integrity regression failed' }
