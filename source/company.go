@@ -30,7 +30,7 @@ const multiplayerProtocol = 6
 // Profile metadata is a compatibility hint. Each running map uses the
 // protocol reported by its native server; packets are never translated.
 func supportedMultiplayerProtocol(protocol int) bool {
-	return protocol == 6 || protocol == 7 || protocol == 14 || protocol == 15
+	return protocol == 6 || protocol == 7 || protocol == 14 || protocol == 15 || protocol == 16 || protocol == 17
 }
 
 const multiplayerGameVersion = "0.2.11"
