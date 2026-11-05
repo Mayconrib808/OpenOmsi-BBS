@@ -2,6 +2,8 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -256,6 +258,70 @@ func TestSetupSixLanguagesHaveCompleteNativeGUITranslation(t *testing.T) {
 		saved := readInstalledConfig(dir)
 		if saved.Language != lang || setupLanguageIndex(saved.Language) < 3 {
 			t.Fatalf("language lost on disk: %s => %s", lang, saved.Language)
+		}
+	}
+}
+
+func TestNativeBCSAccessDeniedFallbackBacksUpAndRestoresExactSettings(t *testing.T) {
+	root, dir := t.TempDir(), t.TempDir()
+	bcs := filepath.Join(root, "Busbetrieb-Simulator")
+	if err := os.MkdirAll(bcs, 0755); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(filepath.Join(bcs, "busbetrieb-simulator.jar"), []byte("fixture"), 0644); err != nil { t.Fatal(err) }
+	adapter := filepath.Join(dir, "PeDePeAdapter")
+	if err := os.MkdirAll(adapter, 0755); err != nil { t.Fatal(err) }
+	if err := os.WriteFile(filepath.Join(adapter, "openomsi.exe"), []byte("fixture"), 0644); err != nil { t.Fatal(err) }
+	lines := make([]string, 53)
+	for i := range lines { lines[i] = fmt.Sprintf("saved-option-%d", i) }
+	lines[0] = root
+	lines[49] = filepath.Join(root, "OldCoop")
+	lines[50] = "false"
+	lines[51] = "preserved-extra-field"
+	original := []byte(strings.Join(lines, "\r\n"))
+	config := filepath.Join(bcs, "config.cfg")
+	if err := os.WriteFile(config, original, 0644); err != nil { t.Fatal(err) }
+	c := defaultConfig()
+	c.Root = root
+	enabled, err := enableNativeBCSFallback(dir, c)
+	if err != nil || !enabled || !setupNativeSelected(dir, c) {
+		t.Fatalf("IFEO denied should select BCS native adapter: %v, %t", err, enabled)
+	}
+	backup, err := os.ReadFile(filepath.Join(bcs, nativeFallbackBackupName))
+	if err != nil || !bytes.Equal(backup, original) {
+		t.Fatalf("BCS preferences backup was modified or absent: %v", err)
+	}
+	updated, err := os.ReadFile(config)
+	if err != nil { t.Fatal(err) }
+	var expectedLines = append([]string(nil), lines...)
+	expectedLines[49], expectedLines[50] = adapter, "true"
+	if !bytes.Equal(updated, []byte(strings.Join(expectedLines, "\r\n"))) {
+		t.Fatal("native fallback altered an unrelated BCS setting")
+	}
+	restored, err := restoreNativeBCSFallback(dir, c)
+	if err != nil || !restored {
+		t.Fatalf("native deactivation could not restore previous BCS preferences: %v", err)
+	}
+	recovered, err := os.ReadFile(config)
+	if err != nil || !bytes.Equal(recovered, original) {
+		t.Fatal("native BCS deactivation changed original preferences", err)
+	}
+	if _, err := os.Stat(filepath.Join(bcs, nativeFallbackBackupName)); !os.IsNotExist(err) {
+		t.Fatal("successful restore retained stale backup", err)
+	}
+}
+
+func TestNativeBCSFallbackRejectsUnknownConfigurationWithoutWrite(t *testing.T) {
+	root, adapter := filepath.Join(t.TempDir(), "OMSI 2"), filepath.Join(t.TempDir(), "Bridge", "PeDePeAdapter")
+	lines := make([]string, 51)
+	lines[0], lines[49], lines[50] = root, `C:\Old\openomsi`, "false"
+	good := []byte(strings.Join(lines, "\n"))
+	for _, data := range [][]byte{
+		[]byte("short\nconfig"),
+		[]byte("\xef\xbb\xbf" + string(good)),
+		[]byte(strings.ReplaceAll(string(good), root, `C:\AnotherRoot`)),
+		[]byte(strings.ReplaceAll(string(good), "false", "unknown")),
+	} {
+		if _, err := nativeBCSFallbackBytes(data, root, adapter); err == nil {
+			t.Fatal("unsafe native configuration accepted")
 		}
 	}
 }
