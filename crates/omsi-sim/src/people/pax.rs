@@ -140,6 +140,10 @@ pub struct Pax {
     /// (+0x60c, km).
     pub dest: Option<String>,
     pub line: Option<usize>,
+    /// A host-owned passenger was granted with a line key this client cannot
+    /// resolve. Keep their exact destination and require proof from a public
+    /// duty, rather than treating them as an unrestricted no-line passenger.
+    pub host_destination: bool,
     pub alt: Option<String>,
     pub alt_seen: bool,
     pub alt_m: f32,
@@ -246,6 +250,7 @@ impl Pax {
             clamp_x: -1e9,
             dest: None,
             line: None,
+            host_destination: false,
             alt: None,
             alt_seen: false,
             alt_m: 0.0,
@@ -711,14 +716,23 @@ pub fn fit(id: i64, stop: &PaxStop, dest: Option<&str>, termini: &HashSet<String
     if termini.contains(terminus.trim()) || without_route(terminus).is_some_and(|t| termini.contains(t)) {
         return Some(Fit::Terminus);
     }
-    let Takes::Duty { trip, next, done: false } = takes else { return None };
+    let Takes::Duty { trip, done: false, .. } = takes else { return None };
     if !trip.public {
         return None;
     }
     if termini.contains(&trip.terminus) {
         return Some(Fit::Duty);
     }
+    duty_destination_fit(id, stop, dest, takes)
+}
+
+/// The timetable proves that this exact passenger destination is still ahead.
+/// Useful when a LAN host's line key has no equivalent in the local stop table.
+pub(super) fn duty_destination_fit(id: i64, stop: &PaxStop, dest: Option<&str>, takes: &Takes) -> Option<Fit> {
+    let Takes::Duty { trip, next, done: false } = takes else { return None };
+    if !trip.public { return None; }
     let dest = dest?.trim();
+    if dest.is_empty() { return None; }
     // this stop where the trip still calls at it (from the one before the stop the duty is
     // due at: it counts a stop served 35 m on), and their destination after it
     let here = (next.saturating_sub(1)..trip.stops.len()).find(|k| {

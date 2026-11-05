@@ -10,6 +10,7 @@
 pub struct DemandAudit {
     pub last_report_at: f64,
     pub last_seat_report_at: f64,
+    pub last_mirror_claim_report_at: f64,
     pub seeded_stops: u64,
     pub new_queue_units: f64,
     pub materialized: u64,
@@ -31,7 +32,8 @@ pub struct DemandAudit {
 }
 impl Default for DemandAudit {
     fn default() -> Self {
-        Self { last_report_at: -60.0, last_seat_report_at: -60.0, seeded_stops: 0,
+        Self { last_report_at: -60.0, last_seat_report_at: -60.0,
+            last_mirror_claim_report_at: -30.0, seeded_stops: 0,
             new_queue_units: 0.0, materialized: 0, spawn_refused: 0,
             refused_pool_full: 0, refused_spots_full: 0, refused_spawn: 0,
             retries_suppressed: 0, last_refused_stop: None, last_refused_reason: None,

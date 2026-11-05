@@ -379,8 +379,13 @@ impl crate::people::PeopleSim {
                 if self.eye.is_some_and(|eye| (person.position-eye.pos).length_squared() > 300.0*300.0) {
                     continue;
                 }
-                if !self.pax(i).is_some_and(|pax|
-                    pax.inside.is_none() && pax.task == crate::people::pax::Task::WaitingForBus) {
+                let local_waiting = self.pax(i).is_some_and(|pax|
+                    pax.inside.is_none() && pax.task == crate::people::pax::Task::WaitingForBus);
+                // Mirrored waiters are State::Idle and carry their host-owned
+                // waiting state separately. Omitting them made LAN logs claim
+                // that no passengers were visible even while a stop was full.
+                let mirrored_waiting = person.remote && self.mirror_wait.contains_key(&person.id);
+                if !local_waiting && !mirrored_waiting {
                     continue;
                 }
                 waiting_visible += 1;

@@ -1391,3 +1391,7 @@ mod connection_tests {
 #[cfg(test)]
 #[path = "upstream_connection_tests.rs"]
 mod upstream_connection_tests;
+
+#[cfg(test)]
+#[path = "mirror_boarding_tests.rs"]
+mod mirror_boarding_tests;

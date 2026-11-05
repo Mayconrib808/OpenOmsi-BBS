@@ -4,6 +4,7 @@
 
 use super::*;
 use super::pax_stops::entry_on_platform;
+use super::pax::duty_destination_fit;
 
 /// Where one of the host's people is this frame, as a client draws them.
 #[derive(Debug, Clone, Copy)]
@@ -93,18 +94,26 @@ impl PeopleSim {
     pub fn mirror_bus_fit(&self,id:u32,bn:&BusNow,position:DVec3)->Option<bool>{
         let (stop,key,line,dest)=self.mirror_hail_intent.get(&id)?;
         if self.mirror_connection_history.get(&id).is_some_and(|(_,b)|*b==Some(bn.id)){return Some(false)}
-        if key.is_some() && line.is_none(){return Some(false)}
         if self.mirror_wait.get(&id)?.0!=*stop{return None}
         let s=self.stops.get(stop)?;
+        if matches!(bn.takes,Takes::Nobody){return Some(false)}
         if bn.served.is_some_and(|v|v!=*stop) || bn.route.as_ref().is_some_and(|r|r.is_last_stop(s)){return Some(false)}
         // Mirrors used to reject a passenger whenever the driver's terminus
         // had not been initialized, even with a matching route/line already
         // transmitted by the host. Keep host line intent authoritative, but
         // do not require the optional HOF label to be populated.
         let term=bn.terminus.as_deref();
+        if term.is_some_and(|t|at_stop(*stop,s,Some(t),&bn.takes)==AtStop::Empties){return Some(false)}
         let side=self.preferred_entry_side(*stop,bn,position);
         if self.wheelchairs.is_chair(id)&&!self.wheelchairs.supports_bus(bn.id,side){return Some(false)}
         if !bn.cabin.entries.iter().any(|d|d.point.is_some() && entry_on_platform(side,d.side)){return Some(false)}
+        // A line key describes the host's stop table, not this client's HOF.
+        // Failure to resolve it must not veto a duty that demonstrably calls at
+        // this stop and subsequently at the authoritative destination. An
+        // arbitrary terminus or an unrelated/private/finished duty is not proof.
+        if key.is_some() && line.is_none(){
+            return Some(duty_destination_fit(*stop,s,dest.as_deref(),&bn.takes).is_some());
+        }
         let route_match=line.and_then(|k|s.lines.get(k))
             .is_some_and(|(_,termini)|bn.route.as_ref().and_then(|r|r.takes_waiting_for(termini)).is_some());
         let stop_served=term.is_some_and(|t|matches!(at_stop(*stop,s,Some(t),&bn.takes),AtStop::Serves));
@@ -555,9 +564,13 @@ impl PeopleSim {
         // what a waiting person of ours has (sub_626044 and task 6): a destination drawn
         // from the stop (both sides load the same map) and a distance to ride without one;
         // with neither they would get off again at once (#813)
-        let (dest,line)=self.mirror_hail_intent.remove(&id)
-            .filter(|(wanted,_,_,_)|*wanted==stop).and_then(|(_,key,line,dest)|if key.is_none()||line.is_some(){Some((dest,line))}else{None})
-            .unwrap_or_else(||self.draw_dest(stop));
+        let (dest,line)=match self.mirror_hail_intent.remove(&id).filter(|(wanted,_,_,_)|*wanted==stop){
+            Some((_,key,line,dest))=>{
+                pax.host_destination=key.is_some()&&line.is_none();
+                (dest,line)
+            },
+            None=>self.draw_dest(stop),
+        };
         pax.dest = dest;
         pax.line = line;
         let (count,previous)=self.mirror_connection_history.remove(&id).unwrap_or((2,None));
@@ -592,23 +605,45 @@ impl PeopleSim {
         }
         let now = self.time;
         self.claimed.retain(|_, t| now - *t < 10.0);
+        let report = now - self.demand_audit.last_mirror_claim_report_at >= 30.0;
         let at: Vec<i64> = self
             .stops
             .iter()
             .filter(|(_, s)| s.buses.iter().any(|b| b.0 == BusId::Player))
             .map(|(id, _)| *id)
             .collect();
-        if at.is_empty() {
-            return;
-        }
+        let player = self.last_buses.iter().find(|b| b.id == BusId::Player);
+        let (mut waiting_at, mut rejected, mut pending, mut requested) = (0, 0, 0, 0);
         for (id, (stop, _)) in &self.mirror_wait {
+            if !at.contains(stop) { continue; }
+            waiting_at += 1;
             let fits=self.people.iter().find(|p|p.id==*id).and_then(|person|
-                self.last_buses.iter().find(|b|b.id==BusId::Player)
-                .and_then(|b|self.mirror_bus_fit(*id,b,person.position))).unwrap_or(true);
-            if at.contains(stop) && fits && !self.claimed.contains_key(id) {
-                self.claimed.insert(*id, now);
-                self.claims_out.push(*id);
-            }
+                player.and_then(|b|self.mirror_bus_fit(*id,b,person.position))).unwrap_or(true);
+            if !fits { rejected += 1; continue; }
+            if self.claimed.contains_key(id) { pending += 1; continue; }
+            self.claimed.insert(*id, now);
+            self.claims_out.push(*id);
+            requested += 1;
+        }
+        if report {
+            self.demand_audit.last_mirror_claim_report_at = now;
+            let unresolved = self.mirror_wait.keys().filter(|id|
+                self.mirror_hail_intent.get(*id).is_some_and(|(_,key,line,_)|
+                    key.is_some() && line.is_none())).count();
+            let nearest_stop = player.and_then(|bus| self.mirror_wait.values()
+                .filter_map(|(id,_)| self.stops.get(id).map(|s|
+                    (*id,(s.pos-bus.pos).length())))
+                .min_by(|a,b|a.1.total_cmp(&b.1)));
+            let duty = player.map(|b| match &b.takes {
+                Takes::Duty {trip,next,done} => format!("{} public={} next={} finished={} calls={}",
+                    trip.name,trip.public,next,done,trip.stops.len()),
+                Takes::Terminus => "destination-display".into(),
+                Takes::Nobody => "not-taking-passengers".into(),
+            });
+            log::info!("PASSENGER_CLAIM_AUDIT role=client waiting={} loaded_stops={} registered_player_stops={} waiting_at_registered={} unresolved_host_lines={} service_rejected={} pending={} requested={} nearest_waiting_stop={:?} terminus={:?} duty={:?} entry_open={:?}",
+                self.mirror_wait.len(),self.stops.len(),at.len(),waiting_at,unresolved,
+                rejected,pending,requested,nearest_stop,player.and_then(|b|b.terminus.as_deref()),
+                duty,player.map(|b|b.entry_open.as_slice()));
         }
     }
 }
