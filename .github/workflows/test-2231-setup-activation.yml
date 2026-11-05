@@ -20,7 +20,7 @@ jobs:
           go-version: '1.23.2'
       - name: Require approved 2.2.3.1 full package
         env:
-          GH_TOKEN: \${{ github.token }}
+          GH_TOKEN: ${{ github.token }}
         shell: pwsh
         run: |
           $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/42116052029 | ConvertFrom-Json
@@ -32,7 +32,7 @@ jobs:
         with:
           name: Bridge-2.2.3.1-FULL-CANDIDATE
           run-id: 42116052029
-          github-token: \${{ github.token }}
+          github-token: ${{ github.token }}
           path: approved-new
       - name: Recompile corrected Setup, verify published package and tamper rejection
         shell: pwsh
