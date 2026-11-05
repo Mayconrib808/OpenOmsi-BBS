@@ -2,7 +2,7 @@ name: Bridge 2.2.3.1 HostAgent P17 compatibility tests
 on:
   push:
     branches: [feature/2231-hostagent-p17-compat]
-    paths: ['source/company.go','source/company_test.go','.github/workflows/hostagent-p17-2231.yml']
+    paths: ['source/company.go','source/company_test.go','source/coop_compatibility_test.go','.github/workflows/hostagent-p17-2231.yml']
   workflow_dispatch: {}
 permissions:
   contents: read
