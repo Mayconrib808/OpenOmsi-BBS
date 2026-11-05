@@ -1,0 +1,81 @@
+name: Bridge 2.2.3.1 - 0.3.49 merge candidate (not a release)
+on:
+  push:
+    branches: [feature/openomsi-0349-bridge2231]
+    paths: ['.github/workflows/bridge-2231-candidate.yml']
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: bridge-2231-candidate
+  cancel-in-progress: false
+jobs:
+  candidate:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 100
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bridge-2231-upstream-candidate
+      - name: Install native audio/USB prerequisites
+        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
+      - name: Construct temporary three-way 0.3.49 source merge, preserve Bridge on conflicting hunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p integration-report
+          git remote add official https://github.com/openOMSI-org/openOMSI.git
+          git fetch --no-tags official 8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6 0784e3cd02ea6fc013b31cdfff4a7932742632ca
+          base=8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6
+          next=0784e3cd02ea6fc013b31cdfff4a7932742632ca
+          git merge-base --is-ancestor "$base" "$next"
+          echo "ORIGINAL_BRIDGE_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          tree=$(git rev-parse 'HEAD^{tree}')
+          synthetic=$(printf 'Ephemeral Bridge comparison root\n' | git -c user.name='Bridge Candidate' -c user.email='audit@localhost.invalid' commit-tree "$tree" -p "$base")
+          git -c advice.detachedHead=false checkout --detach "$synthetic"
+          git -c user.name='Bridge Candidate' -c user.email='audit@localhost.invalid' merge --no-ff --no-commit -X ours "$next" > integration-report/merge.log 2>&1
+          cat integration-report/merge.log
+          git diff --name-only --diff-filter=U > integration-report/unresolved.txt
+          if [ -s integration-report/unresolved.txt ]; then cat integration-report/unresolved.txt; exit 1; fi
+          git add -A
+          git -c user.name='Bridge Candidate' -c user.email='audit@localhost.invalid' commit -m 'Temporary source-only upstream 0.3.49 merge (conflicting hunks favor Bridge)' 
+          git status --short
+          git show --stat --oneline --format=short HEAD > integration-report/merge-stat.txt
+      - name: Compile merged engine and check P17 simulation/network/launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --release -p omsi-sim --lib
+          cargo test --release -p omsi-net --lib
+          cargo test --release -p omsi-audio --lib
+          cargo check -p omsi-app -p omsi-lan -p omsi-launcher-core
+      - name: Publish source-only test branch after passing all jobs (NO public updater deployment)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN"
+          tree=$(git rev-parse 'HEAD^{tree}')
+          candidate=$(printf 'WIP 2.2.3.1 engine 0.3.49 (P17) candidate; manual conflict review still required\n\nNo distribution changes.\n' | git -c user.name='Bridge Candidate' -c user.email='audit@localhost.invalid' commit-tree "$tree" -p "$ORIGINAL_BRIDGE_SHA")
+          git -c credential.helper= push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$candidate:refs/heads/recovery/2231-0349-source-candidate"
+          echo "Candidate source commit: $candidate"
+      - name: Preserve test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-2231-0349-candidate-evidence
+          path: integration-report/
+          retention-days: 30
+          if-no-files-found: warn
