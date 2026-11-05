@@ -11,25 +11,18 @@ import (
 )
 
 func (u *setupUI) chooseLanguage() error {
-	fmt.Println("\n1 - Português (Brasil)\n2 - English\n3 - Deutsch")
+	fmt.Println("\n1 - Português (Brasil)\n2 - English\n3 - Deutsch\n4 - Español\n5 - Français\n6 - Русский")
 	for {
-		s, e := u.line("Idioma / Language / Sprache", "Idioma / Language / Sprache", "Idioma / Language / Sprache", "")
+		s, e := u.line("Idioma / Language / Sprache", "Language / Idioma / Sprache", "Sprache / Language / Idioma", "")
 		if e != nil {
 			return e
 		}
-		if s == "1" {
-			u.lang = "pt"
+		switch s {
+		case "1", "2", "3", "4", "5", "6":
+			u.lang = setupLanguages[int(s[0]-'1')]
 			return nil
 		}
-		if s == "2" {
-			u.lang = "en"
-			return nil
-		}
-		if s == "3" {
-			u.lang = "de"
-			return nil
-		}
-		fmt.Println("Escolha 1, 2 ou 3 / Choose 1, 2 or 3 / Wähle 1, 2 oder 3.")
+		fmt.Println("Selecione um número de 1 a 6 / Select 1-6.")
 	}
 }
 func (u *setupUI) configure(c Config) (Config, error) {
