@@ -12,7 +12,7 @@ BASE_UPDATER='16a3d4539db334048098a44fcc343eb0269b2f97c26c2e70523323b6af07a347'
 BASE_COOP='cf31f9e2a07537b01ceaa238093727ba750e5ee1e5827610d2ec789d69f3564c'
 NATIVE_VERSION='0.3.49-coop.17-2.2.3.1'
 UPSTREAM='0784e3cd02ea6fc013b31cdfff4a7932742632ca'
-REBUILD=('Setup.exe','PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe','app/compat/Omsi.exe')
+REBUILD=('PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe','app/compat/Omsi.exe','Setup.exe')  # Build Setup last so it can pin final Bridge executable hashes.
 sha=lambda data:hashlib.sha256(data).hexdigest()
 readjson=lambda path:json.loads(path.read_text(encoding='utf-8-sig'))
 
@@ -209,6 +209,8 @@ def main():
     work=Path(folder)/'setup';work.mkdir()
     for item in build.PROGRAMS[name]:shutil.copy2(build.SOURCE/item,work/item)
     (work/'go.mod').write_text('module openomsi-bbs/setup\n\ngo 1.23.2\n');resources=setup_resources.prepare(work,build.SOURCE/'resources')
+    pinned=['PeDePeAdapter/openomsi.exe','app/OpenOMSI_BCS_Bridge.exe','app/compat/Omsi.exe','app/compat/omsi-plugin-host32.exe']
+    flags+=' -X=main.activationPinnedRuntimeSHA256='+':'.join(sha(payload[n]) for n in pinned)
     flags+=' -X=main.bridgeUpdateOrigin='+ORIGIN+' -X=main.bridgeUpdateSequence='+str(SEQUENCE);sources=['.'];local_env=dict(env,GO111MODULE='on')
    else:work=build.SOURCE;sources=build.PROGRAMS[name];local_env=env
    subprocess.run(['go','build','-trimpath','-buildvcs=false','-ldflags='+flags,'-o',str(package/name),*sources],cwd=work,env=local_env,check=True)
@@ -231,6 +233,8 @@ def main():
  assert '--server' in (p17_help.stdout+p17_help.stderr), 'P17 server CLI flag missing'
  helpfile=out/'native-help.txt';helpfile.write_text(cli.stdout+cli.stderr)
  subprocess.run(['python',str(ROOT/'scripts/build_2203.py'),'--tests-only'],env=dict(os.environ,OPENOMSI_FUEL_CLI_HELP=str(helpfile),OPENOMSI_GATEWAY_TEST_SERVER=str((a.native/'openomsi.exe').resolve()),OPENOMSI_GATEWAY_TEST_PROTOCOL='17'),check=True)
+ # Regression for the real Save and activate package gate, not just a GUI screenshot.
+ subprocess.run([str((package/'Setup.exe').resolve()),'--verify-activation'],cwd=package,timeout=120,check=True)
  previews=out/'setup-previews'
  try:
   subprocess.run([str((package/'Setup.exe').resolve()),'--gui-smoke'],cwd=package,env=dict(os.environ,BRIDGE_SETUP_PREVIEWS=str(previews)),timeout=60,check=True)
