@@ -18,7 +18,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.23.2'
-      - name: Unit tests for Windows IFEO activation and rollback
+      - name: Unit tests for Windows IFEO activation, rollback and six Setup languages
         shell: pwsh
         run: |
           python scripts/build_2203.py --tests-only
