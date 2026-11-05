@@ -1,0 +1,15 @@
+{
+  "version": "2.2.3.1",
+  "sequence": 2026110501,
+  "candidate_run_id": 42116052029,
+  "candidate_commit": "4a9f9c5bde053fcce92e100e65c544fb4163c9e7",
+  "candidate_artifact_id": 13457334107,
+  "candidate_artifact_sha256": "cbd0f2221a780b09433c4621b8f8158d235ef8226f0493cfbe798775ecec51ba",
+  "installer_sha256": "c0cf59361d96dbfe97e414d134b339db62b429ea805cd34387505e53eb664275",
+  "installer_size": 25034240,
+  "coop_archive_sha256": "34c80650a32b26348b9da3e64f127429b20d184fad673ed9e47d38545f4fccea",
+  "portable_sha256": "a6a1a87145edfa471b07aba707395c9408b6f681fd7106b49f0e1a0fcae3e2a4",
+  "portable_size": 373936082,
+  "previous_version": "2.2.3-hotfix.2",
+  "previous_sequence": 2026110405
+}
