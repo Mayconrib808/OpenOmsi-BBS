@@ -11,7 +11,7 @@ concurrency:
   group: bridge-2231-${{ github.ref }}
   cancel-in-progress: true
 env:
-  NATIVE_SOURCE_COMMIT: e353343e18eb0b3ec099d54f041a0ece914e8d22
+  NATIVE_SOURCE_COMMIT: 4aa69dbc1e05e467cb519b19f4d656cec53dafc8
 jobs:
   simulation:
     runs-on: ubuntu-22.04
