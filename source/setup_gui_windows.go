@@ -282,7 +282,7 @@ func (g *setupGUI) createControls() {
 	guiUser.NewProc("SendMessageW").Call(title, guiWMSetFont, g.titleFont, 1)
 	g.translatedLabel("intro", 382, 61, 260, 46)
 	g.translatedLabel("language", 668, 22, 256, 25)
-	g.language = g.control("COMBOBOX", "", 668, 51, 256, 160, guiWSTabStop|0x0003|0x00200000, guiIDLanguage)
+	g.language = g.control("COMBOBOX", "", 668, 51, 256, 240, guiWSTabStop|0x0003|0x00200000, guiIDLanguage)
 	g.controls = append(g.controls, g.language)
 	for _, name := range setupLanguageNames {
 		guiUser.NewProc("SendMessageW").Call(g.language, 0x0143, 0, uintptr(unsafe.Pointer(winPtr(name))))
