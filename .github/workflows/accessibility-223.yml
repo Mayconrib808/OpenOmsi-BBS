@@ -81,6 +81,9 @@ jobs:
       - name: Build native P16 client and verify startup
         shell: pwsh
         run: |
+          $tokens=$null; $syntaxErrors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd 'tools/package-accessibility-hotfix/Aplicar-Hotfix.ps1'), [ref]$tokens, [ref]$syntaxErrors) | Out-Null
+          if ($syntaxErrors.Count -gt 0) { $syntaxErrors | Format-List; throw 'Hotfix installer PowerShell syntax failed' }
           cargo build --locked --release -p omsi-app
           if ($LASTEXITCODE -ne 0) { throw 'Native accessibility build failed' }
           & target/release/openomsi.exe --help | Out-File native-help.txt -Encoding utf8
