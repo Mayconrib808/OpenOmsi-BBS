@@ -250,12 +250,12 @@ func TestCooperativeCommandsStayExactThroughCompanyGateway(t *testing.T) {
 	}
 }
 
-func TestCooperativePatchRetainsProtocol14And15AndSixtyMinuteStartup(t *testing.T) {
+func TestCooperativePatchRetainsProtocol14Through17AndSixtyMinuteStartup(t *testing.T) {
 	_, profile, _, _ := companyFixture(t)
 	for _, item := range []struct {
 		version  string
 		protocol int
-	}{{"0.3.38-coop.5", 14}, {"0.3.39", 14}, {"0.3.40", 15}} {
+	}{{"0.3.38-coop.5", 14}, {"0.3.39", 14}, {"0.3.40", 15}, {"0.3.47", 16}, {"0.3.49", 17}} {
 		profile.OpenOMSIVersion, profile.Protocol = item.version, item.protocol
 		if err := validateCompanyProfile(profile); err != nil {
 			t.Fatal(item, err)
@@ -266,7 +266,7 @@ func TestCooperativePatchRetainsProtocol14And15AndSixtyMinuteStartup(t *testing.
 			t.Fatal(item, err)
 		}
 	}
-	if supportedMultiplayerProtocol(16) || startupTimeout != 60*time.Minute {
+	if !supportedMultiplayerProtocol(16) || !supportedMultiplayerProtocol(17) || supportedMultiplayerProtocol(18) || startupTimeout != 60*time.Minute {
 		t.Fatal("changed protocol allowlist or 60-minute startup allowance")
 	}
 }

@@ -385,8 +385,15 @@ func TestCompanyServerUsesSupportedProtocolInsteadOfReleaseAllowlist(t *testing.
 		if !compatibleCompanyServer(version, 14) {
 			t.Errorf("supported protocol 14 rejected: %s", version)
 		}
-		if compatibleCompanyServer(version, 8) {
-			t.Errorf("wrong protocol accepted: %s", version)
+		for _, protocol := range []int{15, 16, 17} {
+			if !compatibleCompanyServer(version, protocol) {
+				t.Errorf("supported protocol %d rejected: %s", protocol, version)
+			}
+		}
+		for _, protocol := range []int{0, 8, 13, 18} {
+			if compatibleCompanyServer(version, protocol) {
+				t.Errorf("unsupported protocol %d accepted: %s", protocol, version)
+			}
 		}
 	}
 	for _, version := range []string{"", "not openOMSI", "0.2", "0.1.0 (538ad31) extra", "0.1.0 (bad\nlabel)", "0.1.0 (bad\x00label)", "0.1.0 (nested (label))"} {

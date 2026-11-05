@@ -1,0 +1,33 @@
+name: Bridge 2.2.3.1 HostAgent P17 compatibility tests
+on:
+  push:
+    branches: [feature/2231-hostagent-p17-compat]
+    paths: ['source/company.go','source/company_test.go','source/coop_compatibility_test.go','.github/workflows/hostagent-p17-2231.yml']
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  go-host-p17:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+      - name: Test P17/P16 company compatibility and existing Bridge source
+        run: python3 scripts/build_2203.py --tests-only
+      - name: Assert both modern protocols accepted but unsupported P18 rejected
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path("source/company.go").read_text()
+          marker="func supportedMultiplayerProtocol(protocol int) bool"
+          section=s.split(marker,1)[1].split("}",1)[0]
+          for version in ("== 16", "== 17"):
+              assert version in section, "missing supported protocol "+version
+          assert "== 18" not in section, "unknown wire version allowed"
+          print("P16/P17 support declared, P18 excluded")
+          PY
