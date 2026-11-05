@@ -210,3 +210,52 @@ func TestSetupCurrentStateUsesNativeBCSSelectionAndPreparation(t *testing.T) {
 		t.Fatalf("disabled native selection: %q %v", state, err)
 	}
 }
+
+func TestSetupSixLanguagesHaveCompleteNativeGUITranslation(t *testing.T) {
+	aliases := map[string]string{
+		"pt-BR": "pt", "en-US": "en", "de-AT": "de",
+		"es-UY": "es", "es-AR": "es", "fr-CA": "fr", "ru-RU": "ru",
+	}
+	for input, expected := range aliases {
+		if got := normalizeLanguage(input); got != expected {
+			t.Fatalf("Windows locale %q normalized to %q, expected %q", input, got, expected)
+		}
+	}
+	if len(setupLanguages) != 6 || len(setupLanguageNames) != 6 || len(setupExtraStrings) != len(setupStrings) {
+		t.Fatalf("Setup localization incomplete: %d codes, %d labels, %d translated keys, %d original keys",
+			len(setupLanguages), len(setupLanguageNames), len(setupExtraStrings), len(setupStrings))
+	}
+	for key, original := range setupStrings {
+		extra, ok := setupExtraStrings[key]
+		if !ok {
+			t.Fatalf("missing ES/FR/RU Setup label: %s", key)
+		}
+		for i, lang := range []string{"es", "fr", "ru"} {
+			got := setupText(lang, key)
+			if got == "" || got == key || got != extra[i] {
+				t.Fatalf("missing translation %s for %s: %q", lang, key, got)
+			}
+			if strings.Count(got, "%w") != strings.Count(original[1], "%w") ||
+				strings.Count(got, "%s") != strings.Count(original[1], "%s") ||
+				strings.Count(got, "%d") != strings.Count(original[1], "%d") {
+				t.Fatalf("broken interpolation for %s (%s): %q", key, lang, got)
+			}
+			if strings.Count(got, "\x00") != strings.Count(original[1], "\x00") {
+				t.Fatalf("broken Windows file filter for %s (%s)", key, lang)
+			}
+		}
+	}
+	for _, locale := range []string{"es-UY", "fr-FR", "ru-RU"} {
+		lang := normalizeLanguage(locale)
+		dir := t.TempDir()
+		cfg := defaultConfig()
+		cfg.Language = lang
+		if err := saveInstalledConfig(dir, cfg); err != nil {
+			t.Fatalf("cannot save %s: %v", lang, err)
+		}
+		saved := readInstalledConfig(dir)
+		if saved.Language != lang || setupLanguageIndex(saved.Language) < 3 {
+			t.Fatalf("language lost on disk: %s => %s", lang, saved.Language)
+		}
+	}
+}
