@@ -44,3 +44,16 @@ jobs:
         run: |
           python tools/test-2231-setup-activation.py
           if ($LASTEXITCODE -ne 0) { throw 'The 2.2.3.1 Save and activate integrity regression failed' }
+
+      - name: Assemble SHA-guarded original-version Setup repair kit
+        shell: pwsh
+        run: |
+          python tools/assemble-2231-setup-repair.py
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot package proven Setup repair' }
+      - name: Upload immutable Setup repair kit
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3.1-Setup-Reparo-Testado
+          path: repair-kit/
+          retention-days: 90
+          if-no-files-found: error
