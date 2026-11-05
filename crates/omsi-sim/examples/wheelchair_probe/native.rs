@@ -21,11 +21,13 @@ fn snapshot(v: &VehicleInstance, p: &Profile) -> Value {
 }
 pub fn run(v: &mut VehicleInstance, p: &Profile) -> Value {
     let Some(binding) = &p.native else {
-        let feedback = wheelchair::Feedback {
-            door_open: true,
-            bay_ready: Some(true),
-            ..Default::default()
-        };
+        // Exercise the actual leaves and folding-seat bindings from the add-on,
+        // then read the same feedback used by PeopleSim in the game.
+        for name in std::iter::once(&p.door_var).chain(&p.door_vars) {v.set_var(name,1.0);}
+        if let Some(f)=&p.fold {v.set_var(&f.variable,f.folded_value);}
+        for _ in 0..360 {animate(v,1.0/60.0);}
+        let mut wc=wheelchair::Wheelchairs::default();wc.profile=Some(p.clone());
+        let feedback=wc.feedback_from(v);
         let mut j = wheelchair::Journey::new(p, 0.18, if p.side() > 0.0 { 270.0 } else { 90.0 });
         let mut max_step = 0.0_f32;
         for step in 0..12000 {
@@ -53,7 +55,8 @@ pub fn run(v: &mut VehicleInstance, p: &Profile) -> Value {
         for _ in 0..240 {
             j.advance(p, 1.0 / 60.0, 0.0, feedback, false, &[]);
         }
-        return json!({"fixture":"additional equipment controller, doors and bay available, 18 cm curb",
+        return json!({"fixture":"additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb",
+            "door_open":feedback.door_open,"bay_ready":feedback.bay_ready,
             "controller":{"boarding":boarding,"alighting":alighting,"max_step_metres":max_step,"interlocked_after_stow":j.interlocked()}});
     };
     let man = binding.trigger.as_deref() == Some("ramplift_wunsch");

@@ -57,6 +57,78 @@ impl World for FlatWorld {
     }
 }
 
+fn wheelchair_service(name:&str)->(PeopleSim,BusNow,PlayerBusView,FlatWorld) {
+    let (mut h,mut bn)=super::super::pax_stops::brt_tests::setup(name,None);
+    bn.id=BusId::Player;
+    let p=wheelchair::tests::profile();
+    h.wheelchairs.enabled=true;
+    h.wheelchairs.profile=Some(p.clone());h.wheelchairs.profiles=vec![p.clone()];
+    h.player_next_stop=bn.next_stop.clone();
+    h.people[0].position=bn.world(p.outside(0.0));
+    let x=h.pax_mut(0).unwrap();x.stop=None;x.pos=p.outside(0.0).as_dvec3();
+    let view=PlayerBusView {
+        wheelchair_feedback:wheelchair::Feedback{door_open:true,bay_ready:Some(true),..Default::default()},
+        position:bn.pos,heading:bn.heading,rot:bn.rot,speed:0.0,speed_kmh:0.0,
+        a_trans:Vec3::ZERO,bounding_box:None,interior:1.0,air:CabinAir::default(),
+        given_ticket:None,terminus:None,tt_stop:None,act_busstop:String::new(),route:None,cabin:None,
+    };
+    (h,bn,view,FlatWorld::default())
+}
+
+#[test]
+fn wheelchair_request_stays_active_until_alt_assistance_completes_alighting() {
+    use wheelchair::Stage;
+    let (mut h,bn,mut view,world)=wheelchair_service("wheelchair-alt-service");
+    let id=h.people[0].id;
+    assert!(h.begin_wheelchair_boarding(0,&bn,&world));h.wheelchairs.assisted=true;
+    for _ in 0..12000 {
+        h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
+        if h.wheelchairs.riders.contains_key(&id){break;}
+    }
+    assert!(h.wheelchairs.riders.contains_key(&id));
+    assert!(h.wheelchairs.request_alight(id));
+    // A request must reach Alt even before the timetable advances or the bus stops.
+    h.player_next_stop=None;view.speed=2.0;view.wheelchair_feedback.door_open=false;
+    for _ in 0..120 {
+        h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
+        let j=h.wheelchairs.journey.as_ref().expect("pending request was reparked");
+        assert_eq!(j.stage,Stage::Riding);assert!(j.alight_requested);assert!(h.wheelchairs.wants_alight());
+        assert!(!j.interlocked());
+    }
+    view.speed=0.0;
+    wheelchair::command(wheelchair::ASSIST);
+    h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
+    assert_eq!(h.wheelchairs.journey.as_ref().unwrap().stage,Stage::Riding);
+    view.wheelchair_feedback.door_open=true;
+    for _ in 0..12000 {
+        h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
+        if h.wheelchairs.journey.is_none(){break;}
+    }
+    assert!(h.wheelchairs.journey.is_none());assert!(h.wheelchairs.riders.is_empty());
+    assert!(!h.wheelchairs.wants_alight());assert_eq!(h.people[0].id,id);
+    assert!(h.pax(0).is_none_or(|p|p.inside.is_none()));
+}
+
+#[test]
+fn wheelchair_boarding_yields_past_an_occupied_bay_with_no_free_standing_place() {
+    let (mut h,bn,view,world)=wheelchair_service("wheelchair-full-bay");
+    let (mut crowd,_,_,_)=wheelchair_service("wheelchair-crowd");
+    let mut other=crowd.people.pop().unwrap();other.id=2;
+    let bay=h.wheelchairs.profile.as_ref().unwrap().bay;
+    other.position=bn.world(bay);other.place=Place::Bus(BusId::Player,bay);
+    if let State::Pax(x)=&mut other.state {x.inside=Some(BusId::Player);x.bus=Some(BusId::Player);
+        x.task=Task::SittingInBus;x.pos=bay.as_dvec3();x.seat=None;}
+    h.people.push(other);h.seats.insert(BusId::Player,vec![true;bn.cabin.seats.len()]);
+    let id=h.people[0].id;
+    assert!(h.begin_wheelchair_boarding(0,&bn,&world));h.wheelchairs.assisted=true;
+    for _ in 0..12000 {
+        h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
+        if h.wheelchairs.riders.contains_key(&id){break;}
+    }
+    assert!(h.wheelchairs.riders.contains_key(&id),"occupied bay permanently blocked boarding");
+    assert_eq!(h.people.len(),2);
+}
+
 #[test]
 fn connection_rejects_unloaded_ground_and_large_steps() {
     let from = DVec3::ZERO;

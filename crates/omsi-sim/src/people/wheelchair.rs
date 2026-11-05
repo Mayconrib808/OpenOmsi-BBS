@@ -369,6 +369,18 @@ impl Journey {
     pub fn doorway_busy(&self)->bool {
         !matches!(self.stage,Stage::Waiting|Stage::Riding|Stage::Finished)
     }
+    fn crowd_allows_motion(&mut self, blocked:bool, dt:f32)->bool {
+        if !blocked||self.crowd_priority{return true;}
+        self.crowd_wait+=dt.clamp(0.0,0.1);
+        if self.crowd_wait<1.5 {
+            self.hold_reason="Passagem ocupada: solicitando espaço aos passageiros";
+            self.pose.moving=0.0;
+            return false;
+        }
+        self.crowd_priority=true;
+        log::info!("WHEELCHAIR crowd_yield_timeout stage={:?} position={:?}: passenger collision softened; bus safety interlocks retained",self.stage,self.local);
+        true
+    }
     /// Differential drive: each wheel follows its own travelled arc. The push
     /// cycle is distance based, so stopped hands never continue propelling.
     fn drive(&mut self, target: Vec3, dt: f32, blockers: &[Vec3], reverse:bool) -> bool {
@@ -392,16 +404,7 @@ impl Journey {
         // certifies the cabin and the lift/door/brake interlocks still apply.
         let crowd_blocked = blockers.iter().any(|p|
             (p.z-next.z).abs()<1.5 && (p.truncate()-next.truncate()).length()<0.64);
-        if crowd_blocked && !self.crowd_priority {
-            self.crowd_wait += dt;
-            if self.crowd_wait < 1.5 {
-                self.hold_reason = "Passagem ocupada: solicitando espaço aos passageiros";
-                self.pose.moving = 0.0;
-                return false;
-            }
-            self.crowd_priority = true;
-            log::info!("WHEELCHAIR crowd_yield_timeout stage={:?} position={:?}: passenger collision softened; bus safety interlocks retained", self.stage, self.local);
-        }
+        if !self.crowd_allows_motion(crowd_blocked,dt){return false;}
         self.hold_reason = "";
         self.heading = heading;
         self.local = next;
@@ -933,7 +936,7 @@ impl PeopleSim {
             .collect();
         self.wheelchairs.bay_occupied=self.people.iter().any(|p|p.id!=id&&matches!(p.place,Place::Bus(BusId::Player,_))
             &&(bn.to_local(p.position).truncate()-profile.bay.truncate()).length()<0.85);
-        let occupied_before_assist=journey.stage==Stage::Waiting&&self.wheelchairs.bay_occupied;
+        let bay_blocked=journey.stage==Stage::Waiting&&self.wheelchairs.bay_occupied;
         if journey.stage==Stage::Waiting && bus.speed.abs()<0.025 {
             let target=profile.outside(journey.ground_height);
             let at=bn.world(journey.local);
@@ -952,6 +955,11 @@ impl PeopleSim {
         let native=matches!(profile.equipment,Equipment::NativeRamp|Equipment::NativeLift);
         let ready_to_board=native && self.wheelchairs.feedback.ground_ready
             && self.wheelchairs.feedback.floor_ready;
+        // The initial bay check must use the same short crowd yield as motion.
+        // Otherwise a full standing area blocks before drive() can resolve it.
+        let occupied_before_assist=bay_blocked
+            &&(!(self.wheelchairs.assisted||ready_to_board)
+                ||!journey.crowd_allows_motion(true,dt));
         journey.advance(
             &profile,
             dt,
@@ -1069,7 +1077,7 @@ impl PeopleSim {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     pub fn profile() -> Profile {
         Profile {

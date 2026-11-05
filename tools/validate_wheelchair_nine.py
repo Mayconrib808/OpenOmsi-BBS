@@ -68,6 +68,21 @@ def locate_bus(base: Path, filename: str) -> Path:
         raise ValueError(f"expected one {filename}, found {len(matches)}: {matches[:5]}")
     return matches[0]
 
+def add_loose_definitions(base: Path, archives: Path) -> None:
+    """Some supplied articulated ZIPs have their .bus definitions attached separately."""
+    parents = {p.parent for p in base.rglob("*") if p.is_file() and p.suffix.casefold() == ".bus"}
+    if len(parents) != 1:
+        return
+    target = next(iter(parents))
+    # Copy only supplied definitions referring to this archive's model file.
+    models = {p.name.casefold() for p in target.rglob("*.cfg")}
+    for definition in archives.glob("*.bus"):
+        lines = definition.read_text(encoding="cp1252", errors="replace").splitlines()
+        model = next((lines[i + 1].replace("\\", "/").rsplit("/", 1)[-1].casefold()
+                      for i, line in enumerate(lines[:-1]) if line.strip().casefold() == "[model]"), None)
+        if model in models and not (target / definition.name).exists():
+            shutil.copyfile(definition, target / definition.name)
+
 def verdict(data: dict) -> tuple[str, str]:
     discovery = data.get("detection") or {}
     profile = discovery.get("profile")
@@ -114,6 +129,7 @@ def main() -> int:
                 if key not in unpacked:
                     directory = staging / f"addon-{len(unpacked)}" / "Vehicles"
                     extract_addon(archive, directory)
+                    add_loose_definitions(directory, args.archives)
                     unpacked[key] = directory
                 bus_file = locate_bus(unpacked[key], bus_name)
                 env = dict(os.environ)

@@ -6,6 +6,24 @@ promoted to stable releases (see [docs/VERSIONING.md](docs/VERSIONING.md)); the 
 
 ## Unreleased
 
+### 2.2.3 Hotfix 1 — Alt, desembarque e acesso universal (2026-11-04)
+
+- Corrige o pedido de desembarque que era devolvido à lista de cadeiras acomodadas
+  a cada quadro. A assistência permanece disponível no Alt desde o pedido até a
+  conclusão do desembarque, inclusive quando o horário ainda aponta o ponto anterior.
+- Corrige a espera permanente por espaço antes de abrir o elevador. Os passageiros
+  tentam ceder espaço e, após uma espera curta, a cadeira tem prioridade de passagem,
+  inclusive sem outra posição em pé livre. Mantém ônibus parado e porta aberta.
+- O localizador monta acesso assistido sobre o piso real da cabine quando grades e
+  outras malhas interiores impedem o cálculo rígido da manobra. Detecta portas pelas
+  animações e adapta rampas manuais ou curtas de piso alto ao elevador auxiliar.
+  A regra vale também para veículos com estrutura semelhante, sem lista de nomes.
+- Os nove modelos antes recusados completaram embarque, desembarque e recolhimento
+  com seus arquivos originais: Scania articulado, Mi4 Voith e ZF, Torino 2007 VW T2 BH,
+  Torino 2025, Torino S Rio Ita, VIP I de 3 e 4 portas e VIP III Volkswagen.
+- Inclui regressões do atendimento completo pelo sistema de passageiros: pedido
+  persistente no Alt, espera por porta aberta e embarque com a área ocupada.
+
 ### Correções adicionais 2.2.3 — acessibilidade e sinalização (candidata, 2026-11-04)
 
 - Localizador universal de cadeirantes: amplia a busca por área reservada e trajetos de

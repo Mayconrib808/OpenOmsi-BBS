@@ -304,19 +304,6 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             reserved.push((lo + hi) * 0.5);
         }
     }
-    let unbound_native = ty.program.var_names.iter().any(|n| {
-        let n = n.to_lowercase();
-        ["ramp", "pandus", "lift_pos", "elevador_pos"]
-            .iter()
-            .any(|k| n.contains(k))
-            && ![
-                "light", "lamp", "warning", "cockpit", "wunsch", "button", "luz", "display",
-                "visible", "config_", "partida", "assist", "hill", "accel", "slope",
-            ]
-            .iter()
-            .any(|k| n.contains(k))
-            && ty.program.var(&n).is_some_and(|id| ty.program.stores(id))
-    });
     let geometry = Geometry::new(v);
     let half = ty
         .def
@@ -373,13 +360,21 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
                     .total_cmp(&((b.corners[0].y + b.corners[2].y) * 0.5 - d.inside.y).abs())
             })
             .cloned();
+        // Manual drag ramps, and short ramps on a high floor, cannot provide
+        // an automatic ground/floor cycle at an ordinary curb. Use the same
+        // real doorway with the auxiliary lift rather than stranding the rider.
+        let native=native.filter(|n| {
+            let automatic=n.trigger.is_some()&&n.control_var.is_some()
+                &&(floor-0.18).max(0.0)<=(n.corners[2].x-n.corners[0].x).abs()*0.35;
+            if !automatic {
+                out.reasons.push(format!("Door y={:.2}: manual or steep original ramp; auxiliary lift selected",d.inside.y));
+            }
+            automatic
+        });
         let hint = reserved.iter().any(|p| (p.y - d.inside.y).abs() < 1.7)
             || static_boxes
                 .iter()
                 .any(|(a, b)| ((a.y + b.y) * 0.5 - d.inside.y).abs() < 1.7);
-        if native.is_none() && (unbound_native || !out.native_meshes.is_empty()) {
-            continue;
-        }
         let mut threshold = Vec3::new(d.side * opening.x.clamp(0.9,half), opening.y, floor);
         if let Some(n) = &native {
             threshold.x = if d.side > 0.0 {
@@ -446,6 +441,18 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             }
         }
         if selected_bays.is_empty() {
+            // OMSI interiors often contain continuous decorative rails or
+            // exported panels across a usable passenger path. The assisted
+            // route follows the actual cabin floor while allowing these props
+            // to overlap. It never invents a door or crosses a missing floor.
+            let assisted=find_assisted_bays(c,&geometry,threshold,&reserved);
+            if let Some((bay,heading,route))=assisted.into_iter().find_map(|(bay,heading)|
+                geometry.assisted_route(threshold,bay).map(|route|(bay,heading,route))) {
+                selected_bays.push((bay,heading,route,Vec::new()));
+                out.reasons.push(format!("Door y={:.2}: assisted cabin-floor route; interior prop clearance relaxed",threshold.y));
+            }
+        }
+        if selected_bays.is_empty() {
             let entrance_heading=if threshold.x>0.0{270.0}else{90.0};
             let reason=if count==0 {"no clear wheelchair bay found"}
                 else if !geometry.chair_clear(threshold,entrance_heading) {
@@ -467,8 +474,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
                 .map_or(1.4, |n| (n.corners[2].y - n.corners[0].y).abs() - 0.02),
         );
         let replacement_meshes = if native.is_none() {
-            out.static_equipment
-                .iter()
+            out.static_equipment.iter().chain(out.native_meshes.iter())
                 .filter(|name| {
                     ty.meshes
                         .iter()
@@ -743,6 +749,26 @@ impl Geometry {
     fn height(&self, p: Vec3) -> Option<f32> {
         let key=(p.truncate()*2.0).floor().as_ivec2();
         floor_height_iter(self.floor_cells.get(&(key.x,key.y))?.iter().map(|i|&self.floor[*i]),p)
+    }
+    fn assisted_route(&self,start:Vec3,bay:Vec3)->Option<Vec<Vec3>> {
+        let candidates=[vec![start.lerp(bay,0.5)],
+            vec![Vec3::new(0.0,start.y,start.z),Vec3::new(0.0,bay.y,bay.z)]];
+        candidates.into_iter().find(|route| {
+            let mut from=start;
+            for to in route.iter().chain(std::iter::once(&bay)) {
+                let distance=(*to-from).truncate().length();
+                if distance>4.0||(*to-from).z.abs()>0.18{return false;}
+                let steps=(distance/0.08).ceil().max(1.0) as usize;
+                for i in 1..=steps {
+                    let at=from.lerp(*to,i as f32/steps as f32);
+                    // The auxiliary bridge covers the doorway's shallow lip.
+                    if at.x.abs()>start.x.abs()-0.25{continue;}
+                    if !self.height(at).is_some_and(|z|(z-at.z).abs()<0.12){return false;}
+                }
+                from=*to;
+            }
+            true
+        })
     }
     fn chair_clear(&self, p: Vec3, heading: f32) -> bool {
         let (s, c) = heading.to_radians().sin_cos();
@@ -1108,6 +1134,30 @@ fn bay_floor_supported(g:&Geometry, p:Vec3, heading:f32)->bool {
             g.height(p+right*(x*0.30)+forward*(y*0.43))
                 .is_some_and(|h|(h-p.z).abs()<0.07)))
 }
+fn find_assisted_bays(c:&Cabin,g:&Geometry,threshold:Vec3,reserved:&[Vec3])->Vec<(Vec3,f32)> {
+    let mut bays=Vec::new();
+    for side in [-threshold.x.signum(),threshold.x.signum()] {
+        for ix in 0..10 {
+            for iy in -40_i32..=40 {
+                let mut p=Vec3::new(side*(0.18+ix as f32*0.09),threshold.y+iy as f32*0.065,threshold.z);
+                if side==threshold.x.signum()&&iy.abs()<14{continue;}
+                let Some(z)=g.height(p)else{continue;};p.z=z;
+                let near_reserved=reserved.iter().any(|r|(r.truncate()-p.truncate()).length()<1.0);
+                if c.seats.iter().any(|s|s.seated&&s.switch_var.is_none()&&!near_reserved
+                    &&(s.floor.x-p.x).abs()<0.35&&(s.floor.y-p.y).abs()<0.55){continue;}
+                for heading in [180.0_f32,0.0,90.0,270.0] {
+                    if bay_floor_supported(g,p,heading) {
+                        let hint=reserved.iter().map(|r|(r.truncate()-p.truncate()).length()).fold(1.5,f32::min);
+                        let score=(p.y-threshold.y).abs()+hint*0.5+(p.x.abs()-0.65).abs();
+                        bays.push((score,(p,heading)));break;
+                    }
+                }
+            }
+        }
+    }
+    bays.sort_by(|a,b|a.0.total_cmp(&b.0));
+    bays.into_iter().map(|(_,p)|p).collect()
+}
 fn find_bays(
     c: &Cabin,
     g: &Geometry,
@@ -1338,6 +1388,23 @@ mod tests {
         assert!(!equipment_name("Generic/Rampe_Taster.o3d"));
         assert!(equipment_name("Generic/Rampe_Main.o3d"));
         assert!(!reserved_name("Painel/LuzCadeirante.o3d"));
+    }
+    #[test]
+    fn assisted_route_allows_interior_props_but_requires_continuous_floor() {
+        let rectangle=|left:f32,right:f32| {
+            let a=Vec3::new(left,-1.0,0.97);let b=Vec3::new(right,-1.0,0.97);
+            let c=Vec3::new(right,1.0,0.97);let d=Vec3::new(left,1.0,0.97);
+            vec![[a,b,c],[a,c,d]]
+        };
+        let rail=[Vec3::new(0.0,-1.0,1.1),Vec3::new(0.0,1.0,1.1),Vec3::new(0.0,0.0,2.0)];
+        let g=Geometry::index(rectangle(-1.25,1.25),vec![Triangle{
+            p:rail,low:rail[0].min(rail[1]).min(rail[2]),high:rail[0].max(rail[1]).max(rail[2]),
+        }]);
+        let start=Vec3::new(1.16,0.0,0.97);let bay=Vec3::new(-0.65,0.0,0.97);
+        assert!(!g.route_clear(start,&[start.lerp(bay,0.5)],bay,180.0));
+        assert!(g.assisted_route(start,bay).is_some());
+        let gap=Geometry::index(rectangle(-1.25,-0.3).into_iter().chain(rectangle(0.3,1.25)).collect(),Vec::new());
+        assert!(gap.assisted_route(start,bay).is_none());
     }
     #[test]
     fn wheelchair_bay_floor_is_checked_in_the_selected_heading() {

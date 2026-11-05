@@ -62,7 +62,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 150
     env:
-      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3
+      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3-hotfix.1
       OPENOMSI_COOP_GAME_ONLY: '1'
       OMSI_NO_UPDATE: '1'
       CARGO_INCREMENTAL: '0'
@@ -99,7 +99,7 @@ jobs:
           git archive --format=tar.gz --prefix=openomsi-223/ -o candidate/openomsi-source.tar.gz HEAD
           if ($LASTEXITCODE -ne 0) { throw 'Native source archive failed' }
           $info = @{
-            version='0.3.47-coop.16-2.2.3'; bridge_version='2.2.3'; commit=$env:GITHUB_SHA
+            version='0.3.47-coop.16-2.2.3-hotfix.1'; bridge_version='2.2.3-hotfix.1'; commit=$env:GITHUB_SHA
             build_commit=$env:GITHUB_SHA; run_id=[long]$env:GITHUB_RUN_ID
             upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6'
             winter_clothing_removed=$true; passenger_upstream_tag='v0.3.47'
@@ -131,7 +131,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 120
     env:
-      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3
+      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3-hotfix.1
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_RELEASE_DEBUG: '0'
       CARGO_PROFILE_RELEASE_LTO: 'false'
