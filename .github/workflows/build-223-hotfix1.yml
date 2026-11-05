@@ -73,6 +73,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Hotfix 1 full installer validation failed' }
           Compress-Archive -Path build/release223-hotfix1/runtime/* -DestinationPath build/release223-hotfix1/OpenOMSI-BCS-Bridge-2.2.3-Hotfix-1-FULL.zip
           if ($LASTEXITCODE -ne 0) { throw 'Full portable archive failed' }
+          @'
+          from pathlib import Path
+          import json,hashlib
+          root=Path('build/release223-hotfix1')
+          path=root/'OpenOMSI-BCS-Bridge-2.2.3-Hotfix-1-FULL.zip'
+          report=json.loads((root/'build-report.json').read_text())
+          with path.open('rb') as stream: digest=hashlib.file_digest(stream,'sha256').hexdigest()
+          report.update(portable_sha256=digest,portable_size=path.stat().st_size,portable_file=path.name)
+          (root/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Portable provenance failed' }
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -96,6 +107,26 @@ jobs:
             build/release223-hotfix1/accessibility-223-validation.md
             build/release223-hotfix1/accessibility-223-vehicle-validation.json
             build/release223-hotfix1/setup-previews/*
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3-Hotfix1-PUBLISH-INPUTS
+          path: |
+            build/release223-hotfix1/Atualizar-Bridge.exe
+            build/release223-hotfix1/build-report.json
+            build/release223-hotfix1/coop-spec.json
+            build/release223-hotfix1/native-p16-controls.json
+            build/release223-hotfix1/one-click-install-test.json
+            build/release223-hotfix1/accessibility-223-vehicle-validation.json
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3-Hotfix1-PORTABLE
+          path: build/release223-hotfix1/OpenOMSI-BCS-Bridge-2.2.3-Hotfix-1-FULL.zip
           compression-level: 0
           retention-days: 90
           if-no-files-found: error
