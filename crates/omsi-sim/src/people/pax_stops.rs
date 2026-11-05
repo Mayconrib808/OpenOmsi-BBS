@@ -98,9 +98,13 @@ impl PeopleSim {
     /// choose a task or change which bus anybody actually boards.
     pub fn visual_hail_bus(&self, i: usize, buses: &[BusNow]) -> Option<(BusId, bool, DVec3)> {
         let p = self.pax(i)?;
-        // Only stationary waiting passengers can signal: once they start moving to
-        // a door, turning the whole pose would slide their feet sideways.
-        if p.inside.is_some() || p.task != Task::WaitingForBus { return None; }
+        // Allow the visual signal while the passenger is still standing at
+        // the point, including the ToBus recognition phase (a bus may appear
+        // inside 60m before the first WaitingForBus snapshot). Stop at
+        // WalkingToBus so the animation cannot drag feet across the curb.
+        if p.inside.is_some()
+            || !matches!(p.task, Task::WaitingForBus | Task::ToBus)
+        { return None; }
         let stop = p.stop?;
         let s = self.stops.get(&stop)?;
         let heading = s.heading.to_radians();
@@ -285,7 +289,11 @@ impl PeopleSim {
                 }
                 // (or the destination of another route of its service ending where its own
                 // does: a circular's people wait for the stop it ends at)
-                let f = fit(stop, s, p.dest.as_deref(), termini, bn.terminus.as_deref()?, &bn.takes)
+                // The HOF terminus can arrive after the timetable route. Do
+                // not short-circuit before trying that route, otherwise the
+                // bus can be eligible to hail but cannot actually board.
+                let f = bn.terminus.as_deref()
+                    .and_then(|term|fit(stop, s, p.dest.as_deref(), termini, term, &bn.takes))
                     .or_else(|| bn.route.as_ref().and_then(|r| r.takes_waiting_for(termini)))?;
                 Some((*id, f, (bn.pos - self.people[i].position).length()))
             })),

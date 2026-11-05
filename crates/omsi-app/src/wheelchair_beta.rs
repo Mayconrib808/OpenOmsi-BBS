@@ -11,7 +11,10 @@ impl App {
         let Some(profile)=h.wheelchairs.profile.as_ref()else{NATIVE_STAGE.store(0,Ordering::Release);return;};
         let Some(player)=self.player.as_mut()else{return;};
         if h.wheelchairs.journey.as_ref().is_some_and(|j|!matches!(j.stage,Stage::Finished|Stage::Riding))
-            &&player.vehicle.physics.speed.abs()<0.025&&h.wheelchairs.feedback.door_open&&!h.wheelchairs.bay_occupied {
+            &&player.vehicle.physics.speed.abs()<0.025&&h.wheelchairs.feedback.door_open
+            &&(!h.wheelchairs.bay_occupied||h.wheelchairs.journey.as_ref().is_some_and(|j|j.stage!=Stage::Waiting)) {
+            // Once assistance has started, the controller has already granted
+            // the chair priority. A standing rider must not prevent seat folding.
             if let Some(f)=&profile.fold {if player.vehicle.var(&f.variable).is_some_and(|x|(x-f.folded_value).abs()>0.02){player.vehicle.trigger(&f.trigger);}}
         }
         let native=matches!(profile.equipment,wheelchair::Equipment::NativeRamp|wheelchair::Equipment::NativeLift);

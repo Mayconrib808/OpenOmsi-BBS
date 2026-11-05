@@ -14,11 +14,18 @@ pub(crate) fn panel(app:&crate::App,pal:Palette)->Panel {
                 "Original equipment: passengers board when the door and ramp are ready"
             }else{"Auxiliary lift: stop, open the accessible door and start assistance"}),pal));
             if let Some(j)=wc.journey.as_ref() {
-                rows.push(note(&tr(j.stage.ui_label()),pal));
+                rows.push(note(&tr(if j.alight_requested&&j.stage==wheelchair::Stage::Riding {
+                    "A wheelchair passenger wants to alight at the next stop"
+                }else{j.stage.ui_label()}),pal));
                 if !j.hold_reason.is_empty(){rows.push(note(&tr(hold_label(j.hold_reason)),pal));}
                 rows.push(button("assist",&tr("Prepare boarding or alighting"),Some("accessible")));
             }else{
-                rows.push(note(&tr("Waiting for an approaching passenger or an alighting request"),pal));
+                if wc.wants_alight() {
+                    rows.push(note(&tr("A wheelchair passenger wants to alight at the next stop"),pal));
+                    rows.push(button("assist",&tr("Prepare boarding or alighting"),Some("accessible")));
+                }else{
+                    rows.push(note(&tr("Waiting for an approaching passenger or an alighting request"),pal));
+                }
             }
             rows.push(note(&tr("Keep the bus stopped until the wheelchair is secured and the equipment is stowed"),pal));
         }else{rows.push(note(&tr("No verified accessible door and wheelchair bay were found for this vehicle"),pal));}
@@ -28,7 +35,7 @@ pub(crate) fn panel(app:&crate::App,pal:Palette)->Panel {
 }
 fn hold_label(reason:&str)->&'static str {
     match reason {
-        "Passagem ocupada: aguardando espaço"|"Área reservada ocupada: aguardando liberação"=>"Waiting for space",
+        "Passagem ocupada: aguardando espaço"|"Passagem ocupada: solicitando espaço aos passageiros"|"Área reservada ocupada: aguardando liberação"=>"Waiting for space",
         "Aguardando ônibus completamente parado"=>"Stop the bus completely before starting assistance",
         "Aguardando abertura da porta acessível"|"Pare completamente e abra a porta acessível"=>"Open the accessible door",
         "Aguardando recolhimento do banco retrátil"=>"Waiting for the folding seat",

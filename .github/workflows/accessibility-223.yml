@@ -1,7 +1,7 @@
 name: OpenOMSI 2.2.3 accessibility validation
 on:
   push:
-    branches: [feature/2.2.3-accessibility]
+    branches: [feature/2.2.3-accessibility, feature/2.2.3-hail-hotfix]
   workflow_dispatch: {}
 permissions:
   contents: read
@@ -32,6 +32,7 @@ jobs:
         run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
       - name: Simulation regression tests and add-on probe
         run: |
+          python3 -m py_compile tools/validate_wheelchair_nine.py
           cargo test --locked --release -p omsi-sim --lib
           cargo test --locked --release -p omsi-net --lib
           cargo build --locked --release -p omsi-sim --example wheelchair_probe
@@ -61,7 +62,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 150
     env:
-      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3
+      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3-hotfix.1
       OPENOMSI_COOP_GAME_ONLY: '1'
       OMSI_NO_UPDATE: '1'
       CARGO_INCREMENTAL: '0'
@@ -80,6 +81,9 @@ jobs:
       - name: Build native P16 client and verify startup
         shell: pwsh
         run: |
+          $tokens=$null; $syntaxErrors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd 'tools/package-accessibility-hotfix/Aplicar-Hotfix.ps1'), [ref]$tokens, [ref]$syntaxErrors) | Out-Null
+          if ($syntaxErrors.Count -gt 0) { $syntaxErrors | Format-List; throw 'Hotfix installer PowerShell syntax failed' }
           cargo build --locked --release -p omsi-app
           if ($LASTEXITCODE -ne 0) { throw 'Native accessibility build failed' }
           & target/release/openomsi.exe --help | Out-File native-help.txt -Encoding utf8
@@ -98,7 +102,7 @@ jobs:
           git archive --format=tar.gz --prefix=openomsi-223/ -o candidate/openomsi-source.tar.gz HEAD
           if ($LASTEXITCODE -ne 0) { throw 'Native source archive failed' }
           $info = @{
-            version='0.3.47-coop.16-2.2.3'; bridge_version='2.2.3'; commit=$env:GITHUB_SHA
+            version='0.3.47-coop.16-2.2.3-hotfix.1'; bridge_version='2.2.3-hotfix.1'; commit=$env:GITHUB_SHA
             build_commit=$env:GITHUB_SHA; run_id=[long]$env:GITHUB_RUN_ID
             upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6'
             winter_clothing_removed=$true; passenger_upstream_tag='v0.3.47'
@@ -112,6 +116,12 @@ jobs:
           Copy-Item candidate/SOURCE.json candidate/BUILD-INFO.json -Force
           & candidate/openomsi.exe --version | Out-File candidate/version.txt -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw 'Native candidate version failed' }
+      - name: Build Windows wheelchair add-on probe for exact nine-vehicle validation
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-sim --example wheelchair_probe
+          if ($LASTEXITCODE -ne 0) { throw 'Windows wheelchair add-on probe build failed' }
+          Copy-Item target/release/examples/wheelchair_probe.exe candidate/wheelchair_probe.exe -Force
       - uses: actions/upload-artifact@v4
         with:
           name: OpenOMSI-2.2.3-native-CANDIDATE
@@ -124,7 +134,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 120
     env:
-      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3
+      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3-hotfix.1
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_RELEASE_DEBUG: '0'
       CARGO_PROFILE_RELEASE_LTO: 'false'

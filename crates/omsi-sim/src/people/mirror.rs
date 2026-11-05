@@ -108,12 +108,16 @@ impl PeopleSim {
         let route_match=line.and_then(|k|s.lines.get(k))
             .is_some_and(|(_,termini)|bn.route.as_ref().and_then(|r|r.takes_waiting_for(termini)).is_some());
         let stop_served=term.is_some_and(|t|matches!(at_stop(*stop,s,Some(t),&bn.takes),AtStop::Serves));
-        if !stop_served && !route_match{return Some(false)}
+        // Stop-level at_stop and a passenger's individual route fit differ.
+        // Do not veto an individual fit just because the stop-wide label was
+        // not recognized: the local authoritative bus_for accepts that fit.
+        // For a passenger with no line index, an explicitly served stop is
+        // enough, as in normal no-line boarding. Never accept a passing bus.
         Some(match line.and_then(|k|s.lines.get(k)){
             Some((_,termini))=>term
                 .and_then(|t|fit(*stop,s,dest.as_deref(),termini,t,&bn.takes))
                 .is_some() || route_match,
-            None=>line.is_none() && stop_served,
+            None=>line.is_none() && (stop_served || bn.served==Some(*stop)),
         })
     }
     /// Stable identity of the termini, independent of HashMap loading/line order.
@@ -198,7 +202,20 @@ impl PeopleSim {
     pub fn mirror_hail_intent(&mut self,id:u32,intent:Option<(i64,Option<u64>,Option<String>)>){
         if let Some((stop,key,dest))=intent{
             if self.mirror_hail_intent.get(&id).is_some_and(|old|old.0==stop && old.1==key && old.3==dest && (key.is_none()||old.2.is_some())){return}
-            let line=key.and_then(|key|self.stops.get(&stop)?.lines.iter().position(|(_,terms)|Self::hail_line_key(terms)==key));
+            let line=key.and_then(|key|self.stops.get(&stop)?.lines.iter().position(|(_,terms)|Self::hail_line_key(terms)==key))
+                .or_else(||{
+                    // Add-on HOFs can name the same destination while exporting
+                    // their terminal sets in different orders/versions. Accept
+                    // an authoritative destination name only if unique at this
+                    // stop; never guess between duplicate route names.
+                    let name=dest.as_deref()?.trim();
+                    key?;
+                    if name.is_empty(){return None;}
+                    let mut matching=self.stops.get(&stop)?.lines.iter().enumerate()
+                        .filter(|(_, (n,_))|n.trim().eq_ignore_ascii_case(name));
+                    let index=matching.next()?.0;
+                    matching.next().is_none().then_some(index)
+                });
             self.mirror_hail_intent.insert(id,(stop,key,line,dest));
         }else{self.mirror_hail_intent.remove(&id);
         self.mirror_connection_history.remove(&id);}

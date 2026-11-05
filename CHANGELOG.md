@@ -6,6 +6,44 @@ promoted to stable releases (see [docs/VERSIONING.md](docs/VERSIONING.md)); the 
 
 ## Unreleased
 
+### 2.2.3 Hotfix 1 — Alt, desembarque e acesso universal (2026-11-04)
+
+- Corrige o pedido de desembarque que era devolvido à lista de cadeiras acomodadas
+  a cada quadro. A assistência permanece disponível no Alt desde o pedido até a
+  conclusão do desembarque, inclusive quando o horário ainda aponta o ponto anterior.
+- Corrige a espera permanente por espaço antes de abrir o elevador. Os passageiros
+  tentam ceder espaço e, após uma espera curta, a cadeira tem prioridade de passagem,
+  inclusive sem outra posição em pé livre. Mantém ônibus parado e porta aberta.
+- O localizador monta acesso assistido sobre o piso real da cabine quando grades e
+  outras malhas interiores impedem o cálculo rígido da manobra. Detecta portas pelas
+  animações e adapta rampas manuais ou curtas de piso alto ao elevador auxiliar.
+  A regra vale também para veículos com estrutura semelhante, sem lista de nomes.
+- Os nove modelos antes recusados completaram embarque, desembarque e recolhimento
+  com seus arquivos originais: Scania articulado, Mi4 Voith e ZF, Torino 2007 VW T2 BH,
+  Torino 2025, Torino S Rio Ita, VIP I de 3 e 4 portas e VIP III Volkswagen.
+- Inclui regressões do atendimento completo pelo sistema de passageiros: pedido
+  persistente no Alt, espera por porta aberta e embarque com a área ocupada.
+
+### Correções adicionais 2.2.3 — acessibilidade e sinalização (candidata, 2026-11-04)
+
+- Localizador universal de cadeirantes: amplia a busca por área reservada e trajetos de
+  manobra, tenta malhas de 13 e 9 cm e entradas interiores alternativas. Cada trecho
+  continua validado contra a geometria de colisão; falhar não autoriza atravessar
+  bancos, grades, degraus ou portas fechadas.
+- Reconhece variantes de animação de portas `door`, `tuer`, `porta` e `puerta`,
+  preservando a capitalização real das variáveis do script, sem tratar luzes ou
+  botões como prova de abertura. Melhora pistas de áreas reservadas e plataformas.
+- Passageiros: quando o HOF/letreiro ainda não forneceu o destino, a consulta
+  de embarque agora tenta a rota efetivamente carregada antes de rejeitar o serviço.
+- Multiplayer: a sinalização de passageiros espelhados usa a compatibilidade
+  individual de rota e aceita o ponto explicitamente atendido na ausência de
+  rótulo de HOF. Há teste de regressão para esse caso, sem liberar ônibus
+  que apenas passam pelo ponto.
+- **Limite de validação**: compilação e testes de simulação não equivalem a um
+  teste completo nos add-ons. Os nove ônibus bloqueados no relatório anterior
+  precisam de nova execução individual com seus arquivos originais; não há
+  garantia publicada para eles. Esta candidata não está no Buscar atualizações.
+
 ### P16 — passageiros que se aproximam da porta e voltam ao ponto (correção candidata, 2026-11-04)
 
 - Harmoniza a verificação final de embarque com a aproximação: aceita ônibus corretamente

@@ -172,26 +172,30 @@ impl PeopleSim {
     }
     pub(super) fn schedule_wheelchair_journeys(&mut self,world:&dyn World,bus:Option<&PlayerBusView>,buses:&[BusNow]) {
         if self.wheelchairs.journey.is_some(){return;}
-        let Some(bus)=bus.filter(|b|b.speed.abs()<0.025)else{return;};
-        let Some(bn)=buses.iter().find(|b|b.id==BusId::Player)else{return;};
-        let Some(stop)=self.player_next_stop.as_ref().filter(|s|(s.pos-bn.pos).truncate().length()<35.0)else{return;};
-        let next=stop.id;
-        let id=self.wheelchairs.riders.iter().filter(|(_,r)|r.journey.alight_requested
-            &&r.journey.board_stop!=Some(next)).map(|(id,_)|*id).min();
+        if bus.is_none()||!buses.iter().any(|b|b.id==BusId::Player){return;}
+        // A request must be visible in Alt as soon as it is made. Timetable
+        // stop advancement and the driver's distance to a stop do not own it.
+        // The controller still waits for assistance, an open door and zero speed.
+        let id=self.wheelchairs.riders.iter().filter(|(_,r)|r.journey.alight_requested)
+            .map(|(id,_)|*id).min();
         if let Some(id)=id {
             let r=self.wheelchairs.riders.remove(&id).unwrap();
             self.wheelchairs.person=Some(id);self.wheelchairs.profile=Some(r.profile);
             self.wheelchairs.journey=Some(r.journey);self.wheelchairs.reserved=r.reserved;
             self.wheelchairs.assisted=false;
             if let Some(p)=self.people.iter_mut().find(|p|p.id==id){p.puppet=Some(Puppet{mode:PuppetMode::Wheelchair});}
+            log::info!("WHEELCHAIR alighting_activated person={id}");
         }
-        let _=(bus,world);
+        let _=world;
     }
     pub(crate) fn finish_wheelchair_service(&mut self,i:usize,bn:&BusNow,buses:&[BusNow],world:&dyn World) {
         let Some(j)=self.wheelchairs.journey.as_ref()else{return;};
         if j.deployment>0.0001{return;}
         let riding=j.stage==Stage::Riding;
         if !riding&&j.stage!=Stage::Finished{return;}
+        // Keep the selected rider active until the driver starts the alighting
+        // service. Reparking it here erased the Alt action on every frame.
+        if riding&&j.alight_requested{return;}
         let journey=self.wheelchairs.journey.take().unwrap();
         let Some(id)=self.wheelchairs.person.take()else{return;};
         self.wheelchairs.equipment=None;self.wheelchairs.assisted=false;

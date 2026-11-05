@@ -304,6 +304,11 @@ pub struct Journey {
     timer: f32,
     route_at: usize,
     returning: bool,
+    // Ordinary passengers are asked to yield first. After a short stall the
+    // wheelchair gets priority over their cosmetic collision capsules, never
+    // over the bus structure or the equipment's physical interlocks.
+    crowd_wait: f32,
+    crowd_priority: bool,
     pub hold_reason: &'static str,
 }
 
@@ -335,6 +340,8 @@ impl Journey {
             timer: 0.0,
             route_at: 0,
             returning: false,
+            crowd_wait: 0.0,
+            crowd_priority: false,
             hold_reason: "",
         }
     }
@@ -350,6 +357,10 @@ impl Journey {
         self.timer = 0.0;
         self.route_at = 0;
         self.hold_reason = "";
+        if matches!(to, Stage::Riding | Stage::Finished) {
+            self.crowd_wait = 0.0;
+            self.crowd_priority = false;
+        }
     }
     pub fn interlocked(&self) -> bool {
         self.deployment > 0.0001
@@ -357,6 +368,18 @@ impl Journey {
     }
     pub fn doorway_busy(&self)->bool {
         !matches!(self.stage,Stage::Waiting|Stage::Riding|Stage::Finished)
+    }
+    fn crowd_allows_motion(&mut self, blocked:bool, dt:f32)->bool {
+        if !blocked||self.crowd_priority{return true;}
+        self.crowd_wait+=dt.clamp(0.0,0.1);
+        if self.crowd_wait<1.5 {
+            self.hold_reason="Passagem ocupada: solicitando espaço aos passageiros";
+            self.pose.moving=0.0;
+            return false;
+        }
+        self.crowd_priority=true;
+        log::info!("WHEELCHAIR crowd_yield_timeout stage={:?} position={:?}: passenger collision softened; bus safety interlocks retained",self.stage,self.local);
+        true
     }
     /// Differential drive: each wheel follows its own travelled arc. The push
     /// cycle is distance based, so stopped hands never continue propelling.
@@ -375,14 +398,13 @@ impl Journey {
         };
         let mut next = self.local + delta.truncate().normalize_or_zero().extend(0.0) * ds;
         if ds>0.0 {next.z=self.local.z+delta.z*(ds/delta.truncate().length()).min(1.0);}
-        if blockers
-            .iter()
-            .any(|p| (p.z - next.z).abs() < 1.5 && (p.truncate() - next.truncate()).length() < 0.64)
-        {
-            self.hold_reason = "Passagem ocupada: aguardando espaço";
-            self.pose.moving = 0.0;
-            return false;
-        }
+        // These blockers are *people*, not vehicle meshes. Ask the crowd to
+        // move first; never strand a whole trip because an inspector or an
+        // ordinary passenger is frozen on a lift. The geometry planner still
+        // certifies the cabin and the lift/door/brake interlocks still apply.
+        let crowd_blocked = blockers.iter().any(|p|
+            (p.z-next.z).abs()<1.5 && (p.truncate()-next.truncate()).length()<0.64);
+        if !self.crowd_allows_motion(crowd_blocked,dt){return false;}
         self.hold_reason = "";
         self.heading = heading;
         self.local = next;
@@ -914,7 +936,7 @@ impl PeopleSim {
             .collect();
         self.wheelchairs.bay_occupied=self.people.iter().any(|p|p.id!=id&&matches!(p.place,Place::Bus(BusId::Player,_))
             &&(bn.to_local(p.position).truncate()-profile.bay.truncate()).length()<0.85);
-        let occupied_before_assist=journey.stage==Stage::Waiting&&self.wheelchairs.bay_occupied;
+        let bay_blocked=journey.stage==Stage::Waiting&&self.wheelchairs.bay_occupied;
         if journey.stage==Stage::Waiting && bus.speed.abs()<0.025 {
             let target=profile.outside(journey.ground_height);
             let at=bn.world(journey.local);
@@ -933,6 +955,11 @@ impl PeopleSim {
         let native=matches!(profile.equipment,Equipment::NativeRamp|Equipment::NativeLift);
         let ready_to_board=native && self.wheelchairs.feedback.ground_ready
             && self.wheelchairs.feedback.floor_ready;
+        // The initial bay check must use the same short crowd yield as motion.
+        // Otherwise a full standing area blocks before drive() can resolve it.
+        let occupied_before_assist=bay_blocked
+            &&(!(self.wheelchairs.assisted||ready_to_board)
+                ||!journey.crowd_allows_motion(true,dt));
         journey.advance(
             &profile,
             dt,
@@ -1050,7 +1077,7 @@ impl PeopleSim {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     pub fn profile() -> Profile {
         Profile {
@@ -1246,27 +1273,43 @@ mod tests {
         assert_eq!(j.stage, Stage::ToPlatform);
     }
     #[test]
-    fn obstacles_hold_indefinitely_without_ghosting() {
+    fn stationary_passenger_at_lift_yields_then_chair_completes_boarding() {
         let p = profile();
         let mut j = Journey::new(&p, 0.0, 270.0);
         j.transition(Stage::ToPlatform);
         let before = j.local;
-        let blocker = before + Vec3::new(-0.1, 0.0, 0.0);
-        for _ in 0..6000 {
-            j.advance(
-                &p,
-                0.1,
-                0.0,
-                Feedback {
-                    door_open: true,
-                    ..Default::default()
-                },
-                false,
-                &[blocker],
-            );
+        // The human at the lift must not keep the bus interlocked forever.
+        // Start with the stationary person directly in front of the chair.
+        let person = before + Vec3::new(-0.1, 0.0, 0.0);
+        let ready = Feedback { door_open: true, ..Default::default() };
+        for _ in 0..10 {
+            j.advance(&p, 0.1, 0.0, ready, true, &[person]);
         }
-        assert_eq!(j.local, before);
-        assert_eq!(j.stage, Stage::ToPlatform);
+        assert_eq!(j.local,before,"normal crowd yielding happens first");
+        assert_eq!(j.stage,Stage::ToPlatform);
+        for _ in 0..12000 {
+            j.advance(&p, 0.1, 0.0, ready, true, &[person]);
+            if j.stage==Stage::Riding {break;}
+        }
+        assert_eq!(j.stage,Stage::Riding,"standing passenger must not strand a trip");
+        assert!((j.local-p.bay).length()<0.01,"real route to reserved bay is completed");
+        assert!(!j.crowd_priority,"soft collision priority ends when the wheelchair is secured");
+    }
+    #[test]
+    fn crowd_priority_does_not_override_brakes_or_closed_doors() {
+        let p=profile();
+        let mut j=Journey::new(&p,0.0,270.0);
+        j.transition(Stage::ToPlatform);
+        let person=j.local+Vec3::new(-0.1,0.0,0.0);
+        let open=Feedback{door_open:true,..Default::default()};
+        for _ in 0..20 {j.advance(&p,0.1,0.0,open,true,&[person]);}
+        assert!(j.crowd_priority);
+        let before=j.local;
+        for _ in 0..25 {
+            j.advance(&p,0.1,1.0,open,true,&[person]);
+            j.advance(&p,0.1,0.0,Feedback::default(),true,&[person]);
+        }
+        assert_eq!(j.local,before,"bus motion and shut doors remain hard interlocks");
     }
     #[test]
     fn invalid_profiles_and_nan_are_rejected() {

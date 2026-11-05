@@ -1,0 +1,606 @@
+{
+  "kind": "CPU-only real-add-on detection and controller simulation",
+  "gameplay_verified": false,
+  "models": [
+    {
+      "model": "Articulado Scania",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Articulado Scania.zip",
+      "bus_file": "Articulado Scania/Mi4_K310UA_F_ZF.bus",
+      "discovery_ms": 357.647991,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.6299999952316284,
+          0.010372459888458252,
+          0.6125981211662292
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 1.1100023984909058,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_4",
+        "door_vars": [
+          "door_5"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 1,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Mi4_K310UA_F_ZF",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.8794789910316467,
+            -0.4446275234222412,
+            0.6125982999801636
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.128957986831665,
+          -0.8996275067329407,
+          0.6125985383987427
+        ]
+      },
+      "reasons": [
+        "Door y=1.08: manual or steep original ramp; auxiliary lift selected",
+        "Door y=-0.90: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.64: manual or steep original ramp; auxiliary lift selected",
+        "Door y=4.63: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000042289495468
+      }
+    },
+    {
+      "model": "Articulado Mi4 Voith",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Articulado(2).zip",
+      "bus_file": "Articulado/Mi4_UA_F_Voith.bus",
+      "discovery_ms": 648.852266,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.6299999952316284,
+          0.28130853176116943,
+          0.5542359352111816
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 1.1016325950622559,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_4",
+        "door_vars": [
+          "door_5"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 1,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Mi4_UA_F_Voith",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.8523954153060913,
+            -0.17369145154953003,
+            0.5542362928390503
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.0747908353805542,
+          -0.6286914348602295,
+          0.5542367100715637
+        ]
+      },
+      "reasons": [
+        "Door y=1.12: manual or steep original ramp; auxiliary lift selected",
+        "Door y=-0.63: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.47: manual or steep original ramp; auxiliary lift selected",
+        "Door y=4.46: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000032976269722
+      }
+    },
+    {
+      "model": "Articulado Mi4 ZF",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Articulado(2).zip",
+      "bus_file": "Articulado/Mi4_UA_F_ZF.bus",
+      "discovery_ms": 783.285413,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.6299999952316284,
+          0.28130853176116943,
+          0.5542359352111816
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 1.1016325950622559,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_4",
+        "door_vars": [
+          "door_5"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 1,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Mi4_UA_F_ZF",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.8523954153060913,
+            -0.17369145154953003,
+            0.5542362928390503
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.0747908353805542,
+          -0.6286914348602295,
+          0.5542367100715637
+        ]
+      },
+      "reasons": [
+        "Door y=1.12: manual or steep original ramp; auxiliary lift selected",
+        "Door y=-0.63: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.47: manual or steep original ramp; auxiliary lift selected",
+        "Door y=4.46: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000032976269722
+      }
+    },
+    {
+      "model": "Torino 2007 VW T2 BH",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Torino 2007.zip",
+      "bus_file": "Torino 2007/Torino_2007_VW_T2_BH.bus",
+      "discovery_ms": 552.426015,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.5400000214576721,
+          -0.40714800357818604,
+          1.0723309516906738
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 1.1652705669403076,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_4",
+        "door_vars": [
+          "door_5"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 0,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Torino_2007_VW_T2_BH",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.8224775791168213,
+            0.30785197019577026,
+            1.072332739830017
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.1049550771713257,
+          1.0228519439697266,
+          1.0723345279693604
+        ]
+      },
+      "reasons": [
+        "Door y=1.02: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=-3.83: 36 candidate bays, no collision-verified turning route",
+        "Door y=-3.88: 41 candidate bays, door threshold blocked for wheelchair footprint",
+        "Door y=-3.87: 44 candidate bays, door threshold blocked for wheelchair footprint",
+        "Door y=-3.79: 35 candidate bays, door threshold blocked for wheelchair footprint",
+        "Door y=-3.91: 31 candidate bays, door threshold blocked for wheelchair footprint",
+        "Door y=-3.75: 40 candidate bays, door threshold blocked for wheelchair footprint",
+        "Door y=-3.95: 40 candidate bays, door threshold blocked for wheelchair footprint",
+        "Door y=-3.71: 36 candidate bays, door threshold blocked for wheelchair footprint",
+        "Door y=-4.01: 40 candidate bays, door threshold blocked for wheelchair footprint",
+        "Door y=-3.65: 31 candidate bays, door threshold blocked for wheelchair footprint",
+        "Door y=5.29: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000032044947147
+      }
+    },
+    {
+      "model": "Torino 2025",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Torino 2025.zip",
+      "bus_file": "Torino 2025/TS_1726-AR_Manual.bus",
+      "discovery_ms": 474.371373,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.9000000357627869,
+          3.103064775466919,
+          1.2825396060943604
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 0.9681898951530457,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_0",
+        "door_vars": [
+          "door_1"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 2,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · TS_1726-AR_Manual",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            1.015470027923584,
+            3.7530646324157715,
+            1.2325735092163086
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.1309399604797363,
+          4.403064727783203,
+          1.1826072931289673
+        ]
+      },
+      "reasons": [
+        "Door y=-0.39: assisted cabin-floor route; interior prop clearance relaxed",
+        "Door y=-4.67: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=-4.67: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.40: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.00802308227866888
+      }
+    },
+    {
+      "model": "Torino S Rio Ita",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Torino S.zip",
+      "bus_file": "Torino S/Torino_S_Rio_Ita.bus",
+      "discovery_ms": 75.594707,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.9000000357627869,
+          3.2879550457000732,
+          1.2825359106063843
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 0.8896769881248474,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_0",
+        "door_vars": [
+          "door_1"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 0,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Torino_S_Rio_Ita",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            1.0250484943389893,
+            3.9054551124572754,
+            1.2236363887786865
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.1500968933105469,
+          4.522954940795898,
+          1.1647368669509888
+        ]
+      },
+      "reasons": [
+        "Door y=-0.07: assisted cabin-floor route; interior prop clearance relaxed",
+        "Door y=4.52: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008034922182559967
+      }
+    },
+    {
+      "model": "VIP I 3 portas",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Vip 1 3 portas.zip",
+      "bus_file": "Vip 1 3 portas/Vip 1 OF 1721 Manual.bus",
+      "discovery_ms": 186.889286,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.18000000715255737,
+          2.3496816158294678,
+          1.198074460029602
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 0.825725257396698,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_0",
+        "door_vars": [
+          "door_1"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 0,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Vip 1 OF 1721 Manual",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.6761763095855713,
+            3.2921814918518066,
+            1.1980745792388916
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.1723525524139404,
+          4.234681606292725,
+          1.1980748176574707
+        ]
+      },
+      "reasons": [
+        "Door y=-4.40: 99 candidate bays, no collision-verified turning route",
+        "Door y=-4.40: 99 candidate bays, no collision-verified turning route",
+        "Door y=4.23: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000208996236324
+      }
+    },
+    {
+      "model": "VIP I 4 portas",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Vip 1 4 portass.zip",
+      "bus_file": "Vip 1 4 portass/Vip 1 OF 1721 Manual.bus",
+      "discovery_ms": 243.590792,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          -0.5400000214576721,
+          0.10842311382293701,
+          1.1980739831924438
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 0.8257257342338562,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_2",
+        "door_vars": [
+          "door_3"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 1,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Vip 1 OF 1721 Manual",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            -0.856176495552063,
+            0.6609231233596802,
+            1.1980741024017334
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          -1.1723530292510986,
+          1.2134231328964233,
+          1.1980743408203125
+        ]
+      },
+      "reasons": [
+        "Door y=-4.40: 38 candidate bays, no collision-verified turning route",
+        "Door y=-4.40: 38 candidate bays, no collision-verified turning route",
+        "Door y=-1.72: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.23: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=1.21: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000075817108154
+      }
+    },
+    {
+      "model": "VIP III Volkswagen",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Vip iii Wolks.zip",
+      "bus_file": "Vip iii Wolks/Vip 3.bus",
+      "discovery_ms": 285.992897,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          -0.18000000715255737,
+          0.6785329580307007,
+          1.111569881439209
+        ],
+        "bay_heading": 0.0,
+        "clear_width": 1.1766178607940674,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_1",
+        "door_vars": [],
+        "equipment": "added_lift",
+        "exit_index": 0,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Vip 3",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [
+          "1721\\Interior_elevador.o3d"
+        ],
+        "route": [
+          [
+            0.48601141571998596,
+            0.6785329580307007,
+            1.1115659475326538
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.1520228385925293,
+          0.6785329580307007,
+          1.111569881439209
+        ]
+      },
+      "reasons": [
+        "Door y=3.86: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=3.85: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=3.82: assisted cabin-floor route; interior prop clearance relaxed",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000016212463379
+      }
+    }
+  ],
+  "bridge_version": "2.2.3-hotfix.1",
+  "base_commit": "c7d16d1f9881212ed9f3c63562d4eb351ad72600"
+}

@@ -464,8 +464,8 @@ fn new_humans(
         h.optional_features = settings.optional_features;
         h.wheelchairs.spawn_percent=settings.wheelchair_spawn_percent;
         h.transfer_percent = if settings.passenger_connections { settings.passenger_transfer_percent } else { 0.0 };
-        h.visual_hailing = settings.passenger_hailing && settings.passenger_animation == "enhanced";
-        h.visual_full_bus_reaction = settings.passenger_full_bus_reaction && settings.passenger_animation == "enhanced";
+        h.visual_hailing = settings.passenger_hailing;
+        h.visual_full_bus_reaction = settings.passenger_full_bus_reaction;
         h.bad_driving = settings.pax_bad_driving;
         h.boarding = settings.boarding.clone();
         h.stand_chance = settings.standing_chance;
