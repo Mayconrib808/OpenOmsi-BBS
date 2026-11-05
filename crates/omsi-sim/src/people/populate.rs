@@ -298,8 +298,10 @@ impl PeopleSim {
             let count = if independent { waiting_counts.get(&id).copied().unwrap_or(0) }
                 else { counts.get(&id).copied().unwrap_or(0) };
             if independent {
-                // One real arrival at most per update: boarding never triggers
-                // replenishment. The stock per-stop limit still applies.
+                // A newly streamed stop already had people waiting before it
+                // became visible. Materialize a small bounded part of that
+                // initial queue now; subsequent arrivals retain their cooldown.
+                // A bus arriving or boarding never refills the demand ledger.
                 let queued = self.stop_demand.get(&id).map(|d| d.waiting).unwrap_or(0.0);
                 let capacity = self.stops[&id].spots.len();
                 self.stops.get_mut(&id).unwrap().want =
@@ -311,17 +313,20 @@ impl PeopleSim {
                     self.demand_audit.retries_suppressed += 1;
                 }
                 if queued >= 1.0 && count < capacity && can_arrive {
-                    let succeeded = self.spawn_waiting(world, id).is_some();
-                    // A failed attempt also starts a cooldown. Previously it
-                    // retried every frame and logged 100k+ failures per minute.
-                    self.stops.get_mut(&id).unwrap().clock_ms = 0.0;
-                    self.stop_demand.get_mut(&id).unwrap().retry_later(self.time, succeeded);
-                    if succeeded {
-                        self.stop_demand.get_mut(&id).unwrap().admitted();
-                        self.demand_audit.materialized += 1;
-                        self.demand_audit.last_stop = Some(id);
-                    } else {
-                        self.demand_audit.spawn_refused += 1;
+                    let budget = if changed { (queued.floor() as usize).min(4) } else { 1 };
+                    for _ in 0..budget.min(capacity.saturating_sub(count)) {
+                        let succeeded = self.spawn_waiting(world, id).is_some();
+                        // Failed attempts keep the existing retry cooldown.
+                        self.stops.get_mut(&id).unwrap().clock_ms = 0.0;
+                        self.stop_demand.get_mut(&id).unwrap().retry_later(self.time, succeeded);
+                        if succeeded {
+                            self.stop_demand.get_mut(&id).unwrap().admitted();
+                            self.demand_audit.materialized += 1;
+                            self.demand_audit.last_stop = Some(id);
+                        } else {
+                            self.demand_audit.spawn_refused += 1;
+                            break;
+                        }
                     }
                 }
                 self.stops.get_mut(&id).unwrap().clock_ms += dt.max(0.0) * 1000.0;

@@ -105,3 +105,39 @@ fn mirrored_passengers_with_a_proven_duty_can_also_hail_before_the_stop() {
     assert!(matches!(people.people[0].state, State::Idle));
     assert!(people.people[0].remote, "hailing does not transfer ownership");
 }
+
+#[test]
+fn a_newly_loaded_stop_has_its_existing_queue_without_waiting_for_future_arrivals() {
+    for (name, mean, density, places, expected) in [
+        ("ordinary", 2.0, 1.0, 6, 1),
+        ("bounded", 50.0, 1.0, 3, 3),
+        ("disabled", 2.0, 0.0, 6, 0),
+        ("no-demand", 0.0, 1.0, 6, 0),
+    ] {
+        let (mut people, _) = super::super::pax_stops::brt_tests::setup(
+            &format!("initial-stop-{name}"), None);
+        people.types = vec![people.people[0].ty.clone()];
+        people.people.clear();
+        people.density = density;
+        people.time = 100.0;
+        people.optional_features.independent_passenger_demand = true;
+        let stop = people.stops.get_mut(&42).unwrap();
+        stop.enter_min = mean;
+        stop.enter_max = mean;
+        stop.spots = (0..places).map(|i| WaitSpot {
+            pos: stop.pos + DVec3::Y * i as f64, face: 0.0, height: 0.0,
+        }).collect();
+        stop.taken = vec![false; places];
+        people.center = stop.pos;
+        let world = super::upstream_connection_tests::FlatWorld::default();
+        people.stops_tick(0.1, &world);
+        let allowed = expected..=if expected == 0 { 0 } else { places.min(4) };
+        assert!(allowed.contains(&people.people.len()),
+            "{name}: a map opening needs its existing queue, not several empty minutes");
+        // Collecting the initial queue does not refill it on another frame.
+        while !people.people.is_empty() { people.release(0); people.people.remove(0); }
+        people.time += 0.1;
+        people.stops_tick(0.1, &world);
+        assert!(people.people.is_empty(), "a bus arrival must not refill the queue");
+    }
+}

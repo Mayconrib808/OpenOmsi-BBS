@@ -105,7 +105,7 @@ impl StopDemand {
             // When a map first loads, some people were already waiting. This
             // one-time seed is not tied to any bus departure or camera reload.
             self.waiting = (mean.max(0.0) * density.clamp(0.0, 3.0)
-                * demand_variation(stop, minute) * 0.30)
+                * demand_variation(stop, minute))
                 .clamp(0.0, capacity.min(100) as f32);
         }
         self.minute = minute;
