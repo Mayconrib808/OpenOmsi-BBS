@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -177,4 +176,3 @@ func restoreNativeBCSFallback(dir string, c Config) (bool, error) {
 	return true, nil
 }
 
-var _ = sha256.Size // Keep the config fallback tied to SHA-256-gated Setup verification.
