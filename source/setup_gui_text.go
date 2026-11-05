@@ -2,8 +2,8 @@ package main
 
 // Keep the graphical Setup's language choices aligned with the CLI and saved
 // configuration. Native names remain recognizable before changing language.
-var setupLanguages = []string{"pt", "en", "de"}
-var setupLanguageNames = []string{"Português (Brasil)", "English", "Deutsch"}
+var setupLanguages = []string{"pt", "en", "de", "es", "fr", "ru"}
+var setupLanguageNames = []string{"Português (Brasil)", "English", "Deutsch", "Español", "Français", "Русский"}
 
 func setupLanguageIndex(lang string) int {
 	for i, code := range setupLanguages {
@@ -102,9 +102,19 @@ var setupStrings = map[string][3]string{
 }
 
 func setupText(lang, key string) string {
-	texts, ok := setupStrings[key]
+	original, ok := setupStrings[key]
 	if !ok {
 		return key
 	}
-	return texts[setupLanguageIndex(lang)]
+	if index := setupLanguageIndex(lang); index < 3 {
+		return original[index]
+	}
+	if translated, ok := setupExtraStrings[key]; ok {
+		text := translated[setupLanguageIndex(lang)-3]
+		if text != "" {
+			return text
+		}
+	}
+	// Explicit fallback for older keys, never show the raw map key.
+	return original[1]
 }
