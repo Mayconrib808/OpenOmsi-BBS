@@ -1,0 +1,10 @@
+{
+  "commit": "e353343e18eb0b3ec099d54f041a0ece914e8d22",
+  "workflow": ".github/workflows/build-2231.yml",
+  "repository": "Mayconrib808/OpenOmsi-BBS",
+  "upstream_commit": "0784e3cd02ea6fc013b31cdfff4a7932742632ca",
+  "upstream_tag": "v0.3.49",
+  "protocol": 17,
+  "previous_runtime": "2.2.3-hotfix.2",
+  "previous_candidate_run": 41959476802
+}

@@ -1,0 +1,264 @@
+name: Build and verify complete Bridge 2.2.3.1 OpenOMSI 0.3.49 P17
+'on':
+  push:
+    branches:
+    - release-candidate/2231-final-p17
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-2231-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  NATIVE_SOURCE_COMMIT: e353343e18eb0b3ec099d54f041a0ece914e8d22
+jobs:
+  simulation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        ref: ${{ env.NATIVE_SOURCE_COMMIT }}
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: rustfmt
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: accessibility-223-simulation
+    - name: Install native audio headers
+      run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
+    - name: Simulation regression tests and add-on probe
+      run: |
+        set -euo pipefail
+        python3 -m py_compile tools/validate_wheelchair_nine.py
+        cargo test --locked --release -p omsi-sim --lib | tee simulation-tests.log
+        cargo test --locked --release -p omsi-net --lib --config profile.release.package.omsi-net.codegen-units=1 | tee network-tests.log
+        cargo test --locked --release -p omsi-audio --lib | tee audio-tests.log
+        cargo build --locked --release -p omsi-sim --example wheelchair_probe
+    - uses: actions/upload-artifact@v4
+      with:
+        name: OpenOMSI-2.2.3.1-regression-logs
+        path: '*-tests.log'
+        retention-days: 90
+        if-no-files-found: error
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      OPENOMSI_VERSION: 0.3.49-coop.17-2.2.3.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      OMSI_NO_UPDATE: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '3'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        ref: ${{ env.NATIVE_SOURCE_COMMIT }}
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        key: visual-hail-route-2225
+    - name: Build native P17 client and verify startup
+      shell: pwsh
+      run: |
+        $tokens=$null; $syntaxErrors=$null
+        [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd 'tools/package-accessibility-hotfix/Aplicar-Hotfix.ps1'), [ref]$tokens, [ref]$syntaxErrors) | Out-Null
+        if ($syntaxErrors.Count -gt 0) { $syntaxErrors | Format-List; throw 'Hotfix installer PowerShell syntax failed' }
+        cargo build --locked --release -p omsi-app
+        if ($LASTEXITCODE -ne 0) { throw 'Native accessibility build failed' }
+    - name: Preserve Hotfix 5 runtime assets
+      uses: actions/download-artifact@v4
+      with:
+        name: OpenOMSI-HF4-native-and-source-CANDIDATE
+        run-id: 41871370040
+        github-token: ${{ github.token }}
+        path: candidate
+    - name: Record exact native source and candidate provenance
+      shell: pwsh
+      run: |
+        Copy-Item target/release/openomsi.exe candidate/openomsi.exe -Force
+        & candidate/openomsi.exe --help | Out-File native-help.txt -Encoding utf8
+        if ($LASTEXITCODE -ne 0) { throw 'Native executable failed to start with its packaged DLLs' }
+        git archive --format=tar.gz --prefix=openomsi-223/ -o candidate/openomsi-source.tar.gz HEAD
+        if ($LASTEXITCODE -ne 0) { throw 'Native source archive failed' }
+        $info = @{
+          version='0.3.49-coop.17-2.2.3.1'; bridge_version='2.2.3.1'; commit=$env:NATIVE_SOURCE_COMMIT
+          build_commit=$env:NATIVE_SOURCE_COMMIT; run_id=[long]$env:GITHUB_RUN_ID
+          upstream_commit='0784e3cd02ea6fc013b31cdfff4a7932742632ca'
+          winter_clothing_removed=$true; passenger_upstream_tag='v0.3.49'
+          passenger_upstream_commit='0784e3cd02ea6fc013b31cdfff4a7932742632ca'
+          protocol=17; full_upstream_update=$true
+          base_commit='4688f56e6ba2e4dd851f0c241d0cac8f4d308232'; base_release='2.2.3-hotfix.2'
+          native_sha256=(Get-FileHash candidate/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          source_sha256=(Get-FileHash candidate/openomsi-source.tar.gz -Algorithm SHA256).Hash.ToLowerInvariant()
+          windows_gameplay_tested=$false; paired_gameplay_tested=$false; gameplay_visual_tested=$false
+        }
+        $info | ConvertTo-Json -Depth 5 | Set-Content candidate/SOURCE.json -Encoding utf8
+        Copy-Item candidate/SOURCE.json candidate/BUILD-INFO.json -Force
+        & candidate/openomsi.exe --version | Out-File candidate/version.txt -Encoding utf8
+        if ($LASTEXITCODE -ne 0) { throw 'Native candidate version failed' }
+    - name: Build Windows wheelchair add-on probe for exact nine-vehicle validation
+      shell: pwsh
+      run: |
+        cargo build --locked --release -p omsi-sim --example wheelchair_probe
+        if ($LASTEXITCODE -ne 0) { throw 'Windows wheelchair add-on probe build failed' }
+        Copy-Item target/release/examples/wheelchair_probe.exe candidate/wheelchair_probe.exe -Force
+    - uses: actions/upload-artifact@v4
+      with:
+        name: OpenOMSI-2.2.3.1-native-CANDIDATE
+        path: candidate/
+        compression-level: 0
+        retention-days: 90
+        if-no-files-found: error
+  launcher:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.49-coop.17-2.2.3.1
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+        ref: ${{ env.NATIVE_SOURCE_COMMIT }}
+    - uses: dtolnay/rust-toolchain@stable
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: |
+          launcher/src-tauri -> target
+        key: 2222-desktop-launcher-windows
+        add-job-id-key: false
+    - name: Verify existing settings and accessibility controls
+      shell: pwsh
+      run: |
+        node --test launcher/tests/optional-features.test.mjs
+        if ($LASTEXITCODE -ne 0) { throw 'Launcher settings regression' }
+        python tools/check_accessibility_locales.py
+        if ($LASTEXITCODE -ne 0) { throw 'Accessibility translation coverage failed' }
+        cargo test --locked --release -p omsi-cfg --lib
+        if ($LASTEXITCODE -ne 0) { throw 'Configuration regressions failed' }
+        cargo test --locked --release -p omsi-launcher-core --lib
+        if ($LASTEXITCODE -ne 0) { throw 'Launcher configuration persistence failed' }
+    - name: Build actual Windows desktop lobby
+      shell: pwsh
+      run: |
+        cargo build --locked --release -p omsi-launcher-core --bin openomsi-launcher
+        if ($LASTEXITCODE -ne 0) { throw 'Launcher CLI build failed' }
+        cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+        if ($LASTEXITCODE -ne 0) { throw 'Windows lobby build failed' }
+        New-Item -ItemType Directory -Force launcher-candidate | Out-Null
+        $exe='launcher/src-tauri/target/release/openomsi-launcher-app.exe'
+        Copy-Item $exe launcher-candidate/openomsi-launcher-app.exe
+        Copy-Item target/release/openomsi-launcher.exe launcher-candidate/openomsi-launcher.exe
+        @{
+          version=$env:OPENOMSI_VERSION; source_commit=$env:NATIVE_SOURCE_COMMIT
+          path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe'
+          launcher_sha256=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          cli_sha256=(Get-FileHash target/release/openomsi-launcher.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          accessibility_controls=@('wheelchair_passengers','wheelchair_spawn_percent')
+        } | ConvertTo-Json | Set-Content launcher-candidate/BUILD-INFO.json -Encoding utf8
+    - uses: actions/upload-artifact@v4
+      with:
+        name: OpenOMSI-2.2.3.1-launcher-CANDIDATE
+        path: launcher-candidate/
+        retention-days: 30
+        if-no-files-found: error
+  package:
+    name: Verify real P17 hosts, migrate P16 settings and build full installer
+    needs:
+    - simulation
+    - windows
+    - launcher
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      PYTHONUTF8: '1'
+      OMSI_NO_UPDATE: '1'
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - uses: actions/setup-go@v5
+      with:
+        go-version: 1.23.2
+        cache: false
+    - uses: actions/setup-java@v4
+      with:
+        distribution: temurin
+        java-version: '17'
+    - uses: actions/download-artifact@v4
+      with:
+        name: OpenOMSI-2.2.3.1-native-CANDIDATE
+        path: native
+    - uses: actions/download-artifact@v4
+      with:
+        name: OpenOMSI-2.2.3.1-launcher-CANDIDATE
+        path: launcher
+    - uses: actions/download-artifact@v4
+      with:
+        name: Bridge-2.2.3-Hotfix2-FULL-CANDIDATE
+        run-id: 41959476802
+        github-token: ${{ github.token }}
+        path: baseline
+    - name: Verify source pin, directory and full Windows cumulative update
+      shell: pwsh
+      run: |
+        node --test relay/test/*.test.js
+        if ($LASTEXITCODE -ne 0) { throw 'P17 directory or retained v3 regression failed' }
+        python -m py_compile scripts/build_2231.py
+        python scripts/build_2231.py --baseline baseline --parts baseline --native native --launcher launcher --output build/release2231
+        if ($LASTEXITCODE -ne 0) { throw 'P17 host, migration, installer or runtime validation failed' }
+        Compress-Archive -Path build/release2231/runtime/* -DestinationPath build/release2231/OpenOMSI-BCS-Bridge-2.2.3.1-FULL.zip
+        if ($LASTEXITCODE -ne 0) { throw 'Full portable archive failed' }
+        @'
+        from pathlib import Path
+        import hashlib,json
+        root=Path('build/release2231'); p=root/'OpenOMSI-BCS-Bridge-2.2.3.1-FULL.zip'
+        report=json.loads((root/'build-report.json').read_text())
+        with p.open('rb') as f: digest=hashlib.file_digest(f,'sha256').hexdigest()
+        report.update(portable_sha256=digest,portable_size=p.stat().st_size,portable_file=p.name)
+        assert report['coop_protocol']==17 and report['p17_host_ui_tested']
+        assert report['complete_hosts_unchanged'] and report['p16_hosts_unchanged'] and report['p16_server_unchanged']
+        assert json.loads((root/'one-click-install-test.json').read_text())['p17_actual_updater_migration_tested']
+        (root/'build-report.json').write_text(json.dumps(report,indent=2)+'\n')
+        '@ | python -
+        if ($LASTEXITCODE -ne 0) { throw 'Final P17 report validation failed' }
+    - uses: actions/upload-artifact@v4
+      if: failure()
+      with:
+        name: Bridge-2.2.3.1-failure-diagnostics
+        path: |-
+          build/release2231/one-click-install-setup.log
+          build/release2231/runtime/app/setup-v1.1.3.log
+          build/release2231/setup-previews/*
+        if-no-files-found: warn
+    - uses: actions/upload-artifact@v4
+      with:
+        name: Bridge-2.2.3.1-FULL-CANDIDATE
+        path: |-
+          build/release2231/OpenOMSI-BCS-Bridge-2.2.3.1-FULL.zip
+          build/release2231/Atualizar-Bridge.exe
+          build/release2231/build-report.json
+          build/release2231/coop-spec.json
+          build/release2231/coop-assets/*
+          build/release2231/native-p17-controls.json
+          build/release2231/one-click-install-test.json
+          build/release2231/setup-previews/*
+          build/release2231/accessibility-223*
+        compression-level: 0
+        retention-days: 90
+        if-no-files-found: error

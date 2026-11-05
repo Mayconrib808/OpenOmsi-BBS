@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.3-hotfix.2"
+const changelogSeenVersion = "2.2.3.1"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -816,10 +816,10 @@ func (g *setupGUI) showReleaseChangelog(force bool) uintptr {
 }
 
 // Every release, including both preceding hotfixes, has its own history boundary.
-func selectLogSections(from string) []logSection {
+func selectPreviousLogSections(from string) []logSection {
     from=strings.TrimSpace(from)
     result:=[]logSection{passenger223Hotfix2LogSection()}
-    if from==changelogSeenVersion || from=="2.2.3-hotfix.1" {return result}
+    if from=="2.2.3-hotfix.2" || from=="2.2.3-hotfix.1" {return result}
     result=append(result,accessibility223Hotfix1LogSection())
     if from=="2.2.3" {return result}
     result=append(result,accessibility223LogSection())
@@ -909,4 +909,18 @@ func passenger223Hotfix2LogSection() logSection {
                   "Protokolle erfassen Einstiegsanfragen, unbekannte Linienschlüssel, registrierte Haltestellen, Ziel und Fahrplanstatus. Haltezeichenzähler enthalten gespiegelte Fahrgäste. Erhält die Alt-, Stellplatz- und Erkennungskorrekturen von Hotfix 1. Der automatische Test prüft den Kabineneinstieg; die gemeldete Spielreise benötigt einen neuen Mitschnitt.")},
         },
     }
+}
+
+func selectLogSections(from string) []logSection {
+ newest := logSection{label:logT("2.2.3.1 • OPENOMSI 0.3.49", "2.2.3.1 • OPENOMSI 0.3.49", "2.2.3.1 • OPENOMSI 0.3.49"), accent:logAccent(112,219,164), entries:[]logEntry{
+ {logT("OpenOMSI 0.3.49 e protocolo 17", "OpenOMSI 0.3.49 and protocol 17", "OpenOMSI 0.3.49 und Protokoll 17"),
+  logT("Atualização integral do jogo, Launcher, servidor e HostAgent P17. Configurações, mapas, voz, senhas e inventários anteriores são preservados.", "Full game, Launcher, server and HostAgent P17 update. Existing settings, maps, voice, passwords and inventories are retained.", "Vollständiges Update von Spiel, Launcher, Server und HostAgent P17. Einstellungen, Karten, Sprache, Kennwörter und Inventare bleiben erhalten.")},
+ {logT("Espaço para cadeirantes", "Wheelchair clearance", "Platz für Rollstühle"),
+  logT("Os passageiros liberam continuamente o trajeto e a área reservada durante a assistência, evitando que voltem a bloquear a cadeira.", "Passengers keep the path and reserved bay clear throughout assistance, preventing the wheelchair from being blocked again.", "Fahrgäste halten Weg und Stellplatz während der Hilfe frei, damit der Rollstuhl nicht erneut blockiert wird.")},
+ {logT("Buzina e aceno dos motoristas IA", "AI driver horns and waves", "Hupen und Winken der KI-Fahrer"),
+  logT("A saudação usa dois toques rápidos no comando da buzina, com reprodução completa do conjunto de áudio do ônibus. O aceno é aplicado ao braço do motorista.", "The greeting uses two quick horn button taps, with the bus model's complete horn audio. The wave is applied to the driver's arm.", "Die Begrüßung nutzt zwei kurze Huptastendrücke mit vollständigem Hupklang des Busmodells. Das Winken wird am Fahrerarm angewendet.")},
+ }}
+ result:=[]logSection{newest}
+ if from==changelogSeenVersion || from=="2.2.3-hotfix.2" {return result}
+ return append(result,selectPreviousLogSections(from)...)
 }

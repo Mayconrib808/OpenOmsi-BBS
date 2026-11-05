@@ -58,6 +58,10 @@ func samePath(a, b string) bool { return strings.EqualFold(filepath.Clean(a), fi
 func fileExists(p string) bool  { fi, e := os.Stat(p); return e == nil && !fi.IsDir() }
 
 func preferredHostAgentExecutable(dir string) string {
+	path17 := filepath.Join(dir, "app", "hosts-p17", "HostAgent.exe")
+	if fileExists(path17) {
+		return path17
+	}
 	path := filepath.Join(dir, "app", "hosts-p16", "HostAgent.exe")
 	if fileExists(path) {
 		return path

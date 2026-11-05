@@ -167,7 +167,12 @@ func TestCompanyHostAcceptsReported0347P16Build(t *testing.T) {
 	if err := validateCompanyHostStatus(status, hostTestSession(), hostTestFleet()); err != nil {
 		t.Fatal("reported P16 server must be accepted by the P16 companion:", err)
 	}
+	status.Version = "0.3.49-coop.17-2.2.3.1"
 	status.Protocol = 17
+	if err := validateCompanyHostStatus(status, hostTestSession(), hostTestFleet()); err != nil {
+		t.Fatal("P17 server rejected", err)
+	}
+	status.Protocol = 18
 	if err := validateCompanyHostStatus(status, hostTestSession(), hostTestFleet()); err == nil {
 		t.Fatal("an unsupported future protocol must still be rejected")
 	}
@@ -390,27 +395,36 @@ func TestCompanyHostPortPrecheckDoesNotReuseRunningServer(t *testing.T) {
 
 // Replay a stale minute-precision status during the join-time 53-second stall.
 func TestCompanyHostMonitorSurvivesJoinStallAndResetsRecovery(t *testing.T) {
- start := time.Date(2026, 10, 25, 6, 2, 43, 0, time.UTC)
- m := companyHostMonitor{serverCivil:start, sampledAt:start, pending:true}
- for _, sec := range []int{5, 10, 53, 58, 63, 68} {
-  now := start.Add(time.Duration(sec)*time.Second)
-  if _, err := m.observe(now, now, "06:02"); err != nil { t.Fatalf("killed recoverable join at %ds: %v", sec, err) }
- }
- now := start.Add(75*time.Second)
- if synced, err := m.observe(now, now, "06:03"); !synced || err != nil { t.Fatalf("failed recovery: %v %v", synced, err) }
- if !m.unsyncedSince.IsZero() { t.Fatal("recovery deadline was not reset") }
+	start := time.Date(2026, 10, 25, 6, 2, 43, 0, time.UTC)
+	m := companyHostMonitor{serverCivil: start, sampledAt: start, pending: true}
+	for _, sec := range []int{5, 10, 53, 58, 63, 68} {
+		now := start.Add(time.Duration(sec) * time.Second)
+		if _, err := m.observe(now, now, "06:02"); err != nil {
+			t.Fatalf("killed recoverable join at %ds: %v", sec, err)
+		}
+	}
+	now := start.Add(75 * time.Second)
+	if synced, err := m.observe(now, now, "06:03"); !synced || err != nil {
+		t.Fatalf("failed recovery: %v %v", synced, err)
+	}
+	if !m.unsyncedSince.IsZero() {
+		t.Fatal("recovery deadline was not reset")
+	}
 }
 func TestCompanyHostMonitorStillRejectsPersistentlyFrozenClock(t *testing.T) {
- start := time.Date(2026,10,25,6,2,0,0,time.UTC)
- m := companyHostMonitor{serverCivil:start,sampledAt:start,pending:true}
- for sec:=5; sec<=265; sec+=5 {
-  now:=start.Add(time.Duration(sec)*time.Second)
-  if _,err:=m.observe(now,now,"06:02");err!=nil {t.Fatalf("premature shutdown at %d: %v",sec,err)}
- }
- now:=start.Add(270*time.Second)
- if _,err:=m.observe(now,now,"06:02");err==nil {t.Fatal("persistently frozen clock must remain bounded")}
+	start := time.Date(2026, 10, 25, 6, 2, 0, 0, time.UTC)
+	m := companyHostMonitor{serverCivil: start, sampledAt: start, pending: true}
+	for sec := 5; sec <= 265; sec += 5 {
+		now := start.Add(time.Duration(sec) * time.Second)
+		if _, err := m.observe(now, now, "06:02"); err != nil {
+			t.Fatalf("premature shutdown at %d: %v", sec, err)
+		}
+	}
+	now := start.Add(270 * time.Second)
+	if _, err := m.observe(now, now, "06:02"); err == nil {
+		t.Fatal("persistently frozen clock must remain bounded")
+	}
 }
-
 
 func TestAdminClockOverrideNeverRollsBackAuthenticatedServerTime(t *testing.T) {
 	start := time.Date(2026, 10, 26, 13, 0, 0, 0, time.UTC)
@@ -440,7 +454,6 @@ func TestAdminClockOverrideNeverRollsBackAuthenticatedServerTime(t *testing.T) {
 	}
 }
 
-
 func TestManagedHostRetainsNativeP15OptionsWithAdminClock(t *testing.T) {
 	config := companyHostConfig{Text: []byte("voice = 0\nvoice_radio = 0\nvoice_range = 50\npublic_server = 0\nrequire_hardware_id = 0\nadmin_password = stale-but-ignored\n")}
 	options := companyHostOptions{
@@ -453,7 +466,7 @@ func TestManagedHostRetainsNativeP15OptionsWithAdminClock(t *testing.T) {
 		"voice": "1", "voice_radio": "1", "voice_range": "135",
 		"public_server": "1", "require_hardware_id": "1",
 		"admin_password": "administrator-secret-example",
-		"real_time": "0", "time_speed": "1", "time": "14:37:05",
+		"real_time":      "0", "time_speed": "1", "time": "14:37:05",
 	} {
 		line := key + " = " + value
 		if strings.Count(actual, line+"\n") != 1 {

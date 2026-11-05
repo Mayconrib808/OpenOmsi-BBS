@@ -169,6 +169,9 @@ func migrateDynamicHostSettings(data []byte, dir string, standalone bool, availa
 // Invoked only after authenticated payload files were written and verified.
 // Both settings files are planned first and rolled back together on any error.
 func activateUpdatedDynamicHost(dir string, payload map[string][]byte) (err error) {
+	if len(payload["app/server-dinamico-p17/openomsi.exe"]) > 0 {
+		return activateP17HostSidecar(dir, payload)
+	}
 	if len(payload["app/server-dinamico-p16/openomsi.exe"]) > 0 {
 		return activateP16HostSidecar(dir, payload)
 	}

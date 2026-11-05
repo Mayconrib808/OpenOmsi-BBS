@@ -58,8 +58,8 @@ func hostRandomCode() string {
 }
 func hostAgentSettingsPath(packageDir string) string {
 	name := "HostAgent.local.json"
-	if runningP16Host() {
-		name = "HostAgent-P16.local.json"
+	if protocol := companionHostProtocol(); protocol != 0 {
+		name = fmt.Sprintf("HostAgent-P%d.local.json", protocol)
 	}
 	return filepath.Join(companyHostDataDir(packageDir), name)
 }
@@ -88,9 +88,12 @@ func hostSelectServer(c *hostAgentConfig, packageDir, selected string) {
 func defaultHostAgentConfig() hostAgentConfig {
 	c := hostAgentConfig{Schema: 1, Language: "pt", HostKey: hostRandomCode() + hostRandomCode(), RoomID: hostRandomCode(), ControlKey: hostRandomCode(), ControlPort: 27199, Maps: map[string]hostMapOptions{},
 		Company: CompanyProfile{SchemaVersion: 1, CompanyID: "transfort-br", CompanyName: "Transfort - BR", OpenOMSIVersion: "0.3.46", Protocol: 15, Clock: &CompanyClock{TimeZone: "Europe/Berlin", ShiftMinutes: -480}}}
-	if runningP16Host() {
-		c.Company.Protocol = 16
+	if protocol := companionHostProtocol(); protocol != 0 {
+		c.Company.Protocol = protocol
 		c.Company.OpenOMSIVersion = "0.3.47"
+		if protocol == 17 {
+			c.Company.OpenOMSIVersion = "0.3.49"
+		}
 	}
 	return c
 }

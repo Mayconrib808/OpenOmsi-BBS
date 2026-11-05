@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory() as tmp:
   env[key]=str(folder/key);Path(env[key]).mkdir()
  config=Path(env['LOCALAPPDATA'])/'OpenOmsi-BBS/HostAgent.local.json';config.parent.mkdir()
  before=m.fixture(folder,a.server.resolve() if a.server else package/'app/server-dinamico-p15/openomsi.exe')
- if a.protocol==16:before['company']['protocol']=16;before['company']['openomsi_version']='0.3.47'
+ if a.protocol in (16,17):before['company']['protocol']=a.protocol;before['company']['openomsi_version']='0.3.49' if a.protocol==17 else '0.3.47'
  before['future_private']={'keep':42}
  before['maps']['ci-a']['future_map']='keep'
  before['company']['future_company']='keep'

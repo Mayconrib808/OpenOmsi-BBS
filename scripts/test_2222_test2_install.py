@@ -75,6 +75,13 @@ def main():
         ready=cache/'OpenOmsi-BBS/Updates'/('.bridge-handoff-'+uuid.uuid4().hex+'.signal')
         ready.parent.mkdir(parents=True)
         env=dict(os.environ,LOCALAPPDATA=str(cache),APPDATA=str(roaming))
+        p17_migration = 'app/hosts-p17/HostAgent.exe' in spec['files']
+        if p17_migration:
+            private = cache/'OpenOmsi-BBS'; private.mkdir(exist_ok=True)
+            p16 = private/'HostAgent-P16.local.json'
+            original_p16 = json.dumps(dict(server=str(target/'app/server-dinamico-p16/openomsi.exe'),use_custom_server=True,company=dict(protocol=16,openomsi_version='0.3.47',future_company='keep'),maps={'ci-map':dict(voice=False,voice_radio=False,voice_range=135,public_server=False,require_hardware_id=False,admin_password='ci-private-admin')},host_key='ci-key',room_id='ci-room',control_key='ci-control',control_port=27199,future_private='keep')).encode()
+            p16.write_bytes(original_p16)
+
         try:
             old=subprocess.Popen([str(setup)],cwd=target,env=env)
             wait_until(lambda:any(pid==old.pid for _,pid in windows()[1]),30,'old Setup window did not open')
@@ -95,6 +102,15 @@ def main():
                 actual=hashlib.sha256((target/name).read_bytes()).hexdigest()
                 assert actual==digest,f'one-click update did not install exact managed file: {name}'
             assert note.read_text()=='preserve company preferences\n','unmanaged preferences changed'
+            if p17_migration:
+                assert p16.read_bytes()==original_p16, 'P16 settings changed during the actual updater'
+                migrated=json.loads((private/'HostAgent-P17.local.json').read_bytes())
+                previous=json.loads(original_p16)
+                for field in ('maps','host_key','room_id','control_key','control_port','future_private'):
+                    assert migrated[field]==previous[field], 'P17 migration lost '+field
+                assert migrated['company']==dict(protocol=17,openomsi_version='0.3.49',future_company='keep')
+                assert os.path.samefile(migrated['server'],target/'app/server-dinamico-p17/openomsi.exe')
+
             wait_until(lambda:bool(windows()[1]),30,'updated Setup was not reopened visibly')
             log=(target/'app/setup-v1.1.3.log').read_text(errors='replace')
             assert 'automatic-update-install: <nil>' in log or 'automatic-update automatic-update-install: <nil>' in log,log[-6000:]
@@ -105,7 +121,7 @@ def main():
                 'windows_crlf_acceptance_tested':True,
                 'full_previous_runtime_replaced_bytes':changed_bytes,
                 'rollback_storage':'disk','updater_architecture':'amd64',
-                'managed_files_verified':len(spec['files']),
+                'managed_files_verified':len(spec['files']),'p17_actual_updater_migration_tested':p17_migration,
                 'unmanaged_preferences_preserved':True,'setup_reopened':True,
                 'setup_sha256':expected_setup,'windows_gameplay_tested':False,
             },indent=2)+'\n')

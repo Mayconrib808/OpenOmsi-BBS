@@ -253,28 +253,44 @@ func companyHostSharePath(profilePath, requested, companyID, packageDir string) 
 	return filepath.Clean(requested), nil
 }
 
-// P16 is an additional source-built host, isolated from retained complete P15
-// executables and their private files. Existing P15/P14 hosts stay byte-exact.
-func p16HostPackageDir(executable string) string {
+// New protocol companions remain isolated from the complete released P15 hosts.
+// The historical helper name stays for callers in the retained host sources.
+func companionHostProtocolForPath(executable string) int {
 	dir := filepath.Dir(executable)
-	if strings.EqualFold(filepath.Base(dir), "hosts-p16") && strings.EqualFold(filepath.Base(filepath.Dir(dir)), "app") {
-		return filepath.Dir(filepath.Dir(dir))
+	if !strings.EqualFold(filepath.Base(filepath.Dir(dir)), "app") {
+		return 0
 	}
-	return dir
+	switch strings.ToLower(filepath.Base(dir)) {
+	case "hosts-p16":
+		return 16
+	case "hosts-p17":
+		return 17
+	}
+	return 0
 }
-func runningP16Host() bool {
+func p16HostPackageDir(executable string) string {
+	if companionHostProtocolForPath(executable) != 0 {
+		return filepath.Dir(filepath.Dir(filepath.Dir(executable)))
+	}
+	return filepath.Dir(executable)
+}
+func companionHostProtocol() int {
 	executable, err := os.Executable()
-	return err == nil && !strings.EqualFold(p16HostPackageDir(executable), filepath.Dir(executable))
+	if err != nil {
+		return 0
+	}
+	return companionHostProtocolForPath(executable)
 }
+func runningP16Host() bool { return companionHostProtocol() == 16 }
 func companyHostPrivateName() string {
-	if runningP16Host() {
-		return "CompanyHost-P16.local.json"
+	if protocol := companionHostProtocol(); protocol != 0 {
+		return fmt.Sprintf("CompanyHost-P%d.local.json", protocol)
 	}
 	return "CompanyHost.local.json"
 }
 func managedHostServerPath(dir string) string {
-	if runningP16Host() {
-		return filepath.Join(dir, "app", "server-dinamico-p16", "openomsi.exe")
+	if protocol := companionHostProtocol(); protocol != 0 {
+		return filepath.Join(dir, "app", fmt.Sprintf("server-dinamico-p%d", protocol), "openomsi.exe")
 	}
 	return filepath.Join(dir, "app", "server", "openomsi.exe")
 }
