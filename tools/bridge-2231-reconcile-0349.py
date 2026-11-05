@@ -138,13 +138,27 @@ tiles=re.search(
 if tiles is None:
     raise RuntimeError("quick menu TILES layout changed")
 tile_body=tiles.group(4)
-tile_count=len(re.findall(r'^\s*\("',tile_body,re.M))
+# Upstream adds Radio, but "-X ours" keeps Bridge's wheelchair/coop
+# layout in the conflicting hunk. Install the missing tile explicitly.
+if not all(f'("{name}",' in tile_body for name in ("coop", "wheelchair")):
+    raise RuntimeError("0.3.49 reconciliation lost a Bridge accessibility/coop tile")
+if '("radio",' not in tile_body:
+    if quick_source.count('"radio" => super::radio_panel::open(app),')!=1:
+        raise RuntimeError("0.3.49 Radio panel handler missing; refusing empty tile")
+    anchor='    ("coop", "Cooperative", "directions_bus"),'
+    if tile_body.count(anchor)!=1:
+        raise RuntimeError("quick menu coop tile anchor not unique")
+    tile_body=tile_body.replace(anchor,anchor+'\n    ("radio", "Radio", "radio"),')
 if not all(f'("{name}",' in tile_body for name in ("coop", "wheelchair", "radio")):
     raise RuntimeError("0.3.49 reconciliation must retain coop, wheelchair and radio tiles")
-if int(tiles.group(2))!=tile_count:
-    updated=quick_source[:tiles.start(2)]+str(tile_count)+quick_source[tiles.end(2):]
+tile_count=len(re.findall(r'^\s*\("',tile_body,re.M))
+# Replace the entire entry block, preserving the neighboring menu sections.
+updated=(quick_source[:tiles.start(2)] + str(tile_count) +
+         quick_source[tiles.end(2):tiles.start(4)] + tile_body +
+         quick_source[tiles.end(4):])
+if updated!=quick_source:
     (ROOT/quick).write_text(updated,encoding="utf-8")
-    print(f"quick menu now declares {tile_count} tiles",flush=True)
+    print(f"quick menu reconciled with {tile_count} tiles; Radio, coop and wheelchair retained",flush=True)
 
 # New find-street menu entry referenced by the upstream menu handlers.
 lists="crates/omsi-app/src/game_lists.rs"
