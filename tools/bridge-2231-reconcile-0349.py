@@ -13,6 +13,9 @@ def replace_exact(path: str, old: str, new: str, expected: int = 1) -> None:
     target=ROOT/path
     source=target.read_text(encoding="utf-8")
     found=source.count(old)
+    if found==0 and source.count(new)==expected:
+        print(f'already integrated {path}: {expected} expected reconciliation(s)', flush=True)
+        return
     if found!=expected:
         raise RuntimeError(f"{path}: expected {expected} occurrences, got {found} of {old!r}")
     target.write_text(source.replace(old,new),encoding="utf-8")
