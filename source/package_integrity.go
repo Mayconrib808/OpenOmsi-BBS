@@ -92,14 +92,22 @@ func verifyPackageForUpdate(dir string, payload map[string][]byte) (int, error) 
 var activationPinnedRuntimeSHA256 string
 
 func verifyPackageForActivation(dir string) (int, error) {
-	_, err := os.Stat(filepath.Join(dir, "docs", "SHA256.txt"))
-	if err == nil {
-		return verifyPackageWithPolicy(dir, nil, true)
+	// The original P17 release and its later signed updaters use a pinned,
+	// cumulative manifest for the actual game, launcher, server and Bridge
+	// runtime. A legacy docs/SHA256.txt may remain in an upgraded directory
+	// and still attest the old Setup.exe. That file must NOT override the
+	// embedded signed-runtime pins when a newer Setup is installed.
+	//
+	// This does not waive executable integrity: the P17 gate below hashes
+	// four Bridge runtime binaries and four native/host binaries against
+	// build-time trusted SHA-256 values. The updater authenticates Setup.exe
+	// itself using the separately signed manifest before installation.
+	if bundledCoopDistribution.FullPaths &&
+		strings.HasPrefix(bundledCoopDistribution.Prefix, "Bridge-2.2.3.1/") {
+		return verifySignedCumulativeActivation(dir)
 	}
-	if !os.IsNotExist(err) {
-		return 0, err
-	}
-	return verifySignedCumulativeActivation(dir)
+	// Older, non-P17 releases still use the legacy full manifest policy.
+	return verifyPackageWithPolicy(dir, nil, true)
 }
 
 func verifySignedCumulativeActivation(dir string) (int, error) {
