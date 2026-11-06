@@ -133,8 +133,13 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '0.3.50/P17 Windows game build failed' }
           New-Item -ItemType Directory -Force candidate | Out-Null
           Copy-Item target/release/openomsi.exe candidate/openomsi.exe
-          & candidate/openomsi.exe --help | Out-File candidate/native-help.txt -Encoding utf8
-          if ($LASTEXITCODE -ne 0) { throw '0.3.50/P17 executable startup failed' }
+          # The release game is a Windows GUI-subsystem executable. PowerShell's
+          # direct invocation does not reliably wait for its exit or capture
+          # clap --help; use the updater's actual --self-test contract instead.
+          $game = (Resolve-Path candidate/openomsi.exe).Path
+          $probe = Start-Process -FilePath $game -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow
+          if ($null -eq $probe -or $probe.ExitCode -ne 0) { throw "0.3.50/P17 native self-test failed (exit $($probe.ExitCode))" }
+          "Native executable --self-test exit code: $($probe.ExitCode)" | Set-Content candidate/native-self-test.txt -Encoding utf8
       - name: Compile actual updated desktop launcher and CLI (not just core)
         shell: pwsh
         run: |
