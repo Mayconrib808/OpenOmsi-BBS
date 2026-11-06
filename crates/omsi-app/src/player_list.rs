@@ -39,13 +39,21 @@ pub(crate) fn rights(app: &App) -> Option<Role> {
 /// else the session's.
 fn players(app: &App) -> Vec<Player> {
     let Some(lan) = app.net.lan.as_ref() else { return Vec::new() };
-    if crate::admin_panel::remote(app) && !app.net.admin_panel.players.is_empty() {
-        return app.net.admin_panel.players.clone();
-    }
-    let mut v = omsi_lan::admin::players(lan, &omsi_lan::admin::ServerAdmin::default());
+    let mut v = if crate::admin_panel::remote(app) && !app.net.admin_panel.players.is_empty() {
+        app.net.admin_panel.players.clone()
+    } else { omsi_lan::admin::players(lan, &omsi_lan::admin::ServerAdmin::default()) };
     if !v.iter().any(|p| p.id == lan.my_id) {
         let state = if app.session.on_foot.is_some() { PlayerState::OnFoot } else if app.player.is_some() { PlayerState::Driving } else { PlayerState::Joining };
         v.push(Player { id: lan.my_id, conn: 0, name: lan.my_name.clone(), state, vehicle: app.args.bus.clone().filter(|_| app.player.is_some()).unwrap_or_default(), line: String::new(), tour: String::new(), aboard: None, online_secs: 0, admin: (lan.role == omsi_net::Role::Host).then_some(Role::Admin) });
+    }
+    for (owner, driver) in app.net.coop.drive.controllers() {
+        let vehicle = if owner == lan.my_id { app.player.as_ref().map(|p| p.vehicle.ty.def.path.to_string_lossy().into_owned()) }
+            else { v.iter().find(|p| p.id == owner).map(|p|p.vehicle.clone()) };
+        if let Some(p) = v.iter_mut().find(|p| p.id == driver) {
+            if let Some(bus) = vehicle { p.vehicle = bus; }
+            p.state = if p.aboard.is_some() { PlayerState::Driving } else { p.state };
+        }
+        if let Some(p) = v.iter_mut().find(|p| p.id == owner) { p.vehicle.clear(); p.state = PlayerState::Aboard; }
     }
     v.sort_by_key(|p| p.id);
     v

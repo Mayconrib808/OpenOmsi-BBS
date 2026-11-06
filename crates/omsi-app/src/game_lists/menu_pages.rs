@@ -11,7 +11,7 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
     let later = "Takes effect when the game starts the next time";
     let mode = session_mode(app);
     let shown = |key: &str| shown_in_mode(mode, key);
-    let game: Vec<(String, String)> = vec![
+    let mut game: Vec<(String, String)> = vec![
         switch_row(app, "navigator", "Navigator", "Enables/Disables the Minimap"),
         switch_row(app, "nav_ai", "AI vehicles on the map", "Shows/hides the other (AI) vehicles on the Minimap and the city map"),
         switch_row(app, "nav_ai_cars", "Cars on the map too", "Off: only the traffic's buses and trolleybuses are shown on the maps, not the cars").filter(|_| s.nav_ai),
@@ -32,13 +32,17 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
         switch_row(app, "exact_fare", "Passengers pay the exact fare", "No change is given at the cash desk"),
         switch_row(app, "full_tank", "Start with a full tank", "Each new bus starts with its tank full (many maps have no petrol station); a saved situation keeps its own"),
         switch_row(app, "pax_bad_driving", "Passengers react to bad driving", "They complain about rough driving and may get off at the next stop"),
-        switch_row(app, "passenger_connections", "Passenger connections between lines", "Optional onward trips in single player only; disabled in multiplayer"),
+        slider_row(app,"wheelchair_spawn_percent","Wheelchair appearance chance","Chance per new passenger; 0% stops new wheelchair arrivals",&|v|format!("{v:.0}%")).filter(|_|s.optional_features.wheelchair_passengers),
+        switch_row(app, "passenger_connections", "Passenger connections between lines", omsi_cfg::optional_features::HELP),
         slider_row(app, "passenger_transfer_percent", "Connection chance", "Probability for eligible transfers; default 20%", &|v|format!("{v:.0}%")).filter(|_|s.passenger_connections),
         switch_row(app, "passenger_hailing", "Passengers signal approaching buses", "Optional visual hailing; only effective with supported natural animations"),
         switch_row(app, "passenger_full_bus_reaction", "Passengers react to full buses", "Optional visual acknowledgement when an approaching compatible bus is at passenger capacity"),
         switch_row(app, "pax_short_rides_stand", "Short rides stand by a door", "Passengers with no set stop who ride only a few kilometres take a free standing place near an exit rather than a seat"),
         switch_row(app, "auto_announce", "Arrival announcements at the stop", "On depot files that keep two recordings per stop (the Chinese maps), the arrival one is played as the bus reaches the stop: the IBIS's next stop key, pressed as the driver would"),
         pick("boarding", "Boarding", "How passengers get their tickets"),
+        switch_row(app,"ticket_chance_enabled","Override ticket purchase chance","How passengers get their tickets"),
+        slider_row(app,"ticket_chance_percent","Ticket purchase chance","How passengers get their tickets",&|v|if v<0.0{omsi_ui::tr("Default").into_owned()}else{format!("{v:.0}%")}).filter(|_|s.ticket_chance_enabled),
+        switch_row(app,"pax_umbrellas","Passenger umbrellas","Takes effect when the game starts the next time").filter(|_| s.passenger_animation == "enhanced"),
         pick("standing_chance", "Standing passengers", "The chance a passenger stands although a seat is free"),
         pick("maintenance", "Maintenance", later),
         pick("ai_unsched_factor", "Random traffic", later),
@@ -49,6 +53,8 @@ pub(super) fn options_pages(app: &App) -> Vec<Page> {
         .into_iter()
         .flatten()
         .collect();
+    game.extend(omsi_cfg::optional_features::FEATURES.iter().filter_map(|feature|
+        switch_row(app, feature.key, feature.label, omsi_cfg::optional_features::help(feature.key))));
     let mut graphics: Vec<(String, String)> = vec![
         pick("graphics", "Graphics", later),
         preset_row(&file, "Quality preset", "Sets the graphics mode and most of the options at once, from Low (Vanilla) to Ultra (Enhanced with everything on)"),
@@ -280,6 +286,7 @@ pub(super) fn vehicle_pages(app: &App) -> Vec<Page> {
 
         display.push(opens("Destination display", "Change the current destination", "dest"));
         display.push(opens("Depot file (HOF)", "Change the current depot file (used for the timetable)", "hof"));
+        display.push(opens("Livery / Pintura", "Change the spawned vehicle paint", "livery"));
         display.push(opens("Fleet number", "Change the vehicle's current fleet number", "number"));
         if app.net.lan.is_none() && !app.player.as_ref().unwrap().vehicle.ty.paint_schemes.is_empty() {
             display.push(opens("Livery", "Repaint the vehicle you drive where it stands: same bus, same passengers", "livery"));

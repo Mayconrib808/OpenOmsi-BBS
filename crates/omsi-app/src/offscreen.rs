@@ -29,7 +29,9 @@ struct Offscreen<'a> {
     settings: settings::Settings,
     renderer: Renderer,
     scene: Scene,
-    world: World,
+    world: Arc<World>,
+    /// Streaming regions around every connected player on a managed dedicated server.
+    streamer: Option<tiles::Streamer>,
     /// the scenery objects' scripts (see `World::scenery_sync`)
     scenery: omsi_sim::scenery::SceneryState,
     camera: Camera,
@@ -77,6 +79,8 @@ struct Offscreen<'a> {
     cabin_air: crate::condensation::CabinAir,
     /// a dedicated server's administration and clock (see `admin`)
     srv_admin: crate::admin::ServerAdmin,
+    coop_ai: crate::coop::AiServer,
+    bcs_responses: crate::bcs_events::HostResponses,
     srv_clock: f64,
     /// the server's world clock against the wall (see `omsi_sim::world_clock`)
     srv_wall: omsi_sim::world_clock::WorldClock,

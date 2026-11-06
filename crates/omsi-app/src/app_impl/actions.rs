@@ -170,8 +170,8 @@ impl App {
                 self.cam.ego = true;
                 self.service_msg = Some(("On foot: W A S D walk, Shift runs, right mouse button looks (F1 back to the bus)".into(), 5.0));
             }
-            "view_set_driver" => self.view = "driver".into(),
-            "view_set_passenger" => self.view = "pax".into(),
+            "view_set_driver" => self.select_cabin_view(true),
+            "view_set_passenger" => self.select_cabin_view(false),
             "view_set_outside" => self.view = "outside".into(),
             // the cabin (the driver's or the passenger's) and the outside, one press apart:
             // what a single button on a controller wants. `view_toggle_viewpoint` is the

@@ -88,10 +88,20 @@ impl PeopleSim {
         // Each exit follows its own leaf's animation (an articulated bus's rear doors are
         // door_8, door_9, ...); one past door_7 the bus has no animation for opens with door_7.
         let has_door = |k: usize| v.door_anim(k).is_some();
-        let exit = states("Exit", n_exit, &|i| {
+        let mut exit = states("Exit", n_exit, &|i| {
             let k = exit_door_base + i;
             door_val(if k > 7 && !has_door(k) { 7 } else { k })
         });
+        // Some addon buses declare one [entry] and one [exit] but animate
+        // their actual exit using a later door leaf (door_2 through door_7).
+        // The old index-1 assumption leaves riders trapped while the exit is
+        // visibly open. Only grant this fallback when a real later-door
+        // animation is open; a keypress alone never counts as an open door.
+        // Do not change standard 2+-entry buses or the explicit exit when open.
+        if n_entry == 1 && n_exit == 1 && !exit[0]
+            && (2..=7).any(|k| v.door_anim(k).is_some_and(|value| value > 0.85)) {
+            exit[0] = true;
+        }
         (entry, exit)
     }
 
@@ -530,6 +540,21 @@ impl PeopleSim {
             });
         }
         self.remote_now = out;
+    }
+
+    /// Walkable local cabin of a delegated bus. Passenger transactions remain
+    /// on its original owner, but avatars must follow this authoritative chassis.
+    pub fn set_borrowed_cabin(&mut self, owner: u32, vehicle: &VehicleInstance) {
+        let logical = BusId::Ai(remote_bus_id(owner));
+        self.remote_now.retain(|b| b.id != BusId::Player && b.id != logical);
+        if let Some(bus) = self.parked_bus(BusId::Player, vehicle) {
+            // Mirrors retain their original logical bus id while local avatars use
+            // Player. Both frames must exist even if the hidden remote render is gone.
+            let mut alias = bus.clone();
+            alias.id = logical;
+            self.remote_now.push(bus);
+            self.remote_now.push(alias);
+        }
     }
 
     /// Is `bus` among the buses people can be in this frame (an AI bus, or another player's)?

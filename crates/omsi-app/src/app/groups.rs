@@ -47,6 +47,7 @@ pub(crate) struct VrState {
 /// (none at the start)
 #[derive(Default)]
 pub(crate) struct NetState {
+    pub(crate) coop: crate::coop::CoopState,
     pub(crate) room: crate::app_impl::rooms::RoomSwitch,
     /// Other players on foot whose avatars are drawn: their ids and figures (`kind`).
     pub(crate) remote_walkers: Vec<(u32, u64)>,
@@ -73,6 +74,7 @@ pub(crate) struct NetState {
 /// What the game talks to besides itself: the OMSI and Lua plugins, Discord, Steam, the
 /// website's "playing now" and the look for a newer release.
 pub(crate) struct Integrations {
+    pub(crate) bcs_events: crate::bcs_events::Incidents,
     /// Keys pressed (true) and let go since the Lua plugins' last frame.
     pub(crate) plugin_keys: Vec<(String, bool)>,
     /// What happened since the Lua plugins' last frame: crashes, people knocked down,

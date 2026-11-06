@@ -188,8 +188,35 @@ impl PeopleSim {
             return;
         }
         let mut ids: Vec<i64> = self.stops.keys().copied().collect();
-        ids.sort_unstable();
+        // Generate near active players before distant stops when the shared pool
+        // is scarce. This orders candidates only: it never removes onboard riders.
+        let anchors: Vec<DVec3> = self.anchors().collect();
+        ids.sort_unstable_by(|a, b| {
+            let dist = |id: &i64| self.stops.get(id).map_or(f64::INFINITY, |s|
+                anchors.iter().map(|at| (s.pos - *at).length_squared())
+                    .fold(f64::INFINITY, f64::min));
+            dist(a).total_cmp(&dist(b)).then_with(|| a.cmp(b))
+        });
         let forced = omsi_cfg::flags::OMSI_PAX_WAITING.parse::<usize>();
+        let independent = self.optional_features.independent_passenger_demand;
+        if independent && (!dt.is_finite() || dt <= 0.0) { return; }
+        // Passengers who have waited too long can leave. Never remove people
+        // already boarding or aboard, and never age them while the game pauses.
+        if independent {
+            for i in (0..self.people.len()).rev() {
+                let leaving = matches!(&self.people[i].state, State::Pax(p)
+                    if p.inside.is_none()
+                        && matches!(p.task, Task::WaitingForBus | Task::WalkingToBusstop)
+                        && p.demand_arrived_at.is_some_and(|at|
+                            self.time - at >= super::demand::patience_seconds(self.people[i].id)));
+                if leaving {
+                    self.demand_audit.patience_left += 1;
+                    self.release(i);
+                    let gone = self.people.swap_remove(i);
+                    self.retire(&gone);
+                }
+            }
+        }
         // the people handed over to another player's bus stop counting once it has left
         // their stop (or the session)
         if !self.handed.is_empty() {
@@ -203,20 +230,41 @@ impl PeopleSim {
         // and frame was stops x people every frame). Exact through the loop: a stop's own
         // spawns and departures change its count only, and it is read before them.
         let mut counts: HashMap<i64, usize> = HashMap::with_capacity(ids.len());
+        let mut waiting_counts: HashMap<i64, usize> = HashMap::with_capacity(ids.len());
         for p in &self.people {
             if let State::Pax(x) = &p.state {
                 if let Some(s) = x.stop {
                     *counts.entry(s).or_default() += 1;
+                    if x.inside.is_none() {
+                        *waiting_counts.entry(s).or_default() += 1;
+                    }
                 }
             }
         }
         for h in &self.handed {
             *counts.entry(h.0).or_default() += 1;
+            *waiting_counts.entry(h.0).or_default() += 1;
         }
         for id in ids {
+            if independent {
+                // Accumulate even if nobody can see this stop. Only the ledger
+                // is updated offscreen; meshes are created near players only.
+                let st = &self.stops[&id];
+                let mean = (st.enter_max + st.enter_min) * 0.5;
+                let places = st.spots.len().saturating_sub(waiting_counts.get(&id).copied().unwrap_or(0));
+                let served = self.stop_targets.as_ref().is_none_or(|targets|
+                    targets.get(&id).is_some_and(|routes| !routes.is_empty()));
+                let first = self.stop_demand.get(&id).is_none_or(|d| d.minute == i64::MIN);
+                let before = self.stop_demand.get(&id).map_or(0.0, |d| d.waiting);
+                self.stop_demand.entry(id).or_default().advance(
+                    id, self.time, dt, mean, if served { self.density } else { 0.0 }, places);
+                let after = self.stop_demand[&id].waiting;
+                if first { self.demand_audit.seeded_stops += 1; }
+                else { self.demand_audit.new_queue_units += (after-before).max(0.0) as f64; }
+            }
             let near = {
                 let s = &self.stops[&id];
-                self.anchors().any(|c| (s.pos - c).length() < STOP_RANGE)
+                anchors.iter().any(|c| (s.pos - *c).length() < STOP_RANGE)
             };
             let changed = {
                 let s = self.stops.get_mut(&id).unwrap();
@@ -226,6 +274,16 @@ impl PeopleSim {
             };
             if !near {
                 if changed {
+                    if independent {
+                        // Return people who only disappeared because the tile was
+                        // unloaded to the queue, instead of losing their demand.
+                        let returning = self.people.iter().filter(|person| matches!(&person.state,
+                            State::Pax(p) if p.stop == Some(id) && p.inside.is_none()
+                                && matches!(p.task, Task::WaitingForBus | Task::WalkingToBusstop))).count();
+                        let capacity = self.stops[&id].spots.len() as f32;
+                        let pending = self.stop_demand.entry(id).or_default();
+                        pending.waiting = (pending.waiting + returning as f32).min(capacity);
+                    }
                     // (sub_61be80) the people waiting there go
                     for i in (0..self.people.len()).rev() {
                         let here = matches!(&self.people[i].state, State::Pax(p) if p.stop == Some(id) && p.inside.is_none() && matches!(p.task, Task::WaitingForBus | Task::WalkingToBusstop));
@@ -254,7 +312,43 @@ impl PeopleSim {
                 };
                 s.factor = (r * 2.0 - 1.0) * k + 1.0;
             }
-            let count = counts.get(&id).copied().unwrap_or(0);
+            let count = if independent { waiting_counts.get(&id).copied().unwrap_or(0) }
+                else { counts.get(&id).copied().unwrap_or(0) };
+            if independent {
+                // A newly streamed stop already had people waiting before it
+                // became visible. Materialize a small bounded part of that
+                // initial queue now; subsequent arrivals retain their cooldown.
+                // A bus arriving or boarding never refills the demand ledger.
+                let queued = self.stop_demand.get(&id).map(|d| d.waiting).unwrap_or(0.0);
+                let capacity = self.stops[&id].spots.len();
+                self.stops.get_mut(&id).unwrap().want =
+                    (count + queued.floor() as usize).min(capacity);
+                let ready = changed || self.stops[&id].clock_ms >= 2500.0;
+                let can_arrive = ready && self.stop_demand.get(&id)
+                    .is_some_and(|d| d.can_retry(self.time));
+                if queued >= 1.0 && count < capacity && ready && !can_arrive {
+                    self.demand_audit.retries_suppressed += 1;
+                }
+                if queued >= 1.0 && count < capacity && can_arrive {
+                    let budget = if changed { (queued.floor() as usize).min(4) } else { 1 };
+                    for _ in 0..budget.min(capacity.saturating_sub(count)) {
+                        let succeeded = self.spawn_waiting(world, id).is_some();
+                        // Failed attempts keep the existing retry cooldown.
+                        self.stops.get_mut(&id).unwrap().clock_ms = 0.0;
+                        self.stop_demand.get_mut(&id).unwrap().retry_later(self.time, succeeded);
+                        if succeeded {
+                            self.stop_demand.get_mut(&id).unwrap().admitted();
+                            self.demand_audit.materialized += 1;
+                            self.demand_audit.last_stop = Some(id);
+                        } else {
+                            self.demand_audit.spawn_refused += 1;
+                            break;
+                        }
+                    }
+                }
+                self.stops.get_mut(&id).unwrap().clock_ms += dt.max(0.0) * 1000.0;
+                continue;
+            }
             debug_assert_eq!(count, self.people.iter().filter(|p| matches!(&p.state, State::Pax(x) if x.stop == Some(id))).count() + self.handed.iter().filter(|h| h.0 == id).count());
             let want = {
                 let s = &self.stops[&id];
@@ -289,6 +383,43 @@ impl PeopleSim {
                 self.stops.get_mut(&id).unwrap().clock_ms = 0.0;
             }
         }
+        // At most two lines every simulated minute. This records *actual*
+        // enqueues and materialized arrivals, not an enabled=true claim.
+        if independent && self.time - self.demand_audit.last_report_at >= 60.0 {
+            let near = self.stops.values().filter(|s| s.near).count();
+            let served = self.stops.iter().filter(|(id,s)| {
+                !s.spots.is_empty() && self.stop_targets.as_ref().is_none_or(|targets|
+                    targets.get(*id).is_some_and(|routes| !routes.is_empty()))
+            }).count();
+            let backlog: f32 = self.stop_demand.values().map(|d| d.waiting).sum();
+            let pool_used = self.pool_used();
+            let pool_limit = super::bounded_people_limit(self.max_people);
+            let aboard = self.people.iter().filter(|p| matches!(p.place, Place::Bus(..))).count();
+            let d = &mut self.demand_audit;
+            log::info!(
+                "FEATURE AUDIT demand independent=active local_sim=true simulated_seconds={:.0} loaded_stops={} near_stops={} served_stops={} seeded_stops={} new_queue_units={:.2} arrivals_materialized={} spawn_refused={} refused_pool_full={} refused_spots_full={} refused_spawn={} retries_suppressed={} last_refused_stop={:?} last_refused_reason={:?} pool_used={} pool_limit={} aboard={} patience_departures={} backlog={:.2} last_arrival_stop={:?} density={:.2}",
+                self.time, self.stops.len(), near, served, d.seeded_stops, d.new_queue_units,
+                d.materialized, d.spawn_refused, d.refused_pool_full, d.refused_spots_full,
+                d.refused_spawn, d.retries_suppressed, d.last_refused_stop, d.last_refused_reason,
+                pool_used, pool_limit, aboard, d.patience_left, backlog, d.last_stop, self.density
+            );
+            log::info!(
+                "FEATURE AUDIT extras weather_clothing={} model_spawns_examined={} suitable_tagged_outfits={} climate_c={:.1} rain={} snow={} ambient_talk={} talk_opportunities={} missing_pairs={} missing_clips={} audible_lines={}",
+                self.optional_features.weather_clothing, d.clothing_evaluated, d.clothing_tagged_selected,
+                self.climate_temp_c, self.climate_rain, self.climate_snow,
+                self.optional_features.passenger_ambient_talk, d.conversation_attempts,
+                d.conversation_without_pairs, d.conversation_without_clips, d.conversation_lines
+            );
+            d.seeded_stops=0; d.new_queue_units=0.0; d.materialized=0;
+            d.spawn_refused=0; d.refused_pool_full=0; d.refused_spots_full=0;
+            d.refused_spawn=0; d.retries_suppressed=0;
+            d.last_refused_stop=None; d.last_refused_reason=None;
+            d.patience_left=0; d.last_stop=None;
+            d.clothing_evaluated=0; d.clothing_tagged_selected=0;
+            d.conversation_attempts=0; d.conversation_without_pairs=0;
+            d.conversation_without_clips=0; d.conversation_lines=0;
+            d.last_report_at=self.time;
+        }
     }
 
     /// A destination drawn from stop `id`'s (sub_61baa8): by weight; none when the weights
@@ -298,7 +429,13 @@ impl PeopleSim {
         let mut dest: Option<String> = None;
         let Some(stop) = self.stops.get(&id) else { return (None, None) };
         // (of the trips due here soon, `due_dests`; their weights made a whole again)
-        let due = self.due_dests.as_ref().map(|d| d.get(&id));
+        // Independent demand is matched to *destinations*, not the next due
+        // trip. The first compatible route on this corridor may collect them.
+        let due = if self.optional_features.independent_passenger_demand {
+            None
+        } else {
+            self.due_dests.as_ref().map(|d| d.get(&id))
+        };
         let dests: Vec<(&String, f32)> = match due {
             Some(set) => {
                 let kept: Vec<(&String, f32)> = stop.dests.iter().filter(|(n, _)| set.is_some_and(|s| s.contains(n.trim()))).map(|(n, w)| (n, *w)).collect();
@@ -329,15 +466,30 @@ impl PeopleSim {
     /// A person put at a free waiting place of stop `id` (sub_626044) with a destination
     /// drawn from the stop's (sub_61baa8); they settle there as task 6 does.
     pub fn spawn_waiting(&mut self, world: &dyn World, id: i64) -> Option<usize> {
-        if self.stops.get(&id)?.taken.iter().all(|t| *t) || !self.pool_room() {
+        let Some(stop) = self.stops.get(&id) else {
+            self.demand_audit.record_refusal(id, "missing_stop");
+            return None;
+        };
+        if stop.taken.iter().all(|t| *t) {
+            self.demand_audit.record_refusal(id, "waiting_spots_full");
             return None;
         }
-        let k = self.take_spot(id)?;
+        if !self.pool_room() {
+            self.demand_audit.record_refusal(id, "human_pool_full");
+            return None;
+        }
+        let Some(k) = self.take_spot(id) else {
+            self.demand_audit.record_refusal(id, "waiting_spots_full");
+            return None;
+        };
         let sp = self.stops[&id].spots[k].clone();
         let (dest, line) = self.draw_dest(id);
         let walk = 1.1 + (self.rand_f() as f32 * 2.0 - 1.0) * 0.2;
         let mut pax = Pax::new(walk, self.rand_f());
         pax.stop = Some(id);
+        if self.optional_features.independent_passenger_demand {
+            pax.demand_arrived_at = Some(self.time);
+        }
         pax.spot = Some(k);
         pax.pos = sp.pos;
         pax.yaw = sp.face.to_radians();
@@ -345,6 +497,7 @@ impl PeopleSim {
         pax.line = line;
         pax.st = 0;
         let Some(i) = self.spawn(world, sp.pos, sp.face, State::Pax(Box::new(pax))) else {
+            self.demand_audit.record_refusal(id, "spawn_creation_failed");
             self.free_spot(id, k);
             return None;
         };

@@ -56,7 +56,7 @@ impl PeopleSim {
                 }
             }
             marked = remove.len();
-            if self.pax(i).is_none() || gone[i] {
+            if self.pax(i).is_none() || gone[i] || self.wheelchairs.person==Some(self.people[i].id) {
                 continue;
             }
             let was = self.people[i].position;
@@ -207,9 +207,24 @@ impl PeopleSim {
                 None => p.discomfort = 0.0,
             }
         }
-        self.runner_step(i, dt, world, buses, bus_ix);
-        self.pax_move(i, dt, dt_ms, world, buses, bus_ix);
-        self.pax_task(i, dt, world, buses, bus_ix, at_stops, player_bus, taken_ticket, remove);
+        // The ticket inspector must not ask the driver to open a door or deliver
+        // ordinary passenger comments while working inside the bus.
+        if self.optional_features.passenger_door_comments
+            && !self.pax(i).is_some_and(|p| p.inspector) {
+            if let Some(bn)=self.pax(i).and_then(|p|p.bus.or((p.task==Task::WaitingForBus).then_some(BusId::Player))).and_then(|b|bus_ix.get(&b)).map(|k|&buses[*k]) {
+                let near=at_stops.get(&bn.id).is_some_and(|r|r.near.iter().any(|id|
+                    self.stops.get(id).is_some_and(|s|(s.pos-bn.pos).truncate().length()<22.0)));
+                self.door_reaction(i,bn,near,dt);
+            }
+        }
+        let held = !self.people[i].remote && self.pax(i).is_some_and(|p|
+            (p.responder_hold || p.inspector) && p.inside == Some(BusId::Player)
+                && p.seat.is_some() && p.task == Task::SittingInBus);
+        if !held {
+            self.runner_step(i, dt, world, buses, bus_ix);
+            self.pax_move(i, dt, dt_ms, world, buses, bus_ix);
+            self.pax_task(i, dt, world, buses, bus_ix, at_stops, player_bus, taken_ticket, remove);
+        }
         // (got off: a pedestrian now)
         let Some(p) = self.pax(i).cloned() else { return };
         // (0x62d75b) the stop they boarded at is forgotten once the bus has left it

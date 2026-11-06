@@ -34,6 +34,7 @@ log.workspace = true
 rayon.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+rmp-serde = "1"
 sha2.workspace = true
 ring.workspace = true
 # the chat's word filter, and the public server list's (`moderation`)

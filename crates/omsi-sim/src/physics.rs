@@ -13,6 +13,7 @@ use omsi_vehicle::Vehicle;
 
 /// Driver inputs, all in `0..1` except steering in `-1..1` (positive = right).
 #[derive(Debug, Clone, Copy, Default)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Controls {
     pub throttle: f32,
     pub brake: f32,
@@ -21,6 +22,7 @@ pub struct Controls {
 }
 
 #[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct WheelState {
     /// Longitudinal axle position (m, forward positive) and lateral offset (m, right positive).
     pub long: f32,
@@ -35,6 +37,7 @@ pub struct WheelState {
 }
 
 #[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct VehiclePhysics {
     pub mass_kg: f32,
     pub rolling_resistance: f32,

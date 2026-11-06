@@ -1,0 +1,59 @@
+name: Validate 2.2.2.1 independent passengers and clothing
+on:
+  push:
+    branches: [feature/2221-independent-demand-weather-clothes]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: verify-2221-dynamic-passengers-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.1-dev
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: 2221-independent-weather
+      - name: Passenger arrivals and weather clothing tests
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim people::demand::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Demand tests failed' }
+          cargo test --locked --release -p omsi-sim people::clothing::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Weather clothing tests failed' }
+          cargo test --locked --release -p omsi-sim people::population_limit_tests
+          if ($LASTEXITCODE -ne 0) { throw 'Passenger pool regressions failed' }
+          cargo test --locked --release -p omsi-cfg optional_features::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Settings defaults failed' }
+          node --test launcher/tests/optional-features.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher controls failed' }
+      - name: Other AI feature regressions
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim greetings::tests
+          if ($LASTEXITCODE -ne 0) { throw 'AI greeting tests failed' }
+          cargo test --locked --release -p omsi-sim ambient_talk::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Ambient dialogue tests failed' }
+          cargo test --locked --release -p omsi-sim illegal_parking::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Real illegal parking tests failed' }
+          cargo test --locked --release -p omsi-sim bus_stop_overtake_safety_tests
+          if ($LASTEXITCODE -ne 0) { throw 'Bus overtake safety failed' }
+      - name: Compile native Windows OpenOMSI and server
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Client/server build failed' }
+          & .\\target\\release\\openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Executable smoke test failed' }

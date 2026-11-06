@@ -221,7 +221,7 @@ impl Panel {
             out.push((tr("Clock +1 hour"), "send time 3600".into()));
             out.push((tr("Clock -1 hour"), "send time -3600".into()));
             let speed = self.num("speed").unwrap_or(1.0);
-            for s in [1.0, 2.0, 4.0, 8.0, 15.0, 30.0] {
+            for s in [1.0, 2.0, 4.0, 8.0, 15.0, 30.0, 32.0] {
                 let mark = if (s - speed).abs() < 1e-6 { format!("  {}", tr("(now)")) } else { String::new() };
                 out.push((format!("{} x{s}{mark}", tr("Time speed")), format!("send speed {s}")));
             }

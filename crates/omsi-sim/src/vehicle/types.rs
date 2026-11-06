@@ -149,6 +149,9 @@ pub struct VehicleMesh {
     /// The mesh, or (for a type loaded with [`VehicleType::load_ai`]) only its material
     /// ranges: the vertices are read again from `file` when the GPU needs them.
     pub data: MeshData,
+    /// CPU geometry restored only when a dropped AI mesh is actually used for picking.
+    /// GPU uploads still use `mesh_data` and do not populate this cache for the fleet.
+    pub pick_geometry: std::sync::OnceLock<Option<MeshData>>,
     /// The `.o3d` file the mesh came from.
     pub file: PathBuf,
     pub materials: Vec<omsi_o3d::Material>,
@@ -442,6 +445,7 @@ impl VehicleType {
                         meshes.push(VehicleMesh {
                             def_index: start + i,
                             data: mesh_from_o3d(&m),
+                            pick_geometry: Default::default(),
                             file: p,
                             materials: m.materials.clone(),
                             overrides: md.materials.clone(),
@@ -478,6 +482,7 @@ impl VehicleType {
                     continue;
                 }
                 lod_meshes.push(VehicleMesh {
+                    pick_geometry: Default::default(),
                     def_index: first + i,
                     data: mesh_from_o3d(&m),
                     file: p,
@@ -789,7 +794,8 @@ impl VehicleType {
 
     /// Bytes of the meshes the type keeps on the CPU.
     pub fn mesh_bytes(&self) -> usize {
-        self.meshes.iter().map(|m| m.data.heap_bytes()).sum()
+        self.meshes.iter().map(|m| m.data.heap_bytes()
+            + m.pick_geometry.get().and_then(Option::as_ref).map_or(0, MeshData::heap_bytes)).sum()
     }
 
     /// Mesh `i` with its vertices: as kept, or read again from its file (a type loaded with
@@ -814,6 +820,20 @@ impl VehicleType {
             .get(i)
             .map(|m| m.data.indices.is_empty() && !m.data.ranges.is_empty())
             .unwrap_or(false)
+    }
+
+    /// Geometry for an interactive ray. AI types release their CPU vertices after loading;
+    /// the renderer re-reads them for an upload, but a ray cannot intersect the empty copy.
+    /// Restore only the controls a picker asks for, once per shared type/mesh, without
+    /// retaining every AI mesh merely because it was drawn. A failed read is cached too.
+    pub fn pick_mesh_data(&self, i: usize) -> Option<&MeshData> {
+        let mesh = self.meshes.get(i)?;
+        if !self.mesh_dropped(i) {
+            return Some(&mesh.data);
+        }
+        mesh.pick_geometry
+            .get_or_init(|| self.mesh_data(i).map(std::borrow::Cow::into_owned))
+            .as_ref()
     }
 
     pub fn texture_dirs(&self, root: &Path) -> Vec<PathBuf> {
@@ -1263,6 +1283,7 @@ mod legacy_trolley_tests {
 
     fn mesh(def_index: usize) -> VehicleMesh {
         VehicleMesh {
+            pick_geometry: Default::default(),
             def_index,
             data: Default::default(),
             file: PathBuf::new(),

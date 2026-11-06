@@ -13,6 +13,23 @@ impl App {
             self.net.dedicated_teleport = None;
         }
         let walker = self.walker_pose();
+        let figure = self.character_figure();
+        let hide_driver_for = if self.net.coop.camera.as_ref().is_some_and(|c| c.driver) {
+            match self.foot_bus() {
+                Some(crate::humans::BusId::Ai(id)) => crate::humans::remote_bus_player(id),
+                _ => None,
+            }
+        } else {
+            None
+        };
+        let controllers = self.net.coop.drive.controllers();
+        let borrowed_drivers: Vec<(u32, String)> = self.net.lan.as_ref().map(|lan|
+            lan.peers().filter_map(|peer| {
+                let a = peer.pose.walker?.aboard?;
+                (a.seat == Some(crate::coop_drive::DRIVER_SEAT))
+                    .then_some((a.owner, peer.pose.figure.clone()))
+            }).collect()
+        ).unwrap_or_default();
         let radio_keyed = self.voice_radio_keyed();
         let Some(lan) = self.net.lan.as_mut() else {
             self.gfx.sim_view.lan.stop_freetex();
@@ -51,6 +68,10 @@ impl App {
             .map(|t| (t.line.as_str(), t.terminus.as_str()));
         let frame = lan::LanInput {
             listener: self.camera.as_ref().map(|c| c.position),
+            hide_driver_for,
+            hide_vehicle_for: self.net.coop.drive.visitor_owner(),
+            borrowed_drivers,
+            controllers,
             muffled: self.cam.in_cab || self.net.inside_remote.is_some(),
             riders: self.session.humans.as_ref().map(|h| h.riding()).unwrap_or(0),
             clock: Some(&self.clock),
@@ -58,7 +79,7 @@ impl App {
             walker,
             inside_of: self.net.inside_remote,
             radio_keyed,
-            figure: self.player.as_ref().and_then(|p| p.driver.as_ref()).map(|d| d.human_type().def.path.clone()),
+            figure,
             drawn: self.world.is_some() && self.renderer.is_some() && self.scene.is_some(),
         };
         let config = self.args.lan_config();
@@ -78,7 +99,7 @@ impl App {
         let sent = {
             let traffic = self.session.traffic.as_ref();
             let cars = || traffic.map(|t| t.cars.iter().map(|c| lan::car_footprint(&c.vehicle)).collect()).unwrap_or_default();
-            lan::tick_send(lan, &mut self.net.remotes, dt, &config, self.player.as_mut().map(|p| &mut p.vehicle), &cars, duty, &frame)
+            lan::tick_send(lan, &mut self.net.remotes, dt, &config, self.player.as_mut().filter(|p| p.borrowed_from.is_none()).map(|p| &mut p.vehicle), &cars, duty, &frame)
         };
         let send_ms = phase.elapsed().as_secs_f64() * 1000.0;
         let phase = std::time::Instant::now();
@@ -99,6 +120,7 @@ impl App {
         if let Some(t) = self.session.traffic.as_mut().filter(|t| t.sim.mirror) {
             let ready: Vec<_> = t.sim.cars.iter().filter(|c| t.has_sound_set(c.id)).map(|c| c.id).collect();
             for c in &mut t.sim.cars {
+                self.net.remotes.apply_ai_greetings(&mut c.vehicle,c.id,&config.root);
                 if ready.contains(&c.id) { self.net.remotes.apply_ai_sounds(&mut c.vehicle, c.id, &config.root); }
             }
         }
@@ -148,6 +170,13 @@ impl App {
     /// (`omsi_lan::commands::Command`), carried out here.
     pub(crate) fn lan_command(&mut self, from: u32, text: &str) {
         use omsi_lan::commands::Command;
+        if self.drive_receive(from, text) { return; }
+        if let Some(lan)=self.net.lan.as_ref(){
+            if lan::note_driver_authority(&mut self.net.remotes,lan,from,text){return;}
+        }
+        if self.receive_bcs_event(from,text){return;}
+        if self.receive_wheelchair_beta(from,text){return;}
+        if self.coop_receive(from, text) { return; }
         if let Some(request) = text.strip_prefix("pax_request ") {
             self.receive_passenger_door_request(from, request);
             return;
@@ -266,7 +295,9 @@ impl App {
             }
         }
         if let Some(p) = self.player.as_mut() {
+            let elapsed = p.vehicle.host.clock.run_time;
             p.vehicle.host.clock = self.clock.clone();
+            if p.borrowed_from.is_some() || p.authority_remote { p.vehicle.host.clock.run_time=elapsed; }
         }
     }
 }

@@ -1,0 +1,96 @@
+name: Stage OpenOMSI 2.2.2.1 hotfix1 Windows game and server
+on:
+  push:
+    branches: [fix/2221-lan-seated-people]
+    paths: [.github/workflows/stage-2221-hotfix1-native.yml, crates/omsi-sim/src/people/**]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: stage-2221-hotfix1-native-windows
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.1-hotfix.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: 2221-hotfix1-native-stage
+      - name: Confirm source and branch
+        shell: pwsh
+        run: |
+          if ("${{ github.ref }}" -ne "refs/heads/fix/2221-lan-seated-people") { throw 'Wrong candidate branch' }
+          if (-not (Test-Path 'crates/omsi-sim/src/people/demand.rs') -or -not (Test-Path 'crates/omsi-sim/src/people/clothing.rs')) { throw 'Incomplete source' }
+      - name: Regression tests
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim people::demand::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Demand regression' }
+          cargo test --locked --release -p omsi-sim people::clothing::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Clothing regression' }
+          cargo test --locked --release -p omsi-sim illegal_parking::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Parking regression' }
+          cargo test --locked --release -p omsi-sim bus_stop_overtake_safety_tests
+          if ($LASTEXITCODE -ne 0) { throw 'Passing regression' }
+          node --test launcher/tests/optional-features.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Settings regression' }
+      - name: Remote seating regression tests
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim people::pose_facts::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Mirrored seated passengers not safe' }
+          cargo test --locked --release -p omsi-sim people::inspector::
+          if ($LASTEXITCODE -ne 0) { throw 'Inspector regression' }
+      - name: Compile Windows client and host
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
+          & ./target/release/openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Smoke test failed' }
+      - name: Produce native candidate overlay
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          New-Item -ItemType Directory -Force staging | Out-Null
+          Copy-Item target/release/openomsi.exe staging/openomsi.exe
+          $hash=(Get-FileHash staging/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $metadata=[ordered]@{
+            product='OpenOMSI native game and host for BCS Bridge'
+            bridge_release_target='2.2.2.1-hotfix.1'
+            native_version='0.3.46-coop.15'
+            source_commit='${{ github.sha }}'
+            exe_sha256=$hash
+            format='NATIVE-OVERLAY-ONLY'
+            updater_publication='NOT_SIGNED_OR_PUBLISHED'
+          }
+          $metadata | ConvertTo-Json | Set-Content -Encoding utf8 staging/BUILD-INFO.json
+          Compress-Archive -Path staging/openomsi.exe,staging/BUILD-INFO.json -DestinationPath OpenOMSI-2.2.2.1-hotfix1-native-windows-candidate.zip -CompressionLevel Optimal
+          $zip=(Get-FileHash OpenOMSI-2.2.2.1-hotfix1-native-windows-candidate.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Encoding ascii OpenOMSI-2.2.2.1-hotfix1-native-windows-candidate.zip.sha256 "$zip  OpenOMSI-2.2.2.1-hotfix1-native-windows-candidate.zip"
+          Add-Type -AssemblyName System.IO.Compression
+          $check=[System.IO.Compression.ZipFile]::OpenRead((Resolve-Path OpenOMSI-2.2.2.1-hotfix1-native-windows-candidate.zip))
+          try {
+            if ($check.Entries.Count -ne 2 -or -not ($check.Entries.Name -contains 'openomsi.exe')) { throw 'Invalid candidate ZIP' }
+          } finally { $check.Dispose() }
+          Write-Host "Candidate SHA-256 $zip, executable SHA-256 $hash"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.1-hotfix1-native-windows-candidate
+          path: |
+            OpenOMSI-2.2.2.1-hotfix1-native-windows-candidate.zip
+            OpenOMSI-2.2.2.1-hotfix1-native-windows-candidate.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

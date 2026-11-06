@@ -404,7 +404,15 @@ function wire() {
   $("ban").addEventListener("click", ask("ban"));
   $("tell").addEventListener("click", () => { const tg = target(); const text = $("tell-text").value.trim(); if (tg && text) { op({ op: "tell", target: tg, text }); $("tell-text").value = ""; } });
   $("say").addEventListener("click", () => { const text = $("say-text").value.trim(); if (text) { op({ op: "say", text }); $("say-text").value = ""; } });
-  $("clock-go").addEventListener("click", () => { const v = $("clock").value; if (/^\d\d:\d\d$/.test(v)) { const [h, m] = v.split(":").map(Number); op({ op: "clock", seconds: h * 3600 + m * 60 }); } });
+  $("clock-go").addEventListener("click", () => {
+    const v = $("clock").value.trim();
+    // HTML time controls can emit HH:MM or HH:MM:SS; require valid 24-hour
+    // civil time. Send an absolute time, never an incremental clock shift.
+    if (!/^\d{2}:\d{2}(?::\d{2})?$/.test(v)) return;
+    const [h, m, s = 0] = v.split(":").map(Number);
+    if (h > 23 || m > 59 || s > 59) return;
+    op({ op: "clock", seconds: h * 3600 + m * 60 + s });
+  });
   $("hour-back").addEventListener("click", () => op({ op: "shift", seconds: -3600 }));
   $("hour-on").addEventListener("click", () => op({ op: "shift", seconds: 3600 }));
   $("speed-go").addEventListener("click", () => op({ op: "speed", factor: Number($("speed").value) }));

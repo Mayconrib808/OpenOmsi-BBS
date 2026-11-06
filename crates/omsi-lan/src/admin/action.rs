@@ -126,8 +126,20 @@ impl Action {
             "goto" => Action::Goto(id()?),
             "bringall" => Action::BringAll,
             "time" => Action::Time(finite(arg)?.clamp(-86400.0, 86400.0)),
-            "speed" => Action::Speed(finite(arg)?.clamp(1.0, 30.0)),
-            "clock" => Action::Clock(finite(arg)?.rem_euclid(86400.0)),
+            "speed" => Action::Speed(finite(arg)?.clamp(1.0, 32.0)),
+            "clock" => Action::Clock(if arg.contains(':') {
+                let fields: Vec<_> = arg.split(':').collect();
+                if !(2..=3).contains(&fields.len()) || fields.iter().any(|v| v.len() != 2 || !v.chars().all(|c| c.is_ascii_digit())) {
+                    return None;
+                }
+                let h: u32 = fields[0].parse().ok()?;
+                let m: u32 = fields[1].parse().ok()?;
+                let s: u32 = if fields.len() == 3 { fields[2].parse().ok()? } else { 0 };
+                if h >= 24 || m >= 60 || s >= 60 { return None; }
+                (h * 3600 + m * 60 + s) as f64
+            } else {
+                finite(arg)?.rem_euclid(86400.0)
+            }),
             "weather" => Action::Weather(match arg.trim().split_once(' ').map(|(a, b)| (a, b.trim())).unwrap_or((arg.trim(), "")) {
                 ("cycle", _) => WeatherAction::Cycle,
                 ("set", file) => WeatherAction::Set(file.to_string()),
@@ -293,6 +305,12 @@ mod tests {
         assert_eq!(Action::parse("time 999999"), Some(Action::Time(86400.0)));
         assert_eq!(Action::parse("speed 0.5"), Some(Action::Speed(1.0)));
         assert_eq!(Action::parse("clock 90000"), Some(Action::Clock(3600.0)));
+        assert_eq!(Action::parse("clock 14:37:05"), Some(Action::Clock(52625.0)));
+        assert_eq!(Action::parse("clock 00:00:00"), Some(Action::Clock(0.0)));
+        assert_eq!(Action::parse("clock 23:59:59"), Some(Action::Clock(86399.0)));
+        assert_eq!(Action::parse("clock 24:01:00"), None);
+        assert_eq!(Action::parse("clock 16:70:00"), None);
+        assert_eq!(Action::parse("speed 32"), Some(Action::Speed(32.0)));
         assert_eq!(Action::parse("time NaN"), None, "NaN would stop everybody's clock");
         assert_eq!(Action::parse("weather cycle"), Some(Action::Weather(WeatherAction::Cycle)));
         assert_eq!(Action::parse("weather set Weather/Rain.owt"), Some(Action::Weather(WeatherAction::Set("Weather/Rain.owt".into()))));

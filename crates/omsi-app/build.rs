@@ -4,6 +4,12 @@
 
 fn main() {
     println!("cargo:rerun-if-env-changed=OPENOMSI_VERSION");
+    // OpenXR's statically built loader is C++; the GNU cross build must link its
+    // runtime explicitly (MSVC's loader already carries the corresponding directives).
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows")
+        && std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("gnu") {
+        println!("cargo:rustc-link-lib=stdc++");
+    }
     windows_icon();
     steam();
     // (the executable exports the two switchable-graphics hints of main.rs, see there)

@@ -84,6 +84,15 @@ pub const TICKET_BUY: u8 = 3;
 /// One passenger's state: the fields of the original's human the tasks use.
 #[derive(Debug, Clone)]
 pub struct Pax {
+    /// A selected medical patient keeps their seat until transfer or scene cancellation.
+    pub(crate) responder_hold: bool,
+    pub(crate) inspector: bool,
+    pub(crate) door_reaction_wait: f32,
+    pub(crate) door_reaction_cooldown: f32,
+    pub(crate) reaction_door_was_open: bool,
+    pub(crate) reaction_stop: Option<DVec3>,
+    pub(crate) reaction_exit: Option<usize>,
+    pub(crate) reaction_missed_spoken: bool,
     pub task: Task,
     /// Movement state +0x6c4: 0 stand, 1 to the target, 2 0.7 m short of it, 3 there, 5
     /// along the paths, 6 0.7 m short of the path's end, 7 at the path's end, 9 turning on
@@ -113,10 +122,10 @@ pub struct Pax {
     /// (`DOOR_GIVE_UP`), and the bus they then left standing: not walked to again before it
     /// opens a door.
     pub door_since: Option<f64>,
+    /// Arrival time at the stop for independent-demand abandonment.
+    pub demand_arrived_at: Option<f64>,
     pub shunned: Option<BusId>,
-    /// Prevent immediate re-boarding of the vehicle just left.
     pub transfer_from: Option<BusId>,
-    /// Bound connections for the lifetime of this passenger.
     pub transfer_count: u8,
     /// Walking to a door from outside (+0x5d0): keep 0.5 m off the bus side
     /// (`clamp_x`, +0x5cc) unless the door is open (+0x5d1) and they are level with it;
@@ -131,6 +140,10 @@ pub struct Pax {
     /// (+0x60c, km).
     pub dest: Option<String>,
     pub line: Option<usize>,
+    /// A host-owned passenger was granted with a line key this client cannot
+    /// resolve. Keep their exact destination and require proof from a public
+    /// duty, rather than treating them as an unrestricted no-line passenger.
+    pub host_destination: bool,
     pub alt: Option<String>,
     pub alt_seen: bool,
     pub alt_m: f32,
@@ -209,6 +222,9 @@ pub struct Pax {
 impl Pax {
     pub fn new(walk_speed: f32, stop_request_random: f64) -> Pax {
         Pax {
+            responder_hold: false,
+            inspector: false,
+            door_reaction_wait: 0.0, door_reaction_cooldown: 0.0, reaction_door_was_open: false, reaction_stop: None, reaction_exit: None, reaction_missed_spoken: false,
             task: Task::Nothing,
             st: 0,
             inside: None,
@@ -224,6 +240,7 @@ impl Pax {
             pt_target: None,
             short: false,
             door_since: None,
+            demand_arrived_at: None,
             shunned: None,
             transfer_from: None,
             transfer_count: 0,
@@ -233,6 +250,7 @@ impl Pax {
             clamp_x: -1e9,
             dest: None,
             line: None,
+            host_destination: false,
             alt: None,
             alt_seen: false,
             alt_m: 0.0,
@@ -698,14 +716,23 @@ pub fn fit(id: i64, stop: &PaxStop, dest: Option<&str>, termini: &HashSet<String
     if termini.contains(terminus.trim()) || without_route(terminus).is_some_and(|t| termini.contains(t)) {
         return Some(Fit::Terminus);
     }
-    let Takes::Duty { trip, next, done: false } = takes else { return None };
+    let Takes::Duty { trip, done: false, .. } = takes else { return None };
     if !trip.public {
         return None;
     }
     if termini.contains(&trip.terminus) {
         return Some(Fit::Duty);
     }
+    duty_destination_fit(id, stop, dest, takes)
+}
+
+/// The timetable proves that this exact passenger destination is still ahead.
+/// Useful when a LAN host's line key has no equivalent in the local stop table.
+pub(super) fn duty_destination_fit(id: i64, stop: &PaxStop, dest: Option<&str>, takes: &Takes) -> Option<Fit> {
+    let Takes::Duty { trip, next, done: false } = takes else { return None };
+    if !trip.public { return None; }
     let dest = dest?.trim();
+    if dest.is_empty() { return None; }
     // this stop where the trip still calls at it (from the one before the stop the duty is
     // due at: it counts a stop served 35 m on), and their destination after it
     let here = (next.saturating_sub(1)..trip.stops.len()).find(|k| {

@@ -39,9 +39,7 @@ impl App {
         crate::weather_setup::publish_page_weather(&to);
         self.session.weather=Some(to);
         if clouds_changed{
-            if let (Some(r),Some(scene))=(self.renderer.as_ref(),self.scene.as_mut()){
-                crate::weather_setup::setup_sky(&self.args,r,scene,self.session.envir.as_ref(),self.session.weather.as_ref(),&mut self.session.sky.clouds);
-            }
+            self.session.sky.request(&self.args,self.session.envir.as_ref(),self.session.weather.as_ref());
         }
         self.follow_date();
         if let Some(l)=self.net.lan.as_mut().filter(|l|l.role==omsi_net::Role::Host){l.set_weather(&spec);}
@@ -110,9 +108,7 @@ impl App {
                 self.session.weather_blend = None;
             }
             if clouds_changed {
-                if let (Some(r), Some(scene)) = (self.renderer.as_ref(), self.scene.as_mut()) {
-                    crate::weather_setup::setup_sky(&self.args, r, scene, self.session.envir.as_ref(), self.session.weather.as_ref(), &mut self.session.sky.clouds);
-                }
+                self.session.sky.request(&self.args,self.session.envir.as_ref(),self.session.weather.as_ref());
             }
         }
         // the physical model goes on with the clock (unless a change is coming in)
@@ -121,9 +117,7 @@ impl App {
                 let kind_changed = self.session.weather.as_ref().is_none_or(|old| old.clouds.0 != w.clouds.0);
                 self.session.weather = Some(w);
                 if kind_changed {
-                    if let (Some(r), Some(scene)) = (self.renderer.as_ref(), self.scene.as_mut()) {
-                        crate::weather_setup::setup_sky(&self.args, r, scene, self.session.envir.as_ref(), self.session.weather.as_ref(), &mut self.session.sky.clouds);
-                    }
+                    self.session.sky.request(&self.args,self.session.envir.as_ref(),self.session.weather.as_ref());
                 }
             }
         }

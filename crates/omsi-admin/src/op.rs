@@ -252,7 +252,7 @@ impl Op {
                 Op::Clock(s % 86_400.0)
             }
             "shift" => Op::Shift(in_range("seconds", -86_400.0, 86_400.0)?),
-            "speed" => Op::Speed(in_range("factor", 1.0, 30.0)?),
+            "speed" => Op::Speed(in_range("factor", 1.0, 32.0)?),
             "weather" => match v.get("file").and_then(Value::as_str) {
                 Some(f) if weather_file_ok(f) => Op::Weather(WeatherOp::Set(f.replace('\\', "/"))),
                 Some(_) => return Err("\"file\": a Weather/….owt file".into()),
@@ -346,7 +346,7 @@ mod tests {
             json!({"op": "clock", "seconds": -1}),
             json!({"op": "clock", "seconds": "08:00"}),
             json!({"op": "speed", "factor": 0.5}),
-            json!({"op": "speed", "factor": 31}),
+            json!({"op": "speed", "factor": 33}),
             json!({"op": "weather", "file": "Weather/../server.cfg"}),
             json!({"op": "weather"}),
             json!({"op": "traffic", "density": 121}),

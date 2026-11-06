@@ -138,6 +138,7 @@ mod tests {
                 viewpoint: 0,
                 skin: Vec::new(),
                 keep_winding: false,
+                pick_geometry: Default::default(),
             })
             .collect();
         VehicleInstance::new(std::sync::Arc::new(ty), crate::host::VehicleHost::new(Default::default()))
