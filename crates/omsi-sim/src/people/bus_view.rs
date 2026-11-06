@@ -9,6 +9,7 @@ use super::*;
 /// The player's bus as the people see it this frame.
 #[derive(Debug, Clone)]
 pub struct PlayerBusView {
+    pub wheelchair_feedback: wheelchair::Feedback,
     pub position: DVec3,
     pub heading: f64,
     /// `VehicleInstance::body_rotation`.
@@ -86,6 +87,7 @@ impl PeopleSim {
             SetRoute::from_depot(hof, r.round() as usize, at)
         });
         PlayerBusView {
+            wheelchair_feedback: self.wheelchairs.feedback_from(v),
             position: v.position,
             heading: v.heading,
             rot: v.body_rotation(),

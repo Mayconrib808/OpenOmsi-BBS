@@ -1,0 +1,50 @@
+name: Validate 2.2.2.1 physical illegal parking
+on:
+  push:
+    branches: [feature/2221-real-temporary-illegal-parking]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: verify-2221-real-parking-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.1-dev
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: 2221-real-parking
+      - name: AI, temporary parking and optional-config regression tests
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim illegal_parking::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Illegal parking tests failed' }
+          cargo test --locked --release -p omsi-sim bus_stop_overtake_safety_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Bus overtaking safety tests failed' }
+          cargo test --locked --release -p omsi-sim greetings::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Greetings tests failed' }
+          cargo test --locked --release -p omsi-sim ambient_talk::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Ambient talk tests failed' }
+          cargo test --locked --release -p omsi-cfg optional_features::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Optional settings failed' }
+          node --test launcher/tests/optional-features.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher settings failed' }
+      - name: Compile OpenOMSI native Windows client and host
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Native game compilation failed' }
+          & .\\target\\release\\openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Native binary startup failed' }

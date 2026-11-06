@@ -426,14 +426,7 @@ impl Player {
 
 /// A sun blind can be left at any position, including after a very short drag. Treating
 /// its drag-only click spot as a toggle turned a small adjustment into full travel.
-fn auto_drag_click(event: &str, plain: bool, movement: f32) -> bool {
-    let event = event.to_ascii_lowercase().replace(['_', '-'], "");
-    !plain
-        && movement < 4.0
-        && !["rollo", "sunblind", "sonnenblende"]
-            .iter()
-            .any(|name| event.contains(*name))
-}
+use crate::mouse_control::auto_drag_click;
 
 #[cfg(test)]
 mod roller_blind_tests {
@@ -569,59 +562,14 @@ mod roller_blind_tests {
     }
 }
 
-/// See `Player::auto_drag`.
-#[derive(Debug, Clone)]
-pub(crate) struct AutoDrag {
-    ev: String,
-    var: String,
-    target: f32,
-    /// The mouse axis (0 x, 1 y) and direction that move it towards the target.
-    axis: usize,
-    sign: f32,
-    last: f32,
-    stalled: u32,
-    t: f32,
-}
+pub(crate) use crate::mouse_control::AutoDrag;
 
 impl Player {
-    /// Drag a clicked drag-only control (see `auto_drag`) a step towards its other end.
     pub(crate) fn tick_auto_drag(&mut self, dt: f32) {
-        let Some(mut a) = self.auto_drag.take() else { return };
-        let now = self.vehicle.var(&a.var).unwrap_or(a.last);
-        a.t += dt;
-        if (now - a.target).abs() < 0.03 || a.t > 2.5 {
-            self.vehicle.trigger(&format!("{}_off", a.ev));
-            return;
-        }
-        // moved away from the target, or not at all: another direction, then the other axis
-        let towards = (a.target - a.last).signum();
-        let moved = now - a.last;
-        if a.t > 0.05 {
-            if moved * towards < -1e-4 {
-                a.sign = -a.sign;
-            } else if moved.abs() < 1e-4 {
-                a.stalled += 1;
-                if a.stalled == 3 {
-                    a.sign = -a.sign;
-                } else if a.stalled == 6 {
-                    a.axis = 1 - a.axis;
-                } else if a.stalled == 9 {
-                    a.sign = -a.sign;
-                } else if a.stalled > 12 {
-                    self.vehicle.trigger(&format!("{}_off", a.ev));
-                    return;
-                }
-            } else {
-                a.stalled = 0;
+        if let Some(mut control) = self.auto_drag.take() {
+            if control.step(&mut self.vehicle, dt) {
+                self.auto_drag = Some(control);
             }
-        }
-        a.last = now;
-        let step = 900.0 * dt.min(0.05) * a.sign;
-        self.vehicle.host.mouse = if a.axis == 0 { (step, 0.0) } else { (0.0, step) };
-        let exists = self.vehicle.trigger(&format!("{}_drag", a.ev));
-        self.vehicle.host.mouse = (0.0, 0.0);
-        if exists {
-            self.auto_drag = Some(a);
         }
     }
 }

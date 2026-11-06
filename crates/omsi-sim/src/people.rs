@@ -53,10 +53,13 @@ use std::sync::Arc;
 // The simulation: the people and what they do. It does not draw: what the renderer has to
 // follow it writes down (`bodies`), and omsi-app's `humans` view replays that at the end
 // of the public calls that make people (`tick`, `populate`, `avatar`, ...).
+pub mod wheelchair;
 pub mod model;
 pub mod cabin;
 pub mod pednet;
 pub mod spawn;
+pub mod demand;
+pub mod clothing;
 pub mod populate;
 pub mod buses;
 pub mod door_requests;
@@ -78,6 +81,11 @@ pub mod runners;
 pub mod ticket_hook;
 // What the renderer has to follow, the money on the desk and what the people need of the map.
 pub mod bodies;
+pub mod inspector;
+mod reactions;
+mod ambient_talk;
+mod dialog;
+pub use dialog::PassengerDialog;
 pub mod pose_facts;
 pub mod money;
 pub mod world;
@@ -110,6 +118,8 @@ pub use money::Money;
 pub use pose_facts::PoseFacts;
 pub use pax::DutyTrip;
 pub use ticket_hook::{TicketAsk, TicketChange};
+/// Local cash-desk policy. -1 follows the map's untouched ticket pack.
+pub static TICKET_CHANCE_PERCENT: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(-1);
 pub use world::World;
 
 /// The map's traffic keeps left (its stops are on the left): see the doors of `Cabin`.

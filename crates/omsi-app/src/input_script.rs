@@ -130,6 +130,15 @@ impl App {
             let ctrl = self.input.keys.contains(&KeyCode::ControlLeft) || self.input.keys.contains(&KeyCode::ControlRight);
             let alt = self.input.keys.contains(&KeyCode::AltLeft) || self.input.keys.contains(&KeyCode::AltRight);
             let shift_now = self.input.keys.contains(&KeyCode::ShiftLeft) || self.input.keys.contains(&KeyCode::ShiftRight);
+            // On foot as an authorized conductor, Shift+T collects the owner's
+            // passenger payment through the acknowledged cooperative protocol.
+            // Do not require a local driver vehicle or consume the driver's keys.
+            if pressed && !repeat && code == KeyCode::KeyT && shift_now && !ctrl && !alt
+                && self.coop_collect_payment()
+            {
+                return;
+            }
+            if self.shared_drive_key(code, pressed, repeat) { return; }
             // This editable action must reach the walker before its keys consume
             // S (or any key the player assigned), including bindings without modifiers.
             if pressed && !repeat && self.passenger_request_key(code, shift_now, ctrl, alt) {
@@ -569,8 +578,8 @@ impl App {
             // (F1-F4 where keyboard.cfg has no view keys; a key the player gave to
             // something else, or a view key moved elsewhere, leaves them alone, #701)
             match code {
-                KeyCode::F1 if self.input.key_left_free(code, "view_set_driver") => self.view = "driver".into(),
-                KeyCode::F2 if self.input.key_left_free(code, "view_set_passenger") => self.view = "pax".into(),
+                KeyCode::F1 if self.input.key_left_free(code, "view_set_driver") => self.select_cabin_view(true),
+                KeyCode::F2 if self.input.key_left_free(code, "view_set_passenger") => self.select_cabin_view(false),
                 KeyCode::F3 if self.input.key_left_free(code, "view_set_outside") => self.view = "outside".into(),
                 KeyCode::F4 if self.input.key_left_free(code, "view_set_map") => {
                     // the free camera starts where the current view is looking
@@ -1186,8 +1195,10 @@ impl App {
     /// focus again the mouse and the keyboard work nothing (see `input_away`). A game
     /// controller's axes stay theirs.
     pub(crate) fn input_lost(&mut self) {
+        self.drive_lost_focus();
         self.input.input_away = true;
-        self.release_vehicle_keys();
+        // The local window losing focus must not release the visiting driver's keys.
+        if !self.net.coop.drive.owner_active() { self.release_vehicle_keys(); }
         self.input.keys.clear();
         let precise_release = self.vr_active();
         if let Some(p) = self.player.as_mut() {

@@ -169,6 +169,8 @@ struct Sender {
     next: u64,
     queue: VecDeque<Tx>,
     full: bool,
+    credit: f32,
+    dropped: u64,
 }
 struct Assembly {
     size: usize,
@@ -204,8 +206,9 @@ impl Sync {
         for &peer in peers {
             let s = self.tx.entry(peer).or_default();
             if s.queue.len() >= 512 {
-                if !std::mem::replace(&mut s.full, true) {
-                    log::warn!("LAN sound events awaiting acknowledgement from {peer}: queue full");
+                s.dropped = s.dropped.saturating_add(1);
+                if !std::mem::replace(&mut s.full, true) || s.dropped.is_power_of_two() {
+                    log::warn!("LAN sound events awaiting acknowledgement from {peer}: queue full ({} dropped)", s.dropped);
                 }
                 continue;
             }
@@ -227,7 +230,13 @@ impl Sync {
     pub fn tick(&mut self, proto: u8, me: u32, dt: f32) -> Vec<Vec<u8>> {
         let mut out = Vec::new();
         for (&peer, s) in &mut self.tx {
-            let mut budget = 128;
+            // Account for retry traffic as well as first sends. A burst of
+            // thousands of sound packets must not starve poses or admission.
+            s.credit = (s.credit + dt.max(0.0) * 128.0).min(64.0);
+            if s.next != 0 && s.queue.front().is_some_and(|t| t.seq == 1 && t.wait == 0.0) {
+                s.credit = s.credit.max(8.0);
+            }
+            let mut budget = s.credit.floor() as usize;
             let first = s.queue.front().map(|t| t.seq).unwrap_or(0);
             for t in &mut s.queue {
                 if t.seq >= first + WINDOW || budget < t.data.len().div_ceil(CHUNK) {
@@ -239,7 +248,9 @@ impl Sync {
                 }
                 t.wait = (RESEND.0 * 2f32.powi(t.tries.min(8) as i32)).min(RESEND.1);
                 t.tries += 1;
-                budget -= t.data.len().div_ceil(CHUNK);
+                let cost = t.data.len().div_ceil(CHUNK);
+                budget -= cost;
+                s.credit -= cost as f32;
                 for (part, data) in t.data.chunks(CHUNK).enumerate() {
                     let mut v = header(proto, me, peer, self.epoch, t.seq, false);
                     v[28..30].copy_from_slice(&(part as u16).to_le_bytes());
@@ -369,6 +380,25 @@ mod tests {
         }
         assert!(b.take_incoming().is_empty());
         assert!(a.tick(11, 1, 1.0).is_empty());
+    }
+    #[test]
+    fn coop13_sound_flood_is_paced_and_eventually_drains_with_acks() {
+        let mut a = Sync::default();
+        let mut b = Sync::default();
+        for i in 0..256 { a.publish(&[2], event(&format!("door-{i}"), None)); }
+        let mut count = 0;
+        let mut max_burst = 0;
+        for frame in 0..600 {
+            let packets = a.tick(15, 1, if frame == 0 { 0.0 } else { 1.0/60.0 });
+            max_burst = max_burst.max(packets.len());
+            for packet in packets {
+                if let Some(ack) = b.receive(15, 2, &packet) { a.receive(15, 1, &ack); }
+            }
+            count += b.take_incoming().len();
+        }
+        assert_eq!(count, 256);
+        assert!(max_burst <= 8, "sound backlog flooded a frame with {max_burst} packets");
+        assert!(a.tick(15, 1, 1.0).is_empty());
     }
     #[test]
     fn an_unacknowledged_event_is_sent_again_ever_less_often() {

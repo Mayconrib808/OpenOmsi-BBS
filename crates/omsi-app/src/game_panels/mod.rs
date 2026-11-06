@@ -13,8 +13,12 @@ use omsi_plugin::ui::{Align, Element, Kind, Panel, Rgba, RowAlign, UiState, Weig
 use omsi_ui::theme::Palette;
 
 mod dest_form;
+pub(crate) use dest_form::{DestForm, set_local as apply_shared_destination, open as open_shared_destination};
+mod coop_panel;
+mod character_panel;
 mod multiplayer;
 mod move_here;
+mod wheelchair;
 pub(crate) mod radio_panel;
 pub(crate) use dest_form::open as open_dest_form;
 pub(crate) use move_here::ask as ask_move;
@@ -39,6 +43,7 @@ pub(crate) struct GamePanels {
     /// Alt is down and nothing else has been pressed with it: let go, it opens the quick menu.
     alt_alone: bool,
     pub(crate) quick: Option<quick_menu::QuickMenu>,
+    pub(crate) wheelchair: bool,
     pub(crate) trip: Option<trip_summary::TripPanel>,
     pub(crate) dest: Option<dest_form::DestForm>,
     pub(crate) multiplayer: Option<multiplayer::Multiplayer>,
@@ -51,7 +56,7 @@ pub(crate) struct GamePanels {
 impl GamePanels {
     /// Whether any panel is open.
     pub(crate) fn any(&self) -> bool {
-        self.multiplayer.is_some() || self.quick.is_some() || self.trip.is_some() || self.dest.is_some() || self.view.is_some() || self.radio.is_some() || self.move_to.is_some()
+        self.wheelchair || self.multiplayer.is_some() || self.quick.is_some() || self.trip.is_some() || self.dest.is_some() || self.view.is_some() || self.radio.is_some() || self.move_to.is_some()
     }
 
     /// Whether the panels have the mouse.
@@ -138,6 +143,8 @@ impl crate::App {
             let el = c.element.as_deref().unwrap_or("");
             match c.panel.as_str() {
                 "quick" => quick_menu::click(self, el),
+                "wheelchair" => wheelchair::click(self, el),
+                "coop" => coop_panel::click(self, el),
                 "trip" => trip_summary::click(self, el),
                 "dest" => dest_form::click(self, el),
                 "multiplayer" => multiplayer::click(self, el),
@@ -149,6 +156,7 @@ impl crate::App {
         }
         for c in changes {
             match c.panel.as_str() {
+                "coop" => character_panel::change(self, &c.element, &c.value),
                 "view" => view_editor::change(self, &c.element, &c.value),
                 "dest" => dest_form::change(self, &c.element, &c.value),
                 "multiplayer" => {},
@@ -181,11 +189,14 @@ impl crate::App {
             }
         }
         let panels: Vec<(&str, Option<Panel>)> = vec![
+            ("coop_status", coop_panel::status(self)),
+            ("coop", self.net.coop.panel.then(|| coop_panel::panel(self))),
             ("view", self.menus.game_panels.view.as_ref().map(|v| v.panel(self, pal))),
             ("trip", self.menus.game_panels.trip.as_ref().map(|t| t.panel(pal))),
             ("dest", self.menus.game_panels.dest.as_ref().map(|d| d.panel(pal))),
             ("multiplayer", self.menus.game_panels.multiplayer.as_ref().map(|f| f.panel(self, pal))),
             ("quick", self.menus.game_panels.quick.as_ref().map(|q| q.panel(self))),
+            ("wheelchair", self.menus.game_panels.wheelchair.then(||wheelchair::panel(self,pal))),
             ("move", self.menus.game_panels.move_to.map(|at| move_here::panel(at, pal))),
             ("radio", self.menus.game_panels.radio.as_ref().map(|r| r.panel(self, pal))),
         ];
@@ -200,10 +211,14 @@ impl crate::App {
                 }
             }
         }
+        let coop_height = self.net.coop.panel.then(|| 80.0 + coop_panel::panel(self).children.len() as f32 * 43.0);
         let clean = self.clean_screen_shown();
         let (Some(r), Some(scene)) = (self.renderer.as_ref(), self.scene.as_mut()) else { return };
         let dpi = self.window.as_ref().map_or(1.0, |w| w.scale_factor() as f32);
         let mut size = crate::ui::size_factor(hud[3], dpi, self.settings.ui_scale, self.settings.ui_scale_window);
+        if let Some(estimate) = coop_height {
+            size = size.min(hud[2] * 0.94 / (460.0 * dpi)).min(hud[3] * 0.94 / (estimate * dpi));
+        }
         // (the trip's summary shrinks to fit a small screen - a phone - rather than spill off it)
         if let Some((w, h)) = self.menus.game_panels.trip.as_ref().map(|t| t.extent()) {
             size = size.min(hud[2] * 0.96 / (w * dpi)).min(hud[3] * 0.96 / (h * dpi));
@@ -225,7 +240,7 @@ impl crate::App {
         let gp = &mut self.menus.game_panels;
         gp.draw.frame(r, scene, &mut gp.ui, &frame);
         // (the mouse is the panels' while one is open and shown)
-        let open = gp.any();
+        let open = gp.any() || self.net.coop.panel;
         if open != gp.ui.focused() {
             gp.ui.set_focus(GAME, open);
         }
@@ -236,14 +251,21 @@ impl crate::App {
 
     /// Whether the game's panels have the mouse.
     pub(crate) fn game_panels_mouse(&self) -> bool {
-        self.menus.game_panels.focused()
+        let gp = &self.menus.game_panels;
+        if !gp.focused() { return false; }
+        if self.net.coop.panel && !gp.any() {
+            let (x, y) = self.input.cursor;
+            return gp.slider.is_some() || gp.ui.typing().is_some()
+                || gp.draw.press_at(&gp.ui, x, y).is_some();
+        }
+        true
     }
 
     pub(crate) fn game_panel_touch(&mut self, x: f32, y: f32) -> bool {
+        self.input.cursor = (x, y);
         if !self.game_panels_mouse() {
             return false;
         }
-        self.input.cursor = (x, y);
         self.game_panel_click(true)
     }
 
@@ -319,12 +341,13 @@ impl crate::App {
     /// Esc: the panel on top closes (the quick menu, the question, the form, the summary,
     /// the view editor - which keeps what was set without saving it). True when one did.
     pub(crate) fn close_game_panel(&mut self) -> bool {
+        if std::mem::take(&mut self.net.coop.panel) { return true; }
         if self.menus.game_panels.multiplayer.take().is_some() {
             self.net.room.cancel();
             return true;
         }
         let gp = &mut self.menus.game_panels;
-        if gp.quick.take().is_some() || gp.move_to.take().is_some() || gp.dest.take().is_some() || gp.trip.take().is_some() || gp.radio.take().is_some() {
+        if std::mem::take(&mut gp.wheelchair) || gp.quick.take().is_some() || gp.move_to.take().is_some() || gp.dest.take().is_some() || gp.trip.take().is_some() || gp.radio.take().is_some() {
             return true;
         }
         if gp.view.is_some() {

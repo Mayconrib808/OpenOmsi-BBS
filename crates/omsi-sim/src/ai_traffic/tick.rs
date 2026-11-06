@@ -40,6 +40,7 @@ type BodyWork<'a> = (
     &'a mut f32,
     &'a mut super::scenery::SceneryGuard,
     &'a mut f32,
+    Option<(DVec3,f64)>,
 );
 
 /// A worker more helps with the cars' bodies and scripts per this much of their work (s,
@@ -58,9 +59,14 @@ fn step_body(net: &Network, dt: f32, scripts: bool, profile: bool, w: &mut BodyW
         record_rail_trail(trail, state.odometer as f64, state.way_point(net, 0.0));
     }
     let trail = &*trail;
+    if w.8.is_some(){state.speed=0.0;frame.speed=0.0;}
     let behind = |d: f64| rail_behind(trail, state, net, d);
     // (watched near the scenery, and where it got to for the planner's next step)
-    let link = guard.step(
+    let link = if let Some((at,heading))=w.8 {
+        let a=heading.to_radians();let f=DVec3::new(a.sin(),a.cos(),0.0);
+        body.place(&|d|at+f*d as f64,ground.as_ref().map(|g|g.as_ref()as &dyn Fn(f64,f64)->Option<f64>),contact.as_deref(),0.0);
+        crate::traffic::BodyLink::default()
+    }else{guard.step(
         body,
         (state, net, dt),
         &|d| if rail && d < 0.0 { behind(-d as f64) } else { state.way_point(net, d) },
@@ -68,7 +74,7 @@ fn step_body(net: &Network, dt: f32, scripts: bool, profile: bool, w: &mut BodyW
             .as_ref()
             .map(|g| g.as_ref() as &dyn Fn(f64, f64) -> Option<f64>),
         contact.as_deref(),
-    );
+    )};
     body.apply(vehicle);
     if rail && !vehicle.trailers.is_empty() {
         // the coupled cars (a train's, a tram's sections) on the track it
@@ -135,6 +141,20 @@ impl TrafficSim {
         self.held_at_red = 0;
         self.player_turn = player_turn_of(self.player_turn, self.player, player, dt);
         self.player = player;
+        // One press of the player's horn gets one response. Holding the key
+        // never queues more reactions every frame.
+        if self.player_horn && !self.player_horn_prev {
+            if let Some((pos, _, _, _, _)) = player {
+                for car in &mut self.cars {
+                    if (car.vehicle.position - pos).length() <= 35.0 {
+                        if let Some((state, _)) = car.temporary_park.as_mut() {
+                            state.hear_horn(self.time, car.seed);
+                        }
+                    }
+                }
+            }
+        }
+        self.player_horn_prev = self.player_horn;
         // (refilled, not made anew: fifty times a second, for every car)
         self.geo_prev.clear();
         self.geo_prev.extend(self.cars.iter_mut().map(|c| c.geo_block.take()));
@@ -208,6 +228,8 @@ impl TrafficSim {
         let mut coming: HashMap<usize, Vec<(usize, f32)>> = HashMap::new();
         let mut reservations = ClaimBook::default();
         for (i, c) in self.cars.iter().enumerate() {
+            // A pavement responder has an actual off-road footprint, not a reservation on its former road.
+            if c.response.as_ref().is_some_and(|d|d.parked.is_some()){continue;}
             by_lane
                 .entry(c.state.lane)
                 .or_default()
@@ -232,6 +254,16 @@ impl TrafficSim {
                     .entry(ch.to)
                     .or_default()
                     .push((i, ch.s_to, 0.0, false));
+            }
+            if let Some(p) = c.bus_lane_pass {
+                // While a bus is temporarily occupying a same-direction lane,
+                // reserve both its timetable route lane and the passing lane.
+                // The other vehicles see a real leader in their normal traffic
+                // occupancy, not an invisible visual-only sideways animation.
+                if c.state.lateral.abs() > 0.6 || c.state.lateral_target.abs() > 0.6 {
+                    let s_to = self.net.beside_s(c.state.lane,p.target_lane,c.state.s);
+                    by_lane.entry(p.target_lane).or_default().push((i,s_to,0.0,false));
+                }
             }
             if let Some(p) = c.passing {
                 // Out on the oncoming lane: the traffic there stops short of the place where
@@ -952,12 +984,13 @@ impl TrafficSim {
         let parked_wait = (self.cars[i].pull_out > 0.0).then(|| self.cars[i].state.front + 0.1);
         // the player's bus indicating out of its stop
         let let_out = self.player.and_then(|p| self.letting_out(i, &p)).map(|g| self.cars[i].state.front + (g - 1.0).max(0.0));
-        let stop_at = [light, yield_at, merge_wait, keep_back, people, parked_wait, let_out, make_way]
+        let response = self.response_stop(i);
+        let stop_at = [light, yield_at, merge_wait, keep_back, people, parked_wait, let_out, make_way, response]
             .into_iter()
             .flatten()
             .reduce(f32::min);
         let mut why: (&'static str, f32) = ("", f32::MAX);
-        for (name, v) in [("light", light), ("yield", yield_at), ("merge", merge_wait), ("keep_back", keep_back), ("people", people), ("pull_out", parked_wait), ("let_out", let_out), ("emergency", make_way)] {
+        for (name, v) in [("light", light), ("yield", yield_at), ("merge", merge_wait), ("keep_back", keep_back), ("people", people), ("pull_out", parked_wait), ("let_out", let_out), ("emergency", make_way), ("incident", response)] {
             if let Some(v) = v {
                 if v < why.1 {
                     why = (name, v);
@@ -988,7 +1021,7 @@ impl TrafficSim {
                 dt,
                 id: car.id,
                 stopped: car.stopped,
-                passing: car.passing.is_some(),
+                passing: car.passing.is_some() || car.bus_lane_pass.is_some(),
                 kerb_swerve,
                 debug: debug || omsi_cfg::flags::OMSI_DEBUG_PAX.is_set(),
                 timed_waits_only: self.timed_waits_only,
@@ -1007,6 +1040,12 @@ impl TrafficSim {
             stop_at = Some(stop_at.map(|x| x.min(at)).unwrap_or(at));
             if at < why.1 {
                 why = ("park", at);
+            }
+        }
+        if let Some(at) = self.plan_temporary_illegal_stop(i, ts) {
+            stop_at = Some(stop_at.map(|x| x.min(at)).unwrap_or(at));
+            if at < why.1 {
+                why = ("illegal_park", at);
             }
         }
         (stop_at, why)
@@ -1031,7 +1070,11 @@ impl TrafficSim {
                 st.route.last() == Some(&last)
             };
             let air = self.net.lanes[st.lane].kind == LaneKind::Air;
-            if exhausted && st.change.is_none() && end < 150.0 {
+            // A responder's route ends at its explicit roadside destination,
+            // not at a finished ordinary trip. Clearing it here makes
+            // response_stop reject the lost route and stop the car on the spot.
+            let responding = car.response.as_ref().is_some_and(|r| r.phase != super::response::Phase::Departing);
+            if exhausted && st.change.is_none() && end < 150.0 && !responding {
                 let service = car.bus.as_deref_mut();
                 let in_service = service
                     .as_ref()
@@ -1243,6 +1286,11 @@ impl TrafficSim {
             self.first_turner = Some((car.id, self.time));
         }
         car.state.update_blinker(&self.net);
+        if car.temporary_park.is_some_and(|(_, at)|
+            car.state.s >= at - 2.0 && car.state.speed < 0.5) {
+            // AI_Blinker_L + AI_Blinker_R are both fed when blinker == 3.
+            car.state.blinker = 3;
+        }
         if matches!(car.bus.as_ref().map(|b| b.phase), Some(Phase::Boarding | Phase::Waiting)) {
             // waiting at a stop: dark until it is about to pull away
             car.state.blinker = 0;
@@ -1301,7 +1349,7 @@ impl TrafficSim {
             .zip(frames.iter_mut())
             .filter_map(|(c, f)| {
                 let f = f.as_mut()?;
-                Some((&mut c.state, &mut c.body, &mut c.vehicle, f, &mut c.rail_trail, &mut c.ai_secs, &mut c.guard, &mut c.script_owed))
+                Some((&mut c.state, &mut c.body, &mut c.vehicle, f, &mut c.rail_trail, &mut c.ai_secs, &mut c.guard, &mut c.script_owed, c.response.as_ref().and_then(|d|d.parked)))
             })
             .collect();
         // (the slowest first, by what each took the step before: the last ones taken are
@@ -1315,6 +1363,8 @@ impl TrafficSim {
         let share = if scripts { 1.0 } else { 0.2 };
         let helpers = omsi_cfg::par::helpers_for(total as f64 * share, BODY_SECS_PER_HELPER);
         omsi_cfg::par::frame_each(&mut work, helpers, |w| step_body(net, dt, scripts, profile, w));
+        drop(work);
+        self.apply_response_signals();
     }
 
     /// The debug output of a tick (`OMSI_DEBUG_TRAILERS`, `OMSI_DEBUG_TRAFFIC`,

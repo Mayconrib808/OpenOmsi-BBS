@@ -14,6 +14,7 @@
 // expects it; `also` is saved alongside.
 
 import { t } from '../i18n.js';
+import { optionalRows } from './optional-features.js';
 
 // --- value formats ---------------------------------------------------------------------
 
@@ -368,16 +369,22 @@ const gameplay = {
       title: 'Passengers',
       rows: [
         { type: 'select', key: 'boarding', label: 'Boarding', options: [['auto', 'Pay and take the ticket'], ['pay', 'The driver sells the ticket'], ['walk', 'Just walk in']] },
-        { type: 'select', key: 'standing_chance', label: 'Standing passengers', options: [['0', 'Never'], ['5', '5%'], ['10', '10%'], ['25', '25%'], ['50', '50%'], ['100', 'Always']] },
+        ...optionalRows(false),
+        { type: 'toggle', key: 'ticket_chance_enabled', label: 'Override ticket purchase chance', help: 'How passengers get their tickets' },
+        { type: 'slider', key: 'ticket_chance_percent', label: 'Ticket purchase chance', min: -1, max: 100, step: 1, def: -1, format: (v) => v < 0 ? t('Default') : `${Math.round(v)}%`, store: round, when: (s) => s.ticket_chance_enabled },
+        { type: 'select', key: 'standing_chance' , label: 'Standing passengers', options: [['0', 'Never'], ['5', '5%'], ['10', '10%'], ['25', '25%'], ['50', '50%'], ['100', 'Always']] },
         { type: 'select', key: 'passenger_animation', label: 'Passenger animations', options: [['original', 'Original OMSI'], ['enhanced', 'Natural (procedural)']] },
+        { type: 'toggle', key: 'wheelchair_passengers', label: 'Wheelchair passengers at bus stops', help: 'Takes effect when the game starts the next time' },
+        { type: 'slider', key: 'wheelchair_spawn_percent', label: 'Wheelchair appearance chance', min: 0, max: 100, step: 1, def: 3, store: round, format: (v) => Math.round(v)+'%', help: 'Chance per new passenger; 0% stops new wheelchair arrivals' },
+        { type: 'slider', key: 'passenger_transfer_percent', label: 'Connection chance', min: 0, max: 100, step: 1, def: 20, store: round, format: (v) => Math.round(v)+'%', when: (s) => !!s.passenger_connections, help: 'Probability for eligible transfers; default 20%' },
+        { type: 'toggle', key: 'passenger_umbrellas', label: 'Passenger umbrellas', help: 'Takes effect when the game starts the next time', when: (s) => s.passenger_animation === 'enhanced' },
+        { type: 'toggle', key: 'passenger_connections', label: 'Passenger connections between lines', help: 'Takes effect when the game starts the next time' },
+        { type: 'toggle', key: 'passenger_full_bus_reaction', label: 'Passengers react to full buses', help: 'Takes effect when the game starts the next time' },
+        { type: 'toggle', key: 'passenger_hailing', label: 'Passengers signal approaching buses', help: 'Takes effect when the game starts the next time', when: (s) => s.passenger_animation === 'enhanced' },
         // (drawn on this computer only; the avatars are downloaded once, about 310 MB)
         { type: 'select', key: 'character_models', label: 'Character models', options: [['original', 'Original'], ['improved', 'High quality (improved)']], help: 'High quality draws the people with the Microsoft Rocketbox avatars and their living faces, on this computer only: servers and other players keep their own. They are downloaded once (about 310 MB).' },
         { type: 'toggle', key: 'exact_fare', label: 'Passengers pay the exact fare' },
         { type: 'toggle', key: 'pax_bad_driving', label: 'Passengers react to bad driving' },
-        { type: 'toggle', key: 'passenger_connections', label: 'Passenger connections between lines', help: 'Optional onward trips in single player only; disabled in multiplayer' },
-        { type: 'slider', key: 'passenger_transfer_percent', label: 'Connection chance', min: 0, max: 100, step: 5, def: 20, format: (v) => `${v}%`, when: (s) => !!s.passenger_connections },
-        { type: 'toggle', key: 'passenger_hailing', label: 'Passengers signal approaching buses', help: 'Optional visual hailing; only effective with supported natural animations' },
-        { type: 'toggle', key: 'passenger_full_bus_reaction', label: 'Passengers react to full buses', help: 'Optional visual acknowledgement when an approaching compatible bus is at passenger capacity' },
         { type: 'toggle', key: 'pax_short_rides_stand', label: 'Short rides stand by a door', help: 'Passengers with no set stop who ride only a few kilometres take a free standing place near an exit rather than a seat' },
         { type: 'toggle', key: 'auto_announce', label: 'Arrival announcements at the stop', help: 'On depot files that keep two recordings per stop (the Chinese maps), the arrival one is played as the bus reaches the stop: the IBIS\'s next stop key, pressed as the driver would' },
         { type: 'slider', key: 'pax_density', label: 'How many passengers', min: 0, max: 2, step: 0.1, def: 1, format: pct, store: r2 },
@@ -385,6 +392,8 @@ const gameplay = {
         { type: 'toggle', key: 'full_tank', label: 'Start with a full tank' },
         { type: 'toggle', key: 'trip_summary', label: 'Trip summary' },
         { type: 'section', title: 'Traffic' },
+        ...optionalRows(true),
+        { type: 'slider', key: 'illegal_parking_frequency', label: 'Temporary illegal parking frequency', min: 0, max: 5, step: 0.1, def: 0.8, format: (v) => v.toFixed(1)+'%', store: snap(0.1), when: (s) => !!s.illegal_parking, help: 'Probability per eligible AI car/lane; 0% disables events even when the switch is on' },
         { type: 'select', key: 'ai_unsched_factor', label: 'Random traffic', options: [['25', '25%'], ['50', '50%'], ['75', '75%'], ['100', '100%'], ['150', '150%'], ['200', '200%']] },
         { type: 'select', key: 'ai_max_scheduled', label: 'Timetable vehicles', options: [['0', 'All'], ['10', 'At most 10'], ['25', 'At most 25'], ['50', 'At most 50']] },
         { type: 'select', key: 'ai_max_parked', label: 'Parked cars', options: [['-1', 'None'], ['0', 'Every space'], ['35', 'At most 35'], ['100', 'At most 100'], ['250', 'At most 250']] },

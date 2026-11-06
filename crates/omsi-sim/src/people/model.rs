@@ -158,6 +158,9 @@ pub struct Person {
     pub puppet: Option<Puppet>,
     /// LAN play: one of the host's people, drawn where the host says (`mirror_set`).
     pub remote: bool,
+    /// Seat index sent by the authoritative LAN owner for a seated mirrored rider.
+    /// Never used for local passengers or by the passenger/seat reservation logic.
+    pub remote_seat: Option<usize>,
 }
 
 impl Person {
@@ -169,6 +172,18 @@ impl Person {
     }
     pub fn inside(&self, bus: BusId) -> bool {
         matches!(self.place, Place::Bus(b, _) if b == bus)
+    }
+    /// A local passenger actually occupying a seated place in this bus. Passenger
+    /// animation comes from Pax::pax_state; Person::activity is the walker's cache
+    /// and can still say Stand while a passenger is sitting in the rendered cabin.
+    pub fn is_local_seated_passenger(&self, bus: BusId) -> bool {
+        !self.remote
+            && self.inside(bus)
+            && matches!(&self.state, State::Pax(p)
+                if !p.inspector && p.inside == Some(bus)
+                    && p.task == super::pax::Task::SittingInBus
+                    && p.seat.is_some()
+                    && p.pax_state.round() == 2.0)
     }
     pub fn label(&self) -> String {
         format!(
@@ -237,6 +252,8 @@ pub const CHAT_PAUSE: f64 = 12.0;
 pub type WallCell = (f64, Vec<(Block, f64, f64)>);
 
 pub struct PeopleSim {
+    pub wheelchairs: wheelchair::Wheelchairs,
+    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
     pub types: Vec<Arc<HumanType>>,
     pub people: Vec<Person>,
     pub rng: u64,
@@ -339,6 +356,14 @@ pub struct PeopleSim {
     pub footfalls: Vec<Footfall>,
     /// `[trafficdensity_passenger]` factor for the current hour (set by the app).
     pub density: f32,
+    /// The optional stop-arrival ledger is independent of timetable services.
+    pub stop_demand: HashMap<i64, super::demand::StopDemand>,
+    /// Event counts to prove actual optional features are running in a host-owned simulation.
+    pub demand_audit: super::demand::DemandAudit,
+    /// Climate comes from the host weather and affects only newly created skins.
+    pub climate_temp_c: f32,
+    pub climate_rain: bool,
+    pub climate_snow: bool,
     /// The clock's time of day in seconds (set by the app): day tickets sell by it.
     pub time_of_day: f64,
     /// How late the player's bus is on its duty (s; set by the app): over five minutes,
@@ -348,6 +373,8 @@ pub struct PeopleSim {
     pub root: std::path::PathBuf,
     /// What passengers said since the app last collected it (see `take_voice_lines`).
     pub voice_lines: Vec<VoiceLine>,
+    /// Bundled Brazilian recordings, present only for locale PTB.
+    pub brazilian_voice_dir: Option<std::path::PathBuf>,
     /// When each voice file was last said (seconds of `time`): OMSI keeps such a list
     /// and says a greeting or a complaint only when that
     /// very file has not been heard for 10 s - without it every boarding passenger said
@@ -358,6 +385,10 @@ pub struct PeopleSim {
     pub voices: u8,
     /// When anybody last greeted or complained (seconds of `time`).
     pub last_chat: f64,
+    /// Optional, intentionally sparse cabin exchanges; zero work when disabled.
+    pub ambient_talk_at: f64,
+    /// Person id and earliest reply time; ids remain valid across swap_remove.
+    pub ambient_talk_reply: Option<(u32, f64)>,
     /// Avatars (the player on foot, other players' walkers): key → person id, and what
     /// the game wants of each this frame.
     pub avatars: HashMap<u32, u32>,
@@ -419,12 +450,9 @@ pub struct PeopleSim {
     pub defer_populate: bool,
     /// Passengers pay the exact fare: no change is ever due.
     pub exact_fare: bool,
-    /// Percentage of eligible alighters allowed to continue as the same person.
-    /// Defaults OFF; multiplayer owner transfer is not enabled yet.
+    /// Optional share of alighting passengers who make a connection (host authority).
     pub transfer_percent: f32,
-    /// Compute visual-only boarding signals when requested by this client.
     pub visual_hailing: bool,
-    /// Optional visual-only response to an approaching full bus.
     pub visual_full_bus_reaction: bool,
     pub bad_driving: bool,
     /// How passengers board (`boarding` in the settings): `auto` - pay and take the
@@ -458,6 +486,8 @@ pub struct PeopleSim {
     pub tiles_seen: u64,
     /// LAN play: this game draws the host's people instead of its own (`lan_world`).
     pub mirror: bool,
+    /// Set only when the LAN host advertised support for taking back connections.
+    pub return_capable: bool,
     /// LAN play: where the other players are (host): people are kept around them too.
     pub lan_centers: Vec<DVec3>,
     /// A dedicated server: nobody plays at its own place (`center`, the map's camera), so
@@ -477,6 +507,8 @@ pub struct PeopleSim {
     pub claimed: HashMap<u32, f64>,
     /// The host's people waiting at a stop (client): (stop, waiting place).
     pub mirror_wait: HashMap<u32, (i64, usize)>,
+    pub mirror_connection_history: HashMap<u32,(u8,Option<BusId>)>,
+    pub mirror_hail_intent: HashMap<u32,(i64,Option<u64>,Option<usize>,Option<String>)>,
     /// How the player's bus is driven, for its riders' complaints.
     pub comfort: RideComfort,
     /// LAN play (host): the waiting people handed over to another player's bus, by stop and
@@ -550,6 +582,8 @@ pub struct VoiceLine {
     /// Who says it (the person's id): their lips move with it.
     pub speaker: u32,
     pub path: std::path::PathBuf,
+    /// A request addressed to the driver, with cabin-wide audibility.
+    pub driver_request: bool,
 }
 
 /// How much of its probability a day ticket keeps at a time of day (seconds): rising from

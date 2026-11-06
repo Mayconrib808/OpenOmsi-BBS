@@ -1,0 +1,28 @@
+name: Localize 2.2.2.1 optional illegal parking
+on:
+  push:
+    branches: [feature/2221-real-temporary-illegal-parking]
+    paths:
+      - .github/scripts/apply-2221-illegal-parking-locales.py
+      - .github/workflows/merge-2221-illegal-parking-locales.yml
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  localize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/2221-real-temporary-illegal-parking
+          persist-credentials: true
+      - name: Add setting in all 29 game languages
+        run: python .github/scripts/apply-2221-illegal-parking-locales.py
+      - name: Commit localized catalog
+        shell: bash
+        run: |
+          git add crates/omsi-app/locales/app.yml
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'i18n(2221): localize temporary illegal parking in 29 languages'
+          git push origin HEAD:feature/2221-real-temporary-illegal-parking

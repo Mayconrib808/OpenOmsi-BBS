@@ -1,6 +1,13 @@
 //! On Windows, the application icon goes into `openomsi-launcher.exe`.
 
 fn main() {
+    // When building only the cooperative game, this crate is a library dependency.
+    // Its GNU whole-archive resources would duplicate the game's icon/version.
+    // The portable package keeps the official standalone launcher binaries.
+    println!("cargo:rerun-if-env-changed=OPENOMSI_COOP_GAME_ONLY");
+    if std::env::var("OPENOMSI_COOP_GAME_ONLY").as_deref() == Ok("1") {
+        return;
+    }
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
         return;
     }

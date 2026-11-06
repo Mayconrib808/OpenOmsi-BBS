@@ -26,7 +26,7 @@ pub(crate) const PER_PAGE: usize = 15;
 const WIDTH: f32 = 5.0 * 84.0 + 4.0 * 8.0 + 2.0 * 14.0;
 
 /// The tiles: id, label, icon - in OMSI's order, five to a row, fifteen to a page.
-pub(crate) const TILES: [(&str, &str, &str); 30] = [
+pub(crate) const TILES: &[(&str, &str, &str)] = &[
     ("place", "Place a vehicle", "add"),
     ("switch", "Change vehicle", "sync_alt"),
     ("remove", "Remove vehicle", "delete"),
@@ -37,6 +37,7 @@ pub(crate) const TILES: [(&str, &str, &str); 30] = [
     ("repair", "Repair", "construction"),
     ("refuel", "Refuel", "local_gas_station"),
     ("wash", "Wash", "local_car_wash"),
+    ("wheelchair", "Wheelchair assistance", "accessible"),
     ("arrows", "Route arrows", "navigation"),
     ("time", "Time", "schedule"),
     ("weather", "Weather", "partly_cloudy_day"),
@@ -57,6 +58,7 @@ pub(crate) const TILES: [(&str, &str, &str); 30] = [
     ("endduty", "End the tour", "sports_score"),
     ("players", "Player list", "group"),
     ("admin", "Administration", "dns"),
+    ("coop", "Cooperative", "directions_bus"),
     ("radio", "Radio", "radio"),
 ];
 
@@ -78,6 +80,7 @@ fn page_tiles(page: usize) -> &'static [(&'static str, &'static str, &'static st
 
 /// A label as a name: without the dots of a menu line that opens a window.
 fn name(label: &str) -> String {
+    if label == "Cooperative" { return crate::coop::text("Cooperativo", "Cooperative", "Kooperativ").into(); }
     tr(label).trim_end_matches("...").trim_end_matches('…').to_string()
 }
 
@@ -100,7 +103,8 @@ pub(crate) struct TileState {
 impl TileState {
     pub(crate) fn of(app: &crate::App) -> TileState {
         let offered: Vec<&'static str> = app.game_menu_items().iter().map(|l| l.0).collect();
-        let mut off: Vec<&'static str> = MENU_LINES.iter().copied().filter(|id| !offered.contains(id)).collect();
+        let mut off:Vec<_>=MENU_LINES.iter().copied().filter(|id|!offered.contains(id)).collect();
+        off.extend(TILES.iter().filter(|(id,_,_)|!app.drive_menu_allowed(id)).map(|(id,_,_)|*id));
         let mut lit = Vec::new();
         if app.settings.nav_arrows {
             lit.push("arrows");
@@ -216,6 +220,11 @@ impl QuickMenu {
 
 /// Alt tapped: the menu opens (on its first page), or closes when it is open.
 pub(crate) fn toggle(app: &mut crate::App) {
+    if std::mem::take(&mut app.net.coop.panel) { return; }
+    if app.menus.game_panels.view.is_some() {
+        super::view_editor::close(app, false);
+        return;
+    }
     let gp = &mut app.menus.game_panels;
     gp.quick = match gp.quick.take() {
         Some(_) => None,
@@ -260,6 +269,9 @@ fn start(app: &mut crate::App, id: &str, mouse: bool) {
     }
     let kept = app.menus.game_panels.quick.take();
     match id {
+        "wheelchair" => app.menus.game_panels.wheelchair = true,
+        "coop" => app.net.coop.panel = true,
+        "camera" => super::view_editor::open(app),
         "dest" => super::dest_form::open(app),
         "radio" => super::radio_panel::open(app),
         "arrows" => {
@@ -425,7 +437,7 @@ mod tests {
     #[test]
     fn a_tile_that_opens_a_list_opens_the_game_menu_under_it() {
         let mut app = app();
-        for tile in ["time", "weather", "stats", "controls", "options", "camera"] {
+        for tile in ["time", "weather", "stats", "controls", "options"] {
             toggle(&mut app);
             click(&mut app, tile);
             assert!(app.menus.chooser.is_some(), "{tile}: no list");
@@ -435,6 +447,27 @@ mod tests {
         }
     }
 
+    #[test]
+    fn camera_tile_never_opens_the_settings_menu_and_alt_closes_the_editor() {
+        let mut app = app();
+        for paused in [false, true] {
+            app.paused = paused;
+            toggle(&mut app);
+            click(&mut app, "camera");
+            assert!(app.menus.game_panels.quick.is_none());
+            assert!(app.menus.game_menu.is_none());
+            assert!(app.menus.chooser.is_none());
+            assert_eq!(app.paused, paused);
+            // Without a bus the editor explains why it cannot open; with an
+            // editor already open, Alt dismisses it without opening another menu.
+            assert!(app.service_msg.is_some());
+            app.menus.game_panels.view = Some(Default::default());
+            toggle(&mut app);
+            assert!(app.menus.game_panels.view.is_none());
+            assert!(app.menus.game_panels.quick.is_none());
+            assert_eq!(app.paused, paused);
+        }
+    }
     #[test]
     fn a_tile_done_in_place_keeps_the_menu_open_on_its_page() {
         let mut app = app();

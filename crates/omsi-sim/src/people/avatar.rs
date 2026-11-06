@@ -8,6 +8,8 @@ use super::*;
 pub enum PuppetMode {
     /// The player on foot (or another player's walker): moved by the game, see `avatar`.
     Avatar,
+    /// A wheelchair passenger, moved by the accessibility controller.
+    Wheelchair,
 }
 
 /// A person the game moves itself (the player on foot).
@@ -370,6 +372,11 @@ impl PeopleSim {
         v.into_iter().map(|x| x.0).collect()
     }
 
+    /// Where the cabin point `local` of bus `bus` is in the world now, and the bus's heading.
+    pub fn cabin_frame(&self, bus: BusId) -> Option<(DVec3, glam::Mat4)> {
+        let bn = self.last_buses.iter().find(|b| b.id == bus)?;
+        Some((bn.pos, bn.rot))
+    }
     /// Where the cabin point `local` of bus `bus` is in the world now, and the heading of the section it is in.
     pub fn cabin_world(&self, bus: BusId, local: Vec3) -> Option<(DVec3, f64)> {
         let bn = self.last_buses.iter().find(|b| b.id == bus)?;

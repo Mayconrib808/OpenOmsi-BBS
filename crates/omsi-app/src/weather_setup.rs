@@ -94,49 +94,48 @@ pub(crate) fn setup_sky(
     weather: Option<&omsi_content::weather::Weather>,
     sky_clouds: &mut SkyClouds,
 ) {
-    const STOCK: [&str; 3] = ["Texture\\himmel01.bmp", "Texture\\himmel04.bmp", "Texture\\himmel05.bmp"];
-    let names = envir.map(|e| e.sky_textures.clone()).unwrap_or_else(|| STOCK.map(String::from));
-    let mut ids = Vec::new();
-    for (n, stock) in names.iter().zip(STOCK) {
-        let p = omsi_cfg::resolve_path(&args.root, n);
-        // a sky pack's picture that cannot be read leaves the stock one in its place: giving
-        // up here took the clouds with it, whatever the weather (#749)
-        let img = omsi_texture::decode_file(&p).or_else(|e| {
-            log::warn!("sky texture {}: {e}", p.display());
-            omsi_texture::decode_file(&omsi_cfg::resolve_path(&args.root, stock))
-        });
-        match img {
-            Ok(img) => ids.push(renderer.add_texture(scene, &img, false)),
-            Err(e) => {
-                log::warn!("sky texture {stock}: {e}");
-                return;
-            }
+    if let Some(data) = prepare_sky(&SkyRequest::new(args, envir, weather)) {
+        install_sky(renderer, scene, data, sky_clouds);
+    }
+}
+
+const STOCK_SKY: [&str; 3] = ["Texture\\himmel01.bmp", "Texture\\himmel04.bmp", "Texture\\himmel05.bmp"];
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct SkyRequest { root: std::path::PathBuf, names: [String;3], kind: String }
+impl SkyRequest {
+    fn new(args: &Args, envir: Option<&omsi_content::Envir>, weather: Option<&omsi_content::weather::Weather>) -> Self {
+        Self { root: args.root.clone(), names: envir.map(|e|e.sky_textures.clone()).unwrap_or_else(||STOCK_SKY.map(String::from)),
+            kind: weather.map(|w|w.clouds.0.trim().to_string()).unwrap_or_default() }
+    }
+}
+pub(crate) struct PreparedSky {
+    gradients: Vec<omsi_texture::Image>, field: omsi_texture::TextureData,
+    vanilla: Option<omsi_texture::Image>, sun: Option<omsi_texture::Image>, ty: SkyClouds,
+}
+fn prepare_sky(request: &SkyRequest) -> Option<PreparedSky> {
+    let root=&request.root; let kind=&request.kind;
+    let mut gradients=Vec::new();
+    for (n,stock) in request.names.iter().zip(STOCK_SKY) {
+        let p=omsi_cfg::resolve_path(root,n);
+        match omsi_texture::decode_file(&p).or_else(|_|omsi_texture::decode_file(&omsi_cfg::resolve_path(root,stock))) {
+            Ok(img)=>gradients.push(img), Err(e)=>{log::warn!("sky texture {}: {e}",p.display());return None;}
         }
     }
-    // the weather's cloud type (Weather/clouds.cfg: Cumulus 1..3, Overcast 1) with its own
-    // texture, whose alpha is the clouds' shape; `Texture\clouds.tga` when there is none
-    let kind = weather.map(|w| w.clouds.0.trim().to_string()).unwrap_or_default();
-    let typed = cloud_texture(&args.root, &kind);
-    let cover = typed.or_else(|| omsi_texture::decode_file(&omsi_cfg::resolve_path(&args.root, "Texture\\clouds.tga")).ok());
-    let t = std::time::Instant::now();
-    let field = cloud_field(cover.as_ref());
-    log::debug!("cloud field made in {:.0} ms", t.elapsed().as_secs_f64() * 1000.0);
-    let clouds = Some(renderer.add_texture_data(scene, &cloud_field_levels(field)));
-    // the classic sky draws the cloud type's texture itself, its alpha the cover (the
-    // renderer's mip chain weighs the colour by it, as for any cut-out texture)
-    let ty = cloud_type(&args.root, &kind);
-    let vanilla = ty.as_ref().and_then(|t| {
-        omsi_texture::decode_file(&omsi_cfg::resolve_path(&omsi_cfg::resolve_path(&args.root, "Texture"), &t.texture))
-            .map_err(|e| log::warn!("cloud texture {}: {e}", t.texture))
-            .ok()
-    });
-    *sky_clouds = ty.filter(|_| vanilla.is_some()).map(|t| (kind.clone(), t));
-    let vanilla = vanilla.map(|img| renderer.add_texture(scene, &img, true));
-    let sun = omsi_texture::decode_file(&omsi_cfg::resolve_path(&args.root, "Texture\\sonne.bmp"))
-        .map_err(|e| log::warn!("sun texture: {e}"))
-        .ok()
-        .map(|img| renderer.add_texture(scene, &img, false));
-    renderer.set_sky_textures_vanilla(scene, [ids[0], ids[1], ids[2]], clouds, vanilla, sun);
+    let cover=cloud_texture(root,kind).or_else(||omsi_texture::decode_file(&omsi_cfg::resolve_path(root,"Texture\\clouds.tga")).ok());
+    let field=cloud_field_levels(cloud_field(cover.as_ref()));
+    let ty=cloud_type(root,kind);
+    let vanilla=ty.as_ref().and_then(|t|omsi_texture::decode_file(&omsi_cfg::resolve_path(&omsi_cfg::resolve_path(root,"Texture"),&t.texture)).ok());
+    let ty=ty.filter(|_|vanilla.is_some()).map(|t|(kind.clone(),t));
+    let sun=omsi_texture::decode_file(&omsi_cfg::resolve_path(root,"Texture\\sonne.bmp")).ok();
+    Some(PreparedSky { gradients,field,vanilla,sun,ty })
+}
+fn install_sky(renderer: &Renderer, scene: &mut Scene, data: PreparedSky, clouds: &mut SkyClouds) {
+    let ids:Vec<_>=data.gradients.iter().map(|img|renderer.add_texture(scene,img,false)).collect();
+    let field=Some(renderer.add_texture_data(scene,&data.field));
+    let vanilla=data.vanilla.map(|img|renderer.add_texture(scene,&img,true));
+    let sun=data.sun.map(|img|renderer.add_texture(scene,&img,false));
+    *clouds=data.ty;
+    renderer.set_sky_textures_vanilla(scene,[ids[0],ids[1],ids[2]],field,vanilla,sun);
 }
 
 /// A `[cloudtype]` of `Weather/clouds.cfg`: its texture (under `Texture\`), the metres of
@@ -159,9 +158,40 @@ pub(crate) type SkyClouds = Option<(String, CloudType)>;
 #[derive(Default)]
 pub(crate) struct SkyState {
     pub(crate) clouds: SkyClouds,
+    pub(crate) loading: Option<(SkyRequest, std::sync::mpsc::Receiver<Option<PreparedSky>>)>,
+    pub(crate) wanted: Option<SkyRequest>,
     pub(crate) model: Option<crate::weather_model::ModelRun>,
     /// The graphics' kind and whether clouds are wanted (see `startup::SessionSettings`).
     pub(crate) look: crate::startup::SessionSettings,
+}
+
+impl SkyState {
+    pub(crate) fn request(&mut self,args: &Args,envir: Option<&omsi_content::Envir>,weather: Option<&omsi_content::weather::Weather>) {
+        self.wanted=Some(SkyRequest::new(args,envir,weather)); self.start_pending();
+    }
+    fn start_pending(&mut self) {
+        if self.loading.is_some() { return; }
+        let Some(request)=self.wanted.clone() else { return; };
+        let (tx,rx)=std::sync::mpsc::channel(); let work=request.clone();
+        match std::thread::Builder::new().name("weather sky".into()).spawn(move||{ let _=tx.send(prepare_sky(&work)); }) {
+            Ok(_)=>self.loading=Some((request,rx)),
+            Err(e)=>{log::warn!("sky worker: {e}");self.wanted=None;}
+        }
+    }
+    pub(crate) fn poll(&mut self,renderer: &Renderer,scene: &mut Scene) {
+        let Some((request,rx))=self.loading.take() else { return; };
+        match rx.try_recv() {
+            Ok(data)=> {
+                if self.wanted.as_ref()==Some(&request) {
+                    if let Some(data)=data { install_sky(renderer,scene,data,&mut self.clouds); }
+                    self.wanted=None;
+                }
+                self.start_pending();
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty)=>self.loading=Some((request,rx)),
+            Err(std::sync::mpsc::TryRecvError::Disconnected)=>{self.wanted=None;}
+        }
+    }
 }
 
 /// The `[cloudtype]` entry named `kind` (`-1` or empty: none), read as Omsi.exe reads it
@@ -429,6 +459,7 @@ pub(crate) fn weather_lighting(
     shadows: bool,
     sky: &SkyState,
 ) -> omsi_render::Lighting {
+    crate::view_sync::people::extras::weather(w);
     let mut lighting = lights::lighting_from(daylight, w.fog.0);
     lighting.enhanced = sky.look.enhanced;
     lighting.classic = sky.look.classic;

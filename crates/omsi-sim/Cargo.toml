@@ -22,6 +22,9 @@ omsi-transit = { path = "../omsi-transit" }
 glam.workspace = true
 log.workspace = true
 anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64 = "=0.22.1"
 hashbrown.workspace = true
 rayon.workspace = true
 parking_lot = { workspace = true }

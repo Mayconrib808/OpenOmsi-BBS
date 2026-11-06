@@ -10,6 +10,7 @@ mod control;
 mod mirror;
 mod parked;
 mod population;
+mod responder;
 mod setup;
 mod table;
 mod trains;
@@ -45,7 +46,12 @@ pub(crate) use omsi_sim::ai_traffic::viewer::Viewer;
 /// car on the road or take it off write down what the pictures have to follow (`events`),
 /// replayed by `view_sync::apply_traffic`.
 pub struct Traffic {
+    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
+    pub illegal_parking_frequency: f32,
+    /// Throttled feature diagnostics: never per vehicle or frame.
+    last_feature_report: f32,
     pub sim: TrafficSim,
+    pub greetings: omsi_sim::ai_traffic::greetings::Greetings,
     /// What the renders have to follow since the view last caught up, oldest first (see
     /// `TrafficEvent`).
     pub(crate) events: Vec<TrafficEvent>,
@@ -58,6 +64,7 @@ pub struct Traffic {
     pub(crate) sound_frame: omsi_sim::view_events::SoundFrame,
     /// `[sound_ai]` set of each car near the listener, by car id (see `audio`).
     pub(crate) sounds: HashMap<u64, omsi_audio::SoundSet>,
+    pub(crate) greeting_horns: HashMap<u64, crate::view_sync::traffic_audio::GreetingHorn>,
     /// Sound sets of despawned cars, stopped at the next audio update.
     pub(crate) orphan_sounds: Vec<omsi_audio::SoundSet>,
     /// The bus the player rides in on foot, heard from inside: its whole `[sound]` set as
@@ -106,11 +113,16 @@ impl Traffic {
     fn with_sim(sim: TrafficSim, root: &Path) -> Traffic {
         Traffic {
             sim,
+            greetings: Default::default(),
+            optional_features: Default::default(),
+            illegal_parking_frequency: 0.8,
+            last_feature_report: -60.0,
             events: Vec::new(),
             snapshot: Default::default(),
             looks: Default::default(),
             sound_frame: Default::default(),
             sounds: HashMap::new(),
+            greeting_horns: HashMap::new(),
             orphan_sounds: Vec::new(),
             riding_sounds: None,
             ridden: None,
@@ -131,7 +143,55 @@ impl Traffic {
     /// `player`: (centre, heading in degrees, half length, half width, speed) of the
     /// player's vehicle.
     pub fn tick(&mut self, dt: f32, player: Option<PlayerBox>) {
+        self.sim.ai_bus_overtaking = self.optional_features.ai_bus_overtaking;
+        self.sim.cars_yield_to_buses = self.optional_features.cars_yield_to_buses;
+        // A rare event is sampled once per eligible lane, not per rendered frame.
+        self.sim.illegal_parking_percent = if self.optional_features.illegal_parking {
+            self.illegal_parking_frequency.clamp(0.0, 5.0)
+        } else { 0.0 };
         self.sim.advance(dt, player);
+        let role = if self.sim.mirror {omsi_sim::feature_audit::Role::Client}
+                   else {omsi_sim::feature_audit::Role::Host};
+        for (name,enabled) in [
+            ("ai_bus_overtaking",self.optional_features.ai_bus_overtaking),
+            ("cars_yield_to_buses",self.optional_features.cars_yield_to_buses),
+            ("illegal_parking",self.optional_features.illegal_parking),
+            ("dynamic_traffic",true),
+            ("passenger_conversations",self.optional_features.passenger_ambient_talk),
+            ("winter_clothing",self.optional_features.weather_clothing),
+            ("bcs_events",self.optional_features.bcs_event_scenes),
+        ] {omsi_sim::feature_audit::heartbeat(role,name,enabled);}
+        if self.sim.time - self.last_feature_report >= 60.0 {
+            self.last_feature_report = self.sim.time;
+            let extended = self.sim.extended_density.road.len();
+            let active_parks = self.sim.cars.iter().filter(|c| c.temporary_park.is_some()).count();
+            log::info!("FEATURE DENSITY role={} active_street={} active_buses={} active_rail={} active_parked={} max_scheduled={} density_actual={:.3} density_map_baseline={:.3} density_factor={:.3} group_curves={} extended_day_groups={} event_outcomes_in_FEATURE_SUMMARY=true",
+                if self.sim.mirror {"client_mirror"}else{"host"},
+                self.sim.cars.iter().filter(|c| !c.is_bus() && !c.is_rail() && c.park.is_none()).count(),
+                self.sim.cars.iter().filter(|c|c.is_bus()).count(),
+                self.sim.cars.iter().filter(|c|c.is_rail()).count(),
+                self.sim.cars.iter().filter(|c|c.park.is_some()).count(),
+                self.sim.max_scheduled,
+                self.sim.street_density(),self.sim.street_density_map(),self.sim.unsched_factor,
+                self.sim.group_curves,extended);
+            log::info!(
+                "FEATURE AUDIT ai_bus_greeting_settings host_authoritative={} mirror={} ai_bus_greetings={} ai_driver_wave={} nearby_ai_buses={} action={}",
+                !self.sim.mirror, self.sim.mirror,
+                self.optional_features.ai_bus_greetings, self.optional_features.ai_driver_wave,
+                self.sim.cars.iter().filter(|c| c.is_bus() && !c.is_rail()).count(),
+                if self.sim.mirror {"check_host_game_log_for_horn"}
+                else if !self.optional_features.ai_bus_greetings {"host_sound_disabled"}
+                else {"await_player_horn_or_flash"},
+            );
+            log::info!(
+                "FEATURE AUDIT traffic mirror={} total_ai={} ai_bus_overtaking={} cars_yield_to_buses={} illegal_parking={} frequency_percent={:.1} parked_events_active={} extra_traffic_density={} extended_day_groups={} extended_road_rules={} weekday={} public_holiday={} stock_group_curves={}",
+                self.sim.mirror, self.sim.cars.len(), self.optional_features.ai_bus_overtaking,
+                self.optional_features.cars_yield_to_buses, self.optional_features.illegal_parking,
+                self.sim.illegal_parking_percent, active_parks, self.optional_features.extra_traffic_density,
+                extended, if extended > 0 { "loaded" } else { "absent_stock_fallback" },
+                self.sim.weekday, self.sim.is_public_holiday, self.sim.group_curves,
+            );
+        }
         self.after_step();
     }
 

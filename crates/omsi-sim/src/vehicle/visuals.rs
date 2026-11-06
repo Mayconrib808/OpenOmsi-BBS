@@ -3,6 +3,33 @@
 use super::*;
 
 impl VehicleInstance {
+    /// A passive authority mirror refreshes appearance without running scripts or physics.
+    pub fn refresh_transfer_visuals(&mut self,dt:f32) { self.update_visuals(dt); }
+
+    /// Refresh externally signalled lamp materials and coronas without stepping physics,
+    /// scripts, animation, doors or passengers a second time.
+    pub fn refresh_external_lamp_signals(&mut self, names: &[&str]) {
+        let props = super::props::compute_mesh_props(&self.ty, &|n| self.var(n));
+        for (current, next) in self.mesh_props.iter_mut().zip(props) {
+            current.visible = next.visible;
+            current.slot_alpha = next.slot_alpha;
+            current.slot_light = next.slot_light;
+            current.slot_night = next.slot_night;
+        }
+        let mut index = 0;
+        for mesh in &self.ty.model.meshes {
+            for light in &mesh.light_enh_2 {
+                if names.iter().any(|n| n.eq_ignore_ascii_case(light.variable.trim())) {
+                    let value = self.var(&light.variable).unwrap_or(0.0);
+                    let target = (value * if light.factor > 0.0 { light.factor } else { 1.0 }).clamp(0.0, 2.0);
+                    if self.light_fade.len() <= index { self.light_fade.resize(index + 1, 0.0); }
+                    self.light_fade[index] = if target.is_finite() { target } else { 0.0 };
+                }
+                index += 1;
+            }
+        }
+    }
+
     /// Brightest `[interiorlight]` of the vehicle right now (0..1), for the passengers.
     pub fn interior_light(&self) -> f32 {
         self.ty

@@ -25,7 +25,9 @@ use omsi_sim::VehicleInstance;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+mod wheelchair;
 mod animation;
+pub(crate) mod extras;
 mod avatars;
 pub(crate) use avatars::{set_hour, speak};
 
@@ -38,6 +40,8 @@ const POSE_PER_HELPER: f64 = 0.5e-3;
 /// it starts afresh with every `Humans` (`PeopleView::new`, by `Humans::new`).
 #[derive(Default)]
 pub(crate) struct PeopleView {
+    wheelchair_renders: wheelchair::Renders,
+    wheelchair_hands: HashMap<usize,(Arc<HumanType>,Arc<omsi_sim::people::wheelchair::pose::HandRest>)>,
     pub(crate) hidden: Vec<usize>,
     /// GPU side of the human types, shared by everyone of a type: textures by file and the
     /// materials of every (type, mesh) - each person used to upload its own copies - and
@@ -58,6 +62,10 @@ pub(crate) struct PeopleView {
     pub(crate) sync_frame: u32,
     /// Animation choice for this session, refreshed on Android in-process launches.
     pub(crate) enhanced_poses: bool,
+    pub(crate) extra_config: extras::Config,
+    shelter_cursor: usize,
+    extra_renders: extras::Renders,
+    extra_hands: HashMap<usize,Arc<extras::HandRest>>,
     pub(crate) mirror_hz: Option<f32>,
     /// The people are drawn with the avatars of "Character models: High quality" (this
     /// session's choice; see `avatars`).
@@ -79,22 +87,28 @@ pub(crate) struct PeopleView {
     pub(crate) ticket_blocks: Option<crate::money::TicketBlocks>,
 }
 
-/// Local visual-only treatment for a compatible bus, separate from actual boarding.
-/// A full bus ends the arm request but may keep the gaze for a short time.
+// Hailing is an optional gesture layered on the original human skeleton,
+// not a request to enable the full enhanced-IK animation mode. The old
+// `enhanced &&` gate silently disabled EVERY arm signal if players preferred
+// the game's original human animations, even with passenger_hailing=1.
+fn optional_hail_eligible(p: &PersonFrame, camera: DVec3) -> bool {
+    !p.puppet && p.hidden.is_none()
+        && matches!(p.place, Place::Ground)
+        && p.hail_moving && p.hail_target.is_some()
+        && (p.position - camera).length_squared() < 300.0 * 300.0
+}
+
 fn apply_optional_bus_visual(
     p: &PersonFrame,
     st: &mut PersonView,
     ty: &HumanType,
     bones: &mut [glam::Affine3A; omsi_sim::human::SLOTS],
-    enhanced: bool,
+    _enhanced: bool,
     camera: DVec3,
     dt: f32,
 ) {
     if p.hail_target.is_some() || st.hail_strength > 0.001 || st.full_look_strength > 0.001 {
-        let eligible = enhanced && !p.puppet && p.hidden.is_none()
-            && matches!(p.place, Place::Ground)
-            && p.hail_moving && p.hail_target.is_some()
-            && (p.position - camera).length_squared() < 300.0 * 300.0;
+        let eligible = optional_hail_eligible(p, camera);
         let (signal_requested, full_requested) = omsi_sim::human::visual_hail_action(
             p.hail_signal_enabled, p.hail_reaction_enabled, p.hail_full);
         // Keep this gate across temporary target loss; only actual room
@@ -107,13 +121,9 @@ fn apply_optional_bus_visual(
             .clamp(-dt * 2.8, dt * 2.8);
         st.full_look_strength += ((reacting as u8 as f32) - st.full_look_strength)
             .clamp(-dt * 2.8, dt * 2.8);
-        if !enhanced {
-            st.hail_strength = 0.0;
-            st.full_look_strength = 0.0;
-        }
         let wave = st.hail_wrist.advance(st.hail_strength > 0.001, dt, p.id);
         let looking = st.hail_strength.max(st.full_look_strength);
-        if looking > 0.001 && enhanced && !p.puppet {
+        if looking > 0.001 && !p.puppet {
             let target = p.hail_target.and_then(|bus|
                 omsi_sim::human::hail_look_target(p.position, p.heading, bus));
             let torso = omsi_sim::human::slot_of(omsi_sim::human::BONE_MAIN).unwrap();
@@ -121,7 +131,7 @@ fn apply_optional_bus_visual(
             st.hail_look.advance(&ty.rig, bones, target, looking, dt);
             if st.hail_strength > 0.001 {
                 omsi_sim::human::accessory_hail_arm(
-                    &ty.rig, bones, 1, waiting_forward, st.hail_strength, wave);
+                    &ty.rig, bones, if st.extra.arm>0.05 {0}else{1}, waiting_forward, st.hail_strength, wave);
             }
         }
     }
@@ -130,6 +140,8 @@ fn apply_optional_bus_visual(
 impl PeopleView {
     pub(crate) fn new() -> PeopleView {
         PeopleView {
+            wheelchair_renders: Default::default(),
+            wheelchair_hands: HashMap::new(),
             hidden: Vec::new(),
             gpu_textures: HashMap::new(),
             gpu_materials: HashMap::new(),
@@ -138,6 +150,10 @@ impl PeopleView {
             frame: PeopleFrame::default(),
             sync_frame: 0,
             enhanced_poses: animation::enabled(),
+            extra_config: extras::Config::of(&crate::settings::Settings::load()),
+            shelter_cursor: 0,
+            extra_renders: Default::default(),
+            extra_hands: Default::default(),
             mirror_hz: None,
             avatars: avatars::enabled(),
             last_sync: 0.0,
@@ -238,6 +254,15 @@ impl Humans {
                     st.avatar_checked = (!view.avatars || avatars::pool().is_some()) && picked.is_none() == avatar.is_none();
                     st.made_as = (Arc::as_ptr(&ty) as usize, variant);
                     st.avatar = avatar;
+                    let clothing_name = variant.checked_sub(1).and_then(|i|ty.variants.get(i))
+                        .map(|s|s.name.as_str()).unwrap_or("original");
+                    omsi_sim::feature_audit::record(omsi_sim::feature_audit::Role::Client,
+                        "winter_clothing", if st.meshes.is_empty() {
+                            omsi_sim::feature_audit::ResultKind::Failed
+                        } else {omsi_sim::feature_audit::ResultKind::Completed},
+                        if st.meshes.is_empty() {"stock_mesh_not_created"} else {"stock_mesh_draw_instances_created"},
+                        &format!("person={} original_model={} selected_cti={} variant={} mesh_instances={} artist_winter_3d_applied=false",
+                            id,ty.def.path.display(),clothing_name,variant,st.meshes.len()));
                 }
                 BodyOp::Retire { id, tkey, variant } => view.retire_meshes(id, tkey, variant),
                 BodyOp::Renamed { from, to } => view.rename(from, to),
@@ -255,6 +280,7 @@ impl PeopleView {
     /// Person `id` has gone: their meshes hidden and kept for the next person of the type
     /// (`tkey`) dressed alike (`variant`).
     fn retire_meshes(&mut self, id: u32, tkey: usize, variant: usize) {
+        self.extra_renders.retire(id,&mut self.hidden);
         let person = self.people.remove(&id);
         // (an avatar's meshes go to the next person drawn with the same avatar)
         let (tkey, variant) = match person.as_ref().and_then(|p| p.avatar.as_ref()) {
@@ -270,6 +296,7 @@ impl PeopleView {
 
     /// Person `from` is called `to` from now on.
     fn rename(&mut self, from: u32, to: u32) {
+        self.extra_renders.rename(from,to);
         if let Some(m) = self.people.remove(&from) {
             self.people.insert(to, m);
         }
@@ -471,6 +498,7 @@ impl PeopleView {
             }
             let Some(st) = st else { continue };
             let xf = tilt * Mat4::from_rotation_z((-heading).to_radians() as f32);
+            self.wheelchair_renders.follow_chair(p, at, xf, renderer, scene);
             for (_, inst) in &st.meshes {
                 renderer.set_transform(scene, *inst, at, xf);
             }
@@ -483,6 +511,8 @@ impl PeopleView {
 /// drawn (none of it is the simulation's).
 #[derive(Default)]
 pub(crate) struct PersonView {
+    wheelchair_grips: Option<[Vec3; 2]>,
+    wheelchair_hand_rest: Option<Arc<omsi_sim::people::wheelchair::pose::HandRest>>,
     pub(crate) meshes: Vec<(MeshId, usize)>,
     /// Skinned positions and normals, per mesh.
     skins: Vec<(Vec<Vec3>, Vec<Vec3>)>,
@@ -509,13 +539,13 @@ pub(crate) struct PersonView {
     pub(super) ankles: [Vec3; 2],
     /// The earlier IK/foot-planted animation, allocated only for the enhanced poses.
     pub(super) procedural: Option<omsi_sim::human::Pose>,
-    /// Local-only cosmetic gesture; never changes bus stops or tasks.
-    hail_strength: f32,
-    /// Full-bus acknowledgement independent of the raised-arm hailing.
-    full_look_strength: f32,
+    pub(super) visual_origin: Option<(u64, DVec3)>,
+    extra: extras::State,
     full_gate: omsi_sim::human::FullBusHail<BusId>,
     hail_wrist: omsi_sim::human::HailWrist,
     hail_look: omsi_sim::human::HailLook,
+    full_look_strength: f32,
+    hail_strength: f32,
     /// A jump of the person's place within a bus (onto the seat, as Omsi.exe puts them
     /// there) drawn as a glide instead: what is left of it in the bus's frame, the same in
     /// the world for the drawing, and the place last frame (the bus, where).
@@ -598,6 +628,9 @@ impl PeopleView {
     /// out of view rarely; the posing and skinning run in parallel. Reads nothing of the
     /// simulation but the frame.
     pub(crate) fn pose(&mut self, world: &World, renderer: &Renderer, scene: &mut Scene, camera: DVec3) {
+        let bcs_patient = crate::bcs_events::patient_pose();
+        let bcs_actor = crate::bcs_events::actor_pose();
+        let bcs_remotes=crate::bcs_events::remote_poses();
         for inst in self.hidden.drain(..) {
             renderer.set_params(scene, inst, &[], false, &[]);
         }
@@ -613,6 +646,26 @@ impl PeopleView {
         self.last_sync = frame.time;
         // everybody's pose as drawn, in the frame's order (put back below)
         let mut states: Vec<PersonView> = frame.people.iter().map(|p| self.people.remove(&p.id).unwrap_or_default()).collect();
+        // Bound scenery probes globally, not per passenger, and rotate through the
+        // frame so a busy terminal cannot starve the same people every frame.
+        if self.enhanced_poses && self.extra_config.umbrellas && extras::raining() && !states.is_empty() {
+            let now = std::time::Instant::now();
+            let mut queried = 0;
+            for _ in 0..states.len() {
+                let k = self.shelter_cursor % states.len();
+                self.shelter_cursor = (k + 1) % states.len();
+                let p = &frame.people[k];
+                if p.hidden.is_some() || p.puppet || !matches!(p.place, Place::Ground)
+                    || (p.position-from).length_squared() > extras::VISUAL_DISTANCE_SQ { continue; }
+                let st = &mut states[k];
+                let ty = st.avatar.as_ref().unwrap_or(&p.ty);
+                let head = p.position + DVec3::Z * ty.rig.head_top as f64;
+                if !st.extra.probe_due(head, now) { continue; }
+                st.extra.sample_cover(head, omsi_scene::camera_arm::rain_sheltered(world, head), now);
+                queried += 1;
+                if queried >= 8 { break; }
+            }
+        }
         let mut due = std::mem::take(&mut self.due);
         due.clear();
         let mirror_every = match self.mirror_hz {
@@ -657,24 +710,65 @@ impl PeopleView {
         }
         let n_due = due.iter().filter(|d| **d).count();
         let enhanced = self.enhanced_poses;
-        let buses: HashMap<_, _> = if enhanced {
+        let extra_config=self.extra_config.clone();
+        // Expensive hand preparation is shared once per human type, never per frame.
+        if enhanced&&(extra_config.umbrellas){
+            let mut prepared=0;
+            for (p,st) in frame.people.iter().zip(states.iter_mut()){
+                if (p.position-from).length_squared()>extras::VISUAL_DISTANCE_SQ || p.hidden.is_some(){continue}
+                let ty=st.avatar.as_ref().unwrap_or(&p.ty);
+                let key=Arc::as_ptr(ty) as usize;
+                if !self.extra_hands.contains_key(&key){if prepared>=1{continue}prepared+=1;}
+                let rest=self.extra_hands.entry(key).or_insert_with(||Arc::new(extras::HandRest::new(ty))).clone();
+                st.extra.rest=Some(rest);
+            }
+        }
+        self.extra_renders.new_this_frame=0;
+        let cosmetic_time=frame.time;
+        let buses: HashMap<_, _> = if enhanced || frame.people.iter().any(|p|p.wheelchair.is_some()) {
             frame.buses.iter().map(|b| (b.id, b)).collect()
         } else {
             HashMap::new()
         };
         let hour = avatars::hour();
         let frame_no = self.sync_frame;
+        for (p,st) in frame.people.iter().zip(states.iter_mut()).filter(|(p,_)|p.wheelchair.is_some()) {
+            let ty=st.avatar.as_ref().unwrap_or(&p.ty);let key=Arc::as_ptr(ty) as usize;
+            let cached=self.wheelchair_hands.entry(key).or_insert_with(||
+                (ty.clone(),Arc::new(omsi_sim::people::wheelchair::pose::HandRest::new(ty))));
+            st.wheelchair_hand_rest=Some(cached.1.clone());
+        }
         let pose_one = |(p, st): &mut (&PersonFrame, &mut PersonView)| {
             // the type drawn: the person's avatar, else the content's own
             let ty = st.avatar.clone().unwrap_or_else(|| p.ty.clone());
             let dt = st.since_posed_secs.max(sdt).min(0.25);
             // Preserve the OMSI-original pose unless the enhanced A/B mode is requested.
-            let mut bones = if enhanced && !p.puppet {
+            let mut bones = if p.wheelchair.is_some() {
+                wheelchair::bones(p, &ty, st, dt)
+            } else if enhanced && !p.puppet {
                 animation::bones(p, &ty, st, dt, world, &buses)
             } else {
                 omsi_sim::human::slots_from_omsi(&p.anim.bones(&ty.omsi))
             };
-            apply_optional_bus_visual(p, st, &ty, &mut bones, enhanced, camera, dt);
+            let near_extras=(p.position-from).length_squared()<extras::VISUAL_DISTANCE_SQ;
+            st.extra.advance(p,&ty,dt,cosmetic_time,&extra_config,enhanced,near_extras,&mut bones);
+            apply_optional_bus_visual(p, st, &ty, &mut bones, enhanced, from, dt);
+            if let Some((patient, blend)) = bcs_patient {
+                if p.id == patient && matches!(p.place, Place::Bus(BusId::Player, _))
+                    && matches!(p.facts.activity, omsi_sim::human::Activity::Sit) {
+                    crate::bcs_events::slump(&ty, &mut bones, blend);
+                }
+            }
+            if let Some((actor,event,blend,phase))=bcs_actor {
+                if p.id==actor&&matches!(p.place,Place::Bus(BusId::Player,_)){
+                    crate::bcs_events::reaction(&ty,&mut bones,event,blend,phase);
+                }
+            }
+            for &(id,event,blend,phase)in &bcs_remotes{
+                if p.id!=id||!matches!(p.place,Place::Bus(_, _)){continue;}
+                if matches!(event,1..=4)&&matches!(p.facts.activity,omsi_sim::human::Activity::Sit){crate::bcs_events::slump(&ty,&mut bones,blend);}
+                else if matches!(event,6|7){crate::bcs_events::reaction(&ty,&mut bones,event,blend,phase);}
+            }
             // an avatar's face near the eye: blinks, looks, expressions, the lips
             // (from the camera the picture is drawn from: a face is seen from there)
             let near = ty.face.is_some() && (p.position - camera).length() < avatars::FACE_DISTANCE;
@@ -716,7 +810,10 @@ impl PeopleView {
                     f.live = false;
                 }
             }
-            let PersonView { skins, skin_bones, pose_changed, face, .. } = &mut **st;
+            // The upstream 0.3.47 hail state lives on PersonView, not on extras::State.
+            // Keep the optional visual effect active until its pose finishes fading.
+            let hail_active = st.hail_strength > 0.001 || st.full_look_strength > 0.001;
+            let PersonView { skins, skin_bones, pose_changed, face, extra, wheelchair_hand_rest, .. } = &mut **st;
             *pose_changed = false;
             if bones.iter().any(|b| !b.is_finite()) && !skins.is_empty() {
                 // keep the last good mesh (the rest pose would be the file's T-pose)
@@ -724,7 +821,7 @@ impl PeopleView {
             }
             // (the same bones as the mesh was made with: nothing to skin or upload - unless
             // the face moves, or has just gone back to rest)
-            if !face_now && !(face_was && !near) && skins.len() == ty.meshes.len() && skin_bones.as_ref().is_some_and(|b| b.iter().zip(&bones).all(|(a, c)| a.abs_diff_eq(*c, 1e-6))) {
+            if extra.arm<0.001 && !hail_active && !face_now && !(face_was && !near) && skins.len() == ty.meshes.len() && skin_bones.as_ref().is_some_and(|b| b.iter().zip(&bones).all(|(a, c)| a.abs_diff_eq(*c, 1e-6))) {
                 return;
             }
             skins.resize_with(ty.meshes.len(), Default::default);
@@ -735,6 +832,8 @@ impl PeopleView {
                     None => skin(m, &bones, pos, nrm),
                 }
             }
+            extra.skin(&bones,skins);
+            if p.wheelchair.is_some() {if let Some(rest)=wheelchair_hand_rest {rest.apply(&bones,skins);}}
             *skin_bones = Some(bones);
             *pose_changed = true;
         };
@@ -779,20 +878,20 @@ impl PeopleView {
             };
             // a seated avatar: its own seat height in place of the content type's (the
             // simulation put the feet that far under the seat point)
-            if let (Some(a), omsi_sim::human::Activity::Sit) = (st.avatar.as_ref(), p.facts.activity) {
+            if let (Some(a), omsi_sim::human::Activity::Sit, None) = (st.avatar.as_ref(), p.facts.activity, p.wheelchair) {
                 at.z += (p.ty.def.seat_height - a.def.seat_height).clamp(-0.25, 0.25) as f64;
             }
             // a seated person's back stays clear of the seat back: whoever sits deeper
             // than the seats were made for (a long robe, hair, a leaning trunk) is
             // moved forward on the seat, eased
-            let want = st.seat_want;
+            let want = if p.wheelchair.is_some() {0.0} else {st.seat_want};
             st.seat_shift += (want - st.seat_shift).clamp(-0.4 * sdt, 0.4 * sdt);
             if st.seat_shift > 0.0 {
                 let fwd = Mat4::from_rotation_z((-heading).to_radians() as f32).transform_vector3(Vec3::new(0.0, st.seat_shift, 0.0));
                 at += (if matches!(p.place, Place::Bus(..)) { p.tilt } else { Mat4::IDENTITY }).transform_vector3(fwd).as_dvec3();
             }
             // (riders with the tilt of their floor)
-            let tilt = if matches!(p.place, Place::Bus(..)) { p.tilt } else { Mat4::IDENTITY };
+            let tilt = if matches!(p.place, Place::Bus(..))||p.wheelchair.is_some() { p.tilt } else { Mat4::IDENTITY };
             let xf = tilt * Mat4::from_rotation_z((-heading).to_radians() as f32);
             let lit_to = if matches!(p.place, Place::Bus(..)) { p.interior } else { 0.0 };
             st.lit += (lit_to - st.lit) * (sdt / 0.4).min(1.0);
@@ -800,6 +899,8 @@ impl PeopleView {
                 renderer.set_transform(scene, *inst, at, xf);
                 renderer.set_interior(scene, *inst, st.lit * 0.5);
             }
+            self.wheelchair_renders.draw_chair(p, at, xf, renderer, scene);
+            self.extra_renders.draw(p,&st.extra,at,xf,enhanced&&extra_config.umbrellas&&(p.position-from).length_squared()<extras::VISUAL_DISTANCE_SQ,renderer,scene);
             if p.hidden.is_some() && omsi_cfg::flags::OMSI_DEBUG_FOOT.is_set() && self.sync_frame % 30 == 0 {
                 log::info!("avatar drawn at ({:.2}, {:.2}, {:.2}) heading {:.0} place {:?} go {}", at.x, at.y, at.z, heading, matches!(p.place, Place::Ground), go);
             }
@@ -855,6 +956,8 @@ impl PeopleView {
                 }
             }
         }
+        self.wheelchair_renders.draw_equipments(&frame.wheelchair_equipment, renderer, scene);
+        self.wheelchair_renders.retain(&frame.people, renderer, scene);
         drop(buses);
         for (p, st) in frame.people.iter().zip(states) {
             self.people.insert(p.id, st);

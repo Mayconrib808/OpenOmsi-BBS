@@ -14,6 +14,7 @@ use omsi_ui::theme::Palette;
 #[derive(Debug, Clone, Default, PartialEq)]
 pub(crate) struct DestForm {
     pub route: String,
+    pub(crate) shared: bool,
     pub lines: [String; 2],
     pub(super) said: Option<String>,
 }
@@ -21,7 +22,7 @@ pub(crate) struct DestForm {
 impl DestForm {
     pub(crate) fn panel(&self, pal: Palette) -> Panel {
         let help = self.said.as_deref().map(str::to_owned).unwrap_or_else(|| omsi_ui::tr("A destination of the depot file is found by its name; any other text is shown as it is typed.").into_owned());
-        let children = vec![
+        let mut children = vec![
             title(&omsi_ui::tr("Destination display")),
             text(&omsi_ui::tr("Route number"), 13.0, Weight::Medium),
             input("route", &self.route, "137", 12),
@@ -33,12 +34,19 @@ impl DestForm {
             grow_row(vec![button("clear", &omsi_ui::tr("Clear display"), Some("delete")), button("select", &omsi_ui::tr("Select"), Some("check")), button("close", &omsi_ui::tr("Close"), Some("close"))]),
             note(&help, pal),
         ];
+        if self.shared { children.remove(6); }
         card(Anchor::Center, 0.0, 0.0, 420.0, 236, pal, children)
     }
 }
 
 /// The form opened, filled with what the bus shows.
 pub(crate) fn open(app: &mut crate::App) {
+    if app.net.coop.drive.visitor_active() && app.player.as_ref().is_none_or(|p| p.borrowed_from.is_none()) {
+        let route = app.foot_bus().and_then(|b| app.coop_vehicle(b))
+            .map(crate::game_lists::destination_line).unwrap_or_default();
+        app.menus.game_panels.dest = Some(DestForm { route, shared: true, ..Default::default() });
+        return;
+    }
     let Some(p) = app.player.as_ref() else {
         app.service_msg = Some(("No vehicle to set a destination for".into(), 3.0));
         return;
@@ -104,7 +112,13 @@ pub(crate) fn click(app: &mut crate::App, id: &str) {
 }
 
 /// Set the bus's displays to `form` (or empty them); what was done, in words.
-fn set(app: &mut crate::App, form: &DestForm, clear: bool) -> String {
+pub(crate) fn set(app: &mut crate::App, form: &DestForm, clear: bool) -> String {
+    if app.drive_sign(form, clear) { return crate::coop::text("Enviando letreiro ao ônibus…", "Sending destination to the bus…", "Zielschild wird übertragen…").into(); }
+    if app.net.coop.drive.owner_active() { return crate::coop::text("O outro motorista está controlando o ônibus.", "The other driver controls this bus.", "Der andere Fahrer steuert diesen Bus.").into(); }
+    set_local(app, form, clear)
+}
+
+pub(crate) fn set_local(app: &mut crate::App, form: &DestForm, clear: bool) -> String {
     if !clear && !form.route.trim().is_empty() {
         crate::game_lists::set_route_by_hand(app, &form.route);
     }

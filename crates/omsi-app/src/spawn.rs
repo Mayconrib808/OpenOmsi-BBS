@@ -127,7 +127,16 @@ impl PreparedPlayer {
     pub(crate) fn load(args: &Args) -> Result<Self> {
         let bus = args.bus.as_deref().context("no vehicle selected")?;
         let path = player_bus_path(&args.root, bus)?;
-        let ty = Arc::new(omsi_sim::VehicleType::load(&args.root, &path)?);
+        Self::load_existing_path(args, &path)
+    }
+
+    /// Handover from a remote VehicleType that was already resolved and
+    /// mounted (possibly by a sealed LAN download). Calling resolve_path
+    /// again would incorrectly append the absolute path to OMSI_ROOT.
+    pub(crate) fn load_existing_path(args: &Args, path: &Path) -> Result<Self> {
+        anyhow::ensure!(path.is_absolute(), "handover vehicle path is not absolute: {}", path.display());
+        anyhow::ensure!(omsi_cfg::vfs::is_file(path), "handover bus is unavailable at {}", path.display());
+        let ty = Arc::new(omsi_sim::VehicleType::load(&args.root, path)?);
         let parts = load_coupled_types(&args.root, ty.clone());
         Ok(Self { ty, parts, staged: None })
     }
@@ -404,7 +413,9 @@ pub(crate) fn spawn_player_prepared(
     // filled by its own pump, as at one, so each bus takes what its script says it holds; a
     // situation's bus and a part uncoupled keep what they had (and --setvar, after it,
     // still sets what a test asks for)
-    if !args.is_resuming() && !args.keep_fuel && crate::settings::Settings::load().full_tank {
+    let external_fuel=omsi_sim::VehicleInstance::has_initial_fuel(args.setvar.as_deref());
+    if external_fuel {log::info!("spawn: explicit external fuel supplied; automatic full-tank start skipped");}
+    if !args.is_resuming() && !args.keep_fuel && !external_fuel && crate::settings::Settings::load().full_tank {
         match p.vehicle.refuel() {
             Some(l) => log::info!("spawn: tank filled ({l:.0} l)"),
             None => log::info!("spawn: this vehicle has no fuel pump handling (veh_tank): its tank stays as its script set it"),
@@ -421,6 +432,10 @@ pub(crate) fn spawn_player_prepared(
             }
         }
         p.vehicle.update(1.0 / 30.0);
+        if external_fuel {
+            log::info!("spawn: initial external fuel applied: engine_tank_content={:?}, fuel={:?}, tank_percent={:?}",
+                p.vehicle.var("engine_tank_content"),p.vehicle.var("fuel"),p.vehicle.var("tank_percent"));
+        }
     }
     // a situation remembers how dirty the bus was; --dirt sets it for a test run
     if let Some(d) = args.dirt {
@@ -461,7 +476,8 @@ pub(crate) fn spawn_player_prepared(
     }
     log_debug_meshes(&p.vehicle);
     log_debug_props(&p.vehicle);
-    p.driver = crate::driver::DriverFigure::new(world, renderer, scene, &p.vehicle, 0);
+    let character = crate::coop_character::saved_choice();
+    p.driver = crate::driver::DriverFigure::new_named(world, renderer, scene, &p.vehicle, character.as_deref(), 0);
     p.sync_transforms(
         renderer,
         scene,
@@ -626,6 +642,8 @@ fn new_player(vehicle: omsi_sim::VehicleInstance, render: scene::VehicleRender, 
         occlude_controls: false,
         startup: None,
         startup_at: None,
+        authority_remote: false,
+        borrowed_from: None,
         give_ticket: false,
         give_change: false,
         door_buttons: hashbrown::HashMap::new(),
@@ -875,6 +893,30 @@ mod preparation_tests {
         assert!(vehicle.trailers.iter().all(|part| part.reversed));
     }
 
+    /// A visitor loads the exact bus from another player's LAN content
+    /// directory without accidentally joining its absolute path to OMSI_ROOT.
+    #[test]
+    fn visitor_handover_keeps_exact_absolute_vehicle_path() {
+        let sandbox = std::env::temp_dir().join(format!("coop12-handover-path-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&sandbox);
+        struct Cleanup(PathBuf);
+        impl Drop for Cleanup {
+            fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); }
+        }
+        let _cleanup = Cleanup(sandbox.clone());
+        let root = sandbox.join("SteamLibrary/steamapps/common/OMSI 2");
+        let remote = sandbox.join("lan-vehicles/mounted/Vehicles/Caio Vip I");
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::create_dir_all(&remote).unwrap();
+        let bus = remote.join("Vip 1 Manual.bus");
+        std::fs::write(&bus, "[friendlyname]\nCoop\nVip 1\nManual\n[model]\nempty.cfg\n").unwrap();
+        std::fs::write(remote.join("empty.cfg"), "").unwrap();
+        let args = Args::parse_from(["omsi", "--root", root.to_str().unwrap()]);
+        let prepared = PreparedPlayer::load_existing_path(&args, &bus).unwrap();
+        assert_eq!(prepared.ty.def.path, bus, "LAN bus path was re-rooted into OMSI");
+        assert_eq!(prepared.parts.len(), 0);
+    }
+
     /// The NF6D tram is eleven parts long and its rear cab car `[couple_back]`s the
     /// articulation its front car starts with: the chain has to be walked whole and must
     /// stop where it comes round, or the last carriage is left off the tram.
@@ -897,4 +939,17 @@ mod preparation_tests {
 
         let _ = std::fs::remove_dir_all(&dir);
     }
+}
+
+#[cfg(test)]
+pub(crate) fn coop13_test_player(vehicle: omsi_sim::VehicleInstance) -> Player {
+    let ty = vehicle.ty.clone();
+    let render = scene::VehicleRender {
+        window_wipers: None, instances: vec![], far: vec![], own_materials: vec![], set: None, own_set: None,
+        variants: vec![], text_textures: vec![], script_textures: vec![],
+        shared_script: false, displays_far: false, display_tick: 0, skinned: vec![],
+        damaged: vec![], glass_cracks: vec![], hidden: false,
+        interior_lamps: Default::default(), interior_blocks: Default::default(),
+    };
+    new_player(vehicle, render, vec![], vec![], false, &ty)
 }

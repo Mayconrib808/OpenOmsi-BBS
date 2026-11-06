@@ -19,13 +19,78 @@ pub(super) fn entry_on_platform(side: Option<f32>, door_side: f32) -> bool {
     side.is_none_or(|wanted| wanted == door_side)
 }
 
-impl PeopleSim {
-    pub(crate) fn visual_hail_range(d: DVec3, forward: DVec2) -> bool {
+/// Tolerate stop-pole placement without treating the opposite road as a stop.
+fn tolerant_stop_box(lateral: f64, along: f64, height: f64, length: f32) -> bool {
+    let reach = (f64::from(length.max(0.0)) + 8.0).clamp(10.0, 34.0);
+    lateral.is_finite() && along.is_finite() && height.is_finite()
+        && lateral.abs() <= 4.0 && along.abs() <= reach && height.abs() <= 3.0
+}
+#[cfg(test)]
+mod tolerant_stop_box_tests {
+    use super::tolerant_stop_box;
+    #[test]
+    fn same_platform_before_and_after_pole_can_board() {
+        assert!(tolerant_stop_box(1.5, 9.0, 0.0, 5.0));
+        assert!(tolerant_stop_box(-2.0, -9.0, 0.0, 5.0));
+    }
+    #[test]
+    fn rejects_opposite_road_other_floor_and_far_stop() {
+        assert!(!tolerant_stop_box(6.5, 2.0, 0.0, 5.0));
+        assert!(!tolerant_stop_box(1.0, 2.0, 4.0, 5.0));
+        assert!(!tolerant_stop_box(1.0, 40.0, 0.0, 5.0));
+    }
+}
+
+fn custom_ticket_buy(percent:i32,roll:f32)->Option<bool>{
+    (percent>=0).then(||percent>=100 || (percent>0 && roll<percent as f32/100.0))
+}
+#[cfg(test)]
+mod ticket_chance_2211_tests{
+    use super::*;
+    #[test] fn endpoints_and_native_policy(){
+        for i in 0..=1000{let r=i as f32/1000.;assert_eq!(custom_ticket_buy(-1,r),None);assert_eq!(custom_ticket_buy(0,r),Some(false));assert_eq!(custom_ticket_buy(100,r),Some(true));}
+    }
+    #[test] fn percentage_is_of_all_passengers_not_only_non_stampers(){
+        let n=(0..10000).filter(|i|custom_ticket_buy(37,*i as f32/10000.)==Some(true)).count();assert_eq!(n,3700);
+    }
+}
+
+#[cfg(test)]
+mod hail_range_2212_tests{
+    use super::*;
+    #[test] fn nearby_approach_only(){
+        let f=DVec2::Y;
+        assert!(PeopleSim::visual_hail_range(DVec3::new(3.,-50.,0.),f));
+        assert!(PeopleSim::visual_hail_range(DVec3::new(3.,-80.,0.),f));
+        assert!(!PeopleSim::visual_hail_range(DVec3::new(3.,-100.,0.),f));
+        assert!(!PeopleSim::visual_hail_range(DVec3::new(35.,-20.,0.),f));
+        assert!(!PeopleSim::visual_hail_range(DVec3::new(0.,30.,0.),f));
+        assert!(!PeopleSim::visual_hail_range(DVec3::new(0.,-20.,12.),f));
+    }
+}
+impl PeopleSim { pub(crate) fn visual_hail_range(d: DVec3, forward: DVec2) -> bool {
         d.is_finite()
-            && d.length_squared() <= 60.0 * 60.0
+            && // Passengers leave WaitingForBus and head toward the gather point as
+            // soon as a compatible bus enters the 60 m registration radius.
+            // A 60 m *visual* radius gave the arm no frame to rise.
+            // Signal from 60-90 m while the passenger is still waiting.
+            d.length_squared() <= 90.0 * 90.0
             && d.truncate().dot(forward) <= 12.0
             && (d.x * forward.y - d.y * forward.x).abs() <= 14.0
             && d.z.abs() < 8.0
+    }}
+impl PeopleSim {
+    /// Prefer an approaching compatible bus over a parked one, even when that
+    /// parked bus is closer to the same stop. Visual-only: no route selection,
+    /// passenger booking, door or seat state is changed.
+    pub(crate) fn visual_hail_target_order(
+        a_speed: f64, a_distance_squared: f64,
+        b_speed: f64, b_distance_squared: f64,
+    ) -> std::cmp::Ordering {
+        let a_approaching = a_speed.is_finite() && a_speed > 0.08;
+        let b_approaching = b_speed.is_finite() && b_speed > 0.08;
+        b_approaching.cmp(&a_approaching)
+            .then_with(|| a_distance_squared.total_cmp(&b_distance_squared))
     }
 }
 impl PeopleSim {
@@ -33,29 +98,53 @@ impl PeopleSim {
     /// choose a task or change which bus anybody actually boards.
     pub fn visual_hail_bus(&self, i: usize, buses: &[BusNow]) -> Option<(BusId, bool, DVec3)> {
         let p = self.pax(i)?;
-        // Only stationary waiting passengers can signal: once they start moving to
-        // a door, turning the whole pose would slide their feet sideways.
-        if p.inside.is_some() || p.task != Task::WaitingForBus { return None; }
+        // Allow the visual signal while the passenger is still standing at
+        // the point, including the ToBus recognition phase (a bus may appear
+        // inside 60m before the first WaitingForBus snapshot). Stop at
+        // WalkingToBus so the animation cannot drag feet across the curb.
+        if p.inside.is_some()
+            || !matches!(p.task, Task::WaitingForBus | Task::ToBus)
+        { return None; }
         let stop = p.stop?;
         let s = self.stops.get(&stop)?;
         let heading = s.heading.to_radians();
         let forward = DVec2::new(heading.sin(), heading.cos());
-        // Resolve passenger route information once, before scanning candidate buses.
-        let (_, termini) = s.lines.get(p.line?)?;
+        // Some addon stops do not associate a [line] index with every
+        // waiting passenger. Ordinary boarding (bus_for) still accepts an
+        // on-platform service in that case. Visual hailing must not silently
+        // reject those same passengers, or nobody signals at such stops.
+        let line = p.line.and_then(|k| s.lines.get(k));
         buses.iter().filter(|b| {
+            if p.transfer_from==Some(b.id) {return false;}
             if matches!(b.takes, Takes::Nobody) { return false; }
             let d = b.pos - s.pos;
-            if !Self::visual_hail_range(d,forward) || (b.pos-self.people[i].position).length_squared()>60.0*60.0
+            if !Self::visual_hail_range(d,forward) || (b.pos-self.people[i].position).length_squared()>90.0*90.0
                 || b.fwd().dot(forward) <= 0.0 || b.served.is_some_and(|id| id != stop) { return false; }
             if b.route.as_ref().is_some_and(|r| r.is_last_stop(s)) { return false; }
-            b.terminus.as_deref().is_some_and(|term|
-                fit(stop, s, p.dest.as_deref(), termini, term, &b.takes)
-                    .or_else(|| b.route.as_ref().and_then(|r| r.takes_waiting_for(termini))).is_some())
-        }).min_by(|a,b| (a.pos-self.people[i].position).length_squared()
-            .total_cmp(&(b.pos-self.people[i].position).length_squared()))
-            .map(|b| (b.id, b.speed.abs() > 0.08, b.pos))
+            // A driver's HOF/IBIS may still be initializing while its timetable
+            // route is already known. Do not make a valid route match depend on
+            // the terminus label being available: that hid all hailing gestures
+            // on some addon maps, even for passengers who could board normally.
+            // This is cosmetic only; no seat, task or stop reservation changes.
+            match line {
+                Some((_, termini)) => b.terminus.as_deref()
+                    .and_then(|term| fit(stop, s, p.dest.as_deref(), termini, term, &b.takes))
+                    .or_else(|| b.route.as_ref().and_then(|r| r.takes_waiting_for(termini)))
+                    .is_some(),
+                None => {
+                    // Same service fallback as bus_for when the map has no
+                    // passenger line entry. Only use a bus able to take this
+                    // passenger from the actual platform side.
+                    let side = self.preferred_entry_side(stop, b, self.people[i].position);
+                    b.cabin.entries.iter().any(|door|
+                        door.point.is_some() && entry_on_platform(side, door.side))
+                }
+            }
+        }).min_by(|a,b| Self::visual_hail_target_order(
+            a.speed, (a.pos-self.people[i].position).length_squared(),
+            b.speed, (b.pos-self.people[i].position).length_squared()))
+            .map(|b| (b.id, b.speed.is_finite() && b.speed > 0.08, b.pos))
     }
-
     /// Respect the map's side setting, as the vehicle's AI door scripts do.
     /// At two-sided stops, use this passenger's side rather than the stop box.
     pub(super) fn preferred_entry_side(&self, stop: i64, bn: &BusNow, position: DVec3) -> Option<f32> {
@@ -126,7 +215,15 @@ impl PeopleSim {
                 let matches_trip = !matches!(bn.id, BusId::Ai(_))
                     || bn.next_stop.as_ref().is_none_or(|next| next.id == *id);
                 if same_way && matches_trip {
-                    reg.next = Some(*id);
+                    let now_scheduled = bn.next_stop.as_ref().is_some_and(|next| next.id == *id);
+                    let old_scheduled = reg.next.is_some_and(|prev|
+                        bn.next_stop.as_ref().is_some_and(|next| next.id == prev));
+                    let old_distance = reg.next.and_then(|prev| self.stops.get(&prev))
+                        .map_or(f64::INFINITY, |old| (bn.pos - old.pos).length());
+                    if reg.next.is_none() || (now_scheduled && !old_scheduled)
+                        || (now_scheduled == old_scheduled && dist < old_distance) {
+                        reg.next = Some(*id);
+                    }
                 }
                 // Active timetable service belongs to one platform, not every nearby
                 // stop with the same destination (including the opposite carriageway).
@@ -153,7 +250,7 @@ impl PeopleSim {
                     let lateral = d.truncate().dot(s_right);
                     let along = d.truncate().dot(s_fwd);
                     let in_box = scheduled_here
-                        || (lateral.abs() < 2.0 && along.abs() < (s.length as f64 - 5.0).max(0.0));
+                        || (same_way && tolerant_stop_box(lateral, along, d.z, s.length));
                     self.stops.get_mut(id).unwrap().buses.push((bn.id, in_box));
                 }
             }
@@ -177,20 +274,29 @@ impl PeopleSim {
             None => s.buses.iter().find_map(|(id, _)| {
                 if p.transfer_from == Some(*id) { return None; }
                 let bn = bus_ix.get(id).map(|k| &buses[*k])?;
+                let why = if p.host_destination {
+                    super::pax::duty_destination_fit(stop, s, p.dest.as_deref(), &bn.takes)?
+                } else { Fit::Any };
                 let side = self.preferred_entry_side(stop, bn, self.people[i].position);
+                if self.wheelchairs.is_chair(self.people[i].id)&&!self.wheelchairs.supports_bus(*id,side){return None;}
                 bn.cabin.entries.iter().any(|door| door.point.is_some() && entry_on_platform(side, door.side))
-                    .then_some((*id, Fit::Any))
+                    .then_some((*id, why))
             }),
             Some((_, termini)) => best_bus(s.buses.iter().filter_map(|(id, _)| {
                 if p.transfer_from == Some(*id) { return None; }
                 let bn = bus_ix.get(id).map(|k| &buses[*k])?;
                 let side = self.preferred_entry_side(stop, bn, self.people[i].position);
+                if self.wheelchairs.is_chair(self.people[i].id)&&!self.wheelchairs.supports_bus(*id,side){return None;}
                 if !bn.cabin.entries.iter().any(|door| door.point.is_some() && entry_on_platform(side, door.side)) {
                     return None;
                 }
                 // (or the destination of another route of its service ending where its own
                 // does: a circular's people wait for the stop it ends at)
-                let f = fit(stop, s, p.dest.as_deref(), termini, bn.terminus.as_deref()?, &bn.takes)
+                // The HOF terminus can arrive after the timetable route. Do
+                // not short-circuit before trying that route, otherwise the
+                // bus can be eligible to hail but cannot actually board.
+                let f = bn.terminus.as_deref()
+                    .and_then(|term|fit(stop, s, p.dest.as_deref(), termini, term, &bn.takes))
                     .or_else(|| bn.route.as_ref().and_then(|r| r.takes_waiting_for(termini)))?;
                 Some((*id, f, (bn.pos - self.people[i].position).length()))
             })),
@@ -212,6 +318,26 @@ impl PeopleSim {
         Some(match p.spot.and_then(|k| s.spots.get(k)) {
             Some(sp) => place_floor(sp, s.pos.z),
             None => s.pos.z,
+        })
+    }
+
+    /// A small curb-offset/traffic stop can be reached without collecting the
+    /// opposite platform. Normal route, destination, capacity and door rules still apply.
+    pub fn can_walk_to_stopped_bus(&self, i: usize, stop: i64, bn: &BusNow) -> bool {
+        let Some(platform) = self.stops.get(&stop) else { return false; };
+        if bn.speed.abs() > 0.28 || bn.served.is_some_and(|id| id != stop) { return false; }
+        let heading = platform.heading.to_radians();
+        if bn.fwd().dot(DVec2::new(heading.sin(), heading.cos())) < 0.7 { return false; }
+        let person = self.people[i].position;
+        let local = bn.to_local(person);
+        if local.x.abs() > 6.0 || (person.z - bn.pos.z).abs() > 1.8 { return false; }
+        let side = self.preferred_entry_side(stop, bn, person);
+        bn.cabin.entries.iter().enumerate().any(|(index, door)| {
+            door.point.is_some() && bn.entry_open.get(index).copied().unwrap_or(false)
+                && entry_on_platform(side, door.side)
+                // The door and waiting person must be on the same physical side.
+                && local.x * door.side >= 0.5
+                && (bn.world(door.outside) - person).length() <= 18.0
         })
     }
 
@@ -267,6 +393,15 @@ impl PeopleSim {
     pub fn decide_pax_ticket(&mut self, i: usize, bn: &BusNow) -> (u8, u8) {
         let Some(tp) = self.tickets.clone() else { return (TICKET_NONE, 0) };
         let mut r = self.rand_f() as f32;
+        let custom=TICKET_CHANCE_PERCENT.load(std::sync::atomic::Ordering::Relaxed);
+        if custom>=0 && bn.cabin.sale.is_some() {
+            if custom_ticket_buy(custom,r).unwrap_or(false) {
+                let age=self.people[i].age;
+                return (TICKET_BUY,self.pick_ticket(age).map_or(0,|t|(t+1).min(255)as u8));
+            }
+            // Non-buyers may still validate their pass, preserving its relative share.
+            return if !bn.cabin.stampers.is_empty() && (self.rand_f() as f32) < tp.stamper_prop { (TICKET_STAMP,0) } else { (TICKET_NONE,0) };
+        }
         if !bn.cabin.stampers.is_empty() {
             if r < tp.stamper_prop {
                 return (TICKET_STAMP, 0);

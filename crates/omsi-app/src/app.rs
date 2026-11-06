@@ -600,19 +600,21 @@ impl App {
                         h.set_lan_seed(lan::population_seed(lan));
                     }
                     h.exact_fare = self.settings.exact_fare;
-                    // Until owner handoff is validated, connections are single-player only.
-                    h.transfer_percent = if self.args.passenger_connections_allowed(self.net.lan.is_some()) && self.settings.passenger_connections {
-                        self.settings.passenger_transfer_percent
-                    } else { 0.0 };
-                    h.visual_hailing = self.settings.passenger_hailing
-                        && self.settings.passenger_animation == "enhanced";
-                    h.visual_full_bus_reaction = self.settings.passenger_full_bus_reaction
-                        && self.settings.passenger_animation == "enhanced";
+        h.optional_features = self.settings.optional_features;
+        h.wheelchairs.spawn_percent=self.settings.wheelchair_spawn_percent;
+        h.transfer_percent = if self.settings.passenger_connections { self.settings.passenger_transfer_percent } else { 0.0 };
+        // These settings enable cosmetic arm/look gestures over EITHER the
+        // original OMSI skeleton or enhanced IK. Tying them to the full
+        // passenger_animation mode disabled the target calculation completely
+        // for players who selected original animations.
+        h.visual_hailing = self.settings.passenger_hailing;
+        h.visual_full_bus_reaction = self.settings.passenger_full_bus_reaction;
                     h.bad_driving = self.settings.pax_bad_driving;
                     h.boarding = self.settings.boarding.clone();
                     h.stand_chance = self.settings.standing_chance;
+                    h.brazilian_voice_dir = crate::humans::brazilian_voice_dir(&self.settings.language);
+        h.voices = match self.settings.pax_voices.as_str() { "off" => 2, "tickets" => 1, _ => 0 };
                     h.short_rides_stand = self.settings.pax_short_rides_stand;
-                    h.voices = match self.settings.pax_voices.as_str() { "off" => 2, "tickets" => 1, _ => 0 };
                     if let Some(p) = self.player.as_mut() {
                         h.set_cabin(&mut p.vehicle);
                         h.ticket_key = ticket_key_name(&self.args.root, &p.bindings);
@@ -628,6 +630,9 @@ impl App {
                             h.populate(&w, centre);
                             crate::view_sync::apply_people(&mut h, &mut self.gfx.sim_view.people, &w, &renderer, &mut scene);
                             h.seed_riders(self.args.riders, &p.vehicle, &w);
+                            if self.net.lan.is_none() && crate::bcs_events::local_visual_test(&self.args) {
+                                h.sim.hold_seated_test_passengers();
+                            }
                             crate::view_sync::apply_people(&mut h, &mut self.gfx.sim_view.people, &w, &renderer, &mut scene);
                         }
                     }
@@ -641,6 +646,8 @@ impl App {
                 {
                     match traffic::Traffic::new(&self.args.root, &w, self.args.traffic) {
                         Ok(mut t) => {
+                            t.optional_features = self.settings.optional_features;
+                            t.illegal_parking_frequency = self.settings.illegal_parking_frequency;
                             t.lights_only = !populated;
                             t.no_timetable_buses = self.args.no_timetable_buses;
                             t.drive_through_parked = self.args.ai_drive_through_parked;
@@ -1072,6 +1079,10 @@ pub(crate) fn streaming(cx: StreamingCx) {
     // a LAN host simulates the world around every player: the ground and the roads there
     if cx.net.lan.as_ref().map(|l| l.role == omsi_net::Role::Host).unwrap_or(false) {
         centers.extend(cx.net.remotes.remotes.values().map(|r| r.vehicle().position));
+        if let Some(lan) = cx.net.lan.as_ref() {
+            centers.extend(lan.peers().filter(|p| p.has_pose)
+                .flat_map(|p| p.pose.world_interest_centers().map(DVec3::from_array)));
+        }
     }
     let (Some(streamer), Some(w), Some(r), Some(scene)) = (
         cx.gfx.gfx.streamer.as_mut(),
