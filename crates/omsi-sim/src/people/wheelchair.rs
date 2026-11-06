@@ -581,7 +581,13 @@ impl Journey {
             }
             Stage::ToPlatform => {
                 let p = profile.platform(self.ground_height);
-                if self.drive(p, dt, blockers, false) {
+                let reached=self.drive(p, dt, blockers, false);
+                // The middle of a sloped ramp is ABOVE the road by design.
+                // The ramp's sampled surface owns Z here; only a lift must
+                // actually reach its measured platform height before moving
+                // to the cabin. Keeping a 3-D target check on the ramp leaves
+                // the chair at ToPlatform forever.
+                if reached || (ramp && (self.local-p).truncate().length()<0.002) {
                     self.outside_world = None;
                     self.transition(if ramp { Stage::ToBay } else { Stage::Raising });
                 }
