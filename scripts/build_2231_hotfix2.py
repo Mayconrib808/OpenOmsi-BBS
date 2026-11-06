@@ -105,10 +105,10 @@ def main():
     manifest_dir.mkdir(parents=True,exist_ok=True)
     legacy_lines=[report["components_sha256"]["Setup.exe"]+"  Setup.exe"]
     legacy_lines.extend(report["components_sha256"][x]+"  "+x for x in pinned)
-    (manifest_dir/"SHA256.txt").write_text("\\n".join(legacy_lines)+"\\n",encoding="ascii")
+    (manifest_dir/"SHA256.txt").write_text("\n".join(legacy_lines)+"\n",encoding="ascii")
     check(sha((runtime/"Setup.exe").read_bytes())!=report["components_sha256"]["Setup.exe"],"Legacy fixture accidentally pins updated Setup")
     run([str((runtime/"Setup.exe").resolve()),"--verify-activation"],cwd=runtime)
-    (out/"stale-sha-activation-tested.txt").write_text("PASS: New signed P17 Setup accepts an old docs/SHA256.txt without bypassing runtime pins.\\n",encoding="ascii")
+    (out/"stale-sha-activation-tested.txt").write_text("PASS: New signed P17 Setup accepts an old docs/SHA256.txt without bypassing runtime pins.\n",encoding="ascii")
     run([str((runtime/"Setup.exe").resolve()),"--gui-smoke"],cwd=runtime,env=dict(os.environ,BRIDGE_SETUP_PREVIEWS=str(out/"setup-previews")),timeout=75)
     # Tampered native P17 gameplay binary MUST be rejected by corrected Setup.
     game=runtime/"OpenOmsi Coop 0.3.41/programa/openomsi.exe"
