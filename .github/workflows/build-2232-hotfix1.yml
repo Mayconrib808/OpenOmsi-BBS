@@ -1,0 +1,97 @@
+name: Build Bridge 2.2.3.2 Hotfix 1 accessibility and fuel installer
+on:
+  push:
+    branches: [release/2.2.3.2-hotfix.1]
+    paths: [.github/workflows/build-2232-hotfix1.yml, scripts/build_2232_hotfix1.py, source/**, docs/releases/2.2.3.2-hotfix.1.md]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-2232-hotfix1-windows-package
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: '1'
+      OMSI_NO_UPDATE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Verify exact approved complete baseline and corrected native artifacts
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $inputs=@(
+            @{run=42215835902;commit='12e7cab62425a40da4ca157e0195a14d8beceef8';artifact=13500893293;digest='sha256:1322dd21a7915173a519ff1862431624bc53d34fe3b1842976c633b73625800c'},
+            @{run=42256675047;commit='c80715cefa0197031c4c9d9beee0d12284c70c86';artifact=13524116447;digest='sha256:781910928cc30fba9638b6fae07dd7750b4c885ada955a111495fa19855441fb'}
+          )
+          foreach($candidateInput in $inputs){
+            $r=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$($candidateInput.run)" | ConvertFrom-Json
+            if($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne $candidateInput.commit){throw 'Unapproved source run'}
+            $a=gh api "repos/$env:GITHUB_REPOSITORY/actions/artifacts/$($candidateInput.artifact)" | ConvertFrom-Json
+            if($a.expired -or $a.digest -ne $candidateInput.digest -or $a.workflow_run.id -ne $candidateInput.run){throw 'Immutable artifact mismatch'}
+          }
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.2-FULL-CANDIDATE
+          run-id: 42215835902
+          github-token: ${{ github.token }}
+          path: approved
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2232-wheelchair-fuel-Windows-CANDIDATE
+          run-id: 42256675047
+          github-token: ${{ github.token }}
+          path: native
+      - name: Bridge source and activation regressions
+        shell: pwsh
+        run: |
+          python scripts/build_2203.py --tests-only
+          if($LASTEXITCODE -ne 0){throw 'Bridge regressions failed'}
+      - name: Build installer and verify actual P17 controls, activation and first-click migration
+        shell: pwsh
+        run: |
+          python scripts/build_2232_hotfix1.py --approved approved --native native --output output
+          if($LASTEXITCODE -ne 0){throw 'Hotfix package or Windows installation failed'}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Bridge-2.2.3.2-Hotfix1-failure-diagnostics
+          path: |
+            output/one-click-install-setup.log
+            output/runtime/app/*log*
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3.2-Hotfix1-FULL-CANDIDATE
+          path: |
+            output/Atualizar-Bridge.exe
+            output/build-report.json
+            output/coop-spec.json
+            output/coop-assets/*
+            output/native-p17-controls.json
+            output/one-click-install-test.json
+            output/one-click-install-setup.log
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3.2-Hotfix1-SIGNING-METADATA
+          path: |
+            output/build-report.json
+            output/coop-spec.json
+            output/native-p17-controls.json
+            output/one-click-install-test.json
+          retention-days: 90
+          if-no-files-found: error

@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.3.2"
+const changelogSeenVersion = "2.2.3.2-hotfix.1"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -984,7 +984,7 @@ func select2231LogSections(from string) []logSection {
  return append(result,selectPreviousLogSections(from)...)
 }
 
-func selectLogSections(from string) []logSection {
+func select2232LogSections(from string) []logSection {
  newest := logSection{label:logT("2.2.3.2 • OPENOMSI 0.3.50", "2.2.3.2 • OPENOMSI 0.3.50", "2.2.3.2 • OPENOMSI 0.3.50"), accent:logAccent(112,219,164), entries:[]logEntry{
  {logT6("OpenOMSI 0.3.50 completo", "Complete OpenOMSI 0.3.50", "Vollständiges OpenOMSI 0.3.50", "OpenOMSI 0.3.50 completo", "OpenOMSI 0.3.50 complet", "Полное обновление OpenOMSI 0.3.50"),
  logT6("Jogo, Launcher e servidor atualizados com todas as alterações oficiais da 0.3.50. HostAgent e migração mantêm o protocolo P17, mapas, voz, senhas e preferências.", "Game, Launcher and server include all official 0.3.50 changes. HostAgent and migration retain P17, maps, voice, passwords and preferences.", "Spiel, Launcher und Server enthalten alle offiziellen Änderungen von 0.3.50. HostAgent und Migration behalten P17, Karten, Sprache und Einstellungen bei.", "Juego, Launcher y servidor incluyen todos los cambios oficiales de 0.3.50. Se conservan P17 y los ajustes del HostAgent.", "Le jeu, le Launcher et le serveur intègrent toutes les modifications officielles de 0.3.50. P17 et les réglages du HostAgent sont conservés.", "Игра, Launcher и сервер включают все официальные изменения 0.3.50. Сохранены P17 и настройки HostAgent.")},
@@ -997,4 +997,21 @@ func selectLogSections(from string) []logSection {
  from=strings.TrimSpace(from)
  if from==changelogSeenVersion || from=="2.2.3.1-hotfix.2" {return result}
  return append(result,select2231LogSections(from)...)
+}
+
+func selectLogSections(from string) []logSection {
+ newest:=logSection{label:logT("2.2.3.2 HOTFIX 1", "2.2.3.2 HOTFIX 1", "2.2.3.2 HOTFIX 1"),accent:logAccent(112,219,164),entries:[]logEntry{
+ {logT6("Combustível", "Fuel", "Kraftstoff", "Combustible", "Carburant", "Топливо"),
+ logT6("Corrigido o consumo negativo que aumentava o combustível durante a viagem. Mantém o nível inicial do BCS e o abastecimento solicitado.", "Fixed negative consumption that increased fuel during a trip. Preserves the initial BCS level and requested refuelling.", "Negativer Verbrauch, der den Tankinhalt während der Fahrt erhöhte, wurde behoben. BBS-Anfangsstand und angefordertes Tanken bleiben erhalten.", "Corregido el consumo negativo que aumentaba el combustible durante el viaje. Conserva el nivel inicial de BCS y el repostaje solicitado.", "Correction de la consommation négative qui augmentait le carburant pendant le trajet. Le niveau initial BBS et le ravitaillement demandé sont conservés.", "Исправлен отрицательный расход, увеличивавший топливо в поездке. Начальный уровень BBS и запрошенная заправка сохранены.")},
+ {logT6("Vagas reais", "Real wheelchair bays", "Echte Rollstuhlplätze", "Plazas reales", "Emplacements réels", "Настоящие места для колясок"),
+ logT6("O localizador universal associa a vaga reservada à porta correta. Acessos alternativos compartilham a mesma vaga; o Torino 2007 usa sua área traseira.", "Universal discovery links the reserved bay to its correct door. Alternative entrances share one physical bay; the Torino 2007 uses its rear compartment.", "Die universelle Erkennung ordnet den Stellplatz der richtigen Tür zu. Alternative Zugänge teilen denselben Platz; der Torino 2007 nutzt den hinteren Bereich.", "El detector universal vincula la plaza reservada con la puerta correcta. Los accesos alternativos comparten la misma plaza; el Torino 2007 usa su zona trasera.", "La détection universelle relie l'emplacement à la bonne porte. Les accès alternatifs partagent le même emplacement ; le Torino 2007 utilise son espace arrière.", "Универсальное обнаружение связывает место с правильной дверью. Альтернативные входы используют одно место; Torino 2007 использует заднюю зону.")},
+ {logT6("Desembarque liberado", "Passenger exits", "Fahrgastausstieg", "Bajada de pasajeros", "Descente des passagers", "Выход пассажиров"),
+ logT6("A assistência deixa de puxar quem está caminhando para a saída. Quem cede espaço recebe uma posição livre e é liberado ao terminar ou pedir para descer.", "Assistance no longer pulls passengers away from their exit paths. Riders yielding space get a free standing place and are released when finished or requesting to alight.", "Die Hilfe zieht Fahrgäste nicht mehr vom Ausstiegsweg weg. Ausweichende Fahrgäste erhalten einen freien Stehplatz und werden danach oder bei einem Ausstiegswunsch freigegeben.", "La asistencia deja de apartar a quienes caminan hacia la salida. Quien cede espacio recibe un lugar libre y se libera al terminar o solicitar la bajada.", "L'assistance ne déplace plus les passagers qui rejoignent la sortie. Ceux qui cèdent le passage obtiennent une place libre et sont libérés ensuite ou lorsqu'ils demandent à descendre.", "Помощь больше не уводит пассажиров с пути к выходу. Уступающие получают свободное стоячее место и освобождаются после манёвра или запроса выхода.")},
+ {logT6("Assistência e avisos", "Assistance and alerts", "Hilfe und Hinweise", "Asistencia y avisos", "Assistance et alertes", "Помощь и уведомления"),
+ logT6("O painel distingue Preparar embarque de Preparar desembarque. Pedidos de descida podem adiar um embarque ainda não iniciado e continuam visíveis na tela.", "The panel distinguishes Prepare boarding from Prepare alighting. Alighting requests can defer boarding that has not started and remain visible on screen.", "Das Bedienfeld unterscheidet Einstieg vorbereiten von Ausstieg vorbereiten. Ausstiegswünsche können einen noch nicht begonnenen Einstieg verschieben und bleiben sichtbar.", "El panel distingue Preparar subida de Preparar bajada. Las solicitudes de bajada pueden aplazar una subida aún no iniciada y siguen visibles.", "Le panneau distingue Préparer la montée de Préparer la descente. Une demande de descente peut différer une montée non commencée et reste visible.", "Панель различает подготовку посадки и высадки. Запрос выхода может отложить ещё не начатую посадку и остаётся на экране.")},
+ }}
+ result:=[]logSection{newest}
+ from=strings.TrimSpace(from)
+ if from==changelogSeenVersion || from=="2.2.3.2" {return result}
+ return append(result,select2232LogSections(from)...)
 }

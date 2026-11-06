@@ -12,12 +12,14 @@ func Test2231ChangelogIncludesOnlyUnseenReleases(t *testing.T) {
 		from  string
 		count int
 	}{
-		{"2.2.3-hotfix.2", 2},
-		{"2.2.3-hotfix.1", 3},
-		{"2.2.3", 4},
-		{"2.2.2.4-hotfix.5", 5},
-		{"2.2.2.4-hotfix.4", 6},
-		{"2.2.2.4-hotfix.3", 7},
+		{"2.2.3.2", 1},
+		{"2.2.3.1-hotfix.2", 2},
+		{"2.2.3-hotfix.2", 3},
+		{"2.2.3-hotfix.1", 4},
+		{"2.2.3", 5},
+		{"2.2.2.4-hotfix.5", 6},
+		{"2.2.2.4-hotfix.4", 7},
+		{"2.2.2.4-hotfix.3", 8},
 	}
 	for _, c := range cases {
 		sections := selectLogSections(c.from)
