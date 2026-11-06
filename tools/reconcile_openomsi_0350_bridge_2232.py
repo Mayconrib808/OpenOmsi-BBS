@@ -135,6 +135,52 @@ elif "        self.coop_drawn_view();\n        self.player_back_to_sim_pose(sim)
     raise RuntimeError(f"{path}: unexpected coop view drawing structure")
 put(path, s)
 
+# Stamp the actual integrated engine as 0.3.50/P17.  The previous
+# 0.3.49 build guard is intentionally strict and rejects any mismatched
+# OPENOMSI_VERSION on Windows; update its expectations only *after* the
+# workflow verifies the pinned official 0.3.50 commit is descended from
+# pinned 0.3.49 and merges it into the candidate source.
+import json
+manifest_path = "ENGINE_BASE.json"
+manifest = json.loads(get(manifest_path))
+expected = {
+    "version": "0.3.49",
+    "repository": "openOMSI-org/openOMSI",
+    "upstream_commit": "0784e3cd02ea6fc013b31cdfff4a7932742632ca",
+    "upstream_tag": "v0.3.49",
+    "protocol": 17,
+}
+for key, value in expected.items():
+    if manifest.get(key) != value:
+        raise RuntimeError(f"{manifest_path}: unexpected {key}: {manifest.get(key)!r}")
+if manifest.get("whole_engine_upgrade") is not True or manifest.get("coop_patches_retained") is not True:
+    raise RuntimeError(f"{manifest_path}: missing verified engine/coop provenance")
+manifest["version"] = "0.3.50"
+manifest["upstream_commit"] = "11ff78bab1998963162be97c49e909a2996710e1"
+manifest["upstream_tag"] = "v0.3.50"
+put(manifest_path, json.dumps(manifest, indent=2) + "\n")
+
+path = "crates/omsi-platform/build.rs"
+s = get(path)
+for before, after in (
+    ("0.3.49/P17", "0.3.50/P17"),
+    ("0.3.49-coop.17", "0.3.50-coop.17"),
+    ('"version": "0.3.49"', '"version": "0.3.50"'),
+    ('"upstream_tag": "v0.3.49"', '"upstream_tag": "v0.3.50"'),
+):
+    if before not in s:
+        # The two JSON keys in Rust are escaped string literals, not bare JSON.
+        if before.startswith('"'):
+            before = before.replace('"', r'\"')
+            after = after.replace('"', r'\"')
+        if before not in s:
+            raise RuntimeError(f"{path}: expected previous 0.3.49 guard {before!r}")
+    s = s.replace(before, after)
+if 'v.trim().starts_with("0.3.50-coop.17-")' not in s:
+    raise RuntimeError(f"{path}: new version guard not present")
+put(path, s)
+print("Updated verified 0.3.50/P17 engine provenance and strict Windows version guard.", flush=True)
+
 print("Reconciled 0.3.50 Settings, viewpoint-aware mouse picking and coop draw borrow.", flush=True)
 
 # Official 0.3.50's NVIDIA regression test expects the upstream release.yml,
