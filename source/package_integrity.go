@@ -369,5 +369,5 @@ func packageOptionalDocumentation(rel string) bool {
 
 // Both cumulative P17 release lines carry build-time executable pins.
 func signedCumulativePrefix(prefix string) bool {
- return prefix == "Bridge-2.2.3.1/" || prefix == "Bridge-2.2.3.2/"
+ return prefix == "Bridge-2.2.3.1/" || prefix == "Bridge-2.2.3.2/" || prefix == "Bridge-2.2.3.2-hotfix.1/"
 }
