@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.3.1-hotfix.1"
+const changelogSeenVersion = "2.2.3.1-hotfix.2"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -920,6 +920,28 @@ func passenger223Hotfix2LogSection() logSection {
 }
 
 func selectLogSections(from string) []logSection {
+ hotfix2 := logSection{
+  label: logT6("2.2.3.1 HOTFIX 2 — INTEGRIDADE DA ATIVAÇÃO",
+      "2.2.3.1 HOTFIX 2 — ACTIVATION INTEGRITY",
+      "2.2.3.1 HOTFIX 2 — AKTIVIERUNGSINTEGRITÄT",
+      "2.2.3.1 HOTFIX 2 — INTEGRIDAD DE ACTIVACIÓN",
+      "2.2.3.1 HOTFIX 2 — INTÉGRITÉ DE L’ACTIVATION",
+      "2.2.3.1 HOTFIX 2 — ПРОВЕРКА АКТИВАЦИИ"),
+  accent: logAccent(112,219,164),
+  entries: []logEntry{
+   {logT6("Correção de SHA256 mismatch: Setup.exe", "Fix Setup.exe SHA-256 mismatch",
+       "SHA-256-Konflikt bei Setup.exe behoben",
+       "Corregido SHA256 mismatch: Setup.exe", "Correction du SHA-256 de Setup.exe",
+       "Исправлено несовпадение SHA-256 Setup.exe"),
+    logT6("A ativação agora usa os hashes seguros do pacote cumulativo P17, mesmo se a instalação ainda possuir docs/SHA256.txt antigo. Executáveis realmente alterados continuam bloqueados.",
+       "Activation now verifies pinned P17 cumulative runtime hashes even when an older docs/SHA256.txt remains installed. Tampered binaries are still rejected.",
+       "Die Aktivierung prüft jetzt die festgelegten P17-Laufzeit-Hashes, auch wenn eine veraltete docs/SHA256.txt vorhanden ist. Manipulierte Dateien werden weiter blockiert.",
+       "La activación verifica los hashes auténticos del paquete P17 aunque quede un docs/SHA256.txt antiguo. Los ejecutables modificados siguen bloqueados.",
+       "L’activation vérifie les empreintes P17 approuvées même si un ancien fichier docs/SHA256.txt est toujours présent. Les fichiers modifiés restent bloqués.",
+       "Активация использует проверенные хеши P17, даже если остался старый docs/SHA256.txt. Подменённые файлы блокируются.")},
+  },
+ }
+ if from == "2.2.3.1-hotfix.1" {return []logSection{hotfix2}}
  hotfix := logSection{
   label: logT6("2.2.3.1 HOTFIX 1 — SETUP E ATIVAÇÃO",
       "2.2.3.1 HOTFIX 1 — SETUP AND ACTIVATION",
@@ -948,7 +970,7 @@ func selectLogSections(from string) []logSection {
           "Исправлена проверка пакета 2.2.3.1. Доступны португальский, английский, немецкий, испанский, французский и русский языки. OpenOMSI 0.3.49 и HostAgent P17 сохранены.")},
   },
  }
- if from == "2.2.3.1" {return []logSection{hotfix}}
+ if from == "2.2.3.1" {return []logSection{hotfix2, hotfix}}
  newest := logSection{label:logT("2.2.3.1 • OPENOMSI 0.3.49", "2.2.3.1 • OPENOMSI 0.3.49", "2.2.3.1 • OPENOMSI 0.3.49"), accent:logAccent(112,219,164), entries:[]logEntry{
  {logT("OpenOMSI 0.3.49 e protocolo 17", "OpenOMSI 0.3.49 and protocol 17", "OpenOMSI 0.3.49 und Protokoll 17"),
   logT("Atualização integral do jogo, Launcher, servidor e HostAgent P17. Configurações, mapas, voz, senhas e inventários anteriores são preservados.", "Full game, Launcher, server and HostAgent P17 update. Existing settings, maps, voice, passwords and inventories are retained.", "Vollständiges Update von Spiel, Launcher, Server und HostAgent P17. Einstellungen, Karten, Sprache, Kennwörter und Inventare bleiben erhalten.")},
