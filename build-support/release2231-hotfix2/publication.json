@@ -1,0 +1,17 @@
+{
+  "version": "2.2.3.1-hotfix.2",
+  "sequence": 2026110503,
+  "previous_version": "2.2.3.1-hotfix.1",
+  "previous_sequence": 2026110502,
+  "candidate_run_id": 42143188216,
+  "candidate_commit": "3fcfd6e9d4a841f3298dc3423b70a175a8fb1e42",
+  "candidate_artifact_id": 13469226827,
+  "candidate_artifact_sha256": "d6d6f598e3a2b8de8562c6115e66a81beeac6a13de18f93ba54f8a557aef6ef4",
+  "base_run_id": 42116052029,
+  "base_artifact_id": 13457334107,
+  "base_coop_sha256": "34c80650a32b26348b9da3e64f127429b20d184fad673ed9e47d38545f4fccea",
+  "installer_sha256": "f3a545cc3a4ec65483043b208e380fdb41369ec60ab9771d6ef337c94ac26edb",
+  "installer_size": 25062912,
+  "setup_sha256": "f28e09c442e025051f9a26ed1759082ca0d0d12bab4f906234e78d4ca23ffb6e",
+  "previous_updater_sha256": "dc586616ffbe9b77ccb3dc2bc35f49951333931bd127ac3d18c5282beb319cdb"
+}
