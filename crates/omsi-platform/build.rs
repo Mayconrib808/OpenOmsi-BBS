@@ -31,21 +31,21 @@ fn version(git: &dyn Fn(&[&str]) -> Option<String>) -> String {
             // This candidate carries the full v0.3.49 engine and Coop protocol 17.
             // Fail closed if the source manifest and requested Windows label disagree.
             let base = std::fs::read_to_string("../../ENGINE_BASE.json")
-                .expect("Missing ENGINE_BASE.json for the 0.3.49/P17 release");
+                .expect("Missing ENGINE_BASE.json for the 0.3.50/P17 release");
             assert!(
-                base.contains("\"version\": \"0.3.49\"")
-                    && base.contains("\"upstream_tag\": \"v0.3.49\"")
+                base.contains("\"version\": \"0.3.50\"")
+                    && base.contains("\"upstream_tag\": \"v0.3.50\"")
                     && base.contains("\"protocol\": 17"),
-                "Engine source metadata does not identify verified 0.3.49/P17"
+                "Engine source metadata does not identify verified 0.3.50/P17"
             );
             assert!(
-                v.trim() == "0.3.49-coop.17" || v.trim().starts_with("0.3.49-coop.17-"),
-                "0.3.49/P17 engine build must use an exact matching release label"
+                v.trim() == "0.3.50-coop.17" || v.trim().starts_with("0.3.50-coop.17-"),
+                "0.3.50/P17 engine build must use an exact matching release label"
             );
             return v.trim().to_string();
         }
     }
-    if std::path::Path::new("../../ENGINE_BASE.json").is_file() { return "0.3.49-coop.17-dev".into(); }
+    if std::path::Path::new("../../ENGINE_BASE.json").is_file() { return "0.3.50-coop.17-dev".into(); }
     let base = std::fs::read_to_string("../../VERSION").map(|s| s.trim().to_string()).unwrap_or_else(|_| "0.0".into());
     let prefix = format!("v{base}.");
     let pattern = format!("{prefix}*");
