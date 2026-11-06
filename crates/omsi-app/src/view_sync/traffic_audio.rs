@@ -1,5 +1,7 @@
 //! The AI vehicles' sounds: the view sync's side of the traffic that is heard.
 
+mod greeting;
+pub(crate) use greeting::GreetingHorn;
 use crate::traffic::Traffic;
 use glam::DVec3;
 use hashbrown::HashMap;
@@ -143,6 +145,7 @@ impl Traffic {
             self.sim.set_sound_triggers(id, t);
         }
         self.play_horns(audio, &frame, listener, muffled, volume);
+        self.play_greeting_horns(audio, &frame, muffled, volume);
         self.sound_frame = frame;
     }
 
@@ -152,32 +155,83 @@ impl Traffic {
     /// stands - the stock cars have nothing on that trigger, and the AI's honking was never heard.
     fn play_horns(&mut self, audio: &omsi_audio::AudioEngine, frame: &omsi_sim::view_events::SoundFrame, listener: DVec3, muffled: bool, volume: f32) {
         for (heavy, position, ty) in &frame.honks {
+            let greeting=false;
             if (*position - listener).length() > 250.0 {
                 continue;
             }
-            let plan = sound_plan(&mut self.sound_plans, &mut self.sound_cfgs, &ty.def);
-            if plan.as_ref().is_some_and(|p| p.cfg.sounds.iter().any(|s| s.triggers.iter().any(|t| t.trim().eq_ignore_ascii_case("ev_AI_Horn")))) {
-                continue;
+            if !greeting {
+                let own=sound_plan(&mut self.sound_plans,&mut self.sound_cfgs,&ty.def)
+                    .is_some_and(|p| p.cfg.sounds.iter().any(|s|s.triggers.iter().any(|t|t.trim().eq_ignore_ascii_case("ev_AI_Horn"))));
+                if own { continue; }
+            }
+            let mut model_horn = None;
+            let mut model_release = None;
+            let mut model_volume = 1.0f32;
+            let mut model_range = 24.0f32;
+            let mut model_loop = false;
+            let mut sample_rate = 0.0f32;
+            for rel in ty.def.sound_ai.iter().chain(ty.def.sound.iter()) {
+                let path = omsi_cfg::resolve_path(ty.def.dir(), rel);
+                let cfg = self.sound_cfgs.entry(path.clone()).or_insert_with(||
+                    omsi_vehicle::SoundCfg::load(&path).ok().map(Arc::new));
+                if let Some(cfg) = cfg {
+                    let label = |e: &omsi_vehicle::SoundEntry| std::iter::once(e.file.as_str())
+                        .chain(e.triggers.iter().map(String::as_str))
+                        .chain(e.vol_curves.iter().map(|c| c.variable.as_str()))
+                        .collect::<Vec<_>>().join(" ").to_ascii_lowercase();
+                    let horn = |n: &str| ["horn", "hupe", "buzina"].iter().any(|k| n.contains(k));
+                    let end = |n: &str| ["_off", "release", "_end", "aus.wav"].iter().any(|k| n.contains(k));
+                    if let Some(entry) = cfg.sounds.iter().filter(|e| {
+                        let n=label(e); horn(&n) && !end(&n)
+                            && !["button", "taster", "schalter", "_on.wav", "attack"].iter().any(|k|n.contains(k))
+                    }).max_by_key(|e| (e.is_loop, e.triggers.iter().any(|t| t.eq_ignore_ascii_case("ev_AI_Horn")))) {
+                        let dir = path.parent().unwrap_or(ty.def.dir());
+                        model_horn = Some(omsi_cfg::resolve_path(dir, &entry.file));
+                        model_release = cfg.sounds.iter().find(|e| { let n=label(e);horn(&n)&&end(&n) })
+                            .map(|e|omsi_cfg::resolve_path(dir,&e.file));
+                        model_volume = entry.volume.clamp(0.5, 1.5);
+                        model_range = entry.range.clamp(24.0, 40.0);
+                        model_loop = entry.is_loop && !entry.no_loop;
+                        sample_rate = entry.sample_rate;
+                        break;
+                    }
+                }
             }
             let file = if *heavy { "Sounds/AI_Cars/Hupe_Lkw.wav" } else { "Sounds/AI_Cars/hupe.wav" };
-            let path = plan
-                .as_ref()
-                .and_then(|p| own_horn(&p.cfg).map(|f| omsi_cfg::resolve_path(&p.dir, f)))
-                .filter(|p| omsi_cfg::vfs::is_file(p))
-                .unwrap_or_else(|| omsi_cfg::resolve_path(&self.sim.root, file));
-            let Some(clip) = audio.load_clip(&path) else { continue };
+            // A selected model horn may reference an absent clip, especially
+            // with community OMSI buses. Try the stock AI horn before silence.
+            let fallback = omsi_cfg::resolve_path(&self.sim.root, file);
+            let usable=|c:&Arc<omsi_audio::Clip>| !greeting || c.samples.iter().any(|v|i32::from(*v).abs()>96);
+            let chosen = model_horn.as_ref().and_then(|path|audio.load_clip(path).filter(&usable).map(|clip|(clip,path,true)))
+                .or_else(||audio.load_clip(&fallback).filter(&usable).map(|clip|(clip,&fallback,false)));
+            let Some((clip,source,using_model)) = chosen else {
+                log::warn!("AI greeting horn unavailable (model and stock) for {}", ty.def.path.display());
+                continue;
+            };
+            // A stock fallback must not inherit the missing model clip's pitch,
+            // loop state, unrelated release sample or low volume.
+            if !using_model {model_loop=false;sample_rate=0.0;model_volume=1.0;model_range=24.0;}
+            let pitch = if model_loop && sample_rate > 0.0 { (sample_rate / clip.sample_rate.max(1) as f32).clamp(0.5, 2.0) } else { 1.0 };
+            let release = using_model.then(||model_release.as_ref().and_then(|p|audio.load_clip(p))).flatten();
+            let clip = if greeting {
+                let pattern=omsi_audio::greeting::double_horn_timed(&clip,release.as_deref(),model_loop,pitch);
+                log::info!("AI greeting horn: bus={} pattern=2 source={} press_ms={:.0} gap_ms={:.0} model_pitch={pitch:.3} distance_m={:.1} muffled={muffled}",
+                    ty.def.path.display(),source.display(),pattern.press_frames as f64*1000.0/pattern.clip.sample_rate.max(1) as f64,
+                    pattern.gap_frames as f64*1000.0/pattern.clip.sample_rate.max(1) as f64,(*position-listener).length());
+                Arc::new(pattern.clip)
+            } else {clip};
             let at = *position + DVec3::Z * 0.8;
             audio.play(
                 clip,
                 omsi_audio::mixer::VoiceParams {
-                    gain: volume,
-                    pitch: 1.0,
+                    gain: volume * model_volume * if greeting { 1.6 } else { 1.0 },
+                    pitch:if greeting {1.0}else{pitch},
                     looping: false,
                     position: Some(at.as_vec3()),
                     doppler: true,
-                    range: 12.0,
-                    lowpass_hz: if muffled { 1500.0 } else { 0.0 },
-                    important: false,
+                    range: model_range,
+                    lowpass_hz: if muffled { 3800.0 } else { 0.0 },
+                    important: true,
                 },
             );
         }

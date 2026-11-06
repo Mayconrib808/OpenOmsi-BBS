@@ -463,6 +463,10 @@ impl Cabin {
         });
         let seats = places
             .iter()
+            .filter(|(p,offset,_,_)| {
+                let pos=Vec3::from(p.pos)+*offset;
+                pos.is_finite()&&pos.abs().max_element()<100.0&&p.height.is_finite()
+            })
             .map(|(p, offset, omsi_seat, group)| {
                 let pos = Vec3::from(p.pos) + *offset;
                 let seated = p.height > 0.01;

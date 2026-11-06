@@ -353,7 +353,7 @@ impl ServerCfg {
             admin_trusted_proxies: trusted_proxies(kv.get("admin_trusted_proxies").map(String::as_str).unwrap_or("")),
             admin_proxy_header: proxy_header(kv.get("admin_proxy_header").map(String::as_str).unwrap_or("")),
             gateway_cf_connecting_ip: kv.get("gateway_proxy_header").is_some_and(|v| v.trim().eq_ignore_ascii_case("cf-connecting-ip")),
-            time_speed: kv.get("time_speed").and_then(|v| v.parse::<f64>().ok()).filter(|v| v.is_finite()).unwrap_or(1.0).clamp(1.0, 30.0),
+            time_speed: kv.get("time_speed").and_then(|v| v.parse::<f64>().ok()).filter(|v| v.is_finite()).unwrap_or(1.0).clamp(1.0, 32.0),
             real_time: flag("real_time", false),
             metar_sync: flag("metar_sync", false),
             metar_station: kv.get("metar_station").map(|v| v.chars().filter(|c| c.is_ascii_alphabetic()).take(4).collect::<String>().to_ascii_uppercase()).unwrap_or_default(),

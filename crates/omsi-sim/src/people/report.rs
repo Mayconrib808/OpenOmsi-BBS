@@ -54,6 +54,7 @@ impl PeopleSim {
             match (&p.place, &p.state) {
                 (Place::Bus(..), _) => aboard += 1,
                 (Place::Ground, State::Pax(x)) if x.inside.is_none() => waiting += 1,
+                (Place::Ground, _) if self.wheelchairs.person==Some(p.id) => waiting += 1,
                 (Place::Ground, _) => walking += 1,
             }
         }
@@ -105,14 +106,32 @@ impl PeopleSim {
 
     /// Report the waiting and alighting passengers to the bus script, the way OMSI does.
     pub fn write_pax_vars(&self, b: &mut VehicleInstance) {
-        let doors = DoorWants {
+        let mut doors = DoorWants {
             entry_req: self.entry_req.clone(),
             exit_req: self.exit_req.clone(),
             entry_busy: self.entry_busy.clone(),
             exit_busy: self.exit_busy.clone(),
             places: self.pax_places.get(&BusId::Player).cloned().unwrap_or_default(),
         };
+        if let (Some(profile),Some(journey))=(&self.wheelchairs.profile,&self.wheelchairs.journey) {
+            let added=matches!(profile.equipment,wheelchair::Equipment::AddedLift|wheelchair::Equipment::AddedRamp);
+            if journey.doorway_busy() || (added && journey.bridge_deployment>0.001) {
+                if let Some(c)=&self.player_cabin {
+                    for (exit,list) in [(false,&c.entries),(true,&c.exits)] {for (i,d) in list.iter().enumerate() {
+                        if d.side==profile.side()&&(d.inside.y-profile.threshold.y).abs()<0.85 {
+                            let (busy,req)=if exit{(&mut doors.exit_busy,&mut doors.exit_req)}else{(&mut doors.entry_busy,&mut doors.entry_req)};
+                            if let Some(v)=busy.get_mut(i){*v=true;}if let Some(v)=req.get_mut(i){*v=true;}
+                        }
+                    }}
+                }
+            }
+        }
         Self::write_door_requests(b, &doors);
+        if self.wheelchairs.wants_alight() && self.wheelchairs.special_stop_signal {
+            for name in &self.wheelchairs.stop_signal_variables {
+                if b.var(name).is_some(){b.set_var(name,1.0);}
+            }
+        }
     }
 
     /// Who wants a timetable bus to stop, as Omsi.exe asks before it lets one pull in

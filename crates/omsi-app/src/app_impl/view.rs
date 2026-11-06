@@ -3,6 +3,19 @@
 use super::*;
 
 impl App {
+    /// Keep the camera and hit testing attached to the same bus while visiting.
+    pub(crate) fn select_cabin_view(&mut self, driver: bool) {
+        if self.session.on_foot.is_some() && self.foot_bus().is_some_and(|b|
+            b != crate::humans::BusId::Player || self.net.coop.drive.owner_active()) {
+            self.view = "foot".into();
+            self.coop_camera_load_group(driver);
+        } else {
+            self.net.coop.camera = None;
+            self.view = if driver { "driver" } else { "pax" }.into();
+        }
+        self.menus.hover_key = None;
+    }
+
     /// Turn the view by (dx, dy) degrees, as dragging with the right button does: the free
     /// camera turns, inside the bus the head turns, outside the camera swings around it.
     /// Keeps `look` with the view it belongs to: on a change of view the direction of the

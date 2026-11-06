@@ -2178,6 +2178,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19fc433e8437a212d1b6f1e68c7824af3aed907da60afa994e7f542d18d12aa9"
 dependencies = [
  "bytemuck",
+ "serde_core",
 ]
 
 [[package]]
@@ -4010,6 +4011,7 @@ dependencies = [
  "parking_lot 0.13.0",
  "rayon",
  "ring",
+ "rmp-serde",
  "rustrict",
  "serde",
  "serde_json",
@@ -4337,6 +4339,7 @@ dependencies = [
 name = "omsi-sim"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "anyhow",
  "arc-swap",
  "glam",
@@ -4359,6 +4362,8 @@ dependencies = [
  "omsi-world",
  "parking_lot 0.13.0",
  "rayon",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,0 +1,99 @@
+name: Build winter visual safety hotfix native OpenOMSI and P15
+on:
+  push:
+    branches: [fix/winter-visual-mesh-qa-gate]
+    paths:
+      - .github/workflows/build-winter-safety-native.yml
+      - crates/omsi-app/src/view_sync/people/winter.rs
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: winter-safety-native-hotfix
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.2-hotfix.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: 2222-winter-safety-hotfix-native
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.2-native-windows-CANDIDATE
+          run-id: 41262425543
+          github-token: ${{ github.token }}
+          path: previous
+      - name: Preserve approved game assets while refusing untested garment deformation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $zip='previous/OpenOMSI-2.2.2.2-native-windows-candidate.zip'
+          $digest=(Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected=(Get-Content "$zip.sha256" -Raw).Split(' ')[0].Trim()
+          if ($digest -ne $expected) { throw 'Previous native artifact corrupted' }
+          Expand-Archive -LiteralPath $zip -DestinationPath staging -Force
+          $info=Get-Content staging/BUILD-INFO.json -Raw | ConvertFrom-Json
+          if($info.source_commit -ne '50db8c40d1b64b5a8c1d2ddcb250d1ae05be807d' -or $info.gameplay_visual_tested) { throw 'Unexpected previous native provenance' }
+          if(-not (Test-Path staging/bcs-assets/WinterClothes/mindfront_knitted_hat_01/skin_binding.json)) { throw 'Previous artist assets missing' }
+          foreach($binding in Get-ChildItem staging/bcs-assets/WinterClothes -Filter skin_binding.json -Recurse){
+            $b=Get-Content $binding.FullName -Raw | ConvertFrom-Json
+            if($b.fitted_to_stock_omsi_human -or $b.released) { throw "Unexpected release-approved unrigged model $($binding.FullName)" }
+          }
+      - name: Test native guard and stock human fallback, with actual assets
+        shell: pwsh
+        env:
+          OPENOMSI_WINTER_TEST_ASSETS: ${{ github.workspace }}/staging
+        run: |
+          cargo test --locked -p omsi-app winter::tests:: -- --nocapture
+          if($LASTEXITCODE -ne 0) { throw 'Broken clothing safety test' }
+      - name: Build corrected native executable without touching other game features
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if($LASTEXITCODE -ne 0){throw 'Native hotfix compile failed'}
+          & ./target/release/openomsi.exe --version
+          if($LASTEXITCODE -ne 0){throw 'Native hotfix smoke failed'}
+      - name: Stage verified hotfix with unchanged assets
+        shell: pwsh
+        run: |
+          Copy-Item target/release/openomsi.exe staging/openomsi.exe -Force
+          $sha=(Get-FileHash staging/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $info=[ordered]@{
+            bridge_release_target='2.2.2.2-hotfix.1'
+            native_version=$env:OPENOMSI_VERSION
+            source_commit='${{ github.sha }}'
+            exe_sha256=$sha
+            winter_source_run_id=41257972400
+            native_audit_included=$true
+            gameplay_visual_tested=$false
+            winter_overlay_fail_closed=$true
+            unapproved_garments_visible=$false
+            status='CANDIDATE_NOT_PUBLISHED'
+          }
+          $info|ConvertTo-Json|Set-Content -Encoding utf8 staging/BUILD-INFO.json
+          Compress-Archive -Path staging/openomsi.exe,staging/BUILD-INFO.json,staging/bcs-assets -DestinationPath OpenOMSI-winter-safety-hotfix-native.zip -CompressionLevel Optimal
+          $sum=(Get-FileHash OpenOMSI-winter-safety-hotfix-native.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Encoding ascii OpenOMSI-winter-safety-hotfix-native.zip.sha256 "$sum  OpenOMSI-winter-safety-hotfix-native.zip"
+          Write-Host "Winter safety hotfix native SHA256: $sha"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.2-Hotfix1-native-windows-CANDIDATE
+          path: |
+            OpenOMSI-winter-safety-hotfix-native.zip
+            OpenOMSI-winter-safety-hotfix-native.zip.sha256
+          retention-days: 30
+          compression-level: 0
+          if-no-files-found: error

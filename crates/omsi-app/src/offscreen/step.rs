@@ -9,7 +9,9 @@ impl Offscreen<'_> {
     /// One step, the `i`-th (false: a server was told to stop).
     pub(super) fn step(&mut self, i: usize) -> Result<bool> {
         let mut step = stages::Step { run: self, i };
-        Ok(crate::frame_stages::run(&mut step, stages::OFFSCREEN_STEP)? == crate::frame_stages::Flow::Go)
+        let running = crate::frame_stages::run(&mut step, stages::OFFSCREEN_STEP)? == crate::frame_stages::Flow::Go;
+        if running { self.stream_server_step(); }
+        Ok(running)
     }
 
     /// The ground under the vehicles (`OMSI_GROUND_GAP`).
@@ -39,23 +41,31 @@ impl Offscreen<'_> {
     /// (false: it was told to stop).
     pub(super) fn server_step(&mut self, i: usize) -> bool {
         let (args, dt) = (self.args, self.dt);
+        // An HTTP listener and a loaded tile batch do not mean the simulation
+        // has finished its first, potentially very expensive fleet spawn.
+        // The Bridge starts clock verification when `world` first appears.
+        // Do not expose that readiness until two complete simulation frames
+        // have drained the initial traffic/passenger work.
+        let startup_settled = i >= 2;
         let Self {
             ref mut srv_clock,
             ref mut srv_wall,
             ref mut srv_admin,
+            ref mut coop_ai,
+            ref mut bcs_responses,
             ref srv_metar,
             ref mut srv_metar_due,
             ref mut srv_metar_rx,
             ref mut srv_weather_name,
             ref mut lan_off,
-            ref remotes_off,
+            ref mut remotes_off,
             ref mut traffic,
             ref mut schedule,
             ref world,
             ref renderer,
             ref mut scene,
             ref mut sim_view,
-            ref humans_off,
+            ref mut humans_off,
             ref mut real_time,
             ref settings,
             ..
@@ -106,7 +116,10 @@ impl Offscreen<'_> {
                 });
             }
         }
+        let old_clock_shift = srv_admin.shift;
         if let Some(l) = lan_off.as_mut() {
+            let mut commands=l.take_commands();
+            commands.retain(|(from,text)|!lan::note_driver_authority(remotes_off,l,*from,text));
             let positions = |id: u32| remotes_off.remotes.get(&id).map(|r| (r.vehicle().position, r.vehicle().heading));
             srv_admin.prune(l);
             omsi_lan::bans::sync_host(l);
@@ -115,9 +128,13 @@ impl Offscreen<'_> {
             // admin of its own), the web panel's requests
             let hub = omsi_lan::admin::hub().map(|h| &**h);
             let rules = crate::admin::server_rules(srv_metar.is_some());
-            for (from, text) in l.take_commands() {
+            for (from, text) in commands {
+                if bcs_responses.receive(l,from,&text){continue;}
+                if coop_ai.receive(l, traffic.as_mut(), humans_off.as_mut(), from, &text) { continue; }
                 omsi_lan::admin::server_command(l, from, &text, srv_admin, &positions, &rules, hub);
             }
+            coop_ai.tick(l, traffic.as_mut(), humans_off.as_mut());
+            if let Some(t)=traffic.as_mut(){bcs_responses.tick(l,t,world,dt);}
             for text in crate::lan::take_local_admin() {
                 srv_admin.admins.insert(crate::admin::LOCAL_ADMIN, omsi_admin::Role::Admin);
                 omsi_lan::admin::server_command(l, crate::admin::LOCAL_ADMIN, &format!("admin {text}"), srv_admin, &positions, &rules, hub);
@@ -152,7 +169,9 @@ impl Offscreen<'_> {
             log::info!("server: stopping");
             return false;
         }
-        if i.is_multiple_of(super::steps_in(1.0)) {
+        let clock_applied = srv_admin.shift != old_clock_shift;
+        if startup_settled && (i < super::steps_in(1.0)
+            || i.is_multiple_of(super::steps_in(1.0)) || clock_applied) {
             if let Some(l) = lan_off.as_mut() {
                 crate::server::enforce_vehicles(l);
                 crate::server::tick_status(l, parse_time(&args.time) + *srv_clock + srv_admin.shift, srv_weather_name.as_str());
@@ -162,6 +181,13 @@ impl Offscreen<'_> {
                 let target = traffic.as_ref().map(|t| t.target).unwrap_or(0);
                 let (passengers, passenger_density) = (humans_off.is_some(), srv_admin.passenger_density.unwrap_or(settings.pax_density));
                 crate::lan::update_server_world(omsi_net::ws::WorldCounts { cars, buses, dormant, parked, walking, waiting, aboard, traffic: target, passengers, passenger_density });
+                if i == 2 {
+                    log::info!("BBS server ready: initial simulation frames completed; publishing live clock and world");
+                }
+                if clock_applied {
+                    log::info!("BBS server clock confirmed: {:.3} seconds; status updated immediately",
+                        (parse_time(&args.time) + *srv_clock + srv_admin.shift).rem_euclid(86400.0));
+                }
                 // and for the admins' panels
                 if let Some(h) = omsi_lan::admin::hub() {
                     let time = parse_time(&args.time) + *srv_clock + srv_admin.shift;
@@ -265,6 +291,14 @@ impl Offscreen<'_> {
                 }
             }
             if let Some(s) = schedule.as_mut() {
+                // The windowed app polls solved transit routes and signal blocks
+                // before dispatch. Do the same on the HostAgent's headless world.
+                // Without this, the route worker can finish but its results are
+                // never installed, so transit AI buses remain absent forever.
+                if let Some(blocks) = s.poll_transit() {
+                    log::info!("BBS server: transit routing completed; {} signal blocks available",blocks.len());
+                    t.sim.set_blocks(blocks);
+                }
                 // at start, pick up trips that left within the last 20 minutes (a few per
                 // frame until they are all out, as the window does)
                 if i.is_multiple_of(super::steps_in(2.0)) || s.pending() > 0 {
@@ -681,7 +715,9 @@ impl Offscreen<'_> {
             ref settings,
             ref srv_admin,
             ref run_clock,
+            ref weather,
             ref remotes_off,
+            ref lan_off,
             ref mut player,
             ref mut traffic,
             ref camera,
@@ -701,6 +737,11 @@ impl Offscreen<'_> {
             // (a dedicated server's own passenger density, which its admins may change)
             let density = srv_admin.passenger_density.unwrap_or(settings.pax_density);
             steps::humans_by_hour(h, world, run_clock.time, density, duty.as_ref());
+            // Headless multiplayer host chooses the same weather-specific
+            // CTI skins that connected clients will receive in the snapshot.
+            h.climate_temp_c = weather.temp.0;
+            h.climate_rain = weather.precip.iter().any(|v| v.is_finite() && *v > 0.01);
+            h.climate_snow = weather.snow || weather.snow_on_road;
             // populate stops near every LAN player every 2 seconds, as app_events.rs
             // does every 2 s near the local player.  At startup `center` is ZERO (no
             // player bus on a headless server), so stops on the actual map - which can
@@ -711,6 +752,9 @@ impl Offscreen<'_> {
                     .remotes
                     .values()
                     .map(|r| r.vehicle().position)
+                    .chain(lan_off.iter().flat_map(|lan| lan.peers())
+                        .filter(|p| p.has_pose)
+                        .flat_map(|p| p.pose.world_interest_centers().map(DVec3::from_array)))
                     .chain(player.as_ref().map(|p| p.vehicle.position))
                     .collect();
                 for c in &player_centers {
@@ -800,6 +844,10 @@ impl Offscreen<'_> {
             let clock = (l.role == omsi_net::Role::Host).then_some(run_clock);
             let frame = lan::LanInput {
                 listener,
+                hide_driver_for: None,
+                hide_vehicle_for: None,
+                borrowed_drivers: Vec::new(),
+                controllers: Vec::new(),
                 muffled: false,
                 riders: humans_off.as_ref().map(|h| h.riding()).unwrap_or(0),
                 clock,
@@ -840,6 +888,7 @@ impl Offscreen<'_> {
             if let Some(t) = traffic.as_mut().filter(|t| t.sim.mirror) {
                 let ready: Vec<_> = t.sim.cars.iter().filter(|c| t.has_sound_set(c.id)).map(|c| c.id).collect();
                 for c in &mut t.sim.cars {
+                    remotes_off.apply_ai_greetings(&mut c.vehicle,c.id,&config.root);
                     if ready.contains(&c.id) { remotes_off.apply_ai_sounds(&mut c.vehicle, c.id, &config.root); }
                 }
             }
@@ -863,6 +912,34 @@ impl Offscreen<'_> {
             }
             // the other games run in real time (see `RealTime`)
             std::thread::sleep(real_time.wait(Instant::now(), dt));
+        }
+    }
+
+    /// Dedicated-server equivalent of the ordinary multiplayer host's tile
+    /// streaming. Centers are the LIVE positions of all peers, not the entry
+    /// point fixed at server startup. Headless renderer uploads are no-op.
+    /// Called after LAN receives positions so a new player's region is queued
+    /// even when the players are several kilometers apart.
+    pub(super) fn stream_server_step(&mut self) {
+        let Some(stream) = self.streamer.as_mut() else { return; };
+        let mut centers: Vec<DVec3> = self.remotes_off.remotes.values()
+            .map(|r| r.vehicle().position).collect();
+        if let Some(lan) = self.lan_off.as_ref() {
+            centers.extend(lan.peers().filter(|p| p.has_pose)
+                .flat_map(|p| p.pose.world_interest_centers().map(DVec3::from_array)));
+        }
+        if let Some(p) = self.player.as_ref() { centers.push(p.vehicle.position); }
+        if centers.is_empty() { centers.push(self.center); }
+        let changed = stream.update(&self.renderer, &mut self.scene, &centers,
+            std::time::Duration::from_millis(6), None);
+        if changed {
+            if let Some(t) = self.traffic.as_mut() {
+                // Without this the streamed tiles have scenery but no usable
+                // road lanes, lights, AI traffic or timetable routes.
+                t.add_tiles(&self.world.traffic_inbox);
+            } else {
+                let _ = self.world.traffic_inbox.take();
+            }
         }
     }
 

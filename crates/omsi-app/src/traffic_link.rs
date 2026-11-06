@@ -140,7 +140,18 @@ pub(crate) fn traffic_inputs(
                 .with_culling(render.min_obj_size, render.max_obj_dist),
         );
     }
+    let date = clock.date_code();
+    if t.extended_density_date != date {
+        t.extended_density = omsi_sim::ai_traffic::extended_density::ExtendedDensity::load_for_date(
+            &t.extended_density_map_dir, date).unwrap_or_default();
+        t.extended_density_date = date;
+        if !t.extended_density.road.is_empty() || !t.extended_density.passenger.is_empty() {
+            log::info!("extended_trafficdens: {} road and {} passenger groups active on {date}",
+                t.extended_density.road.len(), t.extended_density.passenger.len());
+        }
+    }
     t.weekday = clock.weekday();
+    t.is_public_holiday = t.holiday_calendar.is_holiday(clock.date_code());
     // (into the lists of the last frame: two new ones every frame otherwise)
     match humans {
         Some(h) => {

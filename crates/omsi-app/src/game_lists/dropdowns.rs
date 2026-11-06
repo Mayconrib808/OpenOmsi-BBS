@@ -528,6 +528,10 @@ pub(super) fn sync_live(app: &mut App) {
         r.options.cloud_shadows = live.cloud_shadows;
         r.options.light_glow = live.light_glow;
     }
+    let natural=app.settings.passenger_animation=="enhanced";
+    let extras=crate::view_sync::people::extras::Config::of(&app.settings);
+    app.gfx.sim_view.people.enhanced_poses=natural;
+    app.gfx.sim_view.people.extra_config=extras;
     let s = &app.settings;
     if let Some(w) = app.world.as_ref() {
         w.settings.set_sound_scenery(s.vol_scenery);
@@ -544,14 +548,15 @@ pub(super) fn sync_live(app: &mut App) {
     }
     if let Some(h) = app.session.humans.as_mut() {
         h.exact_fare = s.exact_fare;
-        h.transfer_percent = if app.args.passenger_connections_allowed(app.net.lan.is_some()) && s.passenger_connections {
-            s.passenger_transfer_percent
-        } else { 0.0 };
-        h.visual_hailing = s.passenger_hailing && s.passenger_animation == "enhanced";
-        h.visual_full_bus_reaction = s.passenger_full_bus_reaction && s.passenger_animation == "enhanced";
+        h.optional_features=s.optional_features;
+        h.wheelchairs.spawn_percent=s.wheelchair_spawn_percent;
+        h.transfer_percent = if s.passenger_connections { s.passenger_transfer_percent } else { 0.0 };
+        h.visual_hailing = s.passenger_hailing;
+        h.visual_full_bus_reaction = s.passenger_full_bus_reaction;
         h.bad_driving = s.pax_bad_driving;
         h.boarding = s.boarding.clone();
         h.stand_chance = s.standing_chance;
+        h.brazilian_voice_dir = crate::humans::brazilian_voice_dir(&s.language);
         h.short_rides_stand = s.pax_short_rides_stand;
         h.voices = match s.pax_voices.as_str() {
             "off" => 2,

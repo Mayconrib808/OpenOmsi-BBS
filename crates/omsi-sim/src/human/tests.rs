@@ -8,8 +8,9 @@ fn standard_bone_names_have_engine_ids() {
 }
 
 /// A rig like the stock adults', without a mesh.
-fn rig() -> Rig {
-    let def = Human {
+fn rig() -> Rig {scaled_rig(1.0)}
+fn scaled_rig(scale:f32) -> Rig {
+    let mut def = Human {
         height: 1.77,
         seat_height: 0.82,
         links: vec![
@@ -19,6 +20,7 @@ fn rig() -> Rig {
         walk_param: [1.4, 80.0, 1.0, 1.0, 0.0],
         ..Default::default()
     };
+    def.height*=scale;def.seat_height*=scale;for p in &mut def.links{*p*=scale;}
     let j = Joints::from_links(&def.links);
     Rig::measure(&def, &j, &[])
 }
@@ -614,4 +616,22 @@ fn changing_the_way_of_standing_keeps_the_hands_out_of_the_body() {
             }
         }
     }
+}
+
+#[test]
+fn wheelchair_feet_remain_on_separate_footrests_while_turning() {
+    use crate::people::wheelchair::{pose as chair,ChairPose};
+    for scale in [0.82,1.0,1.10] {for heading in [0.0,90.0,180.0,270.0] {for frame in [0,1] {
+        let rig=scaled_rig(scale);let targets=chair::foot_targets(&rig);let mut pose=Pose::new(42);
+        let floor=|_:DVec2|Some(0.0);
+        let input=chair::input(&rig,ChairPose::default(),DVec3::ZERO,heading,frame,[Vec3::new(-0.366,0.15,0.5),Vec3::new(0.366,0.15,0.5)],&floor);
+        for _ in 0..150 {pose.advance(&rig,&input,1.0/60.0);}
+        let out=pose.bones(&rig);assert!(out.ok);
+        for side in 0..2 {
+            assert!((out.ankle[side]-targets[side]).length()<0.006,"scale={scale} heading={heading} ankle={:?} target={:?}",out.ankle[side],targets[side]);
+            assert!((out.sole[side]-0.16).abs()<0.006);
+            assert!(out.knee[side].x*if side==0{-1.0}else{1.0}>0.0);
+            assert!(out.knee[side].x.abs()<0.30);
+        }
+    }}}
 }

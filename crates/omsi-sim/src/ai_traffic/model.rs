@@ -40,6 +40,17 @@ impl Passing {
 /// oncoming lane): its half width and a margin.
 pub const ONCOMING_ROOM: f32 = 1.15;
 
+/// A strictly local same-direction bypass of a bus serving another stop.
+/// Unlike a route lane change, this keeps the scheduled route's lane and stop
+/// indices intact. Both lanes count as occupied until the body has returned.
+#[derive(Debug, Clone, Copy)]
+pub struct BusLanePass {
+    pub target_lane: usize,
+    pub offset: f32,
+    /// Distance at which the rear has cleared the stopped bus and can return.
+    pub return_at: f32,
+}
+
 /// What makes a new car a timetable bus (`Traffic::create_car`).
 pub struct BusSetup {
     /// The trip's lanes, as far as the loaded tiles have them.
@@ -52,6 +63,8 @@ pub struct BusSetup {
 }
 
 pub struct AiCar {
+    /// An explicitly dispatched incident vehicle, independent of its ordinary AI kind.
+    pub response: Option<super::response::Drive>,
     /// Stable id for references from other systems (passengers).
     pub id: u64,
     /// The random seed it was made with and its paint scheme: a car that goes out of range
@@ -96,6 +109,8 @@ pub struct AiCar {
     /// That decision was taken standing first at the light's line as it went green.
     pub amber_start: bool,
     pub passing: Option<Passing>,
+    /// Optional multi-lane bus-to-bus overtake that preserves the fixed timetable route.
+    pub bus_lane_pass: Option<BusLanePass>,
     /// The current light this car has decision about (passing on amber/red) and a random factor variable
     pub current_light: Option<(usize, usize)>,
     pub amber_decision: f32,
@@ -139,6 +154,10 @@ pub struct AiCar {
     pub pull_out: f32,
     /// Parking: the free space it drives into (see `Traffic::park_in`).
     pub park: Option<ParkPlan>,
+    /// Physically stopped random car with a deterministic release deadline.
+    pub temporary_park: Option<(super::illegal_parking::TemporaryPark, f32)>,
+    /// Only one probability draw per car per visited lane, never per frame.
+    pub parking_sampled_lane: Option<usize>,
     /// A rail vehicle: the track it has come along, (odometer, point), oldest first -
     /// where its rear bogie and its coupled cars and sections run (see `rail_behind`).
     pub rail_trail: std::collections::VecDeque<(f64, DVec3)>,
@@ -706,6 +725,7 @@ impl TrafficSim {
             state.speed = v.min(state.speed.max(v * 0.5));
         }
         self.cars.push(AiCar {
+            response: None,
             id,
             state,
             vehicle,
@@ -725,6 +745,7 @@ impl TrafficSim {
             amber: None,
             amber_start: false,
             passing: None,
+            bus_lane_pass: None,
             current_light: None,
             amber_decision: 0.0,
             gone: false,
@@ -758,6 +779,8 @@ impl TrafficSim {
             horn: Default::default(),
             make_way: None,
             park: None,
+            temporary_park: None,
+            parking_sampled_lane: None,
             seed,
             scheme,
             guard: Default::default(),

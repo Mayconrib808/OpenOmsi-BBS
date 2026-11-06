@@ -814,8 +814,8 @@ impl HostConfig {
         let exe_dir = std::env::current_exe().ok().and_then(|p| p.parent().map(Path::to_path_buf));
         let host32 = omsi_cfg::flags::OMSI_PLUGIN_HOST32.live_os()
             .map(PathBuf::from)
-            .or_else(|| exe_dir.map(|d| d.join("omsi-plugin-host32.exe")))
-            .filter(|p| p.is_file());
+            .filter(|p| p.is_file())
+            .or_else(|| exe_dir.map(|d| d.join("omsi-plugin-host32.exe")).filter(|p| p.is_file()));
         let runner = if cfg!(windows) {
             None
         } else {
@@ -845,6 +845,10 @@ impl HostConfig {
     }
 }
 
+fn bcs_only_host(path: &Path) -> bool {
+    path.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case("OpenOMSI_BCS_PluginHost32.exe"))
+}
+
 impl Plugin {
     /// Load the plugin an `.opl` describes: in this process when its library loads here,
     /// else in the 32-bit host.
@@ -868,6 +872,13 @@ impl Plugin {
                 let Some(host) = &hosts.host32 else {
                     return Err(format!("{local}; a 32-bit Windows plugin needs omsi-plugin-host32.exe next to the game"));
                 };
+                let generic;
+                let host = if bcs_only_host(host) && !dll.file_name().is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case("bbs.dll")) {
+                    generic = std::env::current_exe().ok()
+                        .and_then(|p| p.parent().map(|d| d.join("omsi-plugin-host32.exe")))
+                        .filter(|p| p.is_file());
+                    generic.as_ref().ok_or_else(|| format!("{local}; {} requires the generic omsi-plugin-host32.exe", opl.dll))?
+                } else { host };
                 if !cfg!(windows) && hosts.runner.is_none() {
                     return Err(format!("{local}; a Windows plugin needs Wine here (or OMSI_WINE)"));
                 }

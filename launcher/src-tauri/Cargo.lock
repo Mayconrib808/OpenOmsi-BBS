@@ -1675,6 +1675,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19fc433e8437a212d1b6f1e68c7824af3aed907da60afa994e7f542d18d12aa9"
 dependencies = [
  "bytemuck",
+ "serde_core",
 ]
 
 [[package]]
@@ -3120,6 +3121,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arc-swap",
+ "base64 0.22.1",
  "glam",
  "hashbrown 0.17.1",
  "log",
@@ -3138,6 +3140,8 @@ dependencies = [
  "omsi-world",
  "parking_lot 0.13.0",
  "rayon",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

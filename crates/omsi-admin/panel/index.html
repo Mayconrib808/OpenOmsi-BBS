@@ -85,13 +85,13 @@
         <legend data-t="clock">Clock</legend>
         <p class="hint" id="clock-lock" hidden data-t="clock-lock">The clock follows the server machine's real time (real_time = 1): it cannot be moved.</p>
         <div class="row">
-          <input id="clock" type="time" required>
+          <input id="clock" type="time" step="1" required aria-label="Horário exato (HH:MM:SS)">
           <button type="button" id="clock-go" data-perm="world" data-t="set">Set</button>
           <button type="button" id="hour-back" data-perm="world">−1 h</button>
           <button type="button" id="hour-on" data-perm="world">+1 h</button>
         </div>
         <label><span data-t="speed">Speed</span>
-          <select id="speed"><option>1</option><option>2</option><option>4</option><option>8</option><option>15</option><option>30</option></select></label>
+          <select id="speed"><option>1</option><option>2</option><option>4</option><option>8</option><option>15</option><option>30</option><option>32</option></select></label>
         <button type="button" id="speed-go" data-perm="world" data-t="set">Set</button>
       </fieldset>
       <fieldset id="weather-set">

@@ -10,6 +10,30 @@ impl LanSession {
         }
         true
     }
+    pub fn publish_handover(&mut self, to:u32, data:Vec<u8>) {
+        if self.connected && self.peers.contains_key(&to) { self.handover.publish(&[to], handover::Event{data}); }
+    }
+    pub fn handover_pending(&self, peer: u32) -> usize { self.handover.pending(peer) }
+    pub fn take_handovers(&mut self)->Vec<handover::Incoming> { self.handover.take_incoming() }
+    pub(super) fn route_handover(&self,data:&[u8]) {
+        let Some(a)=handover::address(data,PROTOCOL as u8) else{return};
+        match self.role {
+            Role::Host => if let Some(to)=self.peers.get(&a.to).and_then(|p|p.addr){self.send(data,to);},
+            Role::Client => if let Some(host)=self.host {self.send(data,host);},
+        }
+    }
+    pub(super) fn on_handover(&mut self,data:&[u8],from:SocketAddr) {
+        let Some(a)=handover::address(data,PROTOCOL as u8) else{return};
+        if a.from==self.my_id{return;}
+        match self.role {
+            Role::Host => {
+                if self.checked_peer(a.from,from,TEXTURE_RATE,PeerTraffic::Textures).is_none(){return;}
+                if a.to!=self.my_id{self.route_handover(data);return;}
+            },
+            Role::Client => if Some(from)!=self.host || a.to!=self.my_id || !self.peers.contains_key(&a.from){return;},
+        }
+        if let Some(ack)=self.handover.receive(PROTOCOL as u8,self.my_id,data){self.route_handover(&ack);}
+    }
 
     /// Released surfaces of our own vehicle. The transport retains an acknowledged
     /// baseline per subscriber and sends only pixel changes after initialization.
@@ -220,13 +244,14 @@ impl LanSession {
 /// Bind versioned traffic to the freshly issued connection secret. Relays unwrap and
 /// rewrap for the destination, so old sessions cannot poison a retained peer's state.
 pub(super) fn session_bound(data: &[u8]) -> bool {
-    data.first().is_some_and(|b| [sounds::MAGIC, voice_net::MAGIC, vars::VARS_MAGIC, var_schema::MAGIC, 0xEB].contains(b))
+    data.first().is_some_and(|b| [sounds::MAGIC, handover::MAGIC, voice_net::MAGIC, vars::VARS_MAGIC, var_schema::MAGIC, 0xEB].contains(b))
 }
 
 impl LanSession {
     pub(super) fn reset_peer_sync(&mut self, id: u32) {
         let keep: Vec<_> = self.peers.keys().copied().filter(|p| *p != id).collect();
         self.sounds.retain_peers(&keep);
+        self.handover.retain_peers(&keep);
         self.var_receiver.retain_peers(&keep);
         self.schema_receiver.retain_peers(&keep);
         self.vars_in.retain(|v| v.id != id);

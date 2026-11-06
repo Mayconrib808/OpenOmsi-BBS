@@ -5,6 +5,8 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 pub static TABLES: &str = concat!(
     include_str!("../../omsi-app/locales/app.yml"), "\n",
+    include_str!("../../omsi-app/locales/passengers-0347.yml"), "\n",
+    include_str!("../../omsi-app/locales/upstream-0347.yml"), "\n",
     include_str!("../../omsi-app/locales/storage.yml"), "\n",
     include_str!("../../omsi-app/locales/graphics.yml"), "\n",
     include_str!("../../omsi-app/locales/server_fleet.yml"),

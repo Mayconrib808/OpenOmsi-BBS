@@ -13,9 +13,23 @@ pub(super) fn publish_vehicle(
     if events.is_empty() {
         return;
     }
+    let greeting = events.iter().any(|(trigger, _, _)|
+        trigger == omsi_sim::ai_traffic::greetings::HORN_EVENT);
+    if !lan.peers().any(|p| {
+        let (x,y) = p.pose.walker.map_or((p.pose.x,p.pose.y), |w| (w.x,w.y));
+        (glam::DVec2::new(x,y)-v.position.truncate()).length() <= 300.0
+    }) {
+        if greeting {
+            log::info!("FEATURE AUDIT ai_bus_greeting_network event=not_published ai={} reason=no_peer_within_300m",ai);
+        }
+        return;
+    }
     let table = sync_table(game, v);
     let bus = content_relative(&v.ty.def.path, &args.root);
     for (trigger, file, snapshot) in events {
+        if trigger == omsi_sim::ai_traffic::greetings::HORN_EVENT {
+            log::info!("FEATURE AUDIT ai_bus_greeting_network event=published ai={} bus={}",ai,bus);
+        }
         let mut values = Vec::new();
         if let Some(snapshot) = snapshot {
             // Transmit only the sound curves that need the value at trigger time.
@@ -130,6 +144,28 @@ impl LanGame {
         if let Some(rv) = self.remotes.get_mut(&owner) {
             apply_player(&mut self.pending_sounds, owner, rv);
         }
+    }
+    /// Reserved AI greeting events must not wait for a loaded SoundSet.
+    /// Otherwise the horn is lost on modded buses with missing/slow sound.cfg.
+    pub fn apply_ai_greetings(&mut self, v: &mut omsi_sim::VehicleInstance, ai: u64, root: &Path) {
+        self.pending_sounds.retain(|(s, _)| {
+            let horn = s.event.trigger == omsi_sim::ai_traffic::greetings::HORN_EVENT;
+            let flash = s.event.trigger == omsi_sim::ai_traffic::greetings::FLASH_EVENT;
+            if s.event.ai != ai || (!horn && !flash) { return true; }
+            if ai != 0 && s.owner == 1 && same_bus(&s.event.bus, &content_relative(&v.ty.def.path, root)) {
+                if horn {
+                    // SoundFrame::snapshot_sounds converts this into one spatial
+                    // greeting_honk and the presentation layer makes two short taps.
+                    v.host.fired_triggers.push(omsi_sim::ai_traffic::greetings::HORN_EVENT.into());
+                    log::info!("FEATURE AUDIT ai_bus_greeting_network event=applied ai={} bus={}",ai,s.event.bus);
+                } else {
+                    omsi_sim::ai_traffic::greetings::start_remote_flash(v);
+                }
+            } else if horn {
+                log::info!("FEATURE AUDIT ai_bus_greeting_network event=ignored ai={} event_ai={} sender={} reason=wrong_sender_or_model",ai,s.event.ai,s.owner);
+            }
+            false
+        });
     }
     /// Called for a mirrored AI bus once its sound set is ready.
     pub fn apply_ai_sounds(&mut self, v: &mut omsi_sim::VehicleInstance, ai: u64, root: &Path) {

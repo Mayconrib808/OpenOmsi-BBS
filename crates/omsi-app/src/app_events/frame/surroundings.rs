@@ -7,6 +7,7 @@ impl App {
     /// The METAR sync, the clock and the weather; the street lamps and the lit windows by the
     /// daylight, which the bus's scripts are told. The frame's daylight.
     pub(super) fn frame_weather(&mut self, dt: f32) -> omsi_sim::Daylight {
+        if let (Some(r),Some(scene))=(self.renderer.as_ref(),self.scene.as_mut()) { self.session.sky.poll(r,scene); }
         // (the METAR sync: the report's weather, in real time)
         self.tick_metar(dt);
         self.tick_tomorrow();
@@ -51,7 +52,7 @@ impl App {
 
 crate::app::stage_ctx!(
     /// The lights' stage's part of the game: the lamps, the rain and the spray, the sounds of the world around.
-    LightsCx { reads: [clock, world, net, view, menus], writes: [perf, sound, weather, people, gfx, traffic, player] }
+    LightsCx { reads: [clock, world, net, view, menus, integrations], writes: [perf, sound, weather, people, gfx, traffic, player] }
 );
 
 /// The lights (the lamps' cones, the light maps, every light that shines), the rain and
@@ -109,6 +110,7 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
             }
             p.panto_fx.push_effects(scene);
         }
+        crate::bcs_events::append_visuals(&cx.integrations.bcs_events,scene);
         cx.perf.profile.add(crate::profile_keys::ProfKey::LightsCollect, __tc.elapsed().as_secs_f64());
         // the object editor's pick: a magenta glow over it
         if let Some(id) = cx.menus.menus.editor.as_ref().and_then(|e| e.selected) {
@@ -188,24 +190,44 @@ pub(super) fn lights(cx: LightsCx, dt: f32, daylight: omsi_sim::Daylight, behind
                     waiting.extend(said.into_iter().map(|line| (line, Instant::now())));
                     waiting.retain(|(line, since)| {
                         if !a.clips_ready(std::slice::from_ref(&line.path)) {
-                            return since.elapsed() < std::time::Duration::from_secs(2);
+                            if since.elapsed() >= std::time::Duration::from_secs(2) {
+                                omsi_sim::feature_audit::record(
+                                    omsi_sim::feature_audit::Role::Client,"passenger_audio",
+                                    omsi_sim::feature_audit::ResultKind::Blocked,"clip_load_timeout",
+                                    &format!("speaker={} file={} play_confirmed=false",line.speaker,line.path.display()));
+                                return false;
+                            }
+                            return true;
                         }
                         if let Some(clip) = a.load_clip(&line.path) {
                             // (an avatar's lips move with it)
                             crate::view_sync::people::speak(line.speaker, &clip);
-                            a.play(
+                            let id = a.play(
                                 clip,
                                 omsi_audio::mixer::VoiceParams {
-                                    gain: 1.0,
+                                    gain: if line.driver_request {1.5}else{1.0},
                                     pitch: 1.0,
                                     looping: false,
                                     position: Some(line.position.as_vec3()),
-                                    doppler: true,
-                                    range: 3.0,
+                                    doppler: !line.driver_request,
+                                    range: if line.driver_request {18.0}else{3.0},
                                     lowpass_hz: 0.0,
-                                    important: false,
+                                    important: line.driver_request,
                                 },
                             );
+                            let accepted=a.is_playing(id);
+                            omsi_sim::feature_audit::record(
+                                omsi_sim::feature_audit::Role::Client,"passenger_audio",
+                                if accepted {omsi_sim::feature_audit::ResultKind::Completed}
+                                else {omsi_sim::feature_audit::ResultKind::Failed},
+                                if accepted {"voice_active_in_engine"}else{"audio_engine_refused_or_finished"},
+                                &format!("speaker={} file={} voice_id={} mixer_registered={} physical_speaker_output_unverified=true",
+                                    line.speaker,line.path.display(),id,accepted));
+                        } else {
+                            omsi_sim::feature_audit::record(
+                                omsi_sim::feature_audit::Role::Client,"passenger_audio",
+                                omsi_sim::feature_audit::ResultKind::Blocked,"clip_decode_failed",
+                                &format!("speaker={} file={} play_confirmed=false",line.speaker,line.path.display()));
                         }
                         false
                     });

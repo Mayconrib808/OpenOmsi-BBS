@@ -153,7 +153,7 @@ impl App {
     pub(crate) fn mouse_steering_now(&self) -> bool {
         if self.has_process_permission_prompt() { return false; }
         self.input.mouse_drive && self.mouse_steers_in_view() && !self.input.mouse_look && !self.input.input_away
-            && !self.integrations.plugin_focus() && !self.game_panels_mouse() && self.menus.game_menu.is_none() && self.photo.is_none()
+            && !self.integrations.plugin_focus() && !self.game_panels_mouse() && !self.net.coop.panel && self.menus.game_menu.is_none() && self.photo.is_none()
     }
 
     /// Looking round with a mouse button held (the right, the middle, a drag in the photo

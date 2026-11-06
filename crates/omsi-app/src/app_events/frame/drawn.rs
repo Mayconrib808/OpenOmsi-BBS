@@ -6,10 +6,14 @@ impl App {
     pub(super) fn frame_drawn(&mut self) {
         let sim = self.player_to_drawn_pose();
         let behind = self.traffic_drawn_behind();
+        let riding=self.foot_bus().filter(|_|self.view=="foot").and_then(|b|match b {
+            BusId::Ai(id) if remote_bus_player(id).is_none()=>Some(id),_=>None,
+        });
         if let (Some(r), Some(scene)) = (self.renderer.as_ref(), self.scene.as_mut()) {
             if let Some(t) = self.session.traffic.as_mut() {
                 t.sim.show_between_at(behind);
                 t.follow_drawn(&self.gfx.sim_view.traffic, r, scene);
+                t.passenger_view(&mut self.gfx.sim_view.traffic,r,scene,riding);
             }
             let (traffic, player, remotes) = (self.session.traffic.as_ref(), self.player.as_ref(), &self.net.remotes.remotes);
             let vehicle_of = |b: BusId| match b {
@@ -30,10 +34,15 @@ impl App {
             if let (Some(eye), Some(cam), Some(d)) = (self.session.on_foot.as_ref().and_then(|f| f.eye_aboard()), self.camera.as_mut(), moved) {
                 cam.position = eye + d;
             }
+            self.coop_drawn_view();
             if let Some(t) = self.session.traffic.as_mut() {
                 t.sim.show_actual();
             }
         }
         self.player_back_to_sim_pose(sim);
+        // The tooltip is for the picture being drawn, including the cooperative
+        // cashier camera and its shifted eye, rather than the avatar's view from
+        // the earlier walking tick.
+        self.frame_player_hover();
     }
 }

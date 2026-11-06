@@ -12,6 +12,8 @@
 pub mod admin;
 pub mod bans;
 pub mod commands;
+pub mod coop;
+pub mod drive_share;
 pub mod config;
 pub mod game;
 pub mod gateway;
@@ -74,3 +76,4 @@ pub mod script_texture;
 pub mod freetex;
 #[cfg(test)]
 mod freetex_tests;
+pub mod vehicle_transfer;

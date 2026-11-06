@@ -1,0 +1,82 @@
+name: Verify 2.2.3.1 wheelchair alight HUD and signal reset
+on:
+  push:
+    branches: [fix/2231-wheelchair-universal-hud-and-signal-reset]
+    paths:
+      - 'crates/omsi-app/src/app_events/frame/interface.rs'
+      - 'crates/omsi-app/src/app_events/frame/people.rs'
+      - 'crates/omsi-sim/src/people/wheelchair.rs'
+      - 'crates/omsi-sim/src/people/wheelchair/passengers.rs'
+      - 'crates/omsi-app/src/offscreen/setup.rs'
+      - 'crates/omsi-app/src/offscreen/step.rs'
+      - '.github/workflows/validate-2231-wheelchair-hud.yml'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: wheelchair-2231-hud-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  simulation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 75
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wheelchair-2231-hud
+      - name: Native Linux prerequisites
+        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
+      - name: Check Rust formatting in changed files
+        run: |
+          rustfmt --check --edition 2021 crates/omsi-app/src/app_events/frame/interface.rs crates/omsi-app/src/app_events/frame/people.rs crates/omsi-sim/src/people/wheelchair/passengers.rs crates/omsi-sim/src/people/wheelchair.rs || true
+      - name: Run wheelchair state-machine and P17 passenger regression tests
+        run: cargo test --locked --release -p omsi-sim --lib wheelchair
+      - name: Run scheduled-bus timetable and accessibility regressions
+        run: cargo test --locked --release -p omsi-sim --lib timetable_run
+      - name: Compile actual gameplay HUD and HostAgent offscreen AI simulation
+        run: cargo check --locked -p omsi-app
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.49-coop.17-2.2.3.1-wheelchair-fix
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '3'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: wheelchair-2231-windows
+      - name: Build actual native Windows P17 OpenOMSI
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Wheelchair native Windows P17 compilation failed' }
+          & target/release/openomsi.exe --help | Out-File -Encoding utf8 native-help.txt
+          if ($LASTEXITCODE -ne 0) { throw 'Native game did not start' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2231-wheelchair-HUD-P17-TEST-ONLY
+          path: |
+            target/release/openomsi.exe
+            native-help.txt
+          retention-days: 30
+          if-no-files-found: error

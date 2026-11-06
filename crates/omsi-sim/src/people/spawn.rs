@@ -76,6 +76,8 @@ impl PeopleSim {
             log::warn!("human pool limit {configured_people} adjusted to {people_limit} for safe spawning");
         }
         PeopleSim {
+            wheelchairs: Default::default(),
+            optional_features: Default::default(),
             pool_types: types.len(),
             types,
             people: Vec::new(),
@@ -131,13 +133,21 @@ impl PeopleSim {
             exit_busy: Vec::new(),
             footfalls: Vec::new(),
             density: 1.0,
+            stop_demand: HashMap::new(),
+            demand_audit: Default::default(),
+            climate_temp_c: 22.0,
+            climate_rain: false,
+            climate_snow: false,
             time_of_day: 12.0 * 3600.0,
             delay: 0.0,
             root: root.to_path_buf(),
             voice_lines: Vec::new(),
+            brazilian_voice_dir: None,
             voice_said: HashMap::new(),
             voices: 0,
             last_chat: -1e9,
+            ambient_talk_at: 0.0,
+            ambient_talk_reply: None,
             avatars: HashMap::new(),
             avatar_cmds: HashMap::new(),
             avatar_hidden: HashMap::new(),
@@ -176,6 +186,7 @@ impl PeopleSim {
             map_humans_done: false,
             tiles_seen: 0,
             mirror: false,
+            return_capable: false,
             lan_centers: Vec::new(),
             players_only: false,
             remote_now: Vec::new(),
@@ -183,6 +194,8 @@ impl PeopleSim {
             claims_out: Vec::new(),
             claimed: HashMap::new(),
             mirror_wait: HashMap::new(),
+            mirror_hail_intent: HashMap::new(),
+            mirror_connection_history: HashMap::new(),
             comfort: RideComfort::default(),
             handed: Vec::new(),
             scratch: Default::default(),
@@ -291,7 +304,7 @@ impl PeopleSim {
         if debug_pax() {
             log::info!("t={:.1} pax {} says {name}", self.time, self.people[i].label());
         }
-        self.voice_lines.push(VoiceLine { position: self.people[i].position + DVec3::new(0.0, 0.0, 1.6), speaker: self.people[i].id, path });
+        self.voice_lines.push(VoiceLine { position: self.people[i].position + DVec3::new(0.0, 0.0, 1.6), speaker: self.people[i].id, path, driver_request: false });
     }
 
     pub fn rand(&mut self) -> u64 {
@@ -384,6 +397,7 @@ impl PeopleSim {
         vehicle.set_engine_var("GivenTicket", -1.0);
         match self.cabin_for(vehicle) {
             Some(c) => {
+                self.configure_wheelchairs(vehicle, &c);
                 log::info!("passenger cabin: {} places ({} seats), {} entries, {} exits, {} path points, desk {:?}", c.seats.len(), c.seats.iter().filter(|s| s.seated).count(), c.entries.len(), c.exits.len(), c.graph.points.len(), c.desk.map(|d| d.0));
                 if debug_pax() {
                     for (i, e) in c.entries.iter().enumerate() {
@@ -433,7 +447,10 @@ impl PeopleSim {
         if !self.pool_room() {
             return None;
         }
-        self.spawn_as(world, position, heading, state, None)
+        let chair=self.wheelchair_spawn_kind(world,&state);
+        let i=self.spawn_as(world, position, heading, state, chair)?;
+        if chair.is_some(){self.register_wheelchair(i);}
+        Some(i)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -490,6 +507,23 @@ impl PeopleSim {
             }
         }
         let (idx, variant) = choice.unwrap_or((0, 0));
+        // Only reuse installed CTI skins. Keep avatars and inspectors unchanged,
+        // and preserve the normal random skin if a model has no seasonal tag.
+        let variant = if self.optional_features.weather_clothing && kind.is_none()
+            && !matches!(&state, State::Pax(p) if p.inspector) {
+            let ty = &self.types[idx];
+            let names: Vec<String> = ty.variants.iter().map(|s| s.name.clone()).collect();
+            let matched = super::clothing::choose_variant(&names,
+                super::clothing::Climate::new(self.climate_temp_c,self.climate_rain,self.climate_snow),
+                variant.saturating_sub(1));
+            self.demand_audit.clothing_evaluated += 1;
+            if matched.is_some() { self.demand_audit.clothing_tagged_selected += 1; }
+            matched.unwrap_or(variant)
+        } else { variant };
+        // Stock staff clothing is the default skin: normal riders continue to
+        // vary clothes randomly, while a fiscal cannot appear in a casual CTI
+        // alternate outfit during a BCS inspection.
+        let variant = if matches!(&state, State::Pax(p) if p.inspector) { 0 } else { variant };
         let ty = self.types[idx].clone();
         // walking pace 1.1 m/s +- 0.2, as Omsi.exe draws it for everybody (0x625758:
         // sub_7f08b0(0.2, 1.1)); `[walk_param]` holds the stride, not a speed
@@ -499,6 +533,21 @@ impl PeopleSim {
         self.next_id += 1;
         // (the meshes and instances come when the view catches up: `view_sync::apply_people`)
         self.bodies.ops.push(BodyOp::Spawn { id, ty: ty.clone(), variant, position });
+        if self.optional_features.weather_clothing && kind.is_none()
+            && self.climate_temp_c <= 15.0 {
+            let name=variant.checked_sub(1).and_then(|i|ty.variants.get(i))
+                .map(|v|v.name.as_str()).unwrap_or("original");
+            let tagged=super::clothing::clothing_score(name,
+                super::clothing::Climate::new(self.climate_temp_c,self.climate_rain,self.climate_snow))
+                .is_some_and(|score|score>0);
+            crate::feature_audit::record(if self.mirror {crate::feature_audit::Role::Client}
+                    else {crate::feature_audit::Role::Host},"winter_clothing",
+                if tagged {crate::feature_audit::ResultKind::Executed}
+                else {crate::feature_audit::ResultKind::NoOpportunity},
+                if tagged {"installed_cti_variant_chosen"}else{"no_matching_cti_asset"},
+                &format!("person={} temperature_c={:.1} rain={} snow={} stock_model={} outfit={} cti_variant={} source_mesh=original_human proposed_artist_asset=not_yet_fitted",
+                    id,self.climate_temp_c,self.climate_rain,self.climate_snow,ty.def.path.display(),name,variant));
+        }
         if debug_pax() {
             log::info!(
                 "pax #{id} ({}) appears at ({:.1}, {:.1}, {:.1}): {}{}",
@@ -540,6 +589,7 @@ impl PeopleSim {
             why: "",
             puppet: None,
             remote: false,
+            remote_seat: None,
         });
         Some(self.people.len() - 1)
     }

@@ -17,6 +17,7 @@
 //! road: a client draws what the host sends (`TrafficSim::mirror`).
 
 use super::*;
+use crate::feature_audit::{record,Role,ResultKind};
 use std::collections::{BTreeMap, VecDeque};
 
 /// The kinds of vehicles put on the road, each with a budget of its own.
@@ -242,6 +243,20 @@ impl Admission {
 
     /// `pass` over the requests of `class` alone (None: all); the others keep their places.
     pub fn pass_for(&mut self, class: Option<Class>, now: f32, host: bool, budgets: &mut Budgets, mut check: impl FnMut(&Request) -> Verdict) -> Vec<Request> {
+        let category_reason=|class:Class,ok:bool|->&'static str{
+            match (class,ok){
+                (Class::Street,true)=>"generated_street",
+                (Class::Parked,true)=>"generated_parked",
+                (Class::Aircraft,true)=>"generated_aircraft",
+                (Class::Scheduled,true)=>"generated_scheduled",
+                (Class::Dormant,true)=>"generated_dormant",
+                (Class::Street,false)=>"rejected_street",
+                (Class::Parked,false)=>"rejected_parked",
+                (Class::Aircraft,false)=>"rejected_aircraft",
+                (Class::Scheduled,false)=>"rejected_scheduled",
+                (Class::Dormant,false)=>"rejected_dormant",
+            }
+        };
         let mut admitted: Vec<Request> = Vec::new();
         let mut kept = VecDeque::with_capacity(self.queue.len());
         let mut examined = 0;
@@ -265,18 +280,24 @@ impl Admission {
             };
             match verdict {
                 Verdict::Admit => {
+                    record(Role::Host,"dynamic_traffic",ResultKind::Completed,category_reason(r.class,true),
+                        &format!("ticket={} class={:?} lane={} pos=({:.1},{:.1},{:.1}) budget=accepted",r.ticket,r.class,r.lane,r.pos.x,r.pos.y,r.pos.z));
                     self.admitted += 1;
                     budgets.take(r.class);
                     self.entrances.remove(&entrance(r.lane, r.s));
                     admitted.push(r);
                 }
                 Verdict::Deny(d) => {
+                    record(if host {Role::Host}else{Role::Client},"dynamic_traffic",ResultKind::Blocked,category_reason(r.class,false),
+                        &format!("ticket={} class={:?} lane={} pos=({:.1},{:.1},{:.1}) reason={:?}",r.ticket,r.class,r.lane,r.pos.x,r.pos.y,r.pos.z,d));
                     self.denied[d as usize] += 1;
                     if d != Denial::AtCapacity {
                         self.refused(r.lane, r.s, now);
                     }
                 }
                 Verdict::Retry(why) => {
+                    record(Role::Host,"dynamic_traffic",ResultKind::Blocked,category_reason(r.class,false),
+                        &format!("ticket={} class={:?} lane={} pos=({:.1},{:.1},{:.1}) reason={:?} previous_tries={}",r.ticket,r.class,r.lane,r.pos.x,r.pos.y,r.pos.z,why,r.tries));
                     self.retried[why as usize] += 1;
                     self.refused(r.lane, r.s, now);
                     let mut r = r;

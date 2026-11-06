@@ -1491,7 +1491,116 @@ fn a_player_without_a_bus_sends_a_heartbeat() {
 mod connections;
 
 mod lifecycle;
+
+#[test]
+fn world_interest_keeps_walker_and_bus_for_dedicated_and_player_hosts() {
+    let mut p = pose(1000.0);
+    assert_eq!(p.world_interest_centers().collect::<Vec<_>>(), vec![[1000.0,2.0,3.0]]);
+    p.walker = Some(Walker { x:8000.0, y:9000.0, z:4.0, heading:0.0,
+        speed:0.0, course:0.0, seated:false, aboard:None });
+    assert_eq!(p.world_interest_centers().collect::<Vec<_>>(),
+        vec![[1000.0,2.0,3.0], [8000.0,9000.0,4.0]]);
+    p.bus.clear(); p.flags &= !FLAG_VEHICLE;
+    assert_eq!(p.world_interest_centers().collect::<Vec<_>>(), vec![[8000.0,9000.0,4.0]]);
+    p.walker.as_mut().unwrap().x = 12000.0;
+    assert_eq!(p.world_interest_centers().next(), Some([12000.0,9000.0,4.0]));
+    p.walker.as_mut().unwrap().x = f64::NAN;
+    assert_eq!(p.world_interest_centers().count(), 0);
+    p.walker = None;
+    assert_eq!(p.world_interest_centers().count(), 0);
+}
+
+#[test]
+fn handover_snapshot_is_session_authenticated_and_relayed_between_clients() {
+    assert_ne!(handover::MAGIC, crate::freetex::MAGIC);
+    assert_ne!(handover::MAGIC, traffic_table::wire::MAGIC);
+    assert_ne!(handover::MAGIC, traffic_table::wire::ACK_MAGIC);
+    assert_ne!(handover::MAGIC, voice_net::MAGIC);
+    let mut host=LanSession::host(0,"host",world("m"),true).unwrap();
+    let at=SocketAddr::from(([127,0,0,1],host.local_addr().unwrap().port()));
+    let mut a=LanSession::join_addr(vec![at],None,"a",world("m")).unwrap();
+    let mut b=LanSession::join_addr(vec![at],None,"b",world("m")).unwrap();
+    let poses=[pose(100.),pose(200.),pose(300.)];
+    pump(&mut [&mut host,&mut a,&mut b],&poses,150,|s|s[1].connected&&s[2].connected&&s[2].peer_count()==2);
+    assert!(a.connected&&b.connected);
+    let mut forged=handover::Sync::default();forged.publish(&[b.my_id],handover::Event{data:vec![7;2000]});
+    for packet in forged.tick(PROTOCOL as u8,a.my_id,0.) {a.socket.send_to(&packet,at).unwrap();}
+    for _ in 0..10{host.tick(0.01,&poses[0]);a.tick(0.01,&poses[1]);b.tick(0.01,&poses[2]);std::thread::sleep(Duration::from_millis(3));}
+    assert!(b.take_handovers().is_empty(),"unwrapped old-session data was accepted");
+    let expected=vec![5;5000];a.publish_handover(b.my_id,expected.clone());
+    let mut received=Vec::new();
+    for _ in 0..100 {
+        host.tick(0.01,&poses[0]);a.tick(0.01,&poses[1]);b.tick(0.01,&poses[2]);
+        received.extend(b.take_handovers());if !received.is_empty(){break;}
+        std::thread::sleep(Duration::from_millis(3));
+    }
+    assert_eq!(received.len(),1);assert_eq!(received[0].owner,a.my_id);assert_eq!(received[0].event.data,expected);
+    assert!(host.take_handovers().is_empty());
+}
 mod traffic;
 mod voice;
+
+#[test]
+fn coop14_hotfix_boarding_burst_preserves_people_commands_and_vehicle_budget() {
+    let mut host = LanSession::host(0, "host", world("m"), true).unwrap();
+    let addr = SocketAddr::from(([127, 0, 0, 1], host.local_addr().unwrap().port()));
+    let mut client = LanSession::join_addr(vec![addr], None, "c", world("m")).unwrap();
+    let poses = [pose(100.0), pose(200.0)];
+    pump(&mut [&mut host, &mut client], &poses, 150, |s| s[1].connected);
+    assert!(client.connected);
+    host.take_descs_up();
+    host.take_world_up();
+    let id = client.my_id;
+    let before = host.peers[&id].dropped;
+    for person in 1..=89 {
+        client.send_desc_up(&world::Desc::Person { wheelchair: false,
+            id: person,
+            file: "Humans/aXYZ/man01.hum".into(),
+            intent: None,
+        });
+        host.receive(&mut Vec::new());
+    }
+    let descriptions = host.take_descs_up();
+    assert_eq!(descriptions.len(), 89, "the recorded boarding burst must arrive intact");
+    let claimed: Vec<u32> = (1..=89).collect();
+    client.claim(&claimed);
+    host.receive(&mut Vec::new());
+    let claims = host.take_claims();
+    assert_eq!(claims.iter().map(|(_, ids)| ids.len()).sum::<usize>(), 89);
+    for person in 1..=80 {
+        client.send_world_up(&world::WorldFrame {
+            gone: vec![(true, person)],
+            ..Default::default()
+        });
+        host.receive(&mut Vec::new());
+    }
+    assert_eq!(host.take_world_up().len(), 80, "people frames must not consume vehicle state capacity");
+    assert_eq!(host.peers[&id].dropped, before);
+    let peer = host.peers.get_mut(&id).unwrap();
+    assert!(peer.states.take(STATE_RATE));
+    assert!(peer.messages.take(MESSAGE_RATE));
+}
+
+#[test]
+fn coop14_hotfix_person_channels_remain_limited_and_sender_bound() {
+    let mut host = LanSession::host(0, "host", world("m"), true).unwrap();
+    let from: SocketAddr = "127.0.0.1:29001".parse().unwrap();
+    let other: SocketAddr = "127.0.0.1:29002".parse().unwrap();
+    let mut peer = Peer::new(Some(from), pose(1.0));
+    peer.person_descriptions.tokens = 0.0;
+    peer.person_control.tokens = 0.0;
+    peer.person_world.tokens = 0.0;
+    host.peers.insert(7, peer);
+    for (rate, channel) in [
+        (PERSON_DESC_RATE, PeerTraffic::PersonDescription),
+        (PERSON_CONTROL_RATE, PeerTraffic::PersonControl),
+        (PERSON_WORLD_RATE, PeerTraffic::PersonWorld),
+    ] {
+        assert!(host.checked_peer(7, other, rate, channel).is_none());
+        assert!(host.checked_peer(7, from, rate, channel).is_none());
+    }
+    assert!(host.checked_peer(7, from, MESSAGE_RATE, PeerTraffic::Message).is_some());
+    assert!(host.checked_peer(7, from, STATE_RATE, PeerTraffic::State).is_some());
+}
 
 mod join_rejections;

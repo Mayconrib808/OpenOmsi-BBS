@@ -1,0 +1,11 @@
+{
+  "native_version": "0.3.45-coop.15-2.2.1.8",
+  "upstream_repository": "openOMSI-org/openOMSI",
+  "upstream_commit": "dd515ba1d917bcb9c9b0d1ba24f6964b27f76ba0",
+  "support_commit": "1f5d786d0fc4eaa82c89bb792ff709f028228e7f",
+  "native_build_source_commit": "6a90ea5682d748fc9d3113b7bee314e61379bfc4",
+  "native_build_run": 40526375163,
+  "patch_roundtrip": "verified against every file",
+  "source_file_count": 1941,
+  "patch_sha256": "cf0d5cc95de9023a106b943b58ea945b694a624476237b3ec78785645dd1fd94"
+}

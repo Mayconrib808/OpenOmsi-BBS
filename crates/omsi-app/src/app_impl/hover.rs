@@ -73,6 +73,7 @@ impl App {
                                       surface.map(|s| s.1));
             }
         }
+        if self.coop_hover() { return; }
         let outside = self.view == "outside";
         if let Some(p) = self.player.as_mut() {
             p.occlude_controls = outside;
