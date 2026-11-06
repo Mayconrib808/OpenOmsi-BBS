@@ -421,8 +421,13 @@ impl Journey {
         // move first; never strand a whole trip because an inspector or an
         // ordinary passenger is frozen on a lift. The geometry planner still
         // certifies the cabin and the lift/door/brake interlocks still apply.
+        // A standing passenger on a different step or the lift's lower
+        // level must not make the chair wait indefinitely. The 0.58 m
+        // horizontal envelope still keeps same-floor bodies from overlapping;
+        // after a short wait the controller prioritises the chair over
+        // *cosmetic* pedestrian collisions, never the vehicle geometry.
         let crowd_blocked = blockers.iter().any(|p|
-            (p.z-next.z).abs()<1.5 && (p.truncate()-next.truncate()).length()<0.64);
+            (p.z-next.z).abs()<0.72 && (p.truncate()-next.truncate()).length()<0.58);
         if !self.crowd_allows_motion(crowd_blocked,dt){return false;}
         self.hold_reason = "";
         self.heading = heading;
