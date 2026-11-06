@@ -1,0 +1,28 @@
+name: Localize independent passenger demand and weather clothing
+on:
+  push:
+    branches: [feature/2221-independent-demand-weather-clothes]
+    paths:
+      - .github/scripts/apply-2221-people-weather-locales.py
+      - .github/workflows/merge-2221-people-weather-locales.yml
+  workflow_dispatch: {}
+permissions:
+  contents: write
+jobs:
+  locales:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/2221-independent-demand-weather-clothes
+          persist-credentials: true
+      - name: Generate 29 translations for each label
+        run: python .github/scripts/apply-2221-people-weather-locales.py
+      - name: Commit localized catalog
+        shell: bash
+        run: |
+          git add crates/omsi-app/locales/app.yml
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'i18n(2221): localize passenger demand and weather clothing'
+          git push origin HEAD:feature/2221-independent-demand-weather-clothes

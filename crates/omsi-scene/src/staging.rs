@@ -356,6 +356,12 @@ impl ObjectType {
         .filter(|s| s.blocks)
     }
 
+    /// Scenery used by camera collision and upward rain probes.
+    pub fn occluder_shape(&self) -> Option<&crate::camera_arm::BlockerShape> {
+        Some(self.camera.get_or_init(|| crate::camera_arm::classify(self)))
+            .filter(|s| s.blocks || s.has_rain_cover())
+    }
+
     /// (definition, pivot) per loaded mesh, for the scenery script runtime.
     pub fn mesh_defs(&self) -> Vec<(&MeshDef, Mat4)> {
         self.mesh_def_index

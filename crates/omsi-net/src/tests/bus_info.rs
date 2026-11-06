@@ -42,3 +42,30 @@ fn info_carries_what_the_bus_is_and_its_height_and_an_older_info_has_neither() {
     kept.set_state(pose(2.0));
     assert_eq!(kept.content, fp);
 }
+
+#[test]
+fn coop13_motion_history_keeps_character_skin_with_bus_and_after_respawn() {
+    let mut client = LanSession::join_addr(Vec::new(), None, "observer", Default::default()).unwrap();
+    client.my_id = 5;
+    let from = SocketAddr::from((Ipv4Addr::LOCALHOST, 29999));
+    for (index, bus) in ["Vehicles/first.bus", "", "Vehicles/first.bus", "Vehicles/second.bus"].into_iter().enumerate() {
+        let mut info = pose(0.0);
+        info.id = 2;
+        info.bus = bus.into();
+        info.figure = format!("Humans/Chosen/skin{}.hum", index % 2);
+        info.paint = "EMTU".into();
+        let text = info.encode_info();
+        client.on_info(&text.split('|').collect::<Vec<_>>(), from);
+        let mut moving = pose(10.0 + index as f64);
+        moving.id = 2;
+        moving.sent_ms = (index as u32 + 1) * 100;
+        let packet = wire::encode_state(&moving, PROTOCOL as u8, index as u16 + 1);
+        client.on_state(&packet, from);
+        let peer = client.peers.get(&2).unwrap();
+        let cached = &peer.history.back().unwrap().1;
+        assert_eq!(cached.figure, info.figure, "selected skin lost for bus {bus:?}");
+        assert_eq!(cached.bus, info.bus);
+        assert_eq!(cached.paint, info.paint);
+        assert!((cached.x - moving.x).abs() < 0.02);
+    }
+}

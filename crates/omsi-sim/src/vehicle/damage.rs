@@ -264,6 +264,7 @@ mod tests {
         ty_mut.meshes.push(VehicleMesh {
             def_index: 0,
             data: MeshData::default(),
+            pick_geometry: Default::default(),
             file: PathBuf::from("body.o3d"),
             materials: Vec::new(),
             overrides: Vec::new(),
@@ -298,6 +299,7 @@ mod tests {
             ty_mut.meshes.push(VehicleMesh {
                 def_index,
                 data: MeshData::default(),
+                pick_geometry: Default::default(),
                 file: PathBuf::from(file),
                 materials: Vec::new(),
                 overrides: Vec::new(),
@@ -356,6 +358,7 @@ mod tests {
             ty_mut.meshes.push(VehicleMesh {
                 def_index,
                 data: MeshData::default(),
+                pick_geometry: Default::default(),
                 file: PathBuf::from(file),
                 materials: Vec::new(),
                 overrides: Vec::new(),

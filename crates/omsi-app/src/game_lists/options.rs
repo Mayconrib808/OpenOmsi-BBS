@@ -11,8 +11,10 @@ pub(super) fn option_now(app: &App, verb: &str, arg: &str) -> Option<f32> {
     Some(match verb {
         "speed" => s.time_speed as f32,
         "traffic" => app.session.traffic.as_ref()?.target as f32,
+        "ticket_chance_percent" => s.ticket_chance_percent,
         "pax" => s.pax_density,
-        "passenger_transfer_percent" => s.passenger_transfer_percent,
+        "wheelchair_spawn_percent" => s.wheelchair_spawn_percent,
+        "pax_transfer_percent" | "passenger_transfer_percent" => s.passenger_transfer_percent,
         "volume" => s.volume,
         "led_glow" => s.led_glow as f32,
         "night_brightness" => s.night_brightness,
@@ -112,7 +114,9 @@ pub(super) fn option_set(app: &mut App, verb: &str, arg: &str, v: f32) -> Option
             app.settings.pax_density = v;
             Some(("pax_density", v.to_string()))
         }
-        "passenger_transfer_percent" => set_connection_percent(app, v),
+        "pax_transfer_percent" | "passenger_transfer_percent" => {app.settings.passenger_transfer_percent=v.round().clamp(0.0,100.0);if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=if app.settings.passenger_connections {app.settings.passenger_transfer_percent}else{0.};}Some(("passenger_transfer_percent",app.settings.passenger_transfer_percent.to_string()))}
+        "wheelchair_spawn_percent" => {let percent=if v.is_finite(){v.clamp(0.0,100.0)}else{3.0};app.settings.wheelchair_spawn_percent=percent;if let Some(h)=app.session.humans.as_mut(){h.wheelchairs.spawn_percent=percent;}Some(("wheelchair_spawn_percent",percent.to_string()))}
+        "ticket_chance_percent" => {app.settings.ticket_chance_percent=v.round().clamp(-1.0,100.0);Some(("ticket_chance_percent",app.settings.ticket_chance_percent.to_string()))}
         "volume" => {
             app.settings.volume = v;
             Some(("volume", v.to_string()))
@@ -420,10 +424,15 @@ fn set_cab_wheel_rotation(app: &mut App, v: f32) -> (&'static str, String) {
 /// Whether the switch `id` is on (None: `id` is no switch).
 pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
     let s = &app.settings;
+    if let Some(on) = s.optional_features.get(id) { return Some(on); }
     Some(match id {
-        "passenger_connections" => s.passenger_connections,
-        "passenger_hailing" => s.passenger_hailing,
-        "passenger_full_bus_reaction" => s.passenger_full_bus_reaction,
+        "pax_natural"=>s.passenger_animation=="enhanced",
+        "ticket_chance_enabled"=>s.ticket_chance_enabled,
+        "pax_umbrellas"=>s.passenger_umbrellas,
+        "pax_hailing" | "passenger_hailing"=>s.passenger_hailing,
+        "passenger_full_bus_reaction"=>s.passenger_full_bus_reaction,
+        "passenger_connections"=>s.passenger_connections,
+        "pax_hailing_map"=>crate::view_sync::people::extras::map_enabled(&s.passenger_hailing_maps,&app.args.map),
         "pax_short_rides_stand" => s.pax_short_rides_stand,
         "navigator" => if app.vr_active() { app.vr_nav_profile().enabled } else { app.menus.navigator.as_ref().is_some_and(|n| n.enabled) },
         "nav_ai" => app.menus.navigator.as_ref().map_or(s.nav_ai, |n| n.show_ai),
@@ -532,29 +541,18 @@ pub(super) fn toggle_now(app: &App, id: &str) -> Option<bool> {
 /// Switch `id` on or off; the key and value to keep for the next game.
 pub(super) fn toggle_set(app: &mut App, id: &str, on: bool) -> Option<(&'static str, String)> {
     let bit = (on as u8).to_string();
+    if let Some(key) = app.settings.optional_features.set(id, on) { if let Some(h)=app.session.humans.as_mut(){h.optional_features=app.settings.optional_features;}return Some((key, bit)); }
     match id {
-        "passenger_connections" => {
-            app.settings.passenger_connections = on;
-            if let Some(h) = app.session.humans.as_mut() {
-                h.transfer_percent = if on && app.args.passenger_connections_allowed(app.net.lan.is_some()) {
-                    app.settings.passenger_transfer_percent
-                } else { 0.0 };
-            }
-            Some(("passenger_connections", bit))
-        }
-        "passenger_hailing" => {
-            app.settings.passenger_hailing = on;
-            if let Some(h) = app.session.humans.as_mut() {
-                h.visual_hailing = on && app.settings.passenger_animation == "enhanced";
-            }
-            Some(("passenger_hailing", bit))
-        },
-        "passenger_full_bus_reaction" => {
-            app.settings.passenger_full_bus_reaction = on;
-            if let Some(h) = app.session.humans.as_mut() {
-                h.visual_full_bus_reaction = on && app.settings.passenger_animation == "enhanced";
-            }
-            Some(("passenger_full_bus_reaction", bit))
+        "pax_natural"=>{app.settings.passenger_animation=if on{"enhanced"}else{"original"}.into();Some(("passenger_animation",app.settings.passenger_animation.clone()))},
+        "ticket_chance_enabled"=>{app.settings.ticket_chance_enabled=on;Some(("ticket_chance_enabled",bit))},
+        "pax_umbrellas"=>{app.settings.passenger_umbrellas=on;Some(("passenger_umbrellas",bit))},
+        "pax_hailing" | "passenger_hailing"=>{app.settings.passenger_hailing=on;if let Some(h)=app.session.humans.as_mut(){h.visual_hailing=on;}Some(("passenger_hailing",bit))},
+        "passenger_full_bus_reaction"=>{app.settings.passenger_full_bus_reaction=on;if let Some(h)=app.session.humans.as_mut(){h.visual_full_bus_reaction=on;}Some(("passenger_full_bus_reaction",bit))},
+        "passenger_connections"=>{app.settings.passenger_connections=on;if let Some(h)=app.session.humans.as_mut(){h.transfer_percent=if on {app.settings.passenger_transfer_percent}else{0.};}Some(("passenger_connections",bit))},
+        "pax_hailing_map"=>{
+            let key=crate::view_sync::people::extras::map_key(&app.args.map);
+            let mut maps:Vec<String>=app.settings.passenger_hailing_maps.split(';').filter(|s|!s.trim().is_empty()).map(str::to_string).filter(|s|crate::view_sync::people::extras::map_key(s)!=key).collect();
+            if on{maps.push(key);}app.settings.passenger_hailing_maps=maps.join(";");Some(("passenger_hailing_maps",app.settings.passenger_hailing_maps.clone()))
         },
         "pax_short_rides_stand" => {
             app.settings.pax_short_rides_stand = on;
@@ -1070,7 +1068,7 @@ fn set_connection_percent(app: &mut App, value: f32) -> Option<(&'static str, St
     if !value.is_finite() { return None; }
     app.settings.passenger_transfer_percent = value.round().clamp(0.0, 100.0);
     if let Some(humans) = app.session.humans.as_mut() {
-        humans.transfer_percent = if app.args.passenger_connections_allowed(app.net.lan.is_some()) && app.settings.passenger_connections {
+        humans.transfer_percent = if app.settings.passenger_connections {
             app.settings.passenger_transfer_percent
         } else { 0.0 };
     }

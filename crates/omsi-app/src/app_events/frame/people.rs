@@ -2,6 +2,8 @@
 
 use super::*;
 
+mod dialog;
+
 impl App {
     /// The LAN session (a stage of its own: a joining player's bus is loaded here, and that
     /// frame was counted as the people's).
@@ -15,6 +17,25 @@ impl App {
         if self.session.depot_prev.is_some() {
             self.settle_depot_switch(false);
         }
+        let s=&self.settings;
+        omsi_sim::people::TICKET_CHANCE_PERCENT.store(if s.ticket_chance_enabled {s.ticket_chance_percent.round() as i32}else{-1},std::sync::atomic::Ordering::Relaxed);
+        if self.player.as_ref().is_some_and(|p| p.borrowed_from.is_some()) {
+            // The visitor drives the original owner's bus. Advance only the borrowed
+            // navigation timetable, never a second BCS journey, career or passenger sim.
+            if !self.paused {
+                if let (Some(d), Some(p), Some(w)) =
+                    (self.session.duty.as_mut(), self.player.as_mut(), self.world.as_ref()) {
+                    d.learn_loaded(&w.data.peek().objects);
+                    d.update(&mut p.vehicle, self.clock.time);
+                    let _ = d.take_finished();
+                    let _ = d.take_skipped();
+                }
+            }
+            return;
+        }
+        // A walking passenger observes the owner's tour, not the idle local bus.
+        // This is a separate display-only duty and does not alter BCS accounting.
+        self.drive_route_preview();
         if self.session.duty.is_none() {
             self.session.career.no_trip();
         }
@@ -87,7 +108,7 @@ impl App {
 
 crate::app::stage_ctx!(
     /// The stage after the people's part of the game.
-    AfterHumansCx { reads: [clock], writes: [people, view, player, ui, integrations] }
+    AfterHumansCx { reads: [clock, net, traffic], writes: [people, view, player, ui, integrations] }
 );
 
 /// After the people: the walker aboard a bus where the bus is this frame, and the fuel pump
@@ -103,7 +124,7 @@ pub(super) fn after_humans(cx: AfterHumansCx, dt: f32) {
 
 crate::app::stage_ctx!(
     /// The people's part of the game.
-    HumansCx { reads: [view, clock, net, duty, world], writes: [people, traffic, player, gfx, ui] }
+    HumansCx { reads: [view, clock, net, duty, world, weather], writes: [people, traffic, player, gfx, ui] }
 );
 
 /// The people at the stops and in the buses, and their view sync.
@@ -149,12 +170,30 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
         // (whom the player's bus takes on: by the duty, or in free drive by its terminus)
         h.set_duty(cx.duty.duty.as_ref());
         // (the riders leave a bus the driver has walked away from)
-        h.driver_away = cx.people.on_foot.as_ref().is_some_and(|f| {
+        h.driver_away = !cx.net.coop.drive.owner_active() && cx.people.on_foot.as_ref().is_some_and(|f| {
             let own = Some(crate::humans::BusId::Player);
             f.seat.map(|s| s.0) != own && f.inside.map(|i| i.0) != own
         });
+        // The human outfit choice follows the host's simulated weather (never
+        // the local computer's real climate), and is evaluated only at spawn.
+        if let Some(weather) = cx.weather.weather.as_ref() {
+            h.climate_temp_c = weather.temp.0;
+            h.climate_rain = weather.precip.iter().any(|v| v.is_finite() && *v > 0.01);
+            h.climate_snow = weather.snow || weather.snow_on_road;
+        }
         // (OMSI's `AIPassFactor`, the passengers setting in per cent)
         steps::humans_by_hour(h, w, cx.clock.clock.time, cx.common.settings.pax_density, cx.duty.duty.as_ref());
+        // #2206: the map may opt into its own day-of-week/public-holiday
+        // passenger density. No override means the original global.cfg
+        // density remains intact. Authority stays with the local/host sim.
+        if let Some(t) = cx.traffic.traffic.as_ref() {
+            let weekday = cx.clock.clock.weekday();
+            let holiday = t.holiday_calendar.is_holiday(cx.clock.clock.date_code());
+            let hour = (cx.clock.clock.time.rem_euclid(86400.0) / 3600.0) as f32;
+            if let Some(density) = t.extended_density.passenger_at(weekday, holiday, hour) {
+                h.density = density * cx.common.settings.pax_density;
+            }
+        }
         // The periodic fillings of the map each get a frame of their own: the traffic's
         // (`traffic_heavy_frame`, set in its stage before this one), the strollers and
         // stops of the people's step (every second, in `tick_inner`) and this one (every
@@ -185,7 +224,12 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
             ).widened(sight));
         }
         // (the other LAN players' buses, for their riders to sit in)
-        h.set_remote_buses(cx.net.remotes.remotes.iter().map(|(id, r)| (*id, r.vehicle())));
+        h.set_remote_buses(cx.net.remotes.remotes.iter()
+            .filter(|(id, _)| cx.net.coop.drive.visitor_owner() != Some(**id))
+            .map(|(id, r)| (*id, r.vehicle())));
+        if let Some(p) = cx.player.player.as_ref().filter(|p| p.borrowed_from.is_some()) {
+            h.set_borrowed_cabin(p.borrowed_from.unwrap(), &p.vehicle);
+        }
         // (and the vehicles the player placed and left, with their riders)
         h.set_placed_buses(cx.player.placed.iter().map(|q| (q.uid, &q.vehicle)));
         h.set_player_next_stop(
@@ -199,11 +243,11 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
         let mut took = false;
         if let Some(back) = cx.traffic.pipeline.take_people_stepped() {
             let started = Instant::now().checked_sub(std::time::Duration::from_secs_f64(back.secs)).unwrap_or_else(Instant::now);
-            steps::humans_after_step(h, &mut cx.gfx.gfx.sim_view.people, back.dt, w, cx.player.player.as_mut(), cx.traffic.traffic.as_mut(), r, scene, started);
+            steps::humans_after_step(h, &mut cx.gfx.gfx.sim_view.people, back.dt, w, cx.player.player.as_mut().filter(|p| p.borrowed_from.is_none()), cx.traffic.traffic.as_mut(), r, scene, started);
             took = back.took;
         }
         if cx.traffic.pipeline.takes_people(cx.traffic.traffic.as_ref().map(|t| &t.sim), h) {
-            let bus = cx.player.player.as_ref().map(|p| h.player_bus_view(&p.vehicle));
+            let bus = cx.player.player.as_ref().filter(|p| p.borrowed_from.is_none()).map(|p| h.player_bus_view(&p.vehicle));
             cx.traffic.pipeline.owe_people(step_dt, w.data(), bus);
         } else {
             took |= steps::tick_humans(
@@ -211,7 +255,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
                 &mut cx.gfx.gfx.sim_view.people,
                 step_dt,
                 w,
-                cx.player.player.as_mut(),
+                cx.player.player.as_mut().filter(|p| p.borrowed_from.is_none()),
                 cx.traffic.traffic.as_mut(),
                 r,
                 scene,
@@ -223,7 +267,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
         if let Some(t) = h.take_dialog().and_then(|n| passenger_dialog(&n)) {
             *cx.ui.service_msg = Some((t, 5.0));
         }
-        if let Some(p) = cx.player.player.as_mut() {
+        if let Some(p) = cx.player.player.as_mut().filter(|p| p.borrowed_from.is_none()) {
             if took {
                 p.vehicle.set_var("GivenTicket", -1.0);
             }
@@ -235,9 +279,13 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
                 // a passenger's request is the vehicle trigger Omsi.exe fires
                 // (0x62e42c), not the cab's stop button `door_haltewunsch`,
                 // whose switch and brake sounds some buses play
-                p.vehicle.trigger("int_haltewunsch");
+                if !cx.net.coop.drive.owner_active() { p.vehicle.trigger("int_haltewunsch"); }
             }
             h.write_pax_vars(&mut p.vehicle);
+            // Follow the wheelchair call independently of the bus model.
+            // After the last chair actually finishes alighting, release any
+            // dedicated light variables asserted by the Bridge.
+            h.wheelchairs.sync_stop_signal(&mut p.vehicle);
             p.vehicle.host.humans_on_path_link = h.path_link_counts();
             p.vehicle.host.humans_on_seat = h.seat_counts();
             let mut coins: Vec<usize> = std::mem::take(&mut p.vehicle.host.change_coins).into_iter().map(|(c, worth)| h.money.as_ref().map_or(c, |m| m.coin_worth(c, worth))).collect();
@@ -253,7 +301,7 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
         // the view sync of the people: the coins and ticket blocks of the player's bus,
         // then everybody's pose (see `view_sync`), in the frame's last tick only
         if cx.clock.fixed_tick.view_due() {
-            let bus = cx.player.player.as_ref().map(|p| &p.vehicle);
+            let bus = cx.player.player.as_ref().filter(|p| p.borrowed_from.is_none()).map(|p| &p.vehicle);
             view_sync::sync(ViewSync::people(h, bus, center), &mut cx.gfx.gfx.sim_view, w, r, scene);
         }
     }
@@ -271,6 +319,9 @@ pub(super) fn on_foot(mut cx: crate::on_foot::OnFootCx, dt: f32) {
 /// (`Languages/<LANG>_basic*.olf`, `RL_PassDlg_<name>`): Omsi.exe shows them as the riders
 /// speak. None for what has no hint (a greeting).
 fn passenger_dialog(name: &str) -> Option<String> {
+    if let Some(caption) = dialog::current(name) {
+        return Some(caption);
+    }
     static TEXTS: std::sync::OnceLock<Option<omsi_content::language::Language>> = std::sync::OnceLock::new();
     let texts = TEXTS.get_or_init(|| {
         let lang = crate::settings::Settings::load().language;

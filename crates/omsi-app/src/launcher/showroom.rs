@@ -432,7 +432,7 @@ impl Showroom {
         let mut scene = renderer.new_scene();
         let args = args_for(&r.look);
         let weather = studio_weather();
-        let sky = crate::weather_setup::SkyState { clouds: None, model: None, look: args.session_settings };
+        let sky = crate::weather_setup::SkyState { clouds: None, model: None, look: args.session_settings, ..Default::default() };
         let world = r.world;
         // (the panes wear this weather's snow as the bus goes onto the GPU)
         world.settings.set_snow(weather.snow);
@@ -610,7 +610,7 @@ impl Showroom {
     pub fn relight(&mut self) {
         if let Some(s) = self.shown.as_mut() {
             let args = args_for(&s.look);
-            let sky = crate::weather_setup::SkyState { clouds: None, model: None, look: args.session_settings };
+            let sky = crate::weather_setup::SkyState { clouds: None, model: None, look: args.session_settings, ..Default::default() };
             s.lighting = lighting_for(&args, &s.weather, &sky);
             self.fresh_light = true;
             self.dirty = true;

@@ -195,3 +195,18 @@ fn trip_plan(trip: &crate::schedule::PlannedTrip) -> TripPlan {
         stops: trip.stops.iter().map(|s| StopPlan { object_id: s.object_id, name: s.name.clone(), stops: s.stops }).collect(),
     }
 }
+
+/// These user-provided recordings belong exclusively to Brazilian Portuguese.
+pub(crate) fn brazilian_voice_dir(language:&str)->Option<std::path::PathBuf> {
+    if !language.eq_ignore_ascii_case("PTB") {return None;}
+    std::env::current_exe().ok()?.parent().map(|p|p.join("bcs-assets/PassengerVoices/pt-BR"))
+}
+
+#[cfg(test)]
+mod brazilian_voice_tests {
+    #[test]
+    fn bundled_voices_only_belong_to_brazilian_portuguese() {
+        assert!(super::brazilian_voice_dir("PTB").unwrap().ends_with("bcs-assets/PassengerVoices/pt-BR"));
+        for language in ["ENG","DEU","PTG","pt","SPA",""] {assert!(super::brazilian_voice_dir(language).is_none());}
+    }
+}

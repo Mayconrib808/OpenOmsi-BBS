@@ -1,0 +1,57 @@
+name: Bridge 2.2.3.1 - v0.3.49/P17 integration audit
+on:
+  push:
+    branches: [feature/openomsi-0349-bridge2231]
+    paths: ['.github/workflows/bridge-2231-integration-audit.yml']
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  three-way-merge:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compare official v0.3.49 against exact Bridge 0.3.47 baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p integration-report
+          git remote add official https://github.com/openOMSI-org/openOMSI.git
+          git fetch --no-tags official 8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6 0784e3cd02ea6fc013b31cdfff4a7932742632ca
+          base=8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6
+          next=0784e3cd02ea6fc013b31cdfff4a7932742632ca
+          git merge-base --is-ancestor "$base" "$next" || { echo 'Unexpected upstream history'; exit 1; }
+          bridge_tree=$(git rev-parse 'HEAD^{tree}')
+          bridge_head=$(git rev-parse HEAD)
+          synthetic=$(printf 'Ephemeral bridge comparison base\n' | git -c user.name='Bridge Audit' -c user.email='audit@localhost.invalid' commit-tree "$bridge_tree" -p "$base")
+          git -c advice.detachedHead=false checkout --detach "$synthetic"
+          printf 'Bridge SHA: %s\nOfficial 0.3.47: %s\nOfficial 0.3.49: %s\n' "$bridge_head" "$base" "$next" | tee integration-report/provenance.txt
+          set +e
+          git -c user.name='Bridge Audit' -c user.email='audit@localhost.invalid' merge --no-ff --no-commit "$next" > integration-report/merge.log 2>&1
+          rc=$?
+          set -e
+          cat integration-report/merge.log
+          git diff --name-only --diff-filter=U | tee integration-report/conflicts.txt
+          conflicts=$(wc -l < integration-report/conflicts.txt)
+          echo "MERGE_CONFLICTS=$conflicts" | tee -a integration-report/provenance.txt
+          echo "MERGE_EXIT_CODE=$rc" | tee -a integration-report/provenance.txt
+          git status --short > integration-report/status.txt
+          if [ "$rc" -ne 0 ] || [ "$conflicts" -ne 0 ]; then
+            echo '::error::Bridge/upstream overlap requires reconciliation; nothing published.'
+            exit 1
+          fi
+          git diff --cached --stat | tee integration-report/merge-stat.txt
+          echo 'Clean source merge; P17 host, Launcher, audio and Windows gates still required.'
+      - name: Upload merge and conflict evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bridge-2231-upstream-merge-audit
+          path: integration-report/
+          retention-days: 30
+          if-no-files-found: warn

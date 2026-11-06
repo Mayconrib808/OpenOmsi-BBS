@@ -1,0 +1,19 @@
+{
+  "schema": 1,
+  "name": "Torino 2007 OF 1722M · acesso traseiro junto à área reservada",
+  "equipment": "added_lift",
+  "threshold": [1.16, -4.44, 0.96984],
+  "bay": [-0.62, -4.40, 0.96984],
+  "route": [[0.40, -4.44, 0.96984]],
+  "bay_heading": 180.0,
+  "door_var": "door_2",
+  "door_open_value": 0.95,
+  "exit_index": 0,
+  "clear_width": 1.05,
+  "platform_length": 1.40,
+  "native_ground_var": null,
+  "native_floor_var": null,
+  "native_height_var": null,
+  "deploy_trigger": null,
+  "stow_trigger": null
+}

@@ -14,6 +14,13 @@
 mod admin;
 mod admin_panel;
 mod auto_announce;
+mod bcs_events;
+mod coop;
+mod coop_character;
+mod coop_drive;
+mod coop_money;
+mod coop_view;
+mod mouse_control;
 mod player_list;
 mod voice_chat;
 use omsi_scene::check;
@@ -60,6 +67,7 @@ use omsi_scene::driver;
 use omsi_scene::export;
 pub(crate) use omsi_scene::hud;
 mod humans;
+mod wheelchair_beta;
 use omsi_career::journey;
 use omsi_input::keys;
 // (LAN play: the session is omsi-lan's `game`, see `lan_play`; the shared world's mirror
@@ -433,6 +441,9 @@ pub(crate) fn prepare(mut args: Args, bare: bool) -> Result<Option<(Args, Option
         omsi_cfg::vfs::mount_dir_zips(&c.join("Archives"));
     }
     omsi_cfg::add_content_root(args.root.clone());
+    if let Some(root)=std::env::current_exe().ok().and_then(|p|p.parent().map(|p|p.join("bcs-assets"))).filter(|p|p.is_dir()){
+        omsi_cfg::add_content_root(root);
+    }
     if args.list_maps {
         for m in server::installed_maps() {
             println!("{m}");
@@ -871,6 +882,7 @@ fn assemble_app(args: Args, settings: settings::Settings) -> App {
         last,
         paused: false,
         integrations: Integrations {
+            bcs_events: Default::default(),
             plugin_keys: Vec::new(),
             plugin_events: Vec::new(),
             plugin_events_ex: Vec::new(),
@@ -1046,3 +1058,7 @@ mod locale_tests {
         }
     }
 }
+
+// The shared cooperative picking tests use the standalone harness module name.
+#[cfg(test)]
+use omsi_lan::coop as protocol;

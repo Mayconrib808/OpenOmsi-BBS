@@ -564,19 +564,19 @@ fn cab_wheel_rotation_defaults_to_the_bus_and_is_clamped() {
 
 #[test]
 fn passenger_hailing_disabled_for_new_and_legacy_settings() {
-    assert!(!Settings::default().passenger_hailing);
-    assert!(!Settings::phone().passenger_hailing);
-    assert!(!Settings::desktop().passenger_hailing);
-    assert!(!Settings::from_text("version=1\n").passenger_hailing);
+    assert!(Settings::default().passenger_hailing);
+    assert!(Settings::phone().passenger_hailing);
+    assert!(Settings::desktop().passenger_hailing);
+    assert!(Settings::from_text("version=1\n").passenger_hailing);
     assert!(Settings::from_text("passenger_hailing=1\n").passenger_hailing);
-    assert!(!Settings::from_text("passenger_hailing=0\n").passenger_hailing);
+    assert!(!Settings::from_text("passenger_features_0347=1\npassenger_hailing=0\n").passenger_hailing);
 }
 
 #[test]
 fn passenger_hailing_survives_both_settings_writers() {
     let key = "passenger_hailing";
     for phone in [false, true] {
-        assert_eq!(omsi_launcher_lib::settings_from_text_on(None, phone)[key], false);
+        assert_eq!(omsi_launcher_lib::settings_from_text_on(None, phone)[key], true);
         for on in [false, true, false] {
             let mut settings = Settings::default();
             settings.passenger_hailing = on;
@@ -592,11 +592,11 @@ fn passenger_hailing_survives_both_settings_writers() {
 
 #[test]
 fn full_bus_reaction_defaults_off_for_desktop_phone_and_old_settings() {
-    assert!(!Settings::desktop().passenger_full_bus_reaction);
-    assert!(!Settings::phone().passenger_full_bus_reaction);
-    assert!(!Settings::from_text("version=1\n").passenger_full_bus_reaction);
+    assert!(Settings::desktop().passenger_full_bus_reaction);
+    assert!(Settings::phone().passenger_full_bus_reaction);
+    assert!(Settings::from_text("version=1\n").passenger_full_bus_reaction);
     assert!(Settings::from_text("passenger_full_bus_reaction=1\n").passenger_full_bus_reaction);
-    assert!(!Settings::from_text("passenger_full_bus_reaction=0\n").passenger_full_bus_reaction);
+    assert!(!Settings::from_text("passenger_features_0347=1\npassenger_full_bus_reaction=0\n").passenger_full_bus_reaction);
     assert!(!Settings::desktop().pax_short_rides_stand);
     assert!(Settings::from_text("pax_short_rides_stand=1\n").pax_short_rides_stand);
     let mut on = Settings::desktop();

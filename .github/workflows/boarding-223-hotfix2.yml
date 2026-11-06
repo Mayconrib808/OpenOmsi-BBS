@@ -1,0 +1,183 @@
+name: OpenOMSI 2.2.3 Hotfix 2 passenger boarding
+on:
+  push:
+    branches: [fix/2.2.3-hotfix2-boarding]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: boarding-223-hotfix2-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  simulation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: accessibility-223-simulation
+      - name: Install native audio headers
+        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
+      - name: Simulation regression tests and add-on probe
+        run: |
+          python3 -m py_compile tools/validate_wheelchair_nine.py
+          cargo test --locked --release -p omsi-sim --lib
+          cargo test --locked --release -p omsi-net --lib
+          cargo build --locked --release -p omsi-sim --example wheelchair_probe
+      - name: Prepare offline probe and compiler for supplied add-on checks
+        if: always()
+        run: |
+          mkdir -p validation-tools/cargo validation-tools/toolchain
+          if [ -f target/release/examples/wheelchair_probe ]; then cp target/release/examples/wheelchair_probe validation-tools/; fi
+          toolchain=$(rustc --print sysroot)
+          cp -a "$toolchain/bin" "$toolchain/lib" validation-tools/toolchain/
+          for item in registry git; do
+            if [ -d "$HOME/.cargo/$item" ]; then cp -a "$HOME/.cargo/$item" "validation-tools/cargo/"; fi
+          done
+          mkdir -p validation-tools/system/lib/pkgconfig
+          cp -a /usr/lib/x86_64-linux-gnu/libasound.so* /usr/lib/x86_64-linux-gnu/libudev.so* validation-tools/system/lib/
+          cp /usr/lib/x86_64-linux-gnu/pkgconfig/alsa.pc /usr/lib/x86_64-linux-gnu/pkgconfig/libudev.pc validation-tools/system/lib/pkgconfig/
+          tar -czf accessibility-validation-tools.tar.gz validation-tools
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accessibility-223-validation-tools
+          path: accessibility-validation-tools.tar.gz
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3-hotfix.2
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      OMSI_NO_UPDATE: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '3'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: visual-hail-route-2225
+      - name: Build native P16 client and verify startup
+        shell: pwsh
+        run: |
+          $tokens=$null; $syntaxErrors=$null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd 'tools/package-accessibility-hotfix/Aplicar-Hotfix.ps1'), [ref]$tokens, [ref]$syntaxErrors) | Out-Null
+          if ($syntaxErrors.Count -gt 0) { $syntaxErrors | Format-List; throw 'Hotfix installer PowerShell syntax failed' }
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Native accessibility build failed' }
+          & target/release/openomsi.exe --help | Out-File native-help.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native executable failed to start' }
+      - name: Preserve Hotfix 5 runtime assets
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-HF4-native-and-source-CANDIDATE
+          run-id: 41871370040
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Record exact native source and candidate provenance
+        shell: pwsh
+        run: |
+          Copy-Item target/release/openomsi.exe candidate/openomsi.exe -Force
+          git archive --format=tar.gz --prefix=openomsi-223/ -o candidate/openomsi-source.tar.gz HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Native source archive failed' }
+          $info = @{
+            version='0.3.47-coop.16-2.2.3-hotfix.2'; bridge_version='2.2.3-hotfix.2'; commit=$env:GITHUB_SHA
+            build_commit=$env:GITHUB_SHA; run_id=[long]$env:GITHUB_RUN_ID
+            upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6'
+            winter_clothing_removed=$true; passenger_upstream_tag='v0.3.47'
+            passenger_upstream_commit='8c4a0d3fd4439e49d18c2812bbd4d91cdd0af7f6'
+            base_commit='7b34c59d77890804909ba7698d7e5ede1e50f345'; base_release='2.2.3-hotfix.1'
+            native_sha256=(Get-FileHash candidate/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            source_sha256=(Get-FileHash candidate/openomsi-source.tar.gz -Algorithm SHA256).Hash.ToLowerInvariant()
+            windows_gameplay_tested=$false; paired_gameplay_tested=$false; gameplay_visual_tested=$false
+          }
+          $info | ConvertTo-Json -Depth 5 | Set-Content candidate/SOURCE.json -Encoding utf8
+          Copy-Item candidate/SOURCE.json candidate/BUILD-INFO.json -Force
+          & candidate/openomsi.exe --version | Out-File candidate/version.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native candidate version failed' }
+      - name: Build Windows wheelchair add-on probe for exact nine-vehicle validation
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-sim --example wheelchair_probe
+          if ($LASTEXITCODE -ne 0) { throw 'Windows wheelchair add-on probe build failed' }
+          Copy-Item target/release/examples/wheelchair_probe.exe candidate/wheelchair_probe.exe -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.3-Hotfix2-native-CANDIDATE
+          path: candidate/
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+
+  launcher:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.3-hotfix.2
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            launcher/src-tauri -> target
+          key: 2222-desktop-launcher-windows
+          add-job-id-key: false
+      - name: Verify existing settings and accessibility controls
+        shell: pwsh
+        run: |
+          node --test launcher/tests/optional-features.test.mjs
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher settings regression' }
+          python tools/check_accessibility_locales.py
+          if ($LASTEXITCODE -ne 0) { throw 'Accessibility translation coverage failed' }
+          cargo test --locked --release -p omsi-cfg --lib
+          if ($LASTEXITCODE -ne 0) { throw 'Configuration regressions failed' }
+          cargo test --locked --release -p omsi-launcher-core --lib
+          if ($LASTEXITCODE -ne 0) { throw 'Launcher configuration persistence failed' }
+      - name: Build actual Windows desktop lobby
+        shell: pwsh
+        run: |
+          cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw 'Windows lobby build failed' }
+          New-Item -ItemType Directory -Force launcher-candidate | Out-Null
+          $exe='launcher/src-tauri/target/release/openomsi-launcher-app.exe'
+          Copy-Item $exe launcher-candidate/openomsi-launcher-app.exe
+          @{
+            version=$env:OPENOMSI_VERSION; source_commit=$env:GITHUB_SHA
+            path='OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe'
+            launcher_sha256=(Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            accessibility_controls=@('wheelchair_passengers','wheelchair_spawn_percent')
+          } | ConvertTo-Json | Set-Content launcher-candidate/BUILD-INFO.json -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.3-Hotfix2-launcher-CANDIDATE
+          path: launcher-candidate/
+          retention-days: 30
+          if-no-files-found: error

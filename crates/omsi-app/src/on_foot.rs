@@ -155,6 +155,23 @@ impl Transit {
 }
 
 impl OnFoot {
+    /// A handover ends beside the bus where it is now, not at the saved boarding point.
+    pub(crate) fn return_from_borrowed(&mut self, owner: u32, v: &omsi_sim::VehicleInstance) {
+        let remote = BusId::Ai(crate::humans::remote_bus_id(owner));
+        let local = self.inside.and_then(|(b, l)| (b == BusId::Player || b == remote).then_some(l));
+        if let Some(local) = local {
+            self.pos = v.position + v.body_rotation().transform_point3(local).as_dvec3();
+            self.inside = Some((remote, local));
+        }
+        if let Some((BusId::Player, seat)) = self.seat { self.seat = Some((remote, seat)); }
+        self.eye = None;
+        self.lag = DVec3::ZERO;
+        self.vel = DVec2::ZERO;
+        self.transit = None;
+        self.arrive = None;
+        self.settle = 0.0;
+        self.bus_turn = None;
+    }
     /// After the people's tick, aboard a bus: the walker and the eyes where the bus is
     /// this frame. The walk above placed them on the bus as the people had it a frame
     /// before, and the camera eased after that: at speed the saloon trembled round the
@@ -170,7 +187,9 @@ impl OnFoot {
                 f.pos = w;
             }
         }
-        let eye = h.avatar_body(AVATAR_KEY).map(|b| b.2).unwrap_or(f.pos + DVec3::new(0.0, 0.0, 1.62)) + f.eye_drop();
+        let eye = h.avatar_body(AVATAR_KEY).map(|b| {
+            if f.seat.is_none() { f.pos + (b.2 - b.0) } else { b.2 }
+        }).unwrap_or(f.pos + DVec3::new(0.0, 0.0, 1.62)) + f.eye_drop();
         let y = (f.eye_yaw as f64).to_radians();
         let at = eye + DVec3::new(y.sin(), y.cos(), 0.0) * 0.08 + f.lag;
         f.eye = Some(at);
@@ -526,6 +545,12 @@ impl App {
     /// and the player stands beside where its driver's door was, on foot; another bus is
     /// taken by walking up to its driver's door (G), or placed from the menu.
     pub(crate) fn remove_driven_vehicle(&mut self) {
+        if self.net.coop.drive.busy() {
+            self.coop_notice("Devolva ou retome a direção antes de remover o ônibus.",
+                "Return or reclaim the wheel before removing the bus.",
+                "Vor dem Entfernen die Lenkung zurückgeben oder übernehmen.");
+            return;
+        }
         if self.player.is_none() {
             self.service_msg = Some(("There is no vehicle to remove: you are on foot".into(), 3.0));
             return;
@@ -585,7 +610,8 @@ impl App {
             h.avatar_only = true;
             self.session.humans = Some(h);
         }
-        let kind = Self::figure_kind(self.world.as_deref(), self.session.humans.as_mut(), &self.args.root, None);
+        let selected = crate::coop_character::preferred_type(&self.args.root);
+        let kind = Self::figure_kind(self.world.as_deref(), self.session.humans.as_mut(), &self.args.root, selected);
         self.session.on_foot = Some(OnFoot {
             pos,
             heading,
@@ -671,6 +697,7 @@ impl App {
 
     /// Back at the wheel of the own bus.
     fn sit_at_the_wheel(&mut self) {
+        if self.player.as_ref().is_some_and(|p| p.authority_remote) { return; }
         WheelCx::of(&mut self.parts()).sit_at_the_wheel();
     }
 
@@ -714,7 +741,7 @@ impl App {
         // inside a bus: the wheel of the own bus by the driver's place, else the free seat
         // nearest by
         if let Some((bus, _)) = f.inside {
-            if bus == BusId::Player {
+            if bus == BusId::Player && self.player.as_ref().is_some_and(|p| !p.authority_remote) {
                 let stand = self.player.as_ref().and_then(|p| self.session.humans.as_mut().and_then(|h| h.driver_stand(&p.vehicle).and_then(|l| h.vehicle_cabin_world(&p.vehicle, l))));
                 if stand.map(|s| (s - pos).truncate().length() < 2.5).unwrap_or(true) {
                     self.sit_at_the_wheel();
@@ -754,7 +781,7 @@ impl App {
         }
         // (the door by the driver's seat, not the first door of the list: next to it the
         // walker was put in the seat behind the driver)
-        let own_front = self.player.as_ref().and_then(|p| self.session.humans.as_mut().and_then(|h| h.vehicle_driver_door(&p.vehicle)));
+        let own_front = self.player.as_ref().filter(|p| !p.authority_remote).and_then(|p| self.session.humans.as_mut().and_then(|h| h.vehicle_driver_door(&p.vehicle)));
         let Some(h) = self.session.humans.as_ref() else { return };
         if omsi_cfg::flags::OMSI_DEBUG_FOOT.is_set() { log::info!("on foot at ({:.1}, {:.1}): G - own bus doors {:?}, a seat near: {:?}", pos.x, pos.y, h.bus_doors(BusId::Player).iter().map(|d| ((d.x * 10.0).round() / 10.0, (d.y * 10.0).round() / 10.0)).collect::<Vec<_>>(), h.seat_near(pos, DOOR_REACH, None).map(|s| (s.bus, s.seat))); }
         if let Some(d) = own_front {
@@ -765,7 +792,7 @@ impl App {
         }
         // beside the own bus's cab, on either side (a bus without a door by its driver, or
         // one got out of on the other side): back at the wheel too
-        let cab = self.player.as_ref().and_then(|p| {
+        let cab = self.player.as_ref().filter(|p| !p.authority_remote).and_then(|p| {
             let v = &p.vehicle;
             let h = self.session.humans.as_mut()?;
             h.driver_stand(v).and_then(|l| h.vehicle_cabin_world(v, l))
@@ -810,11 +837,20 @@ impl App {
             KeyCode::Escape | KeyCode::F12 | KeyCode::KeyP | KeyCode::KeyV | KeyCode::Slash => false,
             KeyCode::F1 => {
                 if pressed && !repeat {
+                    let from_free = self.view == "free"
+                        || self.session.on_foot.as_ref().is_some_and(|f| f.cam == FootCam::Free);
+                    if !from_free && self.foot_bus().is_some_and(|b|
+                        b != BusId::Player || self.net.coop.drive.owner_active())
+                        && self.net.coop.remote.is_some_and(|(_,epoch,_)|epoch!=0) {
+                        self.select_cabin_view(true);
+                        return true;
+                    }
                     if let Some(f) = self.session.on_foot.as_mut() {
                         f.cam = FootCam::First;
                         f.eye = None;
                     }
                     self.view = "foot".into();
+                    self.net.coop.camera=None;
                 }
                 true
             }
@@ -824,13 +860,21 @@ impl App {
                         f.cam = FootCam::Free;
                         f.vel = DVec2::ZERO;
                     }
+                    self.net.coop.camera = None;
                     self.view = "free".into();
                     self.cam.ego = false;
                 }
                 true
             }
             // (no view from outside the walker: out of the eyes, or the free camera)
-            KeyCode::F2 | KeyCode::F3 => true,
+            KeyCode::F2 => {
+                if pressed && !repeat && self.foot_bus().is_some_and(|b|
+                    b != BusId::Player || self.net.coop.drive.owner_active()) {
+                    self.select_cabin_view(false);
+                }
+                true
+            }
+            KeyCode::F3 => true,
             // the city map (Shift+M) and the navigator (Shift+N) go on foot as well (#705)
             KeyCode::KeyM if shift && !ctrl => {
                 if pressed && !repeat {
@@ -905,17 +949,41 @@ impl App {
     /// The bus the player on foot is in (standing or sitting), if any.
     pub(crate) fn foot_bus(&self) -> Option<BusId> {
         let f = self.session.on_foot.as_ref()?;
-        f.seat.map(|s| s.0).or(f.inside.map(|i| i.0))
+        if let Some(bus) = f.seat.map(|s| s.0).or(f.inside.map(|i| i.0)) {
+            return Some(bus);
+        }
+        // A former driver is already a passenger in their own delegated bus.
+        // Some add-on interiors briefly lose the on-foot "inside" marker while
+        // walking between seats. Recover it from the same real cabin bounds as
+        // coop_peer_inside, rather than requiring the cashier to sit down.
+        // Never grant on-foot controls to somebody on the pavement.
+        if self.net.coop.drive.owner_active() {
+            let v = &self.player.as_ref()?.vehicle;
+            let local = v.body_rotation().inverse().transform_vector3(
+                (f.pos - v.position).as_vec3()).to_array();
+            if local[2].abs() <= 5.0 && omsi_lan::passenger::inside(
+                &omsi_lan::spawn::footprint_of(v, omsi_lan::spawn::BUS_BOX), local,
+            ) {
+                return Some(BusId::Player);
+            }
+        }
+        None
     }
 
     /// The pose other players see of this one on foot (None at the wheel).
     pub(crate) fn walker_pose(&self) -> Option<omsi_net::Walker> {
+        if let Some(owner) = self.net.coop.drive.visitor_owner().filter(|_|self.session.on_foot.is_none()) {
+            let p = self.player.as_ref()?;
+            return Some(omsi_net::Walker { x:p.vehicle.position.x,y:p.vehicle.position.y,z:p.vehicle.position.z,
+                heading:p.vehicle.heading as f32,speed:0.0,course:p.vehicle.heading as f32,seated:true,
+                aboard:Some(omsi_net::Aboard { owner,local:[0.0;3],seat:Some(crate::coop_drive::DRIVER_SEAT) }) });
+        }
         let f = self.session.on_foot.as_ref()?;
         // aboard a player's bus (ours or another's): where in it, so that the others draw
         // us in that bus as it drives
         let my_id = self.net.lan.as_ref().map(|l| l.my_id).filter(|i| *i != 0);
         let owner = |b: BusId| match b {
-            BusId::Player => my_id,
+            BusId::Player => self.player.as_ref().and_then(|p|p.borrowed_from).or(my_id),
             BusId::Ai(x) => crate::humans::remote_bus_player(x),
         };
         let aboard = match (f.seat, f.inside) {
@@ -927,6 +995,10 @@ impl App {
             (None, Some((b, l))) => owner(b).map(|o| omsi_net::Aboard { owner: o, local: l.to_array(), seat: None }),
             _ => None,
         };
+        // The approved visiting driver occupies the wheel, not an arbitrary
+        // passenger seat; other clients render them with DriverFigure at the wheel.
+        // The early branch above reserves DRIVER_SEAT only while actually at
+        // the wheel. Walking in a borrowed bus remains an ordinary walker.
         // (the way it goes, which is not where the body faces when it steps sideways)
         let course = if f.vel.length() > 0.05 { f.vel.x.atan2(f.vel.y).to_degrees() as f32 } else { f.heading as f32 };
         Some(omsi_net::Walker { x: f.pos.x, y: f.pos.y, z: f.pos.z + f.lift, heading: f.heading as f32, speed: f.vel.length() as f32, course, seated: f.seat.is_some(), aboard })
@@ -995,8 +1067,8 @@ fn vehicle_boxes(at: DVec2, r: f64, player: Option<&crate::player::Player>, plac
             add(&c.vehicle);
         }
     }
-    for rm in net.remotes.remotes.values() {
-        add(rm.vehicle());
+    for (id, rm) in &net.remotes.remotes {
+        if net.coop.drive.visitor_owner() != Some(*id) { add(rm.vehicle()); }
     }
     boxes
 }
@@ -1052,6 +1124,7 @@ pub(crate) fn take_placed(
 
 /// Back at the wheel of the own bus.
 fn sit_at_the_wheel(people: &mut crate::app::PeoplePart, view: &mut crate::app::ViewPart, ui: &mut crate::app::UiPart, player: &crate::app::PlayerPart) {
+    if player.player.as_ref().is_none_or(|p| p.authority_remote) { return; }
     let Some(f) = people.on_foot.take() else { return };
     if let Some(h) = people.humans.as_mut() {
         h.avatar_remove(AVATAR_KEY);
@@ -1148,7 +1221,9 @@ pub(crate) fn tick(cx: &mut OnFootCx, dt: f32) {
             f.transit = Some(tr);
         }
     }
-    if f.seat.is_none() && !*cx.clock.paused && !free && f.transit.is_none() {
+    let anchored=cx.net.coop.camera.as_ref().is_some_and(|c|Some(c.bus)==f.seat.map(|s|s.0).or(f.inside.map(|i|i.0))&&!free);
+    if anchored {f.vel=DVec2::ZERO;}
+    if f.seat.is_none() && !*cx.clock.paused && !free && f.transit.is_none() && !anchored {
         // where the keys go, as the camera looks
         let y = (f.yaw as f64).to_radians();
         let (fwd, right) = (DVec2::new(y.sin(), y.cos()), DVec2::new(y.cos(), -y.sin()));
@@ -1348,7 +1423,10 @@ pub(crate) fn tick(cx: &mut OnFootCx, dt: f32) {
 /// Other players on foot: their avatars.
 pub(crate) fn remote_walkers(cx: &mut OnFootCx) {
     let walkers: Vec<(u32, Option<omsi_net::Walker>, String, Option<Arc<HumanType>>)> =
-        cx.net.remotes.remotes.iter().map(|(id, r)| (*id, r.last.walker, r.last.figure.clone(), cx.gfx.gfx.sim_view.lan.figure_type(*id))).collect();
+        cx.net.lan.as_ref().map(|lan| lan.peers().filter(|peer| peer.has_pose).map(|peer| {
+            let pose = &peer.pose;
+            (pose.id, pose.walker, pose.figure.clone(), cx.gfx.gfx.sim_view.lan.figure_type(pose.id))
+        }).collect()).unwrap_or_default();
     if walkers.iter().all(|w| w.1.is_none()) && cx.net.remote_walkers.is_empty() {
         return;
     }
@@ -1362,6 +1440,12 @@ pub(crate) fn remote_walkers(cx: &mut OnFootCx) {
     let mut now = Vec::new();
     for (id, wk, figure, at_wheel) in walkers {
         let Some(wk) = wk else { continue };
+        if wk.aboard.is_some_and(|a| a.seat == Some(crate::coop_drive::DRIVER_SEAT)) {
+            // Rendered by DriverFigure in the owner's bus; not also as a
+            // seated/standing passenger at an unrelated seat.
+            h.avatar_remove(REMOTE_KEY + id);
+            continue;
+        }
         // (the way it goes: an older game sends none, then its facing)
         let hh = (if wk.course.is_finite() { wk.course } else { wk.heading } as f64).to_radians();
         // the figure they are drawn as at their wheel: their own, as their game draws
@@ -1386,7 +1470,7 @@ pub(crate) fn remote_walkers(cx: &mut OnFootCx) {
         // aboard a player's bus (ours, or a third player's): in that bus's frame as it
         // is drawn here, on its seat or its floor
         let aboard = wk.aboard.and_then(|a| {
-            let bus = if a.owner == my_id { BusId::Player } else { BusId::Ai(crate::humans::remote_bus_id(a.owner)) };
+            let bus = if a.owner == my_id || cx.net.coop.drive.visitor_owner() == Some(a.owner) { BusId::Player } else { BusId::Ai(crate::humans::remote_bus_id(a.owner)) };
             let (at, bh) = h.cabin_world(bus, glam::Vec3::from(a.local))?;
             Some((bus, a.seat, at, bh))
         });
@@ -1468,3 +1552,35 @@ fn get_up_chord(game: &[omsi_content::KeyBinding], ctrl: bool, shift: bool) -> b
 
 #[cfg(test)]
 mod tests;
+
+#[cfg(test)]
+mod coop13_regressions {
+    use super::*;
+    use clap::Parser;
+
+    #[test]
+    fn coop13_authorized_conductor_returns_from_f4_to_avatar() {
+        let args = crate::Args::parse_from(["openomsi", "--root", "."]);
+        let mut app = crate::assemble_app(args, crate::settings::Settings::default());
+        let pos = DVec3::new(40.0, 25.0, 1.0);
+        app.start_on_foot(pos, 120.0);
+        let bus = BusId::Ai(crate::humans::remote_bus_id(2));
+        app.session.on_foot.as_mut().unwrap().inside = Some((bus, glam::Vec3::ZERO));
+        app.net.coop.remote = Some((2, 17, std::time::Instant::now()));
+        app.net.coop.camera = Some(crate::coop::CameraView {
+            bus, local: Default::default(), yaw0: 0.0, pitch0: 0.0, slot: 0, driver: true,
+        });
+        assert!(app.foot_key(KeyCode::F4, true, false, false, false));
+        assert_eq!(app.view, "free");
+        assert!(app.net.coop.camera.is_none());
+        assert!(app.foot_key(KeyCode::F1, true, false, false, false));
+        assert_eq!(app.view, "foot");
+        let foot = app.session.on_foot.as_ref().unwrap();
+        assert_eq!(foot.cam, FootCam::First);
+        assert_eq!(foot.pos, pos);
+        assert!(app.net.coop.camera.is_none());
+        let pose = app.walker_pose().unwrap();
+        assert!(!pose.seated);
+        assert_eq!(pose.aboard.unwrap().seat, None);
+    }
+}

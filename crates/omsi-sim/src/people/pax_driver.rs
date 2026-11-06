@@ -24,7 +24,9 @@ impl PeopleSim {
                 continue;
             }
             let Some(p) = self.pax(i) else { continue };
-            if p.bus != Some(BusId::Player) || p.inside != Some(BusId::Player) || !matches!(p.task, Task::InBusToPlace | Task::InBusToExit | Task::SittingInBus) {
+            // A BCS ticket inspector is staff, not a fare-paying rider. They never
+            // complain about ride comfort or ask to get off because of a rough ride.
+            if p.inspector || p.bus != Some(BusId::Player) || p.inside != Some(BusId::Player) || !matches!(p.task, Task::InBusToPlace | Task::InBusToExit | Task::SittingInBus) {
                 continue;
             }
             if p.bad_at[2] <= 0.0 {

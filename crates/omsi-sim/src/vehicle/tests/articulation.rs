@@ -723,6 +723,7 @@ fn a_skin_plan_moves_the_vertices_as_the_weighted_bones_do() {
         viewpoint: 0,
         skin,
         keep_winding: false,
+        pick_geometry: Default::default(),
     };
     let bone = |def_index: Option<usize>, weights: &[(u32, f32)]| SkinBone { def_index, weights: weights.to_vec() };
     t.meshes.push(mesh(10, Vec::new(), 1));

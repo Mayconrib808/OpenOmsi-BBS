@@ -1,0 +1,2816 @@
+{
+  "schema": 1,
+  "bridge_version": "2.2.3",
+  "base_release": "2.2.2.4-hotfix.5",
+  "scope": "CPU equipment macro and wheelchair controller fixtures; no renderer, full passenger demand journey or paired gameplay",
+  "gameplay_visual_tested": false,
+  "paired_gameplay_tested": false,
+  "probe_sha256": "5147924b3b5540aad593a21e56abf77340fe3ed003801fb4ca62cc7f25036d57",
+  "summary": {
+    "controller_cycle_passed": 19,
+    "pending": 0,
+    "access_blocked": 12,
+    "load_failed": 0
+  },
+  "vehicles": [
+    {
+      "bus": "Articulado Scania/Articulado Scania/Mi4_K310UA_F_ZF.bus",
+      "definition_sha256": "517b7924575dce94da178ab52a92651985ba535d4571e928618e6cb75cddcc22",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=1.09: 24 candidate bays, no verified turning route",
+        "Door y=1.05: 13 candidate bays, no verified turning route",
+        "Door y=1.13: 18 candidate bays, no verified turning route",
+        "Door y=4.63: 0 candidate bays, no verified turning route",
+        "Door y=4.59: 0 candidate bays, no verified turning route",
+        "Door y=4.67: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "b7ee883b9f54e902",
+      "discovery_ms": 212.713968,
+      "script_errors": 357,
+      "missing_sections": []
+    },
+    {
+      "bus": "Articulado Scania/Articulado Scania/Mi4_K310UA_T_ZF.bus",
+      "definition_sha256": "dc7b3857691a6ec6fc2dc07aeec450bbe929b7fae392034cecf48d49b149cb51",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=2.60: no verified wide door animation",
+        "Door y=2.60: no verified wide door animation",
+        "Door y=-1.50: no verified wide door animation"
+      ],
+      "geometry_family": "1c3fb673e8fd0b3d",
+      "discovery_ms": 12.690964000000001,
+      "script_errors": 0,
+      "missing_sections": []
+    },
+    {
+      "bus": "Articulado(2)/Articulado/Mi4_UA_F_Voith.bus",
+      "definition_sha256": "4f0e27212b7382a64c544b0336c476825429ef4324840b5957176a53d5f74c92",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=1.08: 16 candidate bays, no verified turning route",
+        "Door y=1.04: 15 candidate bays, no verified turning route",
+        "Door y=1.12: 14 candidate bays, no verified turning route",
+        "Door y=1.00: 13 candidate bays, no verified turning route",
+        "Door y=1.16: 8 candidate bays, no verified turning route",
+        "Door y=4.46: 0 candidate bays, no verified turning route",
+        "Door y=4.42: 0 candidate bays, no verified turning route",
+        "Door y=4.50: 0 candidate bays, no verified turning route",
+        "Door y=4.38: 0 candidate bays, no verified turning route",
+        "Door y=4.54: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "ed29132b23e8ce95",
+      "discovery_ms": 212.444583,
+      "script_errors": 303,
+      "missing_sections": []
+    },
+    {
+      "bus": "Articulado(2)/Articulado/Mi4_UA_F_ZF.bus",
+      "definition_sha256": "dcfcb6fdf4e89d21959aa23210cd12a5aadbd4ed4f9ea8f298dbeefedf1236fa",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=1.08: 16 candidate bays, no verified turning route",
+        "Door y=1.04: 15 candidate bays, no verified turning route",
+        "Door y=1.12: 14 candidate bays, no verified turning route",
+        "Door y=1.00: 13 candidate bays, no verified turning route",
+        "Door y=1.16: 8 candidate bays, no verified turning route",
+        "Door y=4.46: 0 candidate bays, no verified turning route",
+        "Door y=4.42: 0 candidate bays, no verified turning route",
+        "Door y=4.50: 0 candidate bays, no verified turning route",
+        "Door y=4.38: 0 candidate bays, no verified turning route",
+        "Door y=4.54: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "ed29132b23e8ce95",
+      "discovery_ms": 241.368682,
+      "script_errors": 374,
+      "missing_sections": []
+    },
+    {
+      "bus": "Articulado(2)/Articulado/Mi4_UA_T_Voith.bus",
+      "definition_sha256": "9d86e3f4722f3f1cac1823fb2772fb48df8f47b908c8c34fbc22f7c83b625bfa",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=2.72: no verified wide door animation",
+        "Door y=2.72: no verified wide door animation",
+        "Door y=-1.42: no verified wide door animation"
+      ],
+      "geometry_family": "cb48147b6285497b",
+      "discovery_ms": 19.084408,
+      "script_errors": 0,
+      "missing_sections": []
+    },
+    {
+      "bus": "Articulado(2)/Articulado/Mi4_UA_T_ZF.bus",
+      "definition_sha256": "54cc83138f75fb423bc72cca345ca9b1ffcf14c9553f0f8703d0c4b1dff6c8fd",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=2.72: no verified wide door animation",
+        "Door y=2.72: no verified wide door animation",
+        "Door y=-1.42: no verified wide door animation"
+      ],
+      "geometry_family": "cb48147b6285497b",
+      "discovery_ms": 17.658394,
+      "script_errors": 0,
+      "missing_sections": []
+    },
+    {
+      "bus": "Man cadeirante/Man cadeirante/MAN_EN92_main.bus",
+      "definition_sha256": "ec7cf0e5e9e6c53895b43261695ae262f994106c65b54b5a4edc1e5ef3a5f2e5",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": "ramplift_wunsch",
+          "bay": [
+            -0.3400000035762787,
+            -0.2325500249862671,
+            0.5120396614074707
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1390999555587769,
+          "deploy_trigger": "ramplift_wunsch",
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_2",
+          "door_vars": [
+            "door_3"
+          ],
+          "equipment": "native_ramp",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · MAN_EN92_main",
+          "native": {
+            "control_var": "ramp_soll",
+            "corners": [
+              [
+                0.37689995765686035,
+                -0.9420999884605408,
+                0.38339996337890625
+              ],
+              [
+                1.223599910736084,
+                -0.9420999884605408,
+                0.38339996337890625
+              ],
+              [
+                1.223599910736084,
+                0.21699997782707214,
+                0.38339996337890625
+              ],
+              [
+                0.37689995765686035,
+                0.21699997782707214,
+                0.38339996337890625
+              ]
+            ],
+            "mesh": "generic\\Rampe_Main.o3d",
+            "thickness": 0.013099998235702515,
+            "trigger": "ramplift_wunsch"
+          },
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 0.8466999530792236,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.44179993867874146,
+              -0.2975500226020813,
+              0.4865637421607971
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.223599910736084,
+            -0.3625500202178955,
+            0.4399999976158142
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.3400000035762787,
+            -0.2325500249862671,
+            0.5120396614074707
+          ],
+          "exercise": {
+            "body_z": 0.0,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.011714179068803787
+            },
+            "curb_height": 0.18,
+            "deployed": {
+              "door_open": true,
+              "floor_ready": true,
+              "ground_ready": true,
+              "stowed": false,
+              "surface": [
+                [
+                  1.1776010990142822,
+                  -0.9420999884605408,
+                  0.3892187476158142
+                ],
+                [
+                  2.000074625015259,
+                  -0.9420999884605408,
+                  0.18812677264213562
+                ],
+                [
+                  1.1776010990142822,
+                  0.21699997782707214,
+                  0.3892187476158142
+                ]
+              ],
+              "variables": [
+                {
+                  "mesh": 13.73908805847168,
+                  "name": "ramp_rot",
+                  "script": 13.73908805847168
+                },
+                {
+                  "mesh": 0.800000011920929,
+                  "name": "ramp_pos",
+                  "script": 1.0
+                }
+              ]
+            },
+            "first_ready_seconds": 8.65999984741211,
+            "immediately_after_stow": {
+              "door_open": false,
+              "floor_ready": true,
+              "ground_ready": true,
+              "stowed": false,
+              "surface": [
+                [
+                  1.1776010990142822,
+                  -0.9420999884605408,
+                  0.3892187476158142
+                ],
+                [
+                  2.000074625015259,
+                  -0.9420999884605408,
+                  0.18812677264213562
+                ],
+                [
+                  1.1776010990142822,
+                  0.21699997782707214,
+                  0.3892187476158142
+                ]
+              ],
+              "variables": [
+                {
+                  "mesh": 13.73908805847168,
+                  "name": "ramp_rot",
+                  "script": 13.73908805847168
+                },
+                {
+                  "mesh": 0.800000011920929,
+                  "name": "ramp_pos",
+                  "script": 1.0
+                }
+              ]
+            },
+            "initial": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "ramp_rot",
+                  "script": 0.0
+                },
+                {
+                  "mesh": 0.0,
+                  "name": "ramp_pos",
+                  "script": 0.0
+                }
+              ]
+            },
+            "macro": "ramplift_frame",
+            "stowed": {
+              "door_open": false,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "ramp_rot",
+                  "script": 0.0
+                },
+                {
+                  "mesh": 0.0,
+                  "name": "ramp_pos",
+                  "script": 0.0
+                }
+              ]
+            },
+            "trigger_found": true
+          }
+        }
+      ],
+      "reasons": [],
+      "geometry_family": "9c9a27b12ec01d7d",
+      "discovery_ms": 221.54061,
+      "script_errors": 183,
+      "missing_sections": []
+    },
+    {
+      "bus": "Solaris/Solaris/Urbino 12.bus",
+      "definition_sha256": "34a02bf82b8c789914a677b2e7460852a8cc791b22e3175f9b1c1f0fb7033ab2",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": "pandus_2",
+          "bay": [
+            -0.5199999809265137,
+            -0.5349999070167542,
+            0.4949999749660492
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 0.8402279019355774,
+          "deploy_trigger": "pandus_2",
+          "door_open_value": 0.949999988079071,
+          "door_var": "door2_positiony",
+          "door_vars": [],
+          "equipment": "native_ramp",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Urbino 12",
+          "native": {
+            "control_var": "pandus_2_mode",
+            "corners": [
+              [
+                0.5860678553581238,
+                -1.0301138162612915,
+                0.5032260417938232
+              ],
+              [
+                1.2732040882110596,
+                -1.0301138162612915,
+                0.4575005769729614
+              ],
+              [
+                1.2732040882110596,
+                -0.16988594830036163,
+                0.4575005769729614
+              ],
+              [
+                0.5860678553581238,
+                -0.16988594830036163,
+                0.5032260417938232
+              ]
+            ],
+            "mesh": "Urbino_12\\Rampe2.o3d",
+            "thickness": 0.006455034017562866,
+            "trigger": "pandus_2"
+          },
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 0.6871362328529358,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              -0.5999999046325684,
+              0.4949999749660492
+            ],
+            [
+              0.0,
+              0.06500011682510376,
+              0.4949999749660492
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": "pandus_2",
+          "threshold": [
+            1.2732040882110596,
+            -0.5999999046325684,
+            0.5032260417938232
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.5199999809265137,
+            -0.5349999070167542,
+            0.4949999749660492
+          ],
+          "exercise": {
+            "body_z": -0.1,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.01280294731259346
+            },
+            "curb_height": 0.18,
+            "deployed": {
+              "door_open": true,
+              "floor_ready": true,
+              "ground_ready": true,
+              "stowed": false,
+              "surface": [
+                [
+                  1.9421894550323486,
+                  -1.030113697052002,
+                  0.29396775364875793
+                ],
+                [
+                  1.2734323740005493,
+                  -1.030113697052002,
+                  0.4583185315132141
+                ],
+                [
+                  1.9421894550323486,
+                  -0.16988588869571686,
+                  0.29396775364875793
+                ]
+              ],
+              "variables": [
+                {
+                  "mesh": 190.0,
+                  "name": "pandus_2_mov",
+                  "script": 190.0
+                }
+              ]
+            },
+            "first_ready_seconds": 1.2799999713897705,
+            "immediately_after_stow": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": false,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 190.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "initial": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "macro": "cockpit_frame",
+            "stowed": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "trigger_found": true
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=4.53: 0 candidate bays, no verified turning route",
+        "Door y=4.49: 0 candidate bays, no verified turning route",
+        "Door y=4.57: 0 candidate bays, no verified turning route",
+        "Door y=4.53: 0 candidate bays, no verified turning route",
+        "Door y=4.49: 0 candidate bays, no verified turning route",
+        "Door y=4.57: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "73fbd7d6db5cf155",
+      "discovery_ms": 52.626961,
+      "script_errors": 287,
+      "missing_sections": []
+    },
+    {
+      "bus": "Solaris/Solaris/Urbino 15.bus",
+      "definition_sha256": "d3d35d1a97251250c6db0c727283cd31378e6b85a7edf1c74ad10a903345928b",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": "pandus_2",
+          "bay": [
+            -0.4300000071525574,
+            -0.540787935256958,
+            0.4952029883861542
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 0.8402279019355774,
+          "deploy_trigger": "pandus_2",
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_2",
+          "door_vars": [
+            "door_3"
+          ],
+          "equipment": "native_ramp",
+          "exit_index": 2,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Urbino 15",
+          "native": {
+            "control_var": "pandus_2_mode",
+            "corners": [
+              [
+                0.5860678553581238,
+                -1.0359019041061401,
+                0.5034310221672058
+              ],
+              [
+                1.2732030153274536,
+                -1.0359019041061401,
+                0.4577055275440216
+              ],
+              [
+                1.2732030153274536,
+                -0.17567400634288788,
+                0.4577055871486664
+              ],
+              [
+                0.5860678553581238,
+                -0.17567400634288788,
+                0.5034310817718506
+              ]
+            ],
+            "mesh": "Urbino_15\\Rampe2.o3d",
+            "thickness": 0.0064550042152404785,
+            "trigger": "pandus_2"
+          },
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 0.6871351599693298,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.4216015040874481,
+              -0.5732879638671875,
+              0.4952029883861542
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": "pandus_2",
+          "threshold": [
+            1.2732030153274536,
+            -0.6057879328727722,
+            0.5034310221672058
+          ]
+        },
+        {
+          "alight_trigger": "pandus_2",
+          "bay": [
+            -0.4300000071525574,
+            0.9542120099067688,
+            0.4952029883861542
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 0.8402279019355774,
+          "deploy_trigger": "pandus_2",
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_2",
+          "door_vars": [
+            "door_3"
+          ],
+          "equipment": "native_ramp",
+          "exit_index": 2,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Urbino 15",
+          "native": {
+            "control_var": "pandus_2_mode",
+            "corners": [
+              [
+                0.5860678553581238,
+                -1.0359019041061401,
+                0.5034310221672058
+              ],
+              [
+                1.2732030153274536,
+                -1.0359019041061401,
+                0.4577055275440216
+              ],
+              [
+                1.2732030153274536,
+                -0.17567400634288788,
+                0.4577055871486664
+              ],
+              [
+                0.5860678553581238,
+                -0.17567400634288788,
+                0.5034310817718506
+              ]
+            ],
+            "mesh": "Urbino_15\\Rampe2.o3d",
+            "thickness": 0.0064550042152404785,
+            "trigger": "pandus_2"
+          },
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 0.6871351599693298,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              -0.6057879328727722,
+              0.4952029883861542
+            ],
+            [
+              0.0,
+              0.9542120099067688,
+              0.4952029883861542
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": "pandus_2",
+          "threshold": [
+            1.2732030153274536,
+            -0.6057879328727722,
+            0.5034310221672058
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.4300000071525574,
+            -0.540787935256958,
+            0.4952029883861542
+          ],
+          "exercise": {
+            "body_z": -0.1,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.014068152755498886
+            },
+            "curb_height": 0.18,
+            "deployed": {
+              "door_open": true,
+              "floor_ready": true,
+              "ground_ready": true,
+              "stowed": false,
+              "surface": [
+                [
+                  1.94218909740448,
+                  -1.0359019041061401,
+                  0.2941727042198181
+                ],
+                [
+                  1.2734330892562866,
+                  -1.0359019041061401,
+                  0.45852333307266235
+                ],
+                [
+                  1.94218909740448,
+                  -0.17567400634288788,
+                  0.2941726744174957
+                ]
+              ],
+              "variables": [
+                {
+                  "mesh": 190.0,
+                  "name": "pandus_2_mov",
+                  "script": 190.0
+                }
+              ]
+            },
+            "first_ready_seconds": 1.2799999713897705,
+            "immediately_after_stow": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": false,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 190.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "initial": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "macro": "cockpit_frame",
+            "stowed": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "trigger_found": true
+          }
+        },
+        {
+          "bay": [
+            -0.4300000071525574,
+            0.9542120099067688,
+            0.4952029883861542
+          ],
+          "exercise": {
+            "body_z": -0.1,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.012963920831680298
+            },
+            "curb_height": 0.18,
+            "deployed": {
+              "door_open": true,
+              "floor_ready": true,
+              "ground_ready": true,
+              "stowed": false,
+              "surface": [
+                [
+                  1.94218909740448,
+                  -1.0359019041061401,
+                  0.2941727042198181
+                ],
+                [
+                  1.2734330892562866,
+                  -1.0359019041061401,
+                  0.45852333307266235
+                ],
+                [
+                  1.94218909740448,
+                  -0.17567400634288788,
+                  0.2941726744174957
+                ]
+              ],
+              "variables": [
+                {
+                  "mesh": 190.0,
+                  "name": "pandus_2_mov",
+                  "script": 190.0
+                }
+              ]
+            },
+            "first_ready_seconds": 1.2799999713897705,
+            "immediately_after_stow": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": false,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 190.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "initial": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "macro": "cockpit_frame",
+            "stowed": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "trigger_found": true
+          }
+        }
+      ],
+      "reasons": [],
+      "geometry_family": "ef5c44932b7a6657",
+      "discovery_ms": 125.70467099999999,
+      "script_errors": 314,
+      "missing_sections": []
+    },
+    {
+      "bus": "Solaris/Solaris/Urbino 18 Main.bus",
+      "definition_sha256": "18cc8cfd67d0fefc2438c867c97c7c2a512f87550ea29ee03c2fa223008c249c",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": "pandus_2",
+          "bay": [
+            -0.5199999809265137,
+            0.19300098717212677,
+            0.4949999749660492
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 0.8402279615402222,
+          "deploy_trigger": "pandus_2",
+          "door_open_value": 0.949999988079071,
+          "door_var": "door2_positiony",
+          "door_vars": [],
+          "equipment": "native_ramp",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Urbino 18 Main",
+          "native": {
+            "control_var": "pandus_2_mode",
+            "corners": [
+              [
+                0.5860678553581238,
+                -0.30211296677589417,
+                0.5032260417938232
+              ],
+              [
+                1.2732040882110596,
+                -0.30211296677589417,
+                0.4575005769729614
+              ],
+              [
+                1.2732040882110596,
+                0.5581149458885193,
+                0.4575005769729614
+              ],
+              [
+                0.5860678553581238,
+                0.5581149458885193,
+                0.5032260417938232
+              ]
+            ],
+            "mesh": "Urbino_18\\Rampe2.o3d",
+            "thickness": 0.006455034017562866,
+            "trigger": "pandus_2"
+          },
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 0.6871362328529358,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              0.12800098955631256,
+              0.4949999749660492
+            ],
+            [
+              0.0,
+              0.7930009961128235,
+              0.4949999749660492
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": "pandus_2",
+          "threshold": [
+            1.2732040882110596,
+            0.12800098955631256,
+            0.5032260417938232
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.5199999809265137,
+            0.19300098717212677,
+            0.4949999749660492
+          ],
+          "exercise": {
+            "body_z": -0.1,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.01280294731259346
+            },
+            "curb_height": 0.18,
+            "deployed": {
+              "door_open": true,
+              "floor_ready": true,
+              "ground_ready": true,
+              "stowed": false,
+              "surface": [
+                [
+                  1.9421894550323486,
+                  -0.30211299657821655,
+                  0.29396775364875793
+                ],
+                [
+                  1.2734323740005493,
+                  -0.30211299657821655,
+                  0.4583185315132141
+                ],
+                [
+                  1.9421894550323486,
+                  0.5581149458885193,
+                  0.29396775364875793
+                ]
+              ],
+              "variables": [
+                {
+                  "mesh": 190.0,
+                  "name": "pandus_2_mov",
+                  "script": 190.0
+                }
+              ]
+            },
+            "first_ready_seconds": 1.2799999713897705,
+            "immediately_after_stow": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": false,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 190.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "initial": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "macro": "cockpit_frame",
+            "stowed": {
+              "door_open": true,
+              "floor_ready": false,
+              "ground_ready": false,
+              "stowed": true,
+              "surface": null,
+              "variables": [
+                {
+                  "mesh": 0.0,
+                  "name": "pandus_2_mov",
+                  "script": 0.0
+                }
+              ]
+            },
+            "trigger_found": true
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=4.53: 0 candidate bays, no verified turning route",
+        "Door y=4.49: 0 candidate bays, no verified turning route",
+        "Door y=4.57: 0 candidate bays, no verified turning route",
+        "Door y=4.53: 0 candidate bays, no verified turning route",
+        "Door y=4.49: 0 candidate bays, no verified turning route",
+        "Door y=4.57: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "5d54fe86652720e1",
+      "discovery_ms": 44.755613,
+      "script_errors": 270,
+      "missing_sections": [
+        "Missing articulated section /workspace/scratch/c2b20b0cdeb6/bus-validation-inputs/expanded/Solaris/Solaris/Urbino 18 Trail.bus: loading /workspace/scratch/c2b20b0cdeb6/bus-validation-inputs/expanded/Solaris/Solaris/Urbino 18 Trail.bus"
+      ]
+    },
+    {
+      "bus": "Torino 2007/Torino 2007/Torino_2007_VW_T2_BH.bus",
+      "definition_sha256": "6c2a5817d4a66cc60ce07b0af6184307152328ea23de6be23807980e83a89dea",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=1.02: 12 candidate bays, no verified turning route",
+        "Door y=0.97: 12 candidate bays, no verified turning route",
+        "Door y=0.98: 14 candidate bays, no verified turning route",
+        "Door y=1.06: 16 candidate bays, no verified turning route",
+        "Door y=0.94: 12 candidate bays, no verified turning route",
+        "Door y=1.10: 16 candidate bays, no verified turning route",
+        "Door y=0.90: 12 candidate bays, no verified turning route",
+        "Door y=1.14: 18 candidate bays, no verified turning route",
+        "Door y=0.84: 13 candidate bays, no verified turning route",
+        "Door y=1.20: 18 candidate bays, no verified turning route",
+        "Door y=-3.83: 0 candidate bays, no verified turning route",
+        "Door y=-3.88: 0 candidate bays, no verified turning route",
+        "Door y=-3.87: 5 candidate bays, no verified turning route",
+        "Door y=-3.79: 5 candidate bays, no verified turning route",
+        "Door y=-3.91: 0 candidate bays, no verified turning route",
+        "Door y=-3.75: 0 candidate bays, no verified turning route",
+        "Door y=-3.95: 0 candidate bays, no verified turning route",
+        "Door y=-3.71: 0 candidate bays, no verified turning route",
+        "Door y=-4.01: 0 candidate bays, no verified turning route",
+        "Door y=-3.65: 0 candidate bays, no verified turning route",
+        "Door y=5.29: 0 candidate bays, no verified turning route",
+        "Door y=5.25: 0 candidate bays, no verified turning route",
+        "Door y=5.33: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "7d0b6b0094b62b98",
+      "discovery_ms": 576.620718,
+      "script_errors": 175,
+      "missing_sections": []
+    },
+    {
+      "bus": "Torino 2025/Torino 2025/TS_1726-AR_Manual.bus",
+      "definition_sha256": "e297d312411d302ca3c07408c6931eb70846940d56454e3612b7a1a59bad6bd5",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=-0.39: 72 candidate bays, no verified turning route",
+        "Door y=-0.39: 72 candidate bays, no verified turning route",
+        "Door y=-0.43: 66 candidate bays, no verified turning route",
+        "Door y=-0.35: 68 candidate bays, no verified turning route",
+        "Door y=-0.47: 67 candidate bays, no verified turning route",
+        "Door y=-0.31: 66 candidate bays, no verified turning route",
+        "Door y=-0.51: 68 candidate bays, no verified turning route",
+        "Door y=-0.27: 67 candidate bays, no verified turning route",
+        "Door y=-4.67: 0 candidate bays, no verified turning route",
+        "Door y=-4.71: 0 candidate bays, no verified turning route",
+        "Door y=-4.63: 0 candidate bays, no verified turning route",
+        "Door y=-4.75: 0 candidate bays, no verified turning route",
+        "Door y=-4.59: 0 candidate bays, no verified turning route",
+        "Door y=-4.79: 0 candidate bays, no verified turning route",
+        "Door y=-4.55: 0 candidate bays, no verified turning route",
+        "Door y=-4.67: 0 candidate bays, no verified turning route",
+        "Door y=-4.71: 0 candidate bays, no verified turning route",
+        "Door y=-4.63: 0 candidate bays, no verified turning route",
+        "Door y=-4.75: 0 candidate bays, no verified turning route",
+        "Door y=-4.59: 0 candidate bays, no verified turning route",
+        "Door y=-4.79: 0 candidate bays, no verified turning route",
+        "Door y=-4.55: 0 candidate bays, no verified turning route",
+        "Door y=4.40: 0 candidate bays, no verified turning route",
+        "Door y=4.41: 0 candidate bays, no verified turning route",
+        "Door y=4.36: 0 candidate bays, no verified turning route",
+        "Door y=4.44: 0 candidate bays, no verified turning route",
+        "Door y=4.32: 0 candidate bays, no verified turning route",
+        "Door y=4.48: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "8d60bf0ddae9bde7",
+      "discovery_ms": 365.622296,
+      "script_errors": 216,
+      "missing_sections": []
+    },
+    {
+      "bus": "Torino S/Torino S/Torino_S_Rio_Ita.bus",
+      "definition_sha256": "2440bab9c8c67b850517235aae866e515061cda3fb5bc4abea26d47882271d44",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=-0.07: 6 candidate bays, no verified turning route",
+        "Door y=-0.04: 12 candidate bays, no verified turning route",
+        "Door y=-0.11: 11 candidate bays, no verified turning route",
+        "Door y=-0.03: 12 candidate bays, no verified turning route",
+        "Door y=-0.15: 12 candidate bays, no verified turning route",
+        "Door y=0.01: 11 candidate bays, no verified turning route",
+        "Door y=-0.19: 11 candidate bays, no verified turning route",
+        "Door y=0.05: 12 candidate bays, no verified turning route",
+        "Door y=4.52: 0 candidate bays, no verified turning route",
+        "Door y=4.54: 0 candidate bays, no verified turning route",
+        "Door y=4.48: 0 candidate bays, no verified turning route",
+        "Door y=4.56: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "861ba427ac109e72",
+      "discovery_ms": 152.351146,
+      "script_errors": 167,
+      "missing_sections": []
+    },
+    {
+      "bus": "Torino2007-MB/2007 Marcopolo Torino OF 1722M/Torino 2007  Manual Real.bus",
+      "definition_sha256": "6bb18679bf7abc6c393d2a026e2fe6affb6a608670cc574b2487da16f5d95a8e",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.6200000047683716,
+            -4.400000095367432,
+            0.9698399901390076
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.0499999523162842,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_2",
+          "door_vars": [],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Torino 2007 OF 1722M · acesso traseiro junto à área reservada",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "Interior\\Outros_Rampa.o3d",
+            "Interior\\Outros_Rampa1.o3d",
+            "Interior\\Outros_Rampa2.o3d"
+          ],
+          "route": [
+            [
+              0.4000000059604645,
+              -4.440000057220459,
+              0.9698399901390076
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.159999966621399,
+            -4.440000057220459,
+            0.9698399901390076
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.6200000047683716,
+            -4.400000095367432,
+            0.9698399901390076
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000032044947147
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-4.44: 2 candidate bays, no verified turning route",
+        "Door y=-4.48: 0 candidate bays, no verified turning route",
+        "Door y=-4.40: 0 candidate bays, no verified turning route",
+        "Door y=-4.52: 0 candidate bays, no verified turning route",
+        "Door y=-4.36: 2 candidate bays, no verified turning route",
+        "Door y=-4.56: 2 candidate bays, no verified turning route",
+        "Door y=-4.32: 1 candidate bays, no verified turning route",
+        "Door y=-4.62: 2 candidate bays, no verified turning route",
+        "Door y=-4.26: 0 candidate bays, no verified turning route",
+        "Door y=-4.44: 2 candidate bays, no verified turning route",
+        "Door y=-4.48: 0 candidate bays, no verified turning route",
+        "Door y=-4.40: 0 candidate bays, no verified turning route",
+        "Door y=-4.52: 0 candidate bays, no verified turning route",
+        "Door y=-4.36: 2 candidate bays, no verified turning route",
+        "Door y=-4.56: 2 candidate bays, no verified turning route",
+        "Door y=-4.32: 1 candidate bays, no verified turning route",
+        "Door y=-4.62: 2 candidate bays, no verified turning route",
+        "Door y=-4.26: 0 candidate bays, no verified turning route",
+        "Door y=5.17: 0 candidate bays, no verified turning route",
+        "Door y=5.27: 0 candidate bays, no verified turning route",
+        "Door y=5.13: 0 candidate bays, no verified turning route",
+        "Door y=5.21: 0 candidate bays, no verified turning route",
+        "Door y=5.09: 0 candidate bays, no verified turning route",
+        "Door y=5.25: 0 candidate bays, no verified turning route",
+        "Door y=5.05: 0 candidate bays, no verified turning route",
+        "Door y=5.29: 0 candidate bays, no verified turning route",
+        "Exact previously gameplay-tested geometry: calibrated access route"
+      ],
+      "geometry_family": "1887aad5acc961e4",
+      "discovery_ms": 273.265087,
+      "script_errors": 142,
+      "missing_sections": []
+    },
+    {
+      "bus": "Torino2007-MB/2007 Marcopolo Torino OF 1722M/Torino 2007 Auto.bus",
+      "definition_sha256": "ba393ee7d75ee85ce5d3eb69592be15a81b1adf3eb8772167659385fd13877e3",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.6200000047683716,
+            -4.400000095367432,
+            0.9698399901390076
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.0499999523162842,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_2",
+          "door_vars": [],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Torino 2007 OF 1722M · acesso traseiro junto à área reservada",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "Interior\\Outros_Rampa.o3d",
+            "Interior\\Outros_Rampa1.o3d",
+            "Interior\\Outros_Rampa2.o3d"
+          ],
+          "route": [
+            [
+              0.4000000059604645,
+              -4.440000057220459,
+              0.9698399901390076
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.159999966621399,
+            -4.440000057220459,
+            0.9698399901390076
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.6200000047683716,
+            -4.400000095367432,
+            0.9698399901390076
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000032044947147
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-4.44: 2 candidate bays, no verified turning route",
+        "Door y=-4.48: 0 candidate bays, no verified turning route",
+        "Door y=-4.40: 0 candidate bays, no verified turning route",
+        "Door y=-4.52: 0 candidate bays, no verified turning route",
+        "Door y=-4.36: 2 candidate bays, no verified turning route",
+        "Door y=-4.56: 2 candidate bays, no verified turning route",
+        "Door y=-4.32: 1 candidate bays, no verified turning route",
+        "Door y=-4.62: 2 candidate bays, no verified turning route",
+        "Door y=-4.26: 0 candidate bays, no verified turning route",
+        "Door y=-4.44: 2 candidate bays, no verified turning route",
+        "Door y=-4.48: 0 candidate bays, no verified turning route",
+        "Door y=-4.40: 0 candidate bays, no verified turning route",
+        "Door y=-4.52: 0 candidate bays, no verified turning route",
+        "Door y=-4.36: 2 candidate bays, no verified turning route",
+        "Door y=-4.56: 2 candidate bays, no verified turning route",
+        "Door y=-4.32: 1 candidate bays, no verified turning route",
+        "Door y=-4.62: 2 candidate bays, no verified turning route",
+        "Door y=-4.26: 0 candidate bays, no verified turning route",
+        "Door y=5.17: 0 candidate bays, no verified turning route",
+        "Door y=5.27: 0 candidate bays, no verified turning route",
+        "Door y=5.13: 0 candidate bays, no verified turning route",
+        "Door y=5.21: 0 candidate bays, no verified turning route",
+        "Door y=5.09: 0 candidate bays, no verified turning route",
+        "Door y=5.25: 0 candidate bays, no verified turning route",
+        "Door y=5.05: 0 candidate bays, no verified turning route",
+        "Door y=5.29: 0 candidate bays, no verified turning route",
+        "Exact previously gameplay-tested geometry: calibrated access route"
+      ],
+      "geometry_family": "888fc7aac0f0fe47",
+      "discovery_ms": 281.64996199999996,
+      "script_errors": 214,
+      "missing_sections": []
+    },
+    {
+      "bus": "Vip 1 3 portas/Vip 1 3 portas/Vip 1 OF 1721 Manual.bus",
+      "definition_sha256": "d6c09c5b7145f23e7603bda0b52c5f0e2c1b07479680468d02a96711e0555852",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=-4.40: 36 candidate bays, no verified turning route",
+        "Door y=-4.40: 36 candidate bays, no verified turning route",
+        "Door y=4.23: 0 candidate bays, no verified turning route",
+        "Door y=4.24: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "f3573760a4bf7415",
+      "discovery_ms": 72.134451,
+      "script_errors": 213,
+      "missing_sections": []
+    },
+    {
+      "bus": "Vip 1 4 portass/Vip 1 4 portass/Vip 1 OF 1721 Manual.bus",
+      "definition_sha256": "ab1a8eaa8b610b00cdc95dde69efc652c779b93899c987c0930b4f0180ede238",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=-4.40: 5 candidate bays, no verified turning route",
+        "Door y=-4.40: 5 candidate bays, no verified turning route",
+        "Door y=-1.72: 0 candidate bays, no verified turning route",
+        "Door y=-1.72: 0 candidate bays, no verified turning route",
+        "Door y=4.23: 0 candidate bays, no verified turning route",
+        "Door y=4.24: 0 candidate bays, no verified turning route",
+        "Door y=1.21: 0 candidate bays, no verified turning route",
+        "Door y=1.22: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "44d042de12165e0d",
+      "discovery_ms": 74.953641,
+      "script_errors": 213,
+      "missing_sections": []
+    },
+    {
+      "bus": "Vip 3 Mb/Vip 3 Mb/Vip 3.bus",
+      "definition_sha256": "89b0c684b13af9e44556bd34c66e7e7ccdd89cdb7f9940991ff2a9974c3326a6",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.25,
+            -0.6221778988838196,
+            1.1115676164627075
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1766178607940674,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_1",
+          "door_vars": [],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [
+            {
+              "at": [
+                0.9720228910446167,
+                -0.8171778917312622,
+                1.1115666627883911
+              ],
+              "heading": 270.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                0.3220229148864746,
+                -0.8171778917312622,
+                1.111565351486206
+              ],
+              "heading": 270.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                0.3220229148864746,
+                -0.8171778917312622,
+                1.111565351486206
+              ],
+              "heading": 315.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                0.1920229196548462,
+                -0.6871778964996338,
+                1.1115658283233643
+              ],
+              "heading": 315.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                0.1920229196548462,
+                -0.6871778964996338,
+                1.1115658283233643
+              ],
+              "heading": 270.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                -0.19797706604003906,
+                -0.6871778964996338,
+                1.1115673780441284
+              ],
+              "heading": 270.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                -0.19797706604003906,
+                -0.6871778964996338,
+                1.1115673780441284
+              ],
+              "heading": 225.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                -0.25,
+                -0.6221778988838196,
+                1.1115676164627075
+              ],
+              "heading": 180.0,
+              "reverse": true
+            }
+          ],
+          "name": "Automatic accessibility · Vip 3",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "1721\\Interior_elevador.o3d"
+          ],
+          "route": [
+            [
+              0.9720228910446167,
+              -0.8171778917312622,
+              1.1115666627883911
+            ],
+            [
+              0.3220229148864746,
+              -0.8171778917312622,
+              1.111565351486206
+            ],
+            [
+              0.3220229148864746,
+              -0.8171778917312622,
+              1.111565351486206
+            ],
+            [
+              0.1920229196548462,
+              -0.6871778964996338,
+              1.1115658283233643
+            ],
+            [
+              0.1920229196548462,
+              -0.6871778964996338,
+              1.1115658283233643
+            ],
+            [
+              -0.19797706604003906,
+              -0.6871778964996338,
+              1.1115673780441284
+            ],
+            [
+              -0.19797706604003906,
+              -0.6871778964996338,
+              1.1115673780441284
+            ],
+            [
+              -0.25,
+              -0.6221778988838196,
+              1.1115676164627075
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.1020228862762451,
+            -0.8171778917312622,
+            1.1115666627883911
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.25,
+            -0.6221778988838196,
+            1.1115676164627075
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000020869076252
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=3.81: 0 candidate bays, no verified turning route",
+        "Door y=3.80: 0 candidate bays, no verified turning route",
+        "Door y=3.77: 0 candidate bays, no verified turning route",
+        "Door y=3.85: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "eeec13eef557f4c5",
+      "discovery_ms": 488.687646,
+      "script_errors": 234,
+      "missing_sections": []
+    },
+    {
+      "bus": "Vip V/Vip V/Vip 5.bus",
+      "definition_sha256": "c180c6a672b8808cb95cb3becb44836d94a770abc74cf00ac040b7c968bd40f9",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.4300000071525574,
+            -1.1487104892730713,
+            1.0842219591140747
+          ],
+          "bay_heading": 0.0,
+          "clear_width": 1.1721808910369873,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_1",
+          "door_vars": [],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Vip 5",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "1721\\Interior_elevador.o3d"
+          ],
+          "route": [
+            [
+              0.37145742774009705,
+              -1.1812105178833008,
+              1.0842219591140747
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.1729148626327515,
+            -1.2137104272842407,
+            1.0842219591140747
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.4300000071525574,
+            -1.1487104892730713,
+            1.0842219591140747
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000033907592297
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=3.88: 0 candidate bays, no verified turning route",
+        "Door y=3.85: 0 candidate bays, no verified turning route",
+        "Door y=3.84: 0 candidate bays, no verified turning route",
+        "Door y=3.92: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "10ead2737b56b4a2",
+      "discovery_ms": 350.814069,
+      "script_errors": 233,
+      "missing_sections": []
+    },
+    {
+      "bus": "Vip V(1)/Vip V/VipV_9m_151900OD_Manual.bus",
+      "definition_sha256": "a40dcce6ea99baa171c726bce4a3ebad9d8f3434e397b36da659bdbf13007a66",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.3400000035762787,
+            -0.39200547337532043,
+            1.141894817352295
+          ],
+          "bay_heading": 0.0,
+          "clear_width": 1.1954569816589355,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_4",
+          "door_vars": [
+            "door_5"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": {
+            "folded_value": 0.0,
+            "trigger": "klappsitzL",
+            "variable": "klappsitzL"
+          },
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · VipV_9m_151900OD_Manual",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "15190\\Interior\\Elevador.o3d"
+          ],
+          "route": [
+            [
+              0.3527904152870178,
+              -0.39200547337532043,
+              1.141893982887268
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.0455808639526367,
+            -0.39200547337532043,
+            1.1418943405151367
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.3400000035762787,
+            -0.39200547337532043,
+            1.141894817352295
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-3.47: 0 candidate bays, no verified turning route",
+        "Door y=-3.44: 0 candidate bays, no verified turning route",
+        "Door y=-3.51: 0 candidate bays, no verified turning route",
+        "Door y=-3.43: 0 candidate bays, no verified turning route",
+        "Door y=-3.55: 0 candidate bays, no verified turning route",
+        "Door y=-3.39: 0 candidate bays, no verified turning route",
+        "Door y=3.60: 0 candidate bays, no verified turning route",
+        "Door y=3.56: 0 candidate bays, no verified turning route",
+        "Door y=3.56: 0 candidate bays, no verified turning route",
+        "Door y=3.64: 0 candidate bays, no verified turning route",
+        "Door y=3.52: 0 candidate bays, no verified turning route",
+        "Door y=3.68: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "2dce6fa0c3556187",
+      "discovery_ms": 218.475786,
+      "script_errors": 173,
+      "missing_sections": []
+    },
+    {
+      "bus": "Vip iii Wolks/Vip iii Wolks/Vip 3.bus",
+      "definition_sha256": "de0f076868ddd47f240c5585961621e0bdb5dc5207ce28b99b3cca5f6d674257",
+      "status": "access_blocked",
+      "profiles": [],
+      "bay_exercises": [],
+      "reasons": [
+        "Door y=0.68: 0 candidate bays, no verified turning route",
+        "Door y=0.68: 0 candidate bays, no verified turning route",
+        "Door y=0.64: 0 candidate bays, no verified turning route",
+        "Door y=0.72: 0 candidate bays, no verified turning route",
+        "Door y=0.60: 0 candidate bays, no verified turning route",
+        "Door y=0.76: 0 candidate bays, no verified turning route",
+        "Door y=0.56: 0 candidate bays, no verified turning route",
+        "Door y=0.80: 0 candidate bays, no verified turning route",
+        "Door y=0.50: 0 candidate bays, no verified turning route",
+        "Door y=0.86: 0 candidate bays, no verified turning route",
+        "Door y=3.86: 0 candidate bays, no verified turning route",
+        "Door y=3.85: 0 candidate bays, no verified turning route",
+        "Door y=3.82: 0 candidate bays, no verified turning route",
+        "Door y=3.90: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "789cbd9fffe45339",
+      "discovery_ms": 111.753,
+      "script_errors": 235,
+      "missing_sections": []
+    },
+    {
+      "bus": "Vip iv/Vip iv/VipIV_OF-1721_Manual.bus",
+      "definition_sha256": "a99c4160695bfafc92740221d57cd53b60fdc74007b7c9e25750ae4b28004492",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.3400000035762787,
+            -0.8514403700828552,
+            1.0810645818710327
+          ],
+          "bay_heading": 0.0,
+          "clear_width": 1.1877542734146118,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_4",
+          "door_vars": [
+            "door_5"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": {
+            "folded_value": 0.0,
+            "trigger": "klappsitzL",
+            "variable": "klappsitzL"
+          },
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · VipIV_OF-1721_Manual",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "MBB 1724\\Interior\\VIPIV_INT_Elevador.o3d"
+          ],
+          "route": [
+            [
+              0.37792497873306274,
+              -0.786440372467041,
+              1.0810647010803223
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.0958499908447266,
+            -0.7214403748512268,
+            1.0810648202896118
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.3400000035762787,
+            -0.8514403700828552,
+            1.0810645818710327
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000059053301811
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-4.77: 0 candidate bays, no verified turning route",
+        "Door y=-4.76: 0 candidate bays, no verified turning route",
+        "Door y=-4.81: 0 candidate bays, no verified turning route",
+        "Door y=-4.73: 0 candidate bays, no verified turning route",
+        "Door y=-4.85: 0 candidate bays, no verified turning route",
+        "Door y=-4.69: 0 candidate bays, no verified turning route",
+        "Door y=-4.89: 0 candidate bays, no verified turning route",
+        "Door y=-4.65: 0 candidate bays, no verified turning route",
+        "Door y=-4.95: 0 candidate bays, no verified turning route",
+        "Door y=-4.59: 0 candidate bays, no verified turning route",
+        "Door y=4.51: 0 candidate bays, no verified turning route",
+        "Door y=4.52: 0 candidate bays, no verified turning route",
+        "Door y=4.47: 0 candidate bays, no verified turning route",
+        "Door y=4.55: 0 candidate bays, no verified turning route",
+        "Door y=4.43: 0 candidate bays, no verified turning route",
+        "Door y=4.59: 0 candidate bays, no verified turning route",
+        "Door y=4.39: 0 candidate bays, no verified turning route",
+        "Door y=4.63: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "9cf72b046733d222",
+      "discovery_ms": 323.909261,
+      "script_errors": 170,
+      "missing_sections": []
+    },
+    {
+      "bus": "Vip iv/Vip iv/VipIV_OF-1724_Manual.bus",
+      "definition_sha256": "93a3226b51f75a7264d94917d2901bdf9607500c332b20279dc0c2ae639f7dad",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.3400000035762787,
+            -0.8514403700828552,
+            1.0810645818710327
+          ],
+          "bay_heading": 0.0,
+          "clear_width": 1.1877542734146118,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_4",
+          "door_vars": [
+            "door_5"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": {
+            "folded_value": 0.0,
+            "trigger": "klappsitzL",
+            "variable": "klappsitzL"
+          },
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · VipIV_OF-1724_Manual",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "MBB 1724\\Interior\\VIPIV_INT_Elevador.o3d"
+          ],
+          "route": [
+            [
+              0.37792497873306274,
+              -0.786440372467041,
+              1.0810647010803223
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.0958499908447266,
+            -0.7214403748512268,
+            1.0810648202896118
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.3400000035762787,
+            -0.8514403700828552,
+            1.0810645818710327
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000059053301811
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-4.77: 0 candidate bays, no verified turning route",
+        "Door y=-4.76: 0 candidate bays, no verified turning route",
+        "Door y=-4.81: 0 candidate bays, no verified turning route",
+        "Door y=-4.73: 0 candidate bays, no verified turning route",
+        "Door y=-4.85: 0 candidate bays, no verified turning route",
+        "Door y=-4.69: 0 candidate bays, no verified turning route",
+        "Door y=-4.89: 0 candidate bays, no verified turning route",
+        "Door y=-4.65: 0 candidate bays, no verified turning route",
+        "Door y=-4.95: 0 candidate bays, no verified turning route",
+        "Door y=-4.59: 0 candidate bays, no verified turning route",
+        "Door y=4.51: 0 candidate bays, no verified turning route",
+        "Door y=4.52: 0 candidate bays, no verified turning route",
+        "Door y=4.47: 0 candidate bays, no verified turning route",
+        "Door y=4.55: 0 candidate bays, no verified turning route",
+        "Door y=4.43: 0 candidate bays, no verified turning route",
+        "Door y=4.59: 0 candidate bays, no verified turning route",
+        "Door y=4.39: 0 candidate bays, no verified turning route",
+        "Door y=4.63: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "9cf72b046733d222",
+      "discovery_ms": 286.332751,
+      "script_errors": 170,
+      "missing_sections": []
+    },
+    {
+      "bus": "torino S Zane/torino S Zane/_TorinoS_17260s_e6.bus",
+      "definition_sha256": "36137eb618bd3e0b07b9f2f1af2cfc35864c8b44e056b12560842ac2172a9eda",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.052963137626648
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1115539073944092,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_8",
+          "door_vars": [
+            "door_9"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · _TorinoS_17260s_e6",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              -4.492279052734375,
+              1.0529636144638062
+            ],
+            [
+              0.0,
+              -4.482278823852539,
+              1.0529636144638062
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.120567798614502,
+            -4.492279052734375,
+            1.0529636144638062
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.052963137626648
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-0.55: 43 candidate bays, no verified turning route",
+        "Door y=-0.57: 43 candidate bays, no verified turning route",
+        "Door y=-0.59: 42 candidate bays, no verified turning route",
+        "Door y=-0.51: 46 candidate bays, no verified turning route",
+        "Door y=-0.63: 41 candidate bays, no verified turning route",
+        "Door y=-0.47: 44 candidate bays, no verified turning route",
+        "Door y=-0.67: 40 candidate bays, no verified turning route",
+        "Door y=-0.43: 47 candidate bays, no verified turning route",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.38: 0 candidate bays, no verified turning route",
+        "Door y=4.37: 0 candidate bays, no verified turning route",
+        "Door y=4.34: 0 candidate bays, no verified turning route",
+        "Door y=4.42: 0 candidate bays, no verified turning route",
+        "Door y=4.30: 0 candidate bays, no verified turning route",
+        "Door y=4.46: 0 candidate bays, no verified turning route",
+        "Door y=4.26: 0 candidate bays, no verified turning route",
+        "Door y=4.50: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "573a59c419099d64",
+      "discovery_ms": 887.567601,
+      "script_errors": 204,
+      "missing_sections": []
+    },
+    {
+      "bus": "torino S Zane/torino S Zane/_TorinoS_17260s_e6_ZF-8AP.bus",
+      "definition_sha256": "5db8781527c029e07bc3fac3d10494b207443f97cf4360e8ea0cae6c0f52af20",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.052963137626648
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1115539073944092,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_8",
+          "door_vars": [
+            "door_9"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · _TorinoS_17260s_e6_ZF-8AP",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              -4.492279052734375,
+              1.0529636144638062
+            ],
+            [
+              0.0,
+              -4.482278823852539,
+              1.0529636144638062
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.120567798614502,
+            -4.492279052734375,
+            1.0529636144638062
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.052963137626648
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-0.55: 43 candidate bays, no verified turning route",
+        "Door y=-0.57: 43 candidate bays, no verified turning route",
+        "Door y=-0.59: 42 candidate bays, no verified turning route",
+        "Door y=-0.51: 46 candidate bays, no verified turning route",
+        "Door y=-0.63: 41 candidate bays, no verified turning route",
+        "Door y=-0.47: 44 candidate bays, no verified turning route",
+        "Door y=-0.67: 40 candidate bays, no verified turning route",
+        "Door y=-0.43: 47 candidate bays, no verified turning route",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.38: 0 candidate bays, no verified turning route",
+        "Door y=4.37: 0 candidate bays, no verified turning route",
+        "Door y=4.34: 0 candidate bays, no verified turning route",
+        "Door y=4.42: 0 candidate bays, no verified turning route",
+        "Door y=4.30: 0 candidate bays, no verified turning route",
+        "Door y=4.46: 0 candidate bays, no verified turning route",
+        "Door y=4.26: 0 candidate bays, no verified turning route",
+        "Door y=4.50: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "5dae7c45da7d77ba",
+      "discovery_ms": 884.960282,
+      "script_errors": 301,
+      "missing_sections": []
+    },
+    {
+      "bus": "torino S Zane/torino S Zane/_TorinoS_OF-1721_e6.bus",
+      "definition_sha256": "452f4d63b6a7709b470f7f38f183d9e4f32e3767888200d6f472d38c4e4f9267",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.0529632568359375
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1115539073944092,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_8",
+          "door_vars": [
+            "door_9"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · _TorinoS_OF-1721_e6",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              -4.492279052734375,
+              1.0529636144638062
+            ],
+            [
+              0.0,
+              -4.482278823852539,
+              1.0529636144638062
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.120567798614502,
+            -4.492279052734375,
+            1.0529636144638062
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.0529632568359375
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-0.55: 43 candidate bays, no verified turning route",
+        "Door y=-0.57: 43 candidate bays, no verified turning route",
+        "Door y=-0.59: 42 candidate bays, no verified turning route",
+        "Door y=-0.51: 46 candidate bays, no verified turning route",
+        "Door y=-0.63: 41 candidate bays, no verified turning route",
+        "Door y=-0.47: 44 candidate bays, no verified turning route",
+        "Door y=-0.67: 40 candidate bays, no verified turning route",
+        "Door y=-0.43: 47 candidate bays, no verified turning route",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.28: 0 candidate bays, no verified turning route",
+        "Door y=4.27: 0 candidate bays, no verified turning route",
+        "Door y=4.24: 0 candidate bays, no verified turning route",
+        "Door y=4.32: 0 candidate bays, no verified turning route",
+        "Door y=4.20: 0 candidate bays, no verified turning route",
+        "Door y=4.36: 0 candidate bays, no verified turning route",
+        "Door y=4.16: 0 candidate bays, no verified turning route",
+        "Door y=4.40: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "ec987126ac18b896",
+      "discovery_ms": 844.3094799999999,
+      "script_errors": 211,
+      "missing_sections": []
+    },
+    {
+      "bus": "torino S Zane/torino S Zane/_TorinoS_OF-1726_e6.bus",
+      "definition_sha256": "62db8dad24c9cee43624f8b2df2dfdbff5f7f3c8c80bac73c71afd2c0d7667e1",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.0529632568359375
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1115539073944092,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_8",
+          "door_vars": [
+            "door_9"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · _TorinoS_OF-1726_e6",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              -4.492279052734375,
+              1.0529636144638062
+            ],
+            [
+              0.0,
+              -4.482278823852539,
+              1.0529636144638062
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.120567798614502,
+            -4.492279052734375,
+            1.0529636144638062
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.0529632568359375
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-0.55: 43 candidate bays, no verified turning route",
+        "Door y=-0.57: 43 candidate bays, no verified turning route",
+        "Door y=-0.59: 42 candidate bays, no verified turning route",
+        "Door y=-0.51: 46 candidate bays, no verified turning route",
+        "Door y=-0.63: 41 candidate bays, no verified turning route",
+        "Door y=-0.47: 44 candidate bays, no verified turning route",
+        "Door y=-0.67: 40 candidate bays, no verified turning route",
+        "Door y=-0.43: 47 candidate bays, no verified turning route",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.28: 0 candidate bays, no verified turning route",
+        "Door y=4.27: 0 candidate bays, no verified turning route",
+        "Door y=4.24: 0 candidate bays, no verified turning route",
+        "Door y=4.32: 0 candidate bays, no verified turning route",
+        "Door y=4.20: 0 candidate bays, no verified turning route",
+        "Door y=4.36: 0 candidate bays, no verified turning route",
+        "Door y=4.16: 0 candidate bays, no verified turning route",
+        "Door y=4.40: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "ec987126ac18b896",
+      "discovery_ms": 834.967811,
+      "script_errors": 211,
+      "missing_sections": []
+    },
+    {
+      "bus": "torino S Zane/torino S Zane/_ZTorinoS_OF-1721_e6_ZF-8AP.bus",
+      "definition_sha256": "45bb2384a27bb1ca5d470d15431afb3e2b704ea362745b39467c9bbb064cc6e5",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.0529632568359375
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1115539073944092,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_8",
+          "door_vars": [
+            "door_9"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · _ZTorinoS_OF-1721_e6_ZF-8AP",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              -4.492279052734375,
+              1.0529636144638062
+            ],
+            [
+              0.0,
+              -4.482278823852539,
+              1.0529636144638062
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.120567798614502,
+            -4.492279052734375,
+            1.0529636144638062
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.0529632568359375
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-0.55: 43 candidate bays, no verified turning route",
+        "Door y=-0.57: 43 candidate bays, no verified turning route",
+        "Door y=-0.59: 42 candidate bays, no verified turning route",
+        "Door y=-0.51: 46 candidate bays, no verified turning route",
+        "Door y=-0.63: 41 candidate bays, no verified turning route",
+        "Door y=-0.47: 44 candidate bays, no verified turning route",
+        "Door y=-0.67: 40 candidate bays, no verified turning route",
+        "Door y=-0.43: 47 candidate bays, no verified turning route",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.28: 0 candidate bays, no verified turning route",
+        "Door y=4.27: 0 candidate bays, no verified turning route",
+        "Door y=4.24: 0 candidate bays, no verified turning route",
+        "Door y=4.32: 0 candidate bays, no verified turning route",
+        "Door y=4.20: 0 candidate bays, no verified turning route",
+        "Door y=4.36: 0 candidate bays, no verified turning route",
+        "Door y=4.16: 0 candidate bays, no verified turning route",
+        "Door y=4.40: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "474981bab0b188f8",
+      "discovery_ms": 883.648504,
+      "script_errors": 308,
+      "missing_sections": []
+    },
+    {
+      "bus": "torino S Zane/torino S Zane/_ZTorinoS_OF-1726_e6_ZF-8AP.bus",
+      "definition_sha256": "80f6daad2fbe6350d1ee5b51bbb6fa104cdf284982dd34f2f9d075b768e09bf3",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.0529632568359375
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1115539073944092,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_8",
+          "door_vars": [
+            "door_9"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · _ZTorinoS_OF-1726_e6_ZF-8AP",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              -4.492279052734375,
+              1.0529636144638062
+            ],
+            [
+              0.0,
+              -4.482278823852539,
+              1.0529636144638062
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.120567798614502,
+            -4.492279052734375,
+            1.0529636144638062
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.25,
+            -4.882278919219971,
+            1.0529632568359375
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=-0.55: 43 candidate bays, no verified turning route",
+        "Door y=-0.57: 43 candidate bays, no verified turning route",
+        "Door y=-0.59: 42 candidate bays, no verified turning route",
+        "Door y=-0.51: 46 candidate bays, no verified turning route",
+        "Door y=-0.63: 41 candidate bays, no verified turning route",
+        "Door y=-0.47: 44 candidate bays, no verified turning route",
+        "Door y=-0.67: 40 candidate bays, no verified turning route",
+        "Door y=-0.43: 47 candidate bays, no verified turning route",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.28: 0 candidate bays, no verified turning route",
+        "Door y=4.27: 0 candidate bays, no verified turning route",
+        "Door y=4.24: 0 candidate bays, no verified turning route",
+        "Door y=4.32: 0 candidate bays, no verified turning route",
+        "Door y=4.20: 0 candidate bays, no verified turning route",
+        "Door y=4.36: 0 candidate bays, no verified turning route",
+        "Door y=4.16: 0 candidate bays, no verified turning route",
+        "Door y=4.40: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "474981bab0b188f8",
+      "discovery_ms": 820.8881230000001,
+      "script_errors": 308,
+      "missing_sections": []
+    },
+    {
+      "bus": "vip iii/vip iii/Vip 3.bus",
+      "definition_sha256": "039afd5ebfcb72d04f73fee936b6007932fc8bff38a05c4479dc3f64e7f8aa4d",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.3400000035762787,
+            -1.017176866531372,
+            1.1115680932998657
+          ],
+          "bay_heading": 0.0,
+          "clear_width": 1.1766159534454346,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_1",
+          "door_vars": [],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Vip 3",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "1721\\Interior_elevador.o3d"
+          ],
+          "route": [
+            [
+              0.38092589378356934,
+              -1.017176866531372,
+              1.111565113067627
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.1018518209457397,
+            -1.017176866531372,
+            1.1115666627883911
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.3400000035762787,
+            -1.017176866531372,
+            1.1115680932998657
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=3.81: 0 candidate bays, no verified turning route",
+        "Door y=3.80: 0 candidate bays, no verified turning route",
+        "Door y=3.77: 0 candidate bays, no verified turning route",
+        "Door y=3.85: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "fa721a47d4504774",
+      "discovery_ms": 192.831266,
+      "script_errors": 235,
+      "missing_sections": []
+    },
+    {
+      "bus": "vip iii mb 2/vip iii mb 2/Vip 3.bus",
+      "definition_sha256": "c7f001ffe0076287d086f6a09812d08cb73b663970c2bca489f34498d0855fd1",
+      "status": "controller_cycle_passed",
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.25,
+            -6.273077487945557,
+            1.1115652322769165
+          ],
+          "bay_heading": 0.0,
+          "clear_width": 1.1766180992126465,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_1",
+          "door_vars": [],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [
+            {
+              "at": [
+                0.969235897064209,
+                -6.07807731628418,
+                1.1115652322769165
+              ],
+              "heading": 270.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                -0.20076406002044678,
+                -6.07807731628418,
+                1.1115652322769165
+              ],
+              "heading": 270.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                -0.20076406002044678,
+                -6.07807731628418,
+                1.1115652322769165
+              ],
+              "heading": 315.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                -0.20076406002044678,
+                -6.07807731628418,
+                1.1115652322769165
+              ],
+              "heading": 0.0,
+              "reverse": false
+            },
+            {
+              "at": [
+                -0.20076406002044678,
+                -6.208077430725098,
+                1.1115652322769165
+              ],
+              "heading": 0.0,
+              "reverse": true
+            },
+            {
+              "at": [
+                -0.25,
+                -6.273077487945557,
+                1.1115652322769165
+              ],
+              "heading": 0.0,
+              "reverse": true
+            }
+          ],
+          "name": "Automatic accessibility · Vip 3",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "1721\\Interior_elevador.o3d"
+          ],
+          "route": [
+            [
+              0.969235897064209,
+              -6.07807731628418,
+              1.1115652322769165
+            ],
+            [
+              -0.20076406002044678,
+              -6.07807731628418,
+              1.1115652322769165
+            ],
+            [
+              -0.20076406002044678,
+              -6.07807731628418,
+              1.1115652322769165
+            ],
+            [
+              -0.20076406002044678,
+              -6.07807731628418,
+              1.1115652322769165
+            ],
+            [
+              -0.20076406002044678,
+              -6.208077430725098,
+              1.1115652322769165
+            ],
+            [
+              -0.25,
+              -6.273077487945557,
+              1.1115652322769165
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.0992358922958374,
+            -6.07807731628418,
+            1.1115652322769165
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.25,
+            -6.273077487945557,
+            1.1115652322769165
+          ],
+          "exercise": {
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000190369784832
+            },
+            "fixture": "additional equipment controller, doors and bay available, 18 cm curb"
+          }
+        }
+      ],
+      "reasons": [
+        "Door y=3.81: 0 candidate bays, no verified turning route",
+        "Door y=3.80: 0 candidate bays, no verified turning route",
+        "Door y=3.77: 0 candidate bays, no verified turning route",
+        "Door y=3.85: 0 candidate bays, no verified turning route"
+      ],
+      "geometry_family": "b660b176cde3bb5f",
+      "discovery_ms": 107.283376,
+      "script_errors": 234,
+      "missing_sections": []
+    }
+  ]
+}

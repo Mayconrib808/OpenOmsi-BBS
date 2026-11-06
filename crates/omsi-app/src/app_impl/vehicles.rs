@@ -3,10 +3,33 @@
 use super::*;
 
 impl App {
+    /// Change only paint and its model variables, keeping the live bus intact.
+    pub(crate) fn repaint_current_vehicle(&mut self, scheme: Option<usize>) {
+        let (Some(p), Some(w), Some(r), Some(scene)) =
+            (self.player.as_mut(), self.world.as_ref(), self.renderer.as_ref(), self.scene.as_mut()) else { return };
+        if scheme.is_some_and(|i| i >= p.vehicle.ty.paint_schemes.len()) { return; }
+        let name = scheme.map(|i| p.vehicle.ty.paint_schemes[i].name.clone());
+        let render = w.add_vehicle(r, scene, &p.vehicle.ty, scheme);
+        let mut trailers = Vec::new();
+        for t in &p.vehicle.trailers {
+            let paint = name.as_ref().and_then(|name| t.ty.paint_schemes.iter().position(|s| s.name.eq_ignore_ascii_case(name)));
+            trailers.push(w.add_vehicle_part(r, scene, &t.ty, paint, &render));
+        }
+        self.args.paint = name.clone();
+        let old = std::mem::replace(&mut p.render, render);
+        let old_trailers = std::mem::replace(&mut p.trailer_renders, trailers);
+        p.vehicle.host.paint_scheme = Some(scheme);
+        p.vehicle.apply_paint_vars(scheme);
+        p.sync_transforms(r, scene, matches!(self.view.as_str(), "driver" | "pax"), w.settings.rain_quality());
+        w.release_vehicle(r, scene, old);
+        for old in old_trailers { w.release_vehicle(r, scene, old); }
+    }
+
     /// Put the vehicle file `bus` down beside the camera or the bus driven, in `paint` (a
     /// scheme's name; None: at random) with the depot file `hof` (None: the map's).
     /// The driven vehicle read again from its files and put where it stands (#728).
     pub(crate) fn reload_driven_vehicle(&mut self) {
+        if self.net.coop.drive.busy() { self.service_msg = Some(("Return the borrowed bus before changing vehicles".into(), 4.0)); return; }
         let Some(p) = self.player.as_ref() else {
             self.service_msg = Some(("There is no vehicle to reload: you are on foot".into(), 3.0));
             return;
@@ -114,6 +137,7 @@ impl App {
     /// The vehicle is read and its meshes and textures made on a worker thread; the next
     /// frames go on and `placement` puts it into the world when it is ready.
     pub(crate) fn place_vehicle(&mut self, bus: &str, paint: Option<String>, hof: Option<String>) {
+        if self.net.coop.drive.busy() { self.service_msg = Some(("Return the borrowed bus before changing vehicles".into(), 4.0)); return; }
         if self.menus.pending_placement.is_some() {
             self.menus.swap_pending = false;
             self.service_msg = Some(("A vehicle is still loading".into(), 4.0));
@@ -128,6 +152,12 @@ impl App {
             self.service_msg = Some((omsi_ui::i18n::tr_fill("The server does not offer {name}", &[("{name}", &name)]), 4.0));
             return;
         }
+        let paint = paint.or_else(|| self.player.as_ref().filter(|p| {
+            let path = p.vehicle.ty.def.path.to_string_lossy().replace('\\', "/").to_lowercase();
+            path.ends_with(&bus.replace('\\', "/").to_lowercase())
+        }).and_then(|p| p.vehicle.host.paint_scheme.map(|scheme| scheme
+            .and_then(|i| p.vehicle.ty.paint_schemes.get(i)).map(|p| p.name.clone())
+            .unwrap_or_default())));
         let bus = bus.to_string();
         let (Some(w), Some(r), Some(cam)) = (self.world.clone(), self.renderer.as_ref(), self.camera.as_ref()) else { return };
         let (x, y, heading) = match (self.view.as_str(), self.player.as_ref()) {
@@ -195,6 +225,7 @@ impl App {
 
     /// Drive another of the vehicles standing in the world (see [`switch_vehicle`]).
     pub(crate) fn switch_vehicle(&mut self) {
+        if self.net.coop.drive.busy() { self.service_msg = Some(("Return the borrowed bus before changing vehicles".into(), 4.0)); return; }
         SwitchCx::of(&mut self.parts()).switch_vehicle();
     }
 

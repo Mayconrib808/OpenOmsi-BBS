@@ -3,6 +3,164 @@
 
 use super::*;
 
+/// A bus can cross the centre only when another timetable bus occupies a
+/// different stop, with a conservative buffer to finish the pass and regain
+/// its lane before its own next stop. Never permit one more bus to leapfrog
+/// the queue at the very same bus stop (#2973).
+pub fn safe_bus_stop_overtake(own_stop: i64, blocking_stop: i64, distance_to_own: f32, obstacle_gap: f32, obstacle_length: f32, own_length: f32) -> bool {
+    own_stop != blocking_stop
+        && [distance_to_own, obstacle_gap, obstacle_length, own_length].iter().all(|x| x.is_finite())
+        && obstacle_gap >= 0.0
+        && obstacle_length >= 0.0
+        && distance_to_own > obstacle_gap + obstacle_length + own_length + 24.0
+}
+
+impl TrafficSim {
+    /// Only the #2973 case. This explicitly does not authorize passing a
+    /// moving bus, a car queue or a bus at the same stop.
+    pub fn different_stopped_bus_ahead(&self, i: usize, who: Option<usize>, gap: f32, obstacle_len: f32) -> bool {
+        if !self.ai_bus_overtaking { return false }
+        let Some(car) = self.cars.get(i).filter(|c| c.is_bus() && !c.at_stop()) else { return false };
+        let Some(j) = who.filter(|&j| j != i) else { return false };
+        let Some(other) = self.cars.get(j).filter(|c| c.is_bus() && c.at_stop() && c.state.speed < 0.5) else { return false };
+        let Some((own_stop, other_stop)) = car.bus.as_ref().and_then(|b| b.stops.front()).zip(
+            other.bus.as_ref().and_then(|b| b.stops.front())) else { return false };
+        let Some((ri, ss)) = car.next_stop() else { return false };
+        let st = &car.state;
+        if ri < st.route_index { return false }
+        let ahead = st.route_distance(&self.net, ri, ss);
+        safe_bus_stop_overtake(own_stop.id, other_stop.id, ahead, gap, obstacle_len, st.front + st.rear)
+    }
+}
+
+/// S-curve fraction for a deliberately limited same-direction passing manoeuvre.
+/// The fixed timetable route remains the same: only its temporary lateral pose changes.
+pub fn bus_lane_smooth(t: f32) -> f32 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+impl TrafficSim {
+    /// Existing passes finish by returning to the original route lane. A bus is
+    /// never allowed to join the neighbouring lane as its permanent new route.
+    pub fn advance_bus_lane_pass(&mut self, i: usize, ts: &TickScene) {
+        let Some(pass) = self.cars[i].bus_lane_pass else { return; };
+        let car_id = self.cars[i].id;
+        let st = &self.cars[i].state;
+        // A new car may arrive on the passing lane after the initial plan.
+        // Before the moving bus occupies that lane, cancel if the merge is
+        // no longer clear. Never jerk a bus back once it is already beside it.
+        if st.lateral.abs() < 0.65 && st.odometer < pass.return_at - 10.0 {
+            let at = self.net.beside_s(st.lane, pass.target_lane, st.s);
+            if !self.lane_clear(i, pass.target_lane, at, st.rear + 12.0,
+                st.front + 35.0, &ts.by_lane) {
+                crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
+                    crate::feature_audit::ResultKind::Blocked,"maneuver_cancelled_new_obstacle",
+                    &format!("bus={} target_lane={} odometer={:.1} return_at={:.1}",
+                        car_id,pass.target_lane,st.odometer,pass.return_at));
+                self.cars[i].bus_lane_pass = None;
+                self.cars[i].state.lateral_target = 0.0;
+                return;
+            }
+        }
+        let st = &mut self.cars[i].state;
+        if st.odometer < pass.return_at {
+            st.lateral_target = pass.offset;
+        } else {
+            st.lateral_target = 0.0;
+            if st.lateral.abs() < 0.12 {
+                crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
+                    crate::feature_audit::ResultKind::Completed,"bus_returned_to_original_lane",
+                    &format!("bus={} source_lane={} pass_target_lane={} odometer={:.1}",
+                        car_id,st.lane,pass.target_lane,st.odometer));
+                self.cars[i].bus_lane_pass = None;
+            }
+        }
+    }
+
+    /// #2973: a scheduled bus may pass a *different* stopped bus using an
+    /// adjacent lane of the same direction without changing its fixed route.
+    /// For safety this first implementation requires a long, uninterrupted and
+    /// unobstructed parallel section; shorter spline/junction chains wait.
+    pub fn try_bus_lane_pass(&mut self, i: usize, scene: &super::lateral::SideScene, ts: &TickScene) -> bool {
+        if !self.ai_bus_overtaking { return false; }
+        let car = &self.cars[i];
+        let st = &car.state;
+        if !car.is_bus() || car.is_rail() || car.at_stop() || car.passing.is_some()
+            || car.bus_lane_pass.is_some() || st.change.is_some() || car.park.is_some()
+            || st.speed > 14.0 || self.time < car.pass_retry
+            || self.net.lanes[st.lane].kind != LaneKind::Street
+        { return false; }
+        let Some((lead, who)) = scene.lead else { return false; };
+        if !self.different_stopped_bus_ahead(i, who, lead.gap, scene.obstacle_len) { return false; }
+        let overtaken_id=who.and_then(|j|self.cars.get(j)).map(|blocked|blocked.id);
+        let audit_block=|reason:&'static str|{
+            crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
+                crate::feature_audit::ResultKind::Blocked,reason,
+                &format!("bus_id={} overtaken_bus_id={:?} from_lane={} gap={:.1}m",car.id,overtaken_id,st.lane,lead.gap));
+        };
+        let ahead_gap = lead.gap;
+        // Complete the first S-curve before the front corner reaches the bus.
+        if !(23.0..=70.0).contains(&ahead_gap) { audit_block("unsafe_gap");return false; }
+        let lane = &self.net.lanes[st.lane];
+        if lane.no_overtaking || !self.net.crossings[st.lane].is_empty() { audit_block("no_overtaking_or_junction");return false; }
+        // Passing on the overtaking side (left on a right-hand-traffic map).
+        let target = if self.net.left_hand { lane.right } else { lane.left };
+        let Some(target) = target.filter(|&l| self.open_to(i,l)
+            && self.net.parallel(st.lane,l)
+            && self.net.crossings[l].is_empty()
+            && !self.net.lanes[l].no_overtaking) else { audit_block("no_safe_parallel_lane");return false; };
+        // Don't overtake across a mandatory route lane change or before a stop.
+        if st.route.get(st.route_index + 1).is_some_and(|&l| self.net.parallel(st.lane,l)) { audit_block("route_requires_lane_change");return false; }
+        let first = (ahead_gap - 8.0).clamp(15.0, 28.0);
+        let leave = ahead_gap + scene.obstacle_len + st.front + st.rear + 10.0;
+        let back = 28.0;
+        let total = leave + back + st.front + 3.0;
+        let s_target = self.net.beside_s(st.lane,target,st.s);
+        if lane.length() - st.s < total || self.net.lanes[target].length() - s_target < total
+            || self.net.crossings[target].len() > 0
+        { audit_block("insufficient_return_distance");return false; }
+        let (p,h) = lane.at(st.s);
+        let q = self.net.lanes[target].at(s_target).0;
+        if (q.z-p.z).abs() > 0.7 { audit_block("height_mismatch");return false; }
+        let h = (h as f64).to_radians();
+        let offset = (q-p).truncate().dot(DVec2::new(h.cos(), -h.sin())) as f32;
+        let right_side = self.net.left_hand;
+        if !offset.is_finite() || !(2.3..=5.4).contains(&offset.abs())
+            || (offset > 0.0) != right_side { audit_block("unsafe_lane_offset");return false; }
+        // Reserve the entire overtake and return region before beginning; another
+        // vehicle already occupying it, or a parked object, vetoes the manoeuvre.
+        if !self.lane_clear(i,target,s_target,st.rear+15.0,total+20.0,&ts.by_lane)
+            || !self.can_merge(i,target,s_target,&ts.by_lane)
+        { audit_block("adjacent_lane_occupied_or_merge_blocked");return false; }
+        let net = &self.net;
+        let path = |d:f32| {
+            let centre = st.way_point(net,d);
+            let dir = (st.way_point(net,d+1.0)-centre).truncate().normalize_or_zero();
+            let lateral = if d < first { offset * bus_lane_smooth(d/first) }
+                else if d < leave { offset }
+                else { offset * (1.0-bus_lane_smooth((d-leave)/back)) };
+            centre + DVec3::new(dir.y,-dir.x,0.0)*lateral as f64
+        };
+        if self.ghost_blocked(i,&path,total,&ts.feet,&[],&[]).is_some() { audit_block("predicted_collision");return false; }
+        let at = st.odometer + leave;
+        let current = st.lateral;
+        let odo = st.odometer;
+        let source_lane = st.lane;
+        let car = &mut self.cars[i];
+        car.bus_lane_pass = Some(super::model::BusLanePass { target_lane:target,offset,return_at:at });
+        car.state.lateral_target = offset;
+        car.state.lateral_ramp = (current,offset,odo,first);
+        car.stopped = 0.0;
+        crate::feature_audit::record(crate::feature_audit::Role::Host,"ai_bus_overtaking",
+            crate::feature_audit::ResultKind::Executed,"maneuver_started",
+            &format!("bus={} overtaken_bus={:?} target_lane={} source_lane={} gap_m={:.1} return_at_odometer={:.1}",
+                car.id,overtaken_id,target,source_lane,ahead_gap,at));
+        log::info!("FEATURE AUDIT ai_bus_overtaking performed bus_id={} overtaken_bus_id={:?} target_lane={} source_lane={}",car.id,overtaken_id,target,source_lane);
+        true
+    }
+}
+
 /// Seconds a car at `st` needs to drive `dist` metres out on the other half of the road:
 /// the first `creep` metres edging out, the rest speeding up to `v_cap` (a driver standing
 /// still first reacts).
@@ -627,15 +785,19 @@ impl TrafficSim {
             return;
         }
         let st = &car.state;
+        // The opt-in #2973 case starts preparing earlier, but still runs
+        // every oncoming-traffic, clear-road and S-curve collision check below.
+        // Fixed-route buses never change to a neighbouring route lane here.
+        let bus_pass = lead.is_some_and(|(l, who)| self.different_stopped_bus_ahead(i, who, l.gap, obstacle_len));
         // (an emergency vehicle going round a car making way for it: after a second, or on
         // the move)
         let aside = lead.and_then(|l| l.1).is_some_and(|j| j < self.cars.len() && self.cars[j].make_way.is_some_and(|w| w.from == car.id));
         // a parked car is known from afar: the driver pulls out while still rolling up to
         // it; anything else is waited behind for a moment first
-        let rolling = (parked || aside) && st.speed > 0.5;
+        let rolling = (parked || aside || bus_pass) && st.speed > 0.5;
         if car.passing.is_some()
             || st.change.is_some()
-            || (car.stopped < if aside { 1.0 } else { 3.0 } && !rolling)
+            || (car.stopped < if aside || bus_pass { 1.0 } else { 3.0 } && !rolling)
             || !standing
             || car.yielding
             || car.at_stop()
@@ -658,10 +820,13 @@ impl TrafficSim {
                 log::info!("t={t_dbg:.1}: car {id_dbg} does not pass: {why}");
             }
         };
-        // a timetable bus does not pass what stands at its own next stop: it queues for it
+        // Normally timetable buses queue for their stop. When #2973 is opted
+        // in, permit only a DIFFERENT stationary bus at a different stop, with
+        // room to return before this bus reaches its own boarding area.
         if let Some((ri, ss)) = car.next_stop() {
             if ri >= st.route_index
                 && st.route_distance(&self.net, ri, ss) < gap + obstacle_len + st.front + 15.0
+                && !self.different_stopped_bus_ahead(i, who, gap, obstacle_len)
             {
                 return;
             }
@@ -674,9 +839,9 @@ impl TrafficSim {
             _ => gap,
         };
         let reach = if rolling {
-            (st.speed * st.speed / (2.0 * st.decel) + 12.0).clamp(15.0, 40.0)
+            (st.speed * st.speed / (2.0 * st.decel) + if bus_pass { 18.0 } else { 12.0 }).clamp(15.0, 40.0)
         } else {
-            22.0 + (car.pass_room - 4.0).max(0.0)
+            (if bus_pass { 30.0 } else { 22.0 }) + (car.pass_room - 4.0).max(0.0)
         };
         // (a car still half out from a pass it gave up may start again from there)
         // (lateral towards the oncoming side: a car still half out, or pulled the other way)
@@ -1321,4 +1486,27 @@ pub struct PullOut {
     pub side: f32,
     pub until: f32,
     pub back: f32,
+}
+
+#[cfg(test)]
+mod bus_stop_overtake_safety_tests {
+    use super::safe_bus_stop_overtake;
+    #[test]
+    fn same_direction_pass_curve_never_overshoots() {
+        assert_eq!(super::bus_lane_smooth(-1.0),0.0);
+        assert_eq!(super::bus_lane_smooth(0.0),0.0);
+        assert_eq!(super::bus_lane_smooth(1.0),1.0);
+        assert_eq!(super::bus_lane_smooth(2.0),1.0);
+        assert!((0..100).all(|n| (0.0..=1.0).contains(&super::bus_lane_smooth(n as f32/100.0))));
+        assert!((1..=100).all(|n| super::bus_lane_smooth(n as f32/100.0)
+            >= super::bus_lane_smooth((n-1) as f32/100.0)));
+    }
+    #[test]
+    fn cannot_pass_own_stop_or_with_insufficient_distance() {
+        assert!(!safe_bus_stop_overtake(10, 10, 100.0, 7.0, 12.0, 12.0));
+        assert!(!safe_bus_stop_overtake(10, 11, 45.0, 7.0, 12.0, 12.0));
+        assert!(safe_bus_stop_overtake(10, 11, 90.0, 7.0, 12.0, 12.0));
+        assert!(!safe_bus_stop_overtake(10, 11, f32::NAN, 7.0, 12.0, 12.0));
+        assert!(!safe_bus_stop_overtake(10, 11, 90.0, -1.0, 12.0, 12.0));
+    }
 }

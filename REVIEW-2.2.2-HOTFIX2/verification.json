@@ -1,0 +1,16 @@
+{
+  "verified_at_utc": "2026-10-31T04:52:57.157773+00:00",
+  "source_files": 2002,
+  "changed_files": 238,
+  "patches": 5,
+  "exact_source_commit": "44d2e919b505133be401869552c108b03ec48a70",
+  "expected_source_tree": "43b7d5ffa5b2e3d4c7901399011f21658b6790c0",
+  "reproduced_source_tree": "43b7d5ffa5b2e3d4c7901399011f21658b6790c0",
+  "source_sha256s_verified": true,
+  "patches_file_disjoint": true,
+  "patch_roundtrip_passed": true,
+  "new_rust_compilation_performed": true,
+  "windows_build_run": 41169027280,
+  "gameplay_tested": false,
+  "fps_or_vram_measured": false
+}

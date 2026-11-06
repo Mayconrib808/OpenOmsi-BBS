@@ -34,7 +34,8 @@ impl App {
     /// Whether the mouse steering (when on) steers in the view shown: every view of the
     /// player's bus, the map camera (F4) included, but not walking.
     pub(crate) fn mouse_steers_in_view(&self) -> bool {
-        self.player.is_some() && (matches!(self.view.as_str(), "driver" | "outside" | "pax") || (self.view == "free" && !self.cam.ego))
+        self.session.on_foot.is_none() && !self.net.coop.drive.owner_active()
+            && self.player.is_some() && (matches!(self.view.as_str(), "driver" | "outside" | "pax") || (self.view == "free" && !self.cam.ego))
     }
 
     /// Looking round with the mouse goes by the cursor's way in the window (a view of the
@@ -567,11 +568,10 @@ impl App {
             // a click anywhere else leaves the line and goes on to the game
             self.net.remotes.chat.blur();
         }
-        // in another player's bus: a passenger, whose clicks work nothing of it (they
-        // went to the driver's game, which worked its switches for them)
-        if self.view == "foot" && self.net.inside_remote.is_some() {
-            return;
-        }
+        // A passenger's click belongs to the bus they are actually aboard. The owner
+        // validates the mesh and permission; only their simulation executes it.
+        if self.coop_mouse(pressed) { return; }
+        if self.net.coop.drive.owner_active() { return; }
         // a page (`[htmltexture]`) on a scenery object: pressed and released like the bus's own
         if self.html_object_click(pressed) {
             return;

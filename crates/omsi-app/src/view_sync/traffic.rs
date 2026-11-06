@@ -43,6 +43,7 @@ pub(crate) struct CarRender {
 /// id, and the drivers of the timetable buses.
 #[derive(Default)]
 pub(crate) struct TrafficView {
+    riding:Option<u64>,
     cars: HashMap<u64, CarRender>,
     /// Renders of cars that have gone, given back at the next `sync`.
     released: Vec<VehicleRender>,
@@ -166,6 +167,21 @@ pub(crate) fn release_car_render(world: &World, renderer: &Renderer, scene: &mut
 }
 
 impl Traffic {
+    pub(crate) fn passenger_view(&self,view:&mut TrafficView,renderer:&Renderer,scene:&mut Scene,riding:Option<u64>) {
+        let old=view.riding;view.riding=riding;
+        for id in [old.filter(|id|Some(*id)!=riding),riding].into_iter().flatten() {
+            let Some(c)=self.sim.cars.iter().find(|c|c.id==id) else {continue};
+            let Some(r)=view.cars.get(&id) else {continue};
+            let parts=std::iter::once((&c.vehicle.ty,&c.vehicle.mesh_props,&r.body))
+                .chain(c.vehicle.trailers.iter().zip(&r.trailers).map(|(t,r)|(&t.ty,&t.mesh_props,r)));
+            for (ty,props,render) in parts {
+                for (i,inst) in render.instances.iter().enumerate() {
+                    let Some((m,p))=ty.meshes.get(i).zip(props.get(i)) else {continue};
+                    renderer.set_visibility(scene,*inst,crate::coop_view::ai_mesh_visible(p.visible,ty.model.meshes[m.def_index].viewpoint,riding==Some(id)));
+                }
+            }
+        }
+    }
     pub fn precache_random(&mut self, world: &World, renderer: &Renderer, scene: &mut Scene) {
         let t0 = std::time::Instant::now();
         let sets = self.random_sets();
@@ -218,6 +234,10 @@ impl Traffic {
                 }
             }
             if let (Some(f), Some(r)) = (view.drivers.get_mut(&bus.id), view.cars.get(&bus.id)) {
+                let (level, phase) = if self.optional_features.ai_driver_wave {
+                    self.greetings.wave(bus.id)
+                } else { (0.0, 0.0) };
+                f.set_greeting_wave(level, phase);
                 f.update(renderer, scene, &car, &r.body, dt, true, false);
             }
         }

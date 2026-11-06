@@ -140,6 +140,7 @@ impl<F: Fn(f64, f64, f64) -> GroundProbe + Send + Sync> Ground for F {
 /// A face a tyre cannot climb, kept while the tyre is up against it: the samples that found
 /// it are lost as soon as the hub is over it, and a wheel pushed that far went on through.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct WallFace {
     /// A point of the face (world, ground plane) and its normal, towards the tyre.
     pub point: DVec2,
@@ -162,6 +163,7 @@ impl WallFace {
 }
 
 #[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct RigidWheel {
     /// The wheel's own turning (rad/s) and its state as OMSI keeps it:
     /// gripping (turning with the ground), slipping (spinning or skidding: the tyre passes on
@@ -195,8 +197,6 @@ pub struct RigidWheel {
     pub max_force: f32,
     /// `Axle_Springfactor_*`: air suspensions scale the spring with the bellows pressure.
     pub spring_factor: f32,
-    /// The kind of strut (`[suspension]`); a coil spring unless the vehicle says otherwise.
-    pub strut: Strut,
     /// Static load at rest (N), from the mass split over the axles.
     pub rest_load: f32,
     /// Current compression (m, positive = the wheel pushed up into the body) and its rate.
@@ -235,6 +235,9 @@ pub struct RigidWheel {
     /// How far the contact patch lags behind the wheel across (m, positive to the right): the
     /// tyre's lateral deflection, which the slip-angle model turns into a side force.
     pub lat_defl: f32,
+    /// Appended to the Coop snapshot so prior wheel fields keep their order.
+    #[serde(default)]
+    pub strut: Strut,
 }
 
 fn sign(x: f32) -> f32 {
@@ -249,7 +252,9 @@ fn sign(x: f32) -> f32 {
 
 /// The kind of strut of a wheel and what it remembers (see `omsi_strut`).
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Strut {
+    #[serde(with = "strut_kind_serde")]
     pub kind: omsi_vehicle::vehicle::SuspensionKind,
     /// Dry friction of leaf springs (N).
     pub friction: f32,
@@ -259,6 +264,19 @@ pub struct Strut {
     pub level_time: f32,
     /// What the levelling valve has added to the bellows' force (N).
     pub preload: f32,
+}
+
+// Keep serialization local to the Coop snapshot; the vehicle content parser
+// does not need a new dependency just to describe its suspension kind.
+mod strut_kind_serde {
+    use omsi_vehicle::vehicle::SuspensionKind;
+    pub fn serialize<S: serde::Serializer>(kind:&SuspensionKind,s:S)->Result<S::Ok,S::Error>{
+        s.serialize_u8(match kind {SuspensionKind::Coil=>0,SuspensionKind::Leaf=>1,SuspensionKind::Air=>2,SuspensionKind::Progressive=>3})
+    }
+    pub fn deserialize<'de,D:serde::Deserializer<'de>>(d:D)->Result<SuspensionKind,D::Error>{
+        use serde::Deserialize;
+        match u8::deserialize(d)? {0=>Ok(SuspensionKind::Coil),1=>Ok(SuspensionKind::Leaf),2=>Ok(SuspensionKind::Air),3=>Ok(SuspensionKind::Progressive),_=>Err(serde::de::Error::custom("invalid suspension kind"))}
+    }
 }
 
 impl Default for Strut {
@@ -423,6 +441,7 @@ const STANDING: f32 = 0.15;
 
 /// One hit of the body against an obstacle.
 #[derive(Debug, Clone, Copy)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct Impact {
     /// Where it hit, in the body frame relative to the model origin (x right, y forward, z up).
     pub point: Vec3,
@@ -449,6 +468,7 @@ pub struct Impact {
 /// and drove every bend into a jack-knife: the kinematic rear section has no tyres of its
 /// own to resist it.
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct CoupledPart {
     /// The coupling on this body (body frame, relative to the model origin).
     pub point: Vec3,
@@ -470,6 +490,7 @@ pub struct CoupledPart {
 }
 
 #[derive(Debug, Clone)]
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct RigidBody {
     pub mass: f32,
     /// Body-frame inertia (diagonal, kg m²).

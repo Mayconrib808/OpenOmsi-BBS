@@ -413,7 +413,7 @@ impl World {
             }
             // what the outside camera cannot pass through: houses, walls, shelters, canopies
             // (surface objects too - a petrol station is a drivable [surface] with a roof)
-            if let Some(shape) = ot.camera_shape() {
+            if let Some(shape) = ot.occluder_shape() {
                 state.blockers.push(crate::camera_arm::Blocker {
                     ty: Arc::downgrade(&ot),
                     pos,
