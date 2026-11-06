@@ -282,6 +282,10 @@ pub(super) fn humans(cx: HumansCx, dt: f32) {
                 if !cx.net.coop.drive.owner_active() { p.vehicle.trigger("int_haltewunsch"); }
             }
             h.write_pax_vars(&mut p.vehicle);
+            // Follow the wheelchair call independently of the bus model.
+            // After the last chair actually finishes alighting, release any
+            // dedicated light variables asserted by the Bridge.
+            h.wheelchairs.sync_stop_signal(&mut p.vehicle);
             p.vehicle.host.humans_on_path_link = h.path_link_counts();
             p.vehicle.host.humans_on_seat = h.seat_counts();
             let mut coins: Vec<usize> = std::mem::take(&mut p.vehicle.host.change_coins).into_iter().map(|(c, worth)| h.money.as_ref().map_or(c, |m| m.coin_worth(c, worth))).collect();
