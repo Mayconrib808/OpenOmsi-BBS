@@ -137,8 +137,24 @@ jobs:
           # direct invocation does not reliably wait for its exit or capture
           # clap --help; use the updater's actual --self-test contract instead.
           $game = (Resolve-Path candidate/openomsi.exe).Path
+          # 0xC0000135 means Windows loader could not find a required DLL.
+          # Preserve an auditable dependency report instead of suppressing the gate.
+          $dumpbin = Get-ChildItem 'C:/Program Files/Microsoft Visual Studio/2022' -Filter dumpbin.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if ($dumpbin) {
+            & $dumpbin /dependents $game 2>&1 | Out-File candidate/native-dependencies.txt -Encoding utf8
+          } else {
+            'dumpbin.exe unavailable on this runner' | Set-Content candidate/native-dependencies.txt
+          }
+          'PATH directories:' | Set-Content candidate/native-runtime-paths.txt
+          $env:PATH -split ';' | Add-Content candidate/native-runtime-paths.txt
+          'Nearby native DLLs:' | Add-Content candidate/native-runtime-paths.txt
+          Get-ChildItem target/release -Filter '*.dll' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name | Add-Content candidate/native-runtime-paths.txt
           $probe = Start-Process -FilePath $game -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow
-          if ($null -eq $probe -or $probe.ExitCode -ne 0) { throw "0.3.50/P17 native self-test failed (exit $($probe.ExitCode))" }
+          if ($null -eq $probe -or $probe.ExitCode -ne 0) {
+            $hexExit = if ($null -eq $probe) { 'no-process' } else { '0x{0:X8}' -f ([uint32]([int64]$probe.ExitCode -band 0xffffffffL)) }
+            "Native self-test failed: $hexExit. See native-dependencies.txt and native-runtime-paths.txt." | Set-Content candidate/native-self-test.txt
+            throw "0.3.50/P17 native self-test failed ($hexExit); runtime DLL dependency diagnostics preserved"
+          }
           "Native executable --self-test exit code: $($probe.ExitCode)" | Set-Content candidate/native-self-test.txt -Encoding utf8
       - name: Compile actual updated desktop launcher and CLI (not just core)
         shell: pwsh
@@ -161,10 +177,11 @@ jobs:
             validation='compiled-only-not-live-tested'
             protocol=17
           } | ConvertTo-Json | Set-Content candidate/BUILD-INFO.json -Encoding utf8
-      - name: Preserve candidate proof; no automatic publication
+      - name: Preserve candidate proof and DLL diagnostics; no automatic publication
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: 2232-openomsi0350-P17-Windows-CANDIDATE
           path: candidate/
           retention-days: 60
-          if-no-files-found: error
+          if-no-files-found: warn
