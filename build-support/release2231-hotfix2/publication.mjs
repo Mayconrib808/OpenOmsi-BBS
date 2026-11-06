@@ -63,7 +63,7 @@ function inspectCandidate(){
   if(original.version!=='2.2.3.1'||original.sequence!==2026110501||original.updater_sha256!=='c0cf59361d96dbfe97e414d134b339db62b429ea805cd34387505e53eb664275'||original.coop_protocol!==17||original.native_version!=='0.3.49-coop.17-2.2.3.1')throw Error('Original P17 game changed');
   if(spec.sha256!=='34c80650a32b26348b9da3e64f127429b20d184fad673ed9e47d38545f4fccea'||spec.parts.length!==21)throw Error('P17 Coop archive changed');
   if(report.parts_unchanged!==spec.parts.length||report.managed_files_unchanged!==Object.keys(spec.files).length)throw Error('Hotfix native assets changed');
-  if(info.candidate_run_id!==__RUN_ID__||info.candidate_commit!=='__CANDIDATE_COMMIT__'||info.candidate_artifact_id!==__ARTIFACT_ID__||info.candidate_artifact_sha256!=='__ARTIFACT_DIGEST__'||info.setup_sha256!==report.setup_sha256)throw Error('Approved Hotfix source/artifact or Setup hash changed');
+  if(info.candidate_run_id!==42143188216||info.candidate_commit!=='3fcfd6e9d4a841f3298dc3423b70a175a8fb1e42'||info.candidate_artifact_id!==13469226827||info.candidate_artifact_sha256!=='d6d6f598e3a2b8de8562c6115e66a81beeac6a13de18f93ba54f8a557aef6ef4'||info.setup_sha256!==report.setup_sha256)throw Error('Approved Hotfix source/artifact or Setup hash changed');
   for(const p of spec.parts){
     const buffer=readFileSync('approved-new/coop-assets/'+p.sha256+'.bin');
     if(buffer.length!==p.size||sha(buffer)!==p.sha256)throw Error('P17 historical part corrupted');
