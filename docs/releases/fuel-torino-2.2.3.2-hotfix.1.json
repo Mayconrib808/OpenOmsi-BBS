@@ -1,0 +1,189 @@
+{
+  "bus": "Torino_2007_VW_T2_BH.bus",
+  "guarded_replay": [
+    {
+      "consumption_lph": 0.6283026933670044,
+      "fuel_used": 0.010471750982105732,
+      "litres_after": 74.9908447265625,
+      "litres_before": 75,
+      "rpm": 700.0,
+      "seconds": 60,
+      "tank_percent": 0.249969482421875,
+      "torque": -500.0
+    },
+    {
+      "consumption_lph": 3.2547340393066406,
+      "fuel_used": 0.05424545332789421,
+      "litres_after": 74.945068359375,
+      "litres_before": 75,
+      "rpm": 700.0,
+      "seconds": 60,
+      "tank_percent": 0.24981689453125,
+      "torque": 0.0
+    },
+    {
+      "consumption_lph": 5.881165504455566,
+      "fuel_used": 0.09801997244358063,
+      "litres_after": 74.90386962890625,
+      "litres_before": 75,
+      "rpm": 700.0,
+      "seconds": 60,
+      "tank_percent": 0.2496795654296875,
+      "torque": 500.0
+    },
+    {
+      "consumption_lph": 0.0,
+      "fuel_used": 0.0,
+      "litres_after": 75.0,
+      "litres_before": 75,
+      "rpm": 1800.0,
+      "seconds": 60,
+      "tank_percent": 0.25,
+      "torque": -500.0
+    },
+    {
+      "consumption_lph": 3.260772466659546,
+      "fuel_used": 0.05434605851769447,
+      "litres_after": 74.945068359375,
+      "litres_before": 75,
+      "rpm": 1800.0,
+      "seconds": 60,
+      "tank_percent": 0.24981689453125,
+      "torque": 0.0
+    },
+    {
+      "consumption_lph": 10.026983261108398,
+      "fuel_used": 0.16711680591106415,
+      "litres_after": 74.83062744140625,
+      "litres_before": 75,
+      "rpm": 1800.0,
+      "seconds": 60,
+      "tank_percent": 0.2494354248046875,
+      "torque": 500.0
+    },
+    {
+      "consumption_lph": 3.9697866439819336,
+      "fuel_used": 0.06616323441267014,
+      "litres_after": 74.9359130859375,
+      "litres_before": 75,
+      "rpm": -700.0,
+      "seconds": 60,
+      "tank_percent": 0.249786376953125,
+      "torque": -500.0
+    },
+    {
+      "consumption_lph": 2.1969456672668457,
+      "fuel_used": 0.036615729331970215,
+      "litres_after": 74.96337890625,
+      "litres_before": 75,
+      "rpm": -700.0,
+      "seconds": 60,
+      "tank_percent": 0.2498779296875,
+      "torque": 0.0
+    },
+    {
+      "consumption_lph": 0.42410436272621155,
+      "fuel_used": 0.007068440783768892,
+      "litres_after": 74.9908447265625,
+      "litres_before": 75,
+      "rpm": -700.0,
+      "seconds": 60,
+      "tank_percent": 0.249969482421875,
+      "torque": 500.0
+    }
+  ],
+  "raw_script_replay": [
+    {
+      "consumption_lph": 0.6283026933670044,
+      "fuel_used": 0.010471750982105732,
+      "litres_after": 74.9908447265625,
+      "litres_before": 75,
+      "rpm": 700.0,
+      "seconds": 60,
+      "tank_percent": 0.24996952712535858,
+      "torque": -500.0
+    },
+    {
+      "consumption_lph": 3.2547340393066406,
+      "fuel_used": 0.05424545332789421,
+      "litres_after": 74.945068359375,
+      "litres_before": 75,
+      "rpm": 700.0,
+      "seconds": 60,
+      "tank_percent": 0.24981719255447388,
+      "torque": 0.0
+    },
+    {
+      "consumption_lph": 5.881165504455566,
+      "fuel_used": 0.09801997244358063,
+      "litres_after": 74.90386962890625,
+      "litres_before": 75,
+      "rpm": 700.0,
+      "seconds": 60,
+      "tank_percent": 0.24968010187149048,
+      "torque": 500.0
+    },
+    {
+      "consumption_lph": -3.5054385662078857,
+      "fuel_used": -0.05842357128858566,
+      "litres_after": 75.05950927734375,
+      "litres_before": 75,
+      "rpm": 1800.0,
+      "seconds": 60,
+      "tank_percent": 0.25019803643226624,
+      "torque": -500.0
+    },
+    {
+      "consumption_lph": 3.260772466659546,
+      "fuel_used": 0.05434605851769447,
+      "litres_after": 74.945068359375,
+      "litres_before": 75,
+      "rpm": 1800.0,
+      "seconds": 60,
+      "tank_percent": 0.24981719255447388,
+      "torque": 0.0
+    },
+    {
+      "consumption_lph": 10.026983261108398,
+      "fuel_used": 0.16711680591106415,
+      "litres_after": 74.83062744140625,
+      "litres_before": 75,
+      "rpm": 1800.0,
+      "seconds": 60,
+      "tank_percent": 0.2494363635778427,
+      "torque": 500.0
+    },
+    {
+      "consumption_lph": 3.9697866439819336,
+      "fuel_used": 0.06616323441267014,
+      "litres_after": 74.9359130859375,
+      "litres_before": 75,
+      "rpm": -700.0,
+      "seconds": 60,
+      "tank_percent": 0.24978673458099365,
+      "torque": -500.0
+    },
+    {
+      "consumption_lph": 2.1969456672668457,
+      "fuel_used": 0.036615729331970215,
+      "litres_after": 74.96337890625,
+      "litres_before": 75,
+      "rpm": -700.0,
+      "seconds": 60,
+      "tank_percent": 0.2498781383037567,
+      "torque": 0.0
+    },
+    {
+      "consumption_lph": 0.42410436272621155,
+      "fuel_used": 0.007068440783768892,
+      "litres_after": 74.9908447265625,
+      "litres_before": 75,
+      "rpm": -700.0,
+      "seconds": 60,
+      "tank_percent": 0.24996952712535858,
+      "torque": 500.0
+    }
+  ],
+  "gameplay_verified": false,
+  "kind": "CPU replay of the original add-on engine_consumption macro, before and after frame guard"
+}

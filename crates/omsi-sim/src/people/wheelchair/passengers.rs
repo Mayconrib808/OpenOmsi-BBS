@@ -76,14 +76,15 @@ impl Wheelchairs {
         false
     }
     pub fn free_profiles(&self)->impl Iterator<Item=&Profile> {
-        self.profiles.iter().filter(|p| {
+        self.profiles.iter().chain(&self.access_profiles).filter(|p| {
             !self.riders.values().any(|r|(r.profile.bay-p.bay).truncate().length()<1.35)
                 &&!self.journey.as_ref().zip(self.profile.as_ref()).is_some_and(|(j,other)|
                     j.stage!=Stage::Finished&&(other.bay-p.bay).truncate().length()<1.35)
         })
     }
     pub fn supports_bus(&self,id:BusId,side:Option<f32>)->bool {
-        id==BusId::Player&&self.profiles.iter().any(|p|side.is_none_or(|s|s==p.side()))
+        id==BusId::Player&&self.profiles.iter().chain(&self.access_profiles)
+            .any(|p|side.is_none_or(|s|s==p.side()))
     }
 }
 
@@ -160,7 +161,7 @@ impl PeopleSim {
         if self.wheelchairs.take_new_stop_request() { self.stop_request = true; }
     }
     pub(crate) fn begin_wheelchair_boarding(&mut self,i:usize,bn:&BusNow,world:&dyn World)->bool {
-        if bn.id!=BusId::Player||self.wheelchairs.journey.is_some()||bn.speed.abs()>0.025 {return false;}
+        if bn.id!=BusId::Player||self.wheelchairs.journey.is_some()||self.wheelchairs.wants_alight()||bn.speed.abs()>0.025 {return false;}
         let Some(pax)=self.pax(i) else {return false};
         let stop=pax.stop;
         let side=stop.and_then(|s|self.preferred_entry_side(s,bn,self.people[i].position));
@@ -188,7 +189,6 @@ impl PeopleSim {
         true
     }
     pub(super) fn schedule_wheelchair_journeys(&mut self,world:&dyn World,bus:Option<&PlayerBusView>,buses:&[BusNow]) {
-        if self.wheelchairs.journey.is_some(){return;}
         if bus.is_none()||!buses.iter().any(|b|b.id==BusId::Player){return;}
         // A request must be visible in Alt as soon as it is made. Timetable
         // stop advancement and the driver's distance to a stop do not own it.
@@ -196,6 +196,29 @@ impl PeopleSim {
         let id=self.wheelchairs.riders.iter().filter(|(_,r)|r.journey.alight_requested)
             .map(|(id,_)|*id).min();
         if let Some(id)=id {
+            if let Some(j)=self.wheelchairs.journey.as_ref() {
+                // A person still at the curb can wait their turn. Never interrupt
+                // a deployed lift or a chair already moving through the doorway.
+                if j.stage!=Stage::Waiting||j.deployment>0.0001||j.boarded{return;}
+                if let Some(waiting)=self.wheelchairs.person.take() {
+                    if let Some(p)=self.people.iter_mut().find(|p|p.id==waiting) {
+                        p.puppet=None;
+                        if let State::Pax(x)=&mut p.state {
+                            x.task=Task::ToBus;x.st=0;x.speed=0.0;
+                            x.target=x.pos;x.target_bus=false;
+                        }
+                    }
+                    log::info!("WHEELCHAIR boarding_deferred person={waiting} alighting_person={id}");
+                }
+                if let Some(seats)=self.seats.get_mut(&BusId::Player) {
+                    for k in self.wheelchairs.reserved.drain(..) {
+                        if let Some(taken)=seats.get_mut(k){*taken=false;}
+                    }
+                }
+                self.wheelchairs.journey=None;
+                self.wheelchairs.crowd_targets.clear();
+                self.wheelchairs.equipment=None;
+            }
             let r=self.wheelchairs.riders.remove(&id).unwrap();
             self.wheelchairs.person=Some(id);self.wheelchairs.profile=Some(r.profile);
             self.wheelchairs.journey=Some(r.journey);self.wheelchairs.reserved=r.reserved;
@@ -243,8 +266,18 @@ impl PeopleSim {
         }
         INTERLOCK.store(false,Ordering::Release);
     }
-    pub(super) fn clear_wheelchair_corridor(&mut self,id:u32,profile:&Profile,journey:&Journey,bn:&BusNow,world:&dyn World,dt:f32) {
-        if !dt.is_finite()||dt<=0.0||bn.speed.abs()>0.025{return;}
+    pub(in crate::people) fn clear_wheelchair_corridor(&mut self,id:u32,profile:&Profile,journey:&Journey,bn:&BusNow,world:&dyn World,dt:f32) {
+        if !dt.is_finite()||dt<=0.0||bn.speed.abs()>0.025 {
+            self.wheelchairs.crowd_targets.clear();return;
+        }
+        let native_ready=matches!(profile.equipment,Equipment::NativeRamp|Equipment::NativeLift)
+            &&self.wheelchairs.feedback.ground_ready&&self.wheelchairs.feedback.floor_ready;
+        let near_door=(journey.local-profile.outside(journey.ground_height)).truncate().length()<=1.5;
+        let clear_cabin=journey.doorway_busy()||(journey.stage==Stage::Waiting
+            &&near_door&&self.wheelchairs.feedback.door_open&&(self.wheelchairs.assisted||native_ready));
+        if matches!(journey.stage,Stage::Riding|Stage::Finished) {
+            self.wheelchairs.crowd_targets.clear();return;
+        }
         let mut path=vec![journey.local,profile.outside(journey.ground_height),profile.threshold];path.extend_from_slice(&profile.route);path.push(profile.bay);
         // In narrow double-deck MAN corridors an 0.8 m half-width occupied
         // every standing spot. Clear the real wheelchair envelope, not the
@@ -252,13 +285,21 @@ impl PeopleSim {
         // standing spot outside the actual travel path.
         let corridor=|at:Vec3|corridor_contains(&path,at,0.66);
         let movers:Vec<_>=self.people.iter().enumerate().filter_map(|(i,p)| {
-            let State::Pax(x)=&p.state else{return None};if p.id==id||self.wheelchairs.is_chair(p.id){return None;}
-            let inside=x.inside==Some(BusId::Player);let at=bn.to_local(p.position);
+            let State::Pax(x)=&p.state else{return None};
+            if p.id==id||p.remote||p.puppet.is_some()||self.wheelchairs.is_chair(p.id)||x.inspector||x.responder_hold{return None;}
+            // Only settled riders and stationary waiting people yield here.
+            // Moving an alighting/boarding person leaves their path cursor in
+            // the old place and pulls them back from the exit on every frame.
+            let inside=clear_cabin&&x.inside==Some(BusId::Player)&&x.task==Task::SittingInBus;
+            let at=bn.to_local(p.position);
             let seated=inside&&x.seat.and_then(|k|bn.cabin.seats.get(k)).is_some_and(|s|s.seated);
             let fold=profile.fold.is_some()&&(at-profile.bay).truncate().length()<1.0;
-            let ground=x.inside.is_none()&&(p.position-bn.world(journey.local)).length_squared()<25.0;
+            let ground=x.inside.is_none()&&matches!(x.task,Task::WaitingForBus|Task::Nothing)&&x.st==0
+                &&(p.position-bn.world(journey.local)).length_squared()<25.0;
             ((inside&&(!seated||fold)||ground)&&(corridor(at)||self.wheelchairs.crowd_targets.contains_key(&p.id))).then_some((i,at,!inside))
         }).collect();
+        let yielding:HashSet<_>=movers.iter().map(|(i,_,_)|self.people[*i].id).collect();
+        self.wheelchairs.crowd_targets.retain(|pid,_|yielding.contains(pid));
         for (i,at,ground) in movers {
             let pid=self.people[i].id;
             if !self.wheelchairs.crowd_targets.contains_key(&pid) {
@@ -266,26 +307,40 @@ impl PeopleSim {
                     [1.05f32,-1.05,1.5,-1.5,2.0,-2.0].into_iter().filter_map(|dy| {
                         let mut q=at+Vec3::Y*dy;let from=bn.world(at);let to=bn.world(q);let z=world.walk_height_near(to.x,to.y,from.z)?;
                         if (z-from.z).abs()>0.2||corridor(q)||world.collision().ray_blocked(from+DVec3::Z*0.45,to+DVec3::Z*0.45,0.25,0.6){return None;}
-                        q.z=bn.to_local(DVec3::new(to.x,to.y,z)).z;Some(q)
+                        q.z=bn.to_local(DVec3::new(to.x,to.y,z)).z;Some((q,None))
                     }).next()
                 }else{
-                    // Compress a full standing crowd into existing standing places;
-                    // preserve the other wheelchair bays and the model's floor.
+                    // Yield into a genuinely free standing place. An occupied
+                    // target is not a solution to an occupied wheelchair bay.
                     let taken=self.seats.get(&BusId::Player);
                     bn.cabin.seats.iter().enumerate().filter(|(k,s)|!s.seated&&s.floor.is_finite()&&!corridor(s.floor)&&!bn.places_off.get(*k).copied().unwrap_or(false)&&(s.floor.z-at.z).abs()<0.35&&!self.wheelchairs.riders.values().any(|r|(s.floor-r.profile.bay).truncate().length()<0.9))
+                    .filter(|(k,s)| !taken.and_then(|t|t.get(*k)).copied().unwrap_or(false)
+                        && !self.wheelchairs.crowd_targets.values().any(|(t,g)| !*g&&(*t-s.floor).length()<0.35)
+                        && !self.people.iter().any(|p|p.id!=pid && {
+                            let q=bn.to_local(p.position);
+                            (q.z-s.floor.z).abs()<0.72&&(q.truncate()-s.floor.truncate()).length()<0.35
+                        }))
                     .min_by(|(ka,a),(kb,b)| {
                         let score=|k:usize,q:Vec3|(q-at).length_squared()+if taken.and_then(|t|t.get(k)).copied().unwrap_or(false){100.0}else{0.0}+if self.wheelchairs.crowd_targets.values().any(|(t,g)|!*g&&(*t-q).length()<0.35){20.0}else{0.0};
                         score(*ka,a.floor).total_cmp(&score(*kb,b.floor))
-                    }).map(|(_,s)|s.floor)
+                    }).map(|(k,s)|(s.floor,Some(k)))
                 };
-                let Some(target)=target else{continue};self.wheelchairs.crowd_targets.insert(pid,(target,ground));
+                let Some((target,seat))=target else{continue};
+                if let Some(k)=seat {
+                    if let Some(old)=self.pax(i).and_then(|x|x.seat){self.free_seat(BusId::Player,old);}
+                    let taken=self.seats.entry(BusId::Player).or_default();
+                    taken.resize(bn.cabin.seats.len(),false);taken[k]=true;
+                    if let Some(x)=self.pax_mut(i){x.seat=Some(k);x.seat_h=0.0;}
+                }
+                self.wheelchairs.crowd_targets.insert(pid,(target,ground));
                 log::info!("WHEELCHAIR make_room person={pid} ground={ground} from={at:?} target={target:?}");
             }
             let (target,was_ground)=self.wheelchairs.crowd_targets[&pid];if was_ground!=ground{self.wheelchairs.crowd_targets.remove(&pid);continue;}
             let next=at+(target-at).clamp_length_max(dt.clamp(0.0,0.1)*1.2);let new_world=bn.world(next);
-            let old=self.pax(i).and_then(|x|x.seat);if !ground{if let Some(k)=old{self.free_seat(BusId::Player,k);}}
-            if let Some(x)=self.pax_mut(i){x.pos=if ground{new_world}else{next.as_dvec3()};if !ground{x.seat=None;x.seat_h=0.0;x.pax_state=1.0;}}
+            let reached=(next-target).length()<0.005;
+            if let Some(x)=self.pax_mut(i){x.pos=if ground{new_world}else{next.as_dvec3()};x.pax_state=if reached{0.0}else{1.0};}
             self.people[i].position=new_world;if !ground{self.people[i].place=Place::Bus(BusId::Player,next);}
+            if reached{self.wheelchairs.crowd_targets.remove(&pid);}
         }
     }
 }

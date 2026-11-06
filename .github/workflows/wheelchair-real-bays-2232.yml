@@ -1,0 +1,96 @@
+name: Verify accessibility flow and combustion fuel fixes
+on:
+  push:
+    branches: [fix/wheelchair-real-bays-2232]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: wheelchair-real-bays-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  CARGO_INCREMENTAL: '0'
+  OMSI_NO_UPDATE: '1'
+jobs:
+  simulation:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: accessibility-223-simulation
+      - name: Native dependencies
+        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
+      - name: Simulation regressions and application compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p omsi-sim --lib 2>&1 | tee simulation-tests.log
+          cargo check --locked -p omsi-app -p omsi-lan 2>&1 | tee application-check.log
+          python3 tools/check_accessibility_locales.py
+          python3 -m py_compile tools/validate_wheelchair_nine.py
+          git diff --exit-code
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wheelchair-real-bays-simulation-logs
+          path: '*-*.log'
+          retention-days: 45
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      OPENOMSI_VERSION: 0.3.50-coop.17-2.2.3.2-hotfix.1-candidate
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_BUILD_JOBS: '3'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: 2232-0350-native-p17
+      - name: Compile the actual Windows game and probes
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Windows game compilation failed' }
+          cargo build --locked --release -p omsi-sim --example wheelchair_probe --example fuel_probe
+          if ($LASTEXITCODE -ne 0) { throw 'Windows probe compilation failed' }
+          New-Item -ItemType Directory -Force candidate | Out-Null
+          Copy-Item target/release/openomsi.exe candidate/openomsi.exe
+          Copy-Item target/release/examples/wheelchair_probe.exe candidate/wheelchair_probe.exe
+          Copy-Item target/release/examples/fuel_probe.exe candidate/fuel_probe.exe
+          Copy-Item assets/steam_redist/steam_api64.dll candidate/steam_api64.dll
+          Copy-Item LICENSE candidate/LICENSE
+          git archive --format=tar.gz --prefix=openomsi-2232-hotfix1/ -o candidate/openomsi-source.tar.gz HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Corresponding source archive failed' }
+      - name: Verify executable startup and record provenance
+        shell: pwsh
+        run: |
+          $game=(Resolve-Path candidate/openomsi.exe).Path
+          $test=Start-Process -FilePath $game -ArgumentList '--self-test' -WorkingDirectory (Resolve-Path candidate).Path -Wait -PassThru -RedirectStandardOutput candidate/native-self-test.txt -RedirectStandardError candidate/native-self-test.err.txt
+          if ($test.ExitCode -ne 0) { throw "Windows native startup failed: $($test.ExitCode)" }
+          $info=@{
+            version=$env:OPENOMSI_VERSION; protocol=17; source_commit=$env:GITHUB_SHA
+            source_base='9b1d236c84b8af2f4c5a13d7c110b0db5e0c1c68'; run_id=$env:GITHUB_RUN_ID
+            native_sha256=(Get-FileHash candidate/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            source_sha256=(Get-FileHash candidate/openomsi-source.tar.gz -Algorithm SHA256).Hash.ToLowerInvariant()
+            validation='compiled-and-startup-tested'; windows_gameplay_tested=$false; paired_gameplay_tested=$false
+          }
+          $info | ConvertTo-Json | Set-Content candidate/BUILD-INFO.json -Encoding utf8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2232-wheelchair-fuel-Windows-CANDIDATE
+          path: candidate/
+          compression-level: 0
+          retention-days: 45
+          if-no-files-found: error

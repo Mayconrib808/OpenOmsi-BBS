@@ -39,6 +39,8 @@ pub fn run(v: &mut VehicleInstance, p: &Profile) -> Value {
             }
         }
         let boarding = format!("{:?}", j.stage);
+        let secured_position = j.local;
+        let secured_heading = j.heading;
         for _ in 0..240 {
             j.advance(p, 1.0 / 60.0, 0.0, feedback, false, &[]);
         }
@@ -57,7 +59,8 @@ pub fn run(v: &mut VehicleInstance, p: &Profile) -> Value {
         }
         return json!({"fixture":"additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb",
             "door_open":feedback.door_open,"bay_ready":feedback.bay_ready,
-            "controller":{"boarding":boarding,"alighting":alighting,"max_step_metres":max_step,"interlocked_after_stow":j.interlocked()}});
+            "controller":{"boarding":boarding,"alighting":alighting,"max_step_metres":max_step,"interlocked_after_stow":j.interlocked(),
+                "secured_position":secured_position,"secured_heading":secured_heading,"expected_bay":p.bay,"expected_heading":p.bay_heading}});
     };
     let man = binding.trigger.as_deref() == Some("ramplift_wunsch");
     let solaris = binding
@@ -134,6 +137,8 @@ pub fn run(v: &mut VehicleInstance, p: &Profile) -> Value {
         }
     }
     let boarding = format!("{:?}", journey.stage);
+    let secured_position = journey.local;
+    let secured_heading = journey.heading;
     journey.alight_requested = true;
     for step in 0..12000 {
         let before = journey.local;
@@ -171,7 +176,8 @@ pub fn run(v: &mut VehicleInstance, p: &Profile) -> Value {
         false,
         &[],
     );
-    let controller = json!({"boarding":boarding,"alighting":alighting,"max_step_metres":max_step,"interlocked_after_stow":journey.interlocked()});
+    let controller = json!({"boarding":boarding,"alighting":alighting,"max_step_metres":max_step,"interlocked_after_stow":journey.interlocked(),
+        "secured_position":secured_position,"secured_heading":secured_heading,"expected_bay":p.bay,"expected_heading":p.bay_heading});
     json!({"macro":name,"trigger_found":fired,"curb_height":0.18,"body_z":body_z,"initial":initial,"first_ready_seconds":first_ready,
         "deployed":deployed,"immediately_after_stow":immediately_after_stow,"stowed":stowed,"controller":controller})
 }

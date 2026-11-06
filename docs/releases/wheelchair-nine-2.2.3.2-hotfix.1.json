@@ -1,0 +1,1950 @@
+{
+  "kind": "CPU-only real-add-on detection and controller simulation",
+  "gameplay_verified": false,
+  "models": [
+    {
+      "model": "Articulado Scania",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Articulado Scania.zip",
+      "bus_file": "Articulado Scania/Mi4_K310UA_F_ZF.bus",
+      "archive_sha256": "c51d121fefd9f2be733236331c86cababdecdd15efc09e89683a027f4c4d2dca",
+      "discovery_ms": 30.73057,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.7200000286102295,
+          0.8280600309371948,
+          0.6125983595848083
+        ],
+        "bay_heading": 270.0,
+        "clear_width": 1.1100025177001953,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_2",
+        "door_vars": [
+          "door_3"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 0,
+        "fold": {
+          "folded_value": 0.0,
+          "trigger": "klappsitzR1",
+          "variable": "klappsitzR1"
+        },
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Mi4_K310UA_F_ZF",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [
+          "F\\Interior\\Piso_RampaL.o3d"
+        ],
+        "route": [
+          [
+            -0.20549392700195312,
+            0.9580600261688232,
+            0.6125971078872681
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          -1.1309878826141357,
+          1.0880600214004517,
+          0.6125959157943726
+        ]
+      },
+      "reasons": [
+        "Identified reserved compartments: [Vec3(1.0772961, 1.4466383, 1.2226497)]",
+        "Door y=1.08: manual or steep original ramp; auxiliary lift selected",
+        "Door y=1.09: assisted route to identified reserved compartment; fixed seats retained",
+        "Door y=-0.90: assisted route to identified reserved compartment; fixed seats retained",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.64: manual or steep original ramp; auxiliary lift selected",
+        "Door y=4.63: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.64: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.59: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.67: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.55: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.71: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.51: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.75: 0 candidate bays, no clear wheelchair bay found"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "expected_bay": [
+          0.7200000286102295,
+          0.8280600309371948,
+          0.6125983595848083
+        ],
+        "expected_heading": 270.0,
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000067435204983,
+        "secured_heading": 270.0,
+        "secured_position": [
+          0.7200000286102295,
+          0.8280600309371948,
+          0.6125983595848083
+        ]
+      },
+      "physical_capacity": 1,
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            0.7200000286102295,
+            0.8280600309371948,
+            0.6125983595848083
+          ],
+          "bay_heading": 270.0,
+          "clear_width": 1.1100025177001953,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_2",
+          "door_vars": [
+            "door_3"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": {
+            "folded_value": 0.0,
+            "trigger": "klappsitzR1",
+            "variable": "klappsitzR1"
+          },
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Mi4_K310UA_F_ZF",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "F\\Interior\\Piso_RampaL.o3d"
+          ],
+          "route": [
+            [
+              -0.20549392700195312,
+              0.9580600261688232,
+              0.6125971078872681
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            -1.1309878826141357,
+            1.0880600214004517,
+            0.6125959157943726
+          ]
+        }
+      ],
+      "access_profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            0.7200000286102295,
+            0.8280600309371948,
+            0.6125983595848083
+          ],
+          "bay_heading": 270.0,
+          "clear_width": 1.1100023984909058,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_4",
+          "door_vars": [
+            "door_5"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": {
+            "folded_value": 0.0,
+            "trigger": "klappsitzR1",
+            "variable": "klappsitzR1"
+          },
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Mi4_K310UA_F_ZF",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.9244790077209473,
+              -0.035783737897872925,
+              0.6125984191894531
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.128957986831665,
+            -0.8996275067329407,
+            0.6125985383987427
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            0.7200000286102295,
+            0.8280600309371948,
+            0.6125983595848083
+          ],
+          "door": "door_2",
+          "exercise": {
+            "bay_ready": true,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                0.7200000286102295,
+                0.8280600309371948,
+                0.6125983595848083
+              ],
+              "expected_heading": 270.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000067435204983,
+              "secured_heading": 270.0,
+              "secured_position": [
+                0.7200000286102295,
+                0.8280600309371948,
+                0.6125983595848083
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            -1.1309878826141357,
+            1.0880600214004517,
+            0.6125959157943726
+          ]
+        },
+        {
+          "bay": [
+            0.7200000286102295,
+            0.8280600309371948,
+            0.6125983595848083
+          ],
+          "door": "door_4",
+          "exercise": {
+            "bay_ready": true,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                0.7200000286102295,
+                0.8280600309371948,
+                0.6125983595848083
+              ],
+              "expected_heading": 270.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.00800002459436655,
+              "secured_heading": 270.0,
+              "secured_position": [
+                0.7200000286102295,
+                0.8280600309371948,
+                0.6125983595848083
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            1.128957986831665,
+            -0.8996275067329407,
+            0.6125985383987427
+          ]
+        }
+      ]
+    },
+    {
+      "model": "Articulado Mi4 Voith",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Articulado(2).zip",
+      "bus_file": "Articulado/Mi4_UA_F_Voith.bus",
+      "archive_sha256": "ae411675773b0532414ac331e8d61977fff7e1b32acb8dc4276820b626eaedcf",
+      "discovery_ms": 56.621294000000006,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.7200000286102295,
+          0.9313085079193115,
+          0.554236114025116
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 1.1016325950622559,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_4",
+        "door_vars": [
+          "door_5"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 1,
+        "fold": {
+          "folded_value": 0.0,
+          "trigger": "klappsitzR1",
+          "variable": "klappsitzR1"
+        },
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Mi4_UA_F_Voith",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.8973954319953918,
+            0.15130853652954102,
+            0.5542364120483398
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.0747908353805542,
+          -0.6286914348602295,
+          0.5542367100715637
+        ]
+      },
+      "reasons": [
+        "Identified reserved compartments: [Vec3(1.0801182, 1.5971203, 1.1881182)]",
+        "Door y=1.12: manual or steep original ramp; auxiliary lift selected",
+        "Door y=1.09: assisted route to identified reserved compartment; fixed seats retained",
+        "Door y=-0.63: assisted route to identified reserved compartment; fixed seats retained",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.47: manual or steep original ramp; auxiliary lift selected",
+        "Door y=4.46: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.47: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.42: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.50: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.38: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.54: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.34: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.58: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.28: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.64: 0 candidate bays, no clear wheelchair bay found"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "expected_bay": [
+          0.7200000286102295,
+          0.9313085079193115,
+          0.554236114025116
+        ],
+        "expected_heading": 180.0,
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000032044947147,
+        "secured_heading": 180.0,
+        "secured_position": [
+          0.7200000286102295,
+          0.9313085079193115,
+          0.554236114025116
+        ]
+      },
+      "physical_capacity": 1,
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            0.7200000286102295,
+            0.9313085079193115,
+            0.554236114025116
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1016325950622559,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_4",
+          "door_vars": [
+            "door_5"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": {
+            "folded_value": 0.0,
+            "trigger": "klappsitzR1",
+            "variable": "klappsitzR1"
+          },
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Mi4_UA_F_Voith",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.8973954319953918,
+              0.15130853652954102,
+              0.5542364120483398
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.0747908353805542,
+            -0.6286914348602295,
+            0.5542367100715637
+          ]
+        }
+      ],
+      "access_profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            0.7200000286102295,
+            0.9313085079193115,
+            0.554236114025116
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.161855697631836,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_2",
+          "door_vars": [
+            "door_3"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": {
+            "folded_value": 0.0,
+            "trigger": "klappsitzR1",
+            "variable": "klappsitzR1"
+          },
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Mi4_UA_F_Voith",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "O500UA\\F\\Interior\\Piso_Rampa_L.o3d"
+          ],
+          "route": [
+            [
+              -0.1765909194946289,
+              1.009503722190857,
+              0.5542349815368652
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            -1.0731818675994873,
+            1.0876989364624023,
+            0.5542337894439697
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            0.7200000286102295,
+            0.9313085079193115,
+            0.554236114025116
+          ],
+          "door": "door_4",
+          "exercise": {
+            "bay_ready": true,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                0.7200000286102295,
+                0.9313085079193115,
+                0.554236114025116
+              ],
+              "expected_heading": 180.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000032044947147,
+              "secured_heading": 180.0,
+              "secured_position": [
+                0.7200000286102295,
+                0.9313085079193115,
+                0.554236114025116
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            1.0747908353805542,
+            -0.6286914348602295,
+            0.5542367100715637
+          ]
+        },
+        {
+          "bay": [
+            0.7200000286102295,
+            0.9313085079193115,
+            0.554236114025116
+          ],
+          "door": "door_2",
+          "exercise": {
+            "bay_ready": true,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                0.7200000286102295,
+                0.9313085079193115,
+                0.554236114025116
+              ],
+              "expected_heading": 180.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000042289495468,
+              "secured_heading": 180.0,
+              "secured_position": [
+                0.7200000286102295,
+                0.9313085079193115,
+                0.554236114025116
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            -1.0731818675994873,
+            1.0876989364624023,
+            0.5542337894439697
+          ]
+        }
+      ]
+    },
+    {
+      "model": "Articulado Mi4 ZF",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Articulado(2).zip",
+      "bus_file": "Articulado/Mi4_UA_F_ZF.bus",
+      "archive_sha256": "ae411675773b0532414ac331e8d61977fff7e1b32acb8dc4276820b626eaedcf",
+      "discovery_ms": 76.631001,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.7200000286102295,
+          0.9313085079193115,
+          0.554236114025116
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 1.1016325950622559,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_4",
+        "door_vars": [
+          "door_5"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 1,
+        "fold": {
+          "folded_value": 0.0,
+          "trigger": "klappsitzR1",
+          "variable": "klappsitzR1"
+        },
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Mi4_UA_F_ZF",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.8973954319953918,
+            0.15130853652954102,
+            0.5542364120483398
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.0747908353805542,
+          -0.6286914348602295,
+          0.5542367100715637
+        ]
+      },
+      "reasons": [
+        "Identified reserved compartments: [Vec3(1.0801182, 1.5971203, 1.1881182)]",
+        "Door y=1.12: manual or steep original ramp; auxiliary lift selected",
+        "Door y=1.09: assisted route to identified reserved compartment; fixed seats retained",
+        "Door y=-0.63: assisted route to identified reserved compartment; fixed seats retained",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=4.47: manual or steep original ramp; auxiliary lift selected",
+        "Door y=4.46: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.47: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.42: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.50: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.38: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.54: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.34: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.58: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.28: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.64: 0 candidate bays, no clear wheelchair bay found"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "expected_bay": [
+          0.7200000286102295,
+          0.9313085079193115,
+          0.554236114025116
+        ],
+        "expected_heading": 180.0,
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000032044947147,
+        "secured_heading": 180.0,
+        "secured_position": [
+          0.7200000286102295,
+          0.9313085079193115,
+          0.554236114025116
+        ]
+      },
+      "physical_capacity": 1,
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            0.7200000286102295,
+            0.9313085079193115,
+            0.554236114025116
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1016325950622559,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_4",
+          "door_vars": [
+            "door_5"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": {
+            "folded_value": 0.0,
+            "trigger": "klappsitzR1",
+            "variable": "klappsitzR1"
+          },
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Mi4_UA_F_ZF",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.8973954319953918,
+              0.15130853652954102,
+              0.5542364120483398
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.0747908353805542,
+            -0.6286914348602295,
+            0.5542367100715637
+          ]
+        }
+      ],
+      "access_profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            0.7200000286102295,
+            0.9313085079193115,
+            0.554236114025116
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.161855697631836,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_2",
+          "door_vars": [
+            "door_3"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": {
+            "folded_value": 0.0,
+            "trigger": "klappsitzR1",
+            "variable": "klappsitzR1"
+          },
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Mi4_UA_F_ZF",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "O500UA\\F\\Interior\\Piso_Rampa_L.o3d"
+          ],
+          "route": [
+            [
+              -0.1765909194946289,
+              1.009503722190857,
+              0.5542349815368652
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            -1.0731818675994873,
+            1.0876989364624023,
+            0.5542337894439697
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            0.7200000286102295,
+            0.9313085079193115,
+            0.554236114025116
+          ],
+          "door": "door_4",
+          "exercise": {
+            "bay_ready": true,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                0.7200000286102295,
+                0.9313085079193115,
+                0.554236114025116
+              ],
+              "expected_heading": 180.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000032044947147,
+              "secured_heading": 180.0,
+              "secured_position": [
+                0.7200000286102295,
+                0.9313085079193115,
+                0.554236114025116
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            1.0747908353805542,
+            -0.6286914348602295,
+            0.5542367100715637
+          ]
+        },
+        {
+          "bay": [
+            0.7200000286102295,
+            0.9313085079193115,
+            0.554236114025116
+          ],
+          "door": "door_2",
+          "exercise": {
+            "bay_ready": true,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                0.7200000286102295,
+                0.9313085079193115,
+                0.554236114025116
+              ],
+              "expected_heading": 180.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000042289495468,
+              "secured_heading": 180.0,
+              "secured_position": [
+                0.7200000286102295,
+                0.9313085079193115,
+                0.554236114025116
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            -1.0731818675994873,
+            1.0876989364624023,
+            0.5542337894439697
+          ]
+        }
+      ]
+    },
+    {
+      "model": "Torino 2007 VW T2 BH",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Torino 2007(1).zip",
+      "bus_file": "Torino 2007/Torino_2007_VW_T2_BH.bus",
+      "archive_sha256": "70ba9e9b446f15bc6a5fd806761239a045953c06dad376bac83357e70bc4342e",
+      "discovery_ms": 55.813858,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          -0.7200000286102295,
+          -3.8995542526245117,
+          1.0747133493423462
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 1.1840970516204834,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_8",
+        "door_vars": [
+          "door_9"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 1,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Torino_2007_VW_T2_BH",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.20549041032791138,
+            -3.8670542240142822,
+            1.0735180377960205
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.1309808492660522,
+          -3.8345541954040527,
+          1.0723226070404053
+        ]
+      },
+      "reasons": [
+        "Identified reserved compartments: [Vec3(-0.7779085, -3.8694377, 1.7491612), Vec3(0.842697, -3.69203, 1.2566454)]",
+        "Door y=1.02: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=0.97: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=0.98: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=1.06: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=0.94: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=1.10: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=0.90: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=1.14: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=0.84: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=1.20: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-3.83: assisted route to identified reserved compartment; fixed seats retained",
+        "Door y=5.29: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=5.25: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=5.33: 0 candidate bays, no clear wheelchair bay found"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "expected_bay": [
+          -0.7200000286102295,
+          -3.8995542526245117,
+          1.0747133493423462
+        ],
+        "expected_heading": 180.0,
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000066503882408,
+        "secured_heading": 180.0,
+        "secured_position": [
+          -0.7200000286102295,
+          -3.8995542526245117,
+          1.0747133493423462
+        ]
+      },
+      "physical_capacity": 1,
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.7200000286102295,
+            -3.8995542526245117,
+            1.0747133493423462
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1840970516204834,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_8",
+          "door_vars": [
+            "door_9"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Torino_2007_VW_T2_BH",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.20549041032791138,
+              -3.8670542240142822,
+              1.0735180377960205
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.1309808492660522,
+            -3.8345541954040527,
+            1.0723226070404053
+          ]
+        }
+      ],
+      "access_profiles": [],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.7200000286102295,
+            -3.8995542526245117,
+            1.0747133493423462
+          ],
+          "door": "door_8",
+          "exercise": {
+            "bay_ready": null,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                -0.7200000286102295,
+                -3.8995542526245117,
+                1.0747133493423462
+              ],
+              "expected_heading": 180.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000066503882408,
+              "secured_heading": 180.0,
+              "secured_position": [
+                -0.7200000286102295,
+                -3.8995542526245117,
+                1.0747133493423462
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            1.1309808492660522,
+            -3.8345541954040527,
+            1.0723226070404053
+          ]
+        }
+      ]
+    },
+    {
+      "model": "Torino 2025",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Torino 2025.zip",
+      "bus_file": "Torino 2025/TS_1726-AR_Manual.bus",
+      "archive_sha256": "aceef02c55ddf4413103be0a2b49e316c799b5d3c11fd7623c59f485a07819f0",
+      "discovery_ms": 66.590769,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          -0.7200000286102295,
+          -0.3893683850765228,
+          1.0723299980163574
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 1.1141808032989502,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_4",
+        "door_vars": [
+          "door_5"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 0,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · TS_1726-AR_Manual",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [
+          "Interior\\TS_Elevador.o3d"
+        ],
+        "route": [
+          [
+            0.18255001306533813,
+            -0.3893683850765228,
+            1.0723321437835693
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.0851000547409058,
+          -0.3893683850765228,
+          1.0723341703414917
+        ]
+      },
+      "reasons": [
+        "Identified reserved compartments: [Vec3(-0.72, -0.3687725, 0.0)]",
+        "Door y=-0.39: assisted route to identified reserved compartment; fixed seats retained",
+        "Door y=-4.67: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.71: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.63: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.75: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.59: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.79: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.55: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.67: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.71: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.63: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.75: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.59: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.79: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.55: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.40: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.41: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.36: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.44: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.32: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.48: 0 candidate bays, no clear wheelchair bay found"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "expected_bay": [
+          -0.7200000286102295,
+          -0.3893683850765228,
+          1.0723299980163574
+        ],
+        "expected_heading": 180.0,
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000016212463379,
+        "secured_heading": 180.0,
+        "secured_position": [
+          -0.7200000286102295,
+          -0.3893683850765228,
+          1.0723299980163574
+        ]
+      },
+      "physical_capacity": 1,
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.7200000286102295,
+            -0.3893683850765228,
+            1.0723299980163574
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 1.1141808032989502,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_4",
+          "door_vars": [
+            "door_5"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · TS_1726-AR_Manual",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "Interior\\TS_Elevador.o3d"
+          ],
+          "route": [
+            [
+              0.18255001306533813,
+              -0.3893683850765228,
+              1.0723321437835693
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.0851000547409058,
+            -0.3893683850765228,
+            1.0723341703414917
+          ]
+        }
+      ],
+      "access_profiles": [],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.7200000286102295,
+            -0.3893683850765228,
+            1.0723299980163574
+          ],
+          "door": "door_4",
+          "exercise": {
+            "bay_ready": null,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                -0.7200000286102295,
+                -0.3893683850765228,
+                1.0723299980163574
+              ],
+              "expected_heading": 180.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379,
+              "secured_heading": 180.0,
+              "secured_position": [
+                -0.7200000286102295,
+                -0.3893683850765228,
+                1.0723299980163574
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            1.0851000547409058,
+            -0.3893683850765228,
+            1.0723341703414917
+          ]
+        }
+      ]
+    },
+    {
+      "model": "Torino S Rio Ita",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Torino S.zip",
+      "bus_file": "Torino S/Torino_S_Rio_Ita.bus",
+      "archive_sha256": "74d26ae07a4af602ed53dc40a4183448b36160a4eb9434ac35635f5b07239e82",
+      "discovery_ms": 52.506011,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          -0.8100000023841858,
+          0.1923534870147705,
+          1.07233464717865
+        ],
+        "bay_heading": 90.0,
+        "clear_width": 1.1139909029006958,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_4",
+        "door_vars": [
+          "door_5"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 0,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Torino_S_Rio_Ita",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [
+          "1721\\Interior\\TS_Elevador.o3d",
+          "1721\\Interior\\TS_Plataforma_piso.o3d"
+        ],
+        "route": [
+          [
+            0.13755092024803162,
+            0.06235349178314209,
+            1.0723357200622559
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.085101842880249,
+          -0.06764650344848633,
+          1.0723367929458618
+        ]
+      },
+      "reasons": [
+        "Identified reserved compartments: [Vec3(-1.1694224, 0.24494311, 1.5931498), Vec3(-1.1694224, 0.24494311, 1.5931498)]",
+        "Door y=-0.07: assisted route to identified reserved compartment; fixed seats retained",
+        "Door y=4.52: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.54: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.48: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.56: 0 candidate bays, no clear wheelchair bay found"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "expected_bay": [
+          -0.8100000023841858,
+          0.1923534870147705,
+          1.07233464717865
+        ],
+        "expected_heading": 90.0,
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000022731721401,
+        "secured_heading": 90.0,
+        "secured_position": [
+          -0.8100000023841858,
+          0.1923534870147705,
+          1.07233464717865
+        ]
+      },
+      "physical_capacity": 1,
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.8100000023841858,
+            0.1923534870147705,
+            1.07233464717865
+          ],
+          "bay_heading": 90.0,
+          "clear_width": 1.1139909029006958,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_4",
+          "door_vars": [
+            "door_5"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Torino_S_Rio_Ita",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "1721\\Interior\\TS_Elevador.o3d",
+            "1721\\Interior\\TS_Plataforma_piso.o3d"
+          ],
+          "route": [
+            [
+              0.13755092024803162,
+              0.06235349178314209,
+              1.0723357200622559
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.085101842880249,
+            -0.06764650344848633,
+            1.0723367929458618
+          ]
+        }
+      ],
+      "access_profiles": [],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.8100000023841858,
+            0.1923534870147705,
+            1.07233464717865
+          ],
+          "door": "door_4",
+          "exercise": {
+            "bay_ready": null,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                -0.8100000023841858,
+                0.1923534870147705,
+                1.07233464717865
+              ],
+              "expected_heading": 90.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000022731721401,
+              "secured_heading": 90.0,
+              "secured_position": [
+                -0.8100000023841858,
+                0.1923534870147705,
+                1.07233464717865
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            1.085101842880249,
+            -0.06764650344848633,
+            1.0723367929458618
+          ]
+        }
+      ]
+    },
+    {
+      "model": "VIP I 3 portas",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Vip 1 3 portas.zip",
+      "bus_file": "Vip 1 3 portas/Vip 1 OF 1721 Manual.bus",
+      "archive_sha256": "b8e96c7ad3a58195fe8d31c3ff6c9c1cbbab4aec620e3dcee5a09099908e2acd",
+      "discovery_ms": 57.597615,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.7200000286102295,
+          0.7896816730499268,
+          1.198074221611023
+        ],
+        "bay_heading": 270.0,
+        "clear_width": 0.825725257396698,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_0",
+        "door_vars": [
+          "door_1"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 0,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Vip 1 OF 1721 Manual",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.0,
+            4.234681606292725,
+            1.1980748176574707
+          ],
+          [
+            0.0,
+            0.7896816730499268,
+            1.198074221611023
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.1723525524139404,
+          4.234681606292725,
+          1.1980748176574707
+        ]
+      },
+      "reasons": [
+        "Identified reserved compartments: [Vec3(0.72, 0.7817985, 0.0)]",
+        "Door y=-4.40: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.40: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.23: assisted route to identified reserved compartment; fixed seats retained",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "expected_bay": [
+          0.7200000286102295,
+          0.7896816730499268,
+          1.198074221611023
+        ],
+        "expected_heading": 270.0,
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.00800013542175293,
+        "secured_heading": 270.0,
+        "secured_position": [
+          0.7200000286102295,
+          0.7896816730499268,
+          1.198074221611023
+        ]
+      },
+      "physical_capacity": 1,
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            0.7200000286102295,
+            0.7896816730499268,
+            1.198074221611023
+          ],
+          "bay_heading": 270.0,
+          "clear_width": 0.825725257396698,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_0",
+          "door_vars": [
+            "door_1"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Vip 1 OF 1721 Manual",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              4.234681606292725,
+              1.1980748176574707
+            ],
+            [
+              0.0,
+              0.7896816730499268,
+              1.198074221611023
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.1723525524139404,
+            4.234681606292725,
+            1.1980748176574707
+          ]
+        }
+      ],
+      "access_profiles": [],
+      "bay_exercises": [
+        {
+          "bay": [
+            0.7200000286102295,
+            0.7896816730499268,
+            1.198074221611023
+          ],
+          "door": "door_0",
+          "exercise": {
+            "bay_ready": null,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                0.7200000286102295,
+                0.7896816730499268,
+                1.198074221611023
+              ],
+              "expected_heading": 270.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.00800013542175293,
+              "secured_heading": 270.0,
+              "secured_position": [
+                0.7200000286102295,
+                0.7896816730499268,
+                1.198074221611023
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            1.1723525524139404,
+            4.234681606292725,
+            1.1980748176574707
+          ]
+        }
+      ]
+    },
+    {
+      "model": "VIP I 4 portas",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Vip 1 4 portass.zip",
+      "bus_file": "Vip 1 4 portass/Vip 1 OF 1721 Manual.bus",
+      "archive_sha256": "f446c09740125e45790392c2de03294bf422f4e713dbc075a267b353288dc078",
+      "discovery_ms": 32.761356,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          0.7200000286102295,
+          0.3034231662750244,
+          1.1980746984481812
+        ],
+        "bay_heading": 180.0,
+        "clear_width": 0.8257257342338562,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_2",
+        "door_vars": [
+          "door_3"
+        ],
+        "equipment": "added_lift",
+        "exit_index": 1,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Vip 1 OF 1721 Manual",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [],
+        "route": [
+          [
+            0.0,
+            1.2134231328964233,
+            1.1980743408203125
+          ],
+          [
+            0.0,
+            0.3034231662750244,
+            1.1980746984481812
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          -1.1723530292510986,
+          1.2134231328964233,
+          1.1980743408203125
+        ]
+      },
+      "reasons": [
+        "Identified reserved compartments: [Vec3(0.72, 0.32329, 0.0)]",
+        "Door y=-4.40: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-4.40: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-1.72: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=-1.72: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=4.23: assisted route to identified reserved compartment; fixed seats retained",
+        "Verified wide door and clear floor area; driver-operated auxiliary lift required",
+        "Door y=1.21: assisted route to identified reserved compartment; fixed seats retained"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "expected_bay": [
+          0.7200000286102295,
+          0.3034231662750244,
+          1.1980746984481812
+        ],
+        "expected_heading": 180.0,
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000016212463379,
+        "secured_heading": 180.0,
+        "secured_position": [
+          0.7200000286102295,
+          0.3034231662750244,
+          1.1980746984481812
+        ]
+      },
+      "physical_capacity": 1,
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            0.7200000286102295,
+            0.3034231662750244,
+            1.1980746984481812
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 0.8257257342338562,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_2",
+          "door_vars": [
+            "door_3"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Vip 1 OF 1721 Manual",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              1.2134231328964233,
+              1.1980743408203125
+            ],
+            [
+              0.0,
+              0.3034231662750244,
+              1.1980746984481812
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            -1.1723530292510986,
+            1.2134231328964233,
+            1.1980743408203125
+          ]
+        }
+      ],
+      "access_profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            0.7200000286102295,
+            0.3034231662750244,
+            1.1980746984481812
+          ],
+          "bay_heading": 180.0,
+          "clear_width": 0.825725257396698,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_0",
+          "door_vars": [
+            "door_1"
+          ],
+          "equipment": "added_lift",
+          "exit_index": 1,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Vip 1 OF 1721 Manual",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [],
+          "route": [
+            [
+              0.0,
+              4.234681606292725,
+              1.1980751752853394
+            ],
+            [
+              0.0,
+              0.3034231662750244,
+              1.1980746984481812
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.1723525524139404,
+            4.234681606292725,
+            1.1980751752853394
+          ]
+        }
+      ],
+      "bay_exercises": [
+        {
+          "bay": [
+            0.7200000286102295,
+            0.3034231662750244,
+            1.1980746984481812
+          ],
+          "door": "door_2",
+          "exercise": {
+            "bay_ready": null,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                0.7200000286102295,
+                0.3034231662750244,
+                1.1980746984481812
+              ],
+              "expected_heading": 180.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379,
+              "secured_heading": 180.0,
+              "secured_position": [
+                0.7200000286102295,
+                0.3034231662750244,
+                1.1980746984481812
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            -1.1723530292510986,
+            1.2134231328964233,
+            1.1980743408203125
+          ]
+        },
+        {
+          "bay": [
+            0.7200000286102295,
+            0.3034231662750244,
+            1.1980746984481812
+          ],
+          "door": "door_0",
+          "exercise": {
+            "bay_ready": null,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                0.7200000286102295,
+                0.3034231662750244,
+                1.1980746984481812
+              ],
+              "expected_heading": 180.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000016212463379,
+              "secured_heading": 180.0,
+              "secured_position": [
+                0.7200000286102295,
+                0.3034231662750244,
+                1.1980746984481812
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            1.1723525524139404,
+            4.234681606292725,
+            1.1980751752853394
+          ]
+        }
+      ]
+    },
+    {
+      "model": "VIP III Volkswagen",
+      "status": "CICLO_CPU_APROVADO",
+      "detail": "embarque=Riding, desembarque=Finished, salto=0.0080 m",
+      "archive": "Vip iii Wolks.zip",
+      "bus_file": "Vip iii Wolks/Vip 3.bus",
+      "archive_sha256": "d8054fb28970abdf774f9033c76184f1d014dc366f291cee268d9c80962996e4",
+      "discovery_ms": 48.817350000000005,
+      "profile": {
+        "alight_trigger": null,
+        "bay": [
+          -0.7200000286102295,
+          0.158532977104187,
+          1.1115692853927612
+        ],
+        "bay_heading": 90.0,
+        "clear_width": 1.1766178607940674,
+        "deploy_trigger": null,
+        "door_open_value": 0.949999988079071,
+        "door_var": "door_1",
+        "door_vars": [],
+        "equipment": "added_lift",
+        "exit_index": 0,
+        "fold": null,
+        "lower_trigger": null,
+        "maneuvers": [],
+        "name": "Automatic accessibility · Vip 3",
+        "native": null,
+        "native_floor_var": null,
+        "native_ground_var": null,
+        "native_height_var": null,
+        "native_stowed_var": null,
+        "platform_length": 1.399999976158142,
+        "raise_trigger": null,
+        "replacement_meshes": [
+          "1721\\Interior_elevador.o3d"
+        ],
+        "route": [
+          [
+            0.2160114049911499,
+            0.41853296756744385,
+            1.1115696430206299
+          ]
+        ],
+        "schema": 1,
+        "stow_trigger": null,
+        "threshold": [
+          1.1520228385925293,
+          0.6785329580307007,
+          1.111569881439209
+        ]
+      },
+      "reasons": [
+        "Identified reserved compartments: [Vec3(-0.72, 0.1639185, 0.0)]",
+        "Door y=0.68: assisted route to identified reserved compartment; fixed seats retained",
+        "Door y=3.86: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=3.85: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=3.82: 0 candidate bays, no clear wheelchair bay found",
+        "Door y=3.90: 0 candidate bays, no clear wheelchair bay found"
+      ],
+      "controller": {
+        "alighting": "Finished",
+        "boarding": "Riding",
+        "expected_bay": [
+          -0.7200000286102295,
+          0.158532977104187,
+          1.1115692853927612
+        ],
+        "expected_heading": 90.0,
+        "interlocked_after_stow": false,
+        "max_step_metres": 0.008000054396688938,
+        "secured_heading": 90.0,
+        "secured_position": [
+          -0.7200000286102295,
+          0.158532977104187,
+          1.1115692853927612
+        ]
+      },
+      "physical_capacity": 1,
+      "profiles": [
+        {
+          "alight_trigger": null,
+          "bay": [
+            -0.7200000286102295,
+            0.158532977104187,
+            1.1115692853927612
+          ],
+          "bay_heading": 90.0,
+          "clear_width": 1.1766178607940674,
+          "deploy_trigger": null,
+          "door_open_value": 0.949999988079071,
+          "door_var": "door_1",
+          "door_vars": [],
+          "equipment": "added_lift",
+          "exit_index": 0,
+          "fold": null,
+          "lower_trigger": null,
+          "maneuvers": [],
+          "name": "Automatic accessibility · Vip 3",
+          "native": null,
+          "native_floor_var": null,
+          "native_ground_var": null,
+          "native_height_var": null,
+          "native_stowed_var": null,
+          "platform_length": 1.399999976158142,
+          "raise_trigger": null,
+          "replacement_meshes": [
+            "1721\\Interior_elevador.o3d"
+          ],
+          "route": [
+            [
+              0.2160114049911499,
+              0.41853296756744385,
+              1.1115696430206299
+            ]
+          ],
+          "schema": 1,
+          "stow_trigger": null,
+          "threshold": [
+            1.1520228385925293,
+            0.6785329580307007,
+            1.111569881439209
+          ]
+        }
+      ],
+      "access_profiles": [],
+      "bay_exercises": [
+        {
+          "bay": [
+            -0.7200000286102295,
+            0.158532977104187,
+            1.1115692853927612
+          ],
+          "door": "door_1",
+          "exercise": {
+            "bay_ready": null,
+            "controller": {
+              "alighting": "Finished",
+              "boarding": "Riding",
+              "expected_bay": [
+                -0.7200000286102295,
+                0.158532977104187,
+                1.1115692853927612
+              ],
+              "expected_heading": 90.0,
+              "interlocked_after_stow": false,
+              "max_step_metres": 0.008000054396688938,
+              "secured_heading": 90.0,
+              "secured_position": [
+                -0.7200000286102295,
+                0.158532977104187,
+                1.1115692853927612
+              ]
+            },
+            "door_open": true,
+            "fixture": "additional equipment controller, actual add-on door/folding-seat animations, 18 cm curb"
+          },
+          "threshold": [
+            1.1520228385925293,
+            0.6785329580307007,
+            1.111569881439209
+          ]
+        }
+      ]
+    }
+  ],
+  "base_source_commit": "9b1d236c84b8af2f4c5a13d7c110b0db5e0c1c68",
+  "candidate_branch": "fix/wheelchair-real-bays-2232"
+}

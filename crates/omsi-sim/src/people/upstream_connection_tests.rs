@@ -96,7 +96,9 @@ fn wheelchair_request_stays_active_until_alt_assistance_completes_alighting() {
         assert!(!j.interlocked());
     }
     view.speed=0.0;
-    wheelchair::command(wheelchair::ASSIST);
+    // Each fixture owns its input. The process-wide UI mailbox can be consumed
+    // by a different simulation test running on another thread.
+    h.wheelchairs.assisted = true;
     h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
     assert_eq!(h.wheelchairs.journey.as_ref().unwrap().stage,Stage::Riding);
     view.wheelchair_feedback.door_open=true;
@@ -110,7 +112,7 @@ fn wheelchair_request_stays_active_until_alt_assistance_completes_alighting() {
 }
 
 #[test]
-fn wheelchair_boarding_yields_past_an_occupied_bay_with_no_free_standing_place() {
+fn wheelchair_waits_for_an_occupied_bay_then_boards_after_it_is_freed() {
     let (mut h,bn,view,world)=wheelchair_service("wheelchair-full-bay");
     let (mut crowd,_,_,_)=wheelchair_service("wheelchair-crowd");
     let mut other=crowd.people.pop().unwrap();other.id=2;
@@ -125,7 +127,17 @@ fn wheelchair_boarding_yields_past_an_occupied_bay_with_no_free_standing_place()
         h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
         if h.wheelchairs.riders.contains_key(&id){break;}
     }
-    assert!(h.wheelchairs.riders.contains_key(&id),"occupied bay permanently blocked boarding");
+    assert!(!h.wheelchairs.riders.contains_key(&id),"an occupied bay cannot be secured by a timeout");
+    assert!((h.people[1].position-bn.world(bay)).length()<0.01,"crowd was moved into another occupied place");
+    let outside=bn.world(Vec3::new(3.0,5.0,0.0));
+    h.people[1].position=outside;h.people[1].place=Place::Ground;
+    if let State::Pax(x)=&mut h.people[1].state {x.inside=None;x.bus=None;x.pos=outside;}
+    for _ in 0..12000 {
+        h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
+        if h.wheelchairs.riders.contains_key(&id){break;}
+    }
+    assert!(h.wheelchairs.riders.contains_key(&id),"boarding must resume when the real bay is free");
+    assert!((h.wheelchairs.riders[&id].journey.local-bay).length()<0.005);
     assert_eq!(h.people.len(),2);
 }
 
@@ -138,6 +150,127 @@ fn a_waiting_person_at_the_lift_moves_aside_before_the_crowd_timeout() {
     assert!(h.begin_wheelchair_boarding(0,&bn,&world));h.wheelchairs.assisted=true;
     for _ in 0..12000 {h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));if let Some(j)=h.wheelchairs.journey.as_ref(){assert!(!j.crowd_priority_active());}if h.wheelchairs.riders.contains_key(&id){break;}}
     assert!(h.wheelchairs.riders.contains_key(&id));assert_eq!(h.wheelchairs.riders[&id].journey.stage,Stage::Riding);assert_eq!(h.people.len(),2);assert!((h.people[1].position-pos).length()>0.6);
+}
+
+fn wheelchair_corridor_fixture(name: &str) -> (PeopleSim, BusNow, wheelchair::Profile, FlatWorld) {
+    let (mut h, mut bn, _, world) = wheelchair_service(name);
+    let profile = h.wheelchairs.profile.clone().unwrap();
+    let cabin = Arc::get_mut(&mut bn.cabin).unwrap();
+    let mut occupied = cabin.seats[0].clone();
+    occupied.seated = false;
+    occupied.height = 0.0;
+    occupied.pos = profile.bay;
+    occupied.floor = occupied.pos;
+    let mut free = occupied.clone();
+    free.pos.y += 2.0;
+    free.floor = free.pos;
+    cabin.seats = vec![occupied, free];
+    h.seats.insert(BusId::Player, vec![true, false]);
+    let (mut crowd, _, _, _) = wheelchair_service(&format!("{name}-crowd"));
+    let mut person = crowd.people.pop().unwrap();
+    person.id = 2;
+    person.position = bn.world(profile.bay);
+    person.place = Place::Bus(BusId::Player, profile.bay);
+    if let State::Pax(x) = &mut person.state {
+        x.inside = Some(BusId::Player);
+        x.bus = Some(BusId::Player);
+        x.task = Task::SittingInBus;
+        x.st = 0;
+        x.pos = profile.bay.as_dvec3();
+        x.seat = Some(0);
+    }
+    h.people.push(person);
+    (h, bn, profile, world)
+}
+
+#[test]
+fn wheelchair_corridor_never_drags_a_passenger_away_from_the_exit() {
+    use wheelchair::{Journey, Stage};
+    let (mut h, bn, profile, world) = wheelchair_corridor_fixture("wheelchair-exit-priority");
+    h.wheelchairs.assisted = true;
+    let x = h.pax_mut(1).unwrap();
+    x.task = Task::InBusToExit;
+    x.st = 5;
+    x.seat = None;
+    x.pt = Some(3);
+    x.pt_target = Some(0);
+    let before = x.pos;
+    for stage in [Stage::Waiting, Stage::Deploying, Stage::ToBay, Stage::ToExit] {
+        let mut journey = Journey::new(&profile, 0.0, 270.0);
+        journey.stage = stage;
+        for _ in 0..180 {
+            h.clear_wheelchair_corridor(1, &profile, &journey, &bn, &world, 1.0 / 60.0);
+        }
+        let x = h.pax(1).unwrap();
+        assert_eq!(x.pos, before, "wheelchair service pulled an alighting passenger off the path during {stage:?}");
+        assert_eq!((x.task, x.pt, x.pt_target), (Task::InBusToExit, Some(3), Some(0)));
+    }
+}
+
+#[test]
+fn wheelchair_cabin_yield_starts_with_assistance_and_reserves_the_new_standing_place() {
+    let (mut h, bn, profile, world) = wheelchair_corridor_fixture("wheelchair-yield-reservation");
+    let journey = wheelchair::Journey::new(&profile, 0.0, 270.0);
+    let before = h.pax(1).unwrap().pos;
+    for _ in 0..60 {
+        h.clear_wheelchair_corridor(1, &profile, &journey, &bn, &world, 1.0 / 60.0);
+    }
+    assert_eq!(h.pax(1).unwrap().pos, before, "a chair merely waiting at the curb must not hold the cabin corridor");
+    h.wheelchairs.assisted = true;
+    h.wheelchairs.feedback.door_open = true;
+    for _ in 0..180 {
+        h.clear_wheelchair_corridor(1, &profile, &journey, &bn, &world, 1.0 / 60.0);
+    }
+    assert!((h.pax(1).unwrap().pos - bn.cabin.seats[1].floor.as_dvec3()).length() < 0.005);
+    assert_eq!(h.pax(1).unwrap().seat, Some(1));
+    assert_eq!(h.seats[&BusId::Player], vec![false, true], "the old place must be freed and the actual new place occupied");
+    let buses = [bn];
+    let ix = HashMap::from([(BusId::Player, 0)]);
+    h.set_task(1, Task::InBusToExit, &buses, &ix, &world);
+    let on_exit_path = h.pax(1).unwrap().pos;
+    h.clear_wheelchair_corridor(1, &profile, &journey, &buses[0], &world, 0.1);
+    assert_eq!(h.pax(1).unwrap().pos, on_exit_path, "a previous yield target must be released as soon as the passenger wants to leave");
+    assert!(h.seats[&BusId::Player].iter().all(|taken| !taken));
+}
+
+#[test]
+fn wheelchair_alighting_preempts_unstarted_boarding_and_keeps_both_passengers() {
+    use wheelchair::Stage;
+    let (mut h, bn, view, world) = wheelchair_service("wheelchair-alight-before-board");
+    let first = h.people[0].id;
+    assert!(h.begin_wheelchair_boarding(0, &bn, &world));
+    h.wheelchairs.assisted = true;
+    for _ in 0..12000 {
+        h.tick_wheelchairs(1.0 / 60.0, &world, Some(&view), std::slice::from_ref(&bn));
+        if h.wheelchairs.riders.contains_key(&first) { break; }
+    }
+    assert!(h.wheelchairs.riders.contains_key(&first));
+    let mut second_profile = h.wheelchairs.profiles[0].clone();
+    second_profile.bay.y += 3.0;
+    h.wheelchairs.profiles.push(second_profile);
+    let (mut crowd, _, _, _) = wheelchair_service("wheelchair-alight-before-board-curb");
+    let mut second = crowd.people.pop().unwrap();
+    second.id = 2;
+    h.people.push(second);
+    h.register_wheelchair(1);
+    assert!(h.begin_wheelchair_boarding(1, &bn, &world));
+    assert_eq!(h.wheelchairs.person, Some(2));
+    assert!(h.wheelchairs.request_alight(first));
+    h.tick_wheelchairs(1.0 / 60.0, &world, Some(&view), std::slice::from_ref(&bn));
+    assert_eq!(h.wheelchairs.person, Some(first), "a waiting embarkation hid and starved an existing alighting request");
+    let journey = h.wheelchairs.journey.as_ref().unwrap();
+    assert_eq!(journey.stage, Stage::Riding);
+    assert!(journey.alight_requested);
+    assert!(h.wheelchairs.wants_alight());
+    assert_eq!(h.pax(1).unwrap().task, Task::ToBus);
+    assert!(h.people[1].puppet.is_none());
+    assert!(h.wheelchairs.is_chair(2));
+    for _ in 0..3 {
+        h.stop_request = false;
+        h.tick_wheelchairs(1.0 / 60.0, &world, Some(&view), std::slice::from_ref(&bn));
+        assert!(!h.stop_request, "a pending request must hold the HUD warning without pressing the normal bell every frame");
+    }
+    assert_eq!(h.people.len(), 2);
 }
 
 #[test]

@@ -96,9 +96,9 @@ fn main() -> anyhow::Result<()> {
             report["native_exercise"] = native::run(&mut v, &profile);
         }
         if let Some(d)=detection.as_ref() {
-            report["bay_exercises"]=json!(d.profiles.iter().map(|p|{
+            report["bay_exercises"]=json!(d.profiles.iter().chain(&d.access_profiles).map(|p|{
                 let mut vehicle=VehicleInstance::new(v.ty.clone(),VehicleHost::new(Default::default()));
-                json!({"bay":p.bay,"exercise":native::run(&mut vehicle,p)})
+                json!({"bay":p.bay,"door":p.door_var,"threshold":p.threshold,"exercise":native::run(&mut vehicle,p)})
             }).collect::<Vec<_>>());
         }
     }

@@ -517,6 +517,13 @@ impl Journey {
             && (!feedback.ground_ready||!feedback.floor_ready) {
             self.hold_reason="Aguardando rampa alinhada ao piso e apoiada no solo";return;
         }
+        if matches!(self.stage,Stage::ToBay|Stage::Securing)
+            && blockers.iter().any(|at| (at.z-profile.bay.z).abs()<0.72
+                && (at.truncate()-profile.bay.truncate()).length()<0.58) {
+            self.timer=0.0;
+            self.hold_reason="Área reservada ocupada: aguardando liberação";
+            return;
+        }
         if native && !ramp {
             let measured = feedback.equipment_height.filter(|h| h.is_finite()
                 && *h >= self.ground_height.min(profile.threshold.z) - 0.05
@@ -734,6 +741,7 @@ pub struct Wheelchairs {
     pub enabled: bool,
     pub profile: Option<Profile>,
     pub profiles: Vec<Profile>,
+    pub access_profiles: Vec<Profile>,
     /// Every wheelchair user keeps the same identity through stops and connections.
     pub mobile: HashMap<u32, passengers::Mobile>,
     pub riders: HashMap<u32, passengers::Rider>,
@@ -769,6 +777,7 @@ impl Default for Wheelchairs {
             enabled,
             profile: None,
             profiles: Vec::new(),
+            access_profiles: Vec::new(),
             mobile: HashMap::new(),
             riders: HashMap::new(),
             spawn_percent: 3.0,
@@ -877,6 +886,7 @@ impl PeopleSim {
         self.wheelchairs.crowd_targets.clear();
         self.wheelchairs.equipment = None;
         self.wheelchairs.profiles.clear();
+        self.wheelchairs.access_profiles.clear();
         self.wheelchairs.riders.clear();
         self.wheelchairs.assisted = false;
         self.wheelchairs.stop_signal_variables = passengers::special_signal_variables(v);
@@ -908,6 +918,7 @@ impl PeopleSim {
                 let detected=discovery::detect(v,cabin);
                 log::info!("WHEELCHAIR DETECTION {}",serde_json::to_string(&detected).unwrap_or_default());
                 self.wheelchairs.profiles=detected.profiles;
+                self.wheelchairs.access_profiles=detected.access_profiles;
                 if let Some(profile)=detected.profile {
                     self.wheelchairs.status=format!("Acessibilidade automática: {}",profile.name);Some(profile)
                 }else{self.wheelchairs.status="Acessibilidade: porta, área ou manobra ainda precisam de calibração".into();None}
@@ -985,7 +996,6 @@ impl PeopleSim {
                 journey.alight_requested = true;
             }
             if journey.alight_requested {
-                self.stop_request = true;
                 if bus.speed.abs()<0.025 {
                     let outside=bn.world(profile.outside(0.0));
                     if let Some(height)=world.walk_height_near(outside.x,outside.y,bn.pos.z) {
@@ -1241,7 +1251,12 @@ pub(crate) mod tests {
     #[test]
     fn two_routes_to_one_bay_do_not_double_its_capacity() {
         let p=profile();let mut alternative=p.clone();alternative.threshold.y+=0.6;
-        let mut wc=Wheelchairs::default();wc.profiles=vec![p.clone(),alternative];
+        alternative.threshold.x=-alternative.threshold.x;
+        let mut wc=Wheelchairs::default();wc.profiles=vec![p.clone()];wc.access_profiles=vec![alternative];
+        assert_eq!(wc.profiles.len(),1);
+        assert_eq!(wc.free_profiles().count(),2);
+        assert!(wc.supports_bus(BusId::Player,Some(1.0)));
+        assert!(wc.supports_bus(BusId::Player,Some(-1.0)));
         let j=Journey::new(&p,0.18,270.0);
         wc.profile=Some(p);wc.person=Some(1);wc.journey=Some(j);
         assert_eq!(wc.free_profiles().count(),0);
@@ -1364,6 +1379,19 @@ pub(crate) mod tests {
         assert_eq!(j.stage,Stage::Riding,"standing passenger must not strand a trip");
         assert!((j.local-p.bay).length()<0.01,"real route to reserved bay is completed");
         assert!(!j.crowd_priority,"soft collision priority ends when the wheelchair is secured");
+    }
+    #[test]
+    fn occupied_reserved_bay_never_times_out_into_a_secured_overlap() {
+        let p=profile();let mut j=Journey::new(&p,0.18,270.0);
+        j.stage=Stage::ToBay;j.local=p.threshold;j.route_at=1;
+        let before=j.local;
+        for _ in 0..1200 {
+            j.advance(&p,0.1,0.0,Feedback{door_open:true,..Default::default()},true,&[p.bay]);
+        }
+        assert_eq!(j.stage,Stage::ToBay);assert_eq!(j.local,before);
+        assert!(!j.pose.secured);
+        run(&mut j,&p,Stage::Riding);
+        assert!((j.local-p.bay).length()<0.003);
     }
     #[test]
     fn crowd_priority_does_not_override_brakes_or_closed_doors() {
