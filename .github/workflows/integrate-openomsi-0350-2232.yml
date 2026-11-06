@@ -149,52 +149,13 @@ jobs:
           $env:PATH -split ';' | Add-Content candidate/native-runtime-paths.txt
           'Nearby native DLLs:' | Add-Content candidate/native-runtime-paths.txt
           Get-ChildItem target/release -Filter '*.dll' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name | Add-Content candidate/native-runtime-paths.txt
-          # 0xC0000135 can arise from a *transitive* dependency. Record actual
-          # import names and resolve them against the loader's search locations
-          # before attempting the self-test; never mask missing DLLs.
-          $systemDlls = Join-Path $env:WINDIR 'System32'
-          $lookupDirs = @((Split-Path $game), $systemDlls, (Join-Path $env:WINDIR 'SysWOW64')) + ($env:PATH -split ';')
+          # Diagnose missing native imports without bypassing the self-test.
+          $lookupDirs = @((Split-Path $game), (Join-Path $env:WINDIR 'System32')) + ($env:PATH -split ';')
           $lookupDirs = @($lookupDirs | Where-Object { $_ -and (Test-Path $_ -PathType Container) } | Select-Object -Unique)
           $imports = @()
           if ($dumpbin) {
             $imports = @(& $dumpbin /dependents $game 2>&1 | ForEach-Object {
-              if ($_ -match '^\\s*([A-Za-z0-9_.-]+\\.dll)\\s*
-          if ($null -eq $probe -or $probe.ExitCode -ne 0) {
-            $hexExit = if ($null -eq $probe) { 'no-process' } else { '0x{0:X8}' -f ([uint32]([int64]$probe.ExitCode -band 0xffffffffL)) }
-            "Native self-test failed: $hexExit. See native-dependencies.txt and native-runtime-paths.txt." | Set-Content candidate/native-self-test.txt
-            throw "0.3.50/P17 native self-test failed ($hexExit); runtime DLL dependency diagnostics preserved"
-          }
-          "Native executable --self-test exit code: $($probe.ExitCode)" | Set-Content candidate/native-self-test.txt -Encoding utf8
-      - name: Compile actual updated desktop launcher and CLI (not just core)
-        shell: pwsh
-        run: |
-          cargo build --locked --release -p omsi-launcher-core --bin openomsi-launcher
-          if ($LASTEXITCODE -ne 0) { throw '0.3.50 Windows launcher CLI compilation failed' }
-          cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
-          if ($LASTEXITCODE -ne 0) { throw '0.3.50 Windows desktop launcher compilation failed' }
-          $desktop='launcher/src-tauri/target/release/openomsi-launcher-app.exe'
-          if (!(Test-Path $desktop)) { throw 'Expected actual desktop launcher executable missing' }
-          if (!(Test-Path 'target/release/openomsi-launcher.exe')) { throw 'Expected launcher CLI executable missing' }
-          Copy-Item $desktop candidate/openomsi-launcher-app.exe -ErrorAction Stop
-          Copy-Item target/release/openomsi-launcher.exe candidate/openomsi-launcher.exe -ErrorAction Stop
-          @{
-            version=$env:OPENOMSI_VERSION
-            source_commit='${{ needs.merge-and-tests.outputs.integrated_sha }}'
-            desktop_sha256=(Get-FileHash $desktop -Algorithm SHA256).Hash.ToLowerInvariant()
-            cli_sha256=(Get-FileHash target/release/openomsi-launcher.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-            native_sha256=(Get-FileHash target/release/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
-            validation='compiled-only-not-live-tested'
-            protocol=17
-          } | ConvertTo-Json | Set-Content candidate/BUILD-INFO.json -Encoding utf8
-      - name: Preserve candidate proof and DLL diagnostics; no automatic publication
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: 2232-openomsi0350-P17-Windows-CANDIDATE
-          path: candidate/
-          retention-days: 60
-          if-no-files-found: warn
-) { $Matches[1] }
+              if ($_ -match '^\s*([A-Za-z0-9_.-]+\.dll)\s*$') { $Matches[1] }
             } | Sort-Object -Unique)
           }
           $missing = @()
@@ -208,12 +169,9 @@ jobs:
               "FOUND $dll => $resolved" | Add-Content candidate/native-runtime-paths.txt
             } else {
               "NOT FOUND $dll" | Add-Content candidate/native-runtime-paths.txt
-              $missing += $dll
+              if ($dll -notmatch '^(api-ms-win-|ext-ms-win-)') { $missing += $dll }
             }
           }
-          # API-set names are virtual OS contracts; Windows resolves them
-          # internally and they should never be copied from arbitrary sources.
-          $missing = @($missing | Where-Object { $_ -notmatch '^(api-ms-win-|ext-ms-win-)' })
           if ($missing.Count -gt 0) {
             "Unresolved direct native imports: $($missing -join ', ')" | Set-Content candidate/native-self-test.txt
             throw "0.3.50/P17 missing direct Windows DLL dependencies: $($missing -join ', ')"
