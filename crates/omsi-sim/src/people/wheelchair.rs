@@ -1438,6 +1438,44 @@ pub(crate) mod tests {
         j.advance(&p,0.02,0.0,Feedback::default(),false,&[]);assert!(j.interlocked());assert!(j.hold_reason.contains("recolhimento"));
         j.advance(&p,0.02,0.0,Feedback{stowed:true,..Default::default()},false,&[]);assert!(!j.interlocked());assert!(j.hold_reason.is_empty());
     }
+    #[test]
+    fn wheelchair_stop_call_is_one_press_and_recovers_for_later_requests() {
+        let p=profile();
+        let mut wc=Wheelchairs::default();
+        wc.special_stop_signal=true; // A bus with a physical lamp still needs the HUD.
+        wc.stop_signal_variables=vec!["cockpit_light_kinderwagenwunsch".into(),"door_kinderwagenwunsch".into()];
+        let mut first=Journey::new(&p,0.0,0.0);
+        first.boarded=true;
+        first.stage=Stage::Riding;
+        wc.riders.insert(1,passengers::Rider{profile:p.clone(),journey:first,reserved:vec![]});
+        assert!(!wc.wants_alight());
+        assert!(!wc.take_new_stop_request());
+        assert!(wc.request_alight(1));
+        assert!(wc.wants_alight(),"special signal must not hide the request");
+        assert!(wc.take_new_stop_request(),"first stop request was lost");
+        for _ in 0..100 {assert!(!wc.take_new_stop_request(),"request was retriggered every tick");}
+
+        let mut second=Journey::new(&p,0.0,0.0);
+        second.boarded=true;
+        second.stage=Stage::Riding;
+        wc.riders.insert(2,passengers::Rider{profile:p.clone(),journey:second,reserved:vec![]});
+        assert!(wc.request_alight(2));
+        wc.riders.get_mut(&1).unwrap().journey.stage=Stage::Finished;
+        assert!(wc.wants_alight(),"first rider must not clear second rider's signal");
+        assert!(!wc.take_new_stop_request());
+        wc.riders.get_mut(&2).unwrap().journey.stage=Stage::Finished;
+        assert!(!wc.wants_alight(),"light must be releasable when the last rider finishes");
+        assert!(!wc.take_new_stop_request());
+        wc.riders.remove(&1);
+        wc.riders.remove(&2);
+        let mut third=Journey::new(&p,0.0,0.0);
+        third.boarded=true;
+        third.stage=Stage::Riding;
+        wc.riders.insert(3,passengers::Rider{profile:p,journey:third,reserved:vec![]});
+        assert!(wc.request_alight(3));
+        assert!(wc.take_new_stop_request(),"future service must ring again exactly once");
+    }
+
     #[test]fn assistance_does_not_move_a_chair_left_far_behind_the_bus() {
         let p=profile();let mut j=Journey::new(&p,0.0,270.0);j.local.y-=8.0;let before=j.local;
         j.advance(&p,0.02,0.0,Feedback{door_open:true,..Default::default()},true,&[]);assert_eq!(j.stage,Stage::Waiting);assert_eq!(j.local,before);assert!(!j.interlocked());
