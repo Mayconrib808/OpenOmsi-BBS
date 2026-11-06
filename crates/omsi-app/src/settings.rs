@@ -10,6 +10,7 @@ pub const SETTINGS_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct Settings {
+    pub optional_features: omsi_cfg::optional_features::OptionalFeatures,
     /// Samples per pixel: 1, 2, 4 or 8.
     pub msaa: u32,
     /// Anisotropic filtering 1..16.
@@ -45,14 +46,17 @@ pub struct Settings {
     pub standing_chance: f32,
     /// Passenger poses: `original` (the OMSI animation, default) or `enhanced` (experimental IK).
     pub passenger_animation: String,
-    /// Allow a rider to make a subsequent valid journey after alighting.
-    pub passenger_connections: bool,
-    /// Probability (0..100) for eligible onward transfers; inert when disabled.
     pub passenger_transfer_percent: f32,
-    /// Opt-in passenger behavior; false preserves original OMSI semantics.
+    pub wheelchair_spawn_percent: f32,
+    /// Chance (percentage per eligible vehicle/lane) of brief illegal parking, host only.
+    pub illegal_parking_frequency: f32,
+    pub passenger_umbrellas: bool,
+    pub ticket_chance_enabled: bool,
+    pub ticket_chance_percent: f32,
     pub passenger_hailing: bool,
-    /// Independent opt-in full-bus visual reaction; off by default.
     pub passenger_full_bus_reaction: bool,
+    pub passenger_connections: bool,
+    pub passenger_hailing_maps: String,
     pub pax_short_rides_stand: bool,
     /// The photo mode's panel: "simple" (a few settings, the look) or "advanced" (a camera's
     /// body: the exposure triangle, metering, white balance in kelvin, tilt-shift, ...).
@@ -579,7 +583,7 @@ impl Settings {
     }
     /// The defaults of a computer.
     fn desktop() -> Self {
-        Self { msaa: 4, anisotropy: 8, ssao: true, shadows: true, shadow_size: 2048, shadow_blobs: true, lamp_shadows: true, navigator: true, ui_opacity: 0.85, ui_theme: "dark".into(), notes: true, notes_driving: true, notes_script: true, notes_trip: true, notes_tickets: true, ui_scale: 1.0, pause_quick_actions: "default".into(), ui_theme_pack: String::new(), ui_scale_window: true, navigator_corner: "bottom-left".into(), boarding: "auto".into(), passenger_animation: "original".into(), passenger_hailing: false, passenger_full_bus_reaction: false, pax_short_rides_stand: false, passenger_connections: false, passenger_transfer_percent: 20.0, units: "metric".into(), photo_mode: "simple".into(), character_models: "original".into(), standing_chance: 0.05, ambient: true, vol_ambient: 0.8, radio_fx: Default::default(), detail_textures: true, exact_fare: true, pax_bad_driving: true, auto_announce: false, enhanced: false, graphics: "vanilla_plus".into(), triple: Default::default(), triple_span: true, triple_hud_center: true, vr: false, vr_scale: 0.65, vr_head_smoothing_ms: 0.0, vr_mirror_rate: 16.0, vr_desktop_mirror: true, fullscreen: false, vsync: true, volume: 0.6, drive_keys: "simple".into(), touch_door_mode: "standard".into(), touch_pedal_length: 1.0, touch_pedal_deadzone: 0.15, post_aa: "fxaa".into(), render_scale: 0.0, upscaler: "default".into(), fsr_quality: "quality".into(), fsr_sharpness: 0.8, language: "ENG".into(), pax_voices: "all".into(), nav_arrows: false, nav_ai: true, nav_ai_cars: true, nav_surface: true, nav_light: false, nav_3d: true, nav_classic_2d: false, nav_widget: true, milezero: false, nav_size: 1.0, get_up: false, trip_summary: true, full_tank: true, sim_thread: false, texture_compression: true, gpu_texture_compression: true, video_memory: 0, auto_clutch: true, momentary_gears: false, auto_shift: false, min_obj_size: 0.013, max_obj_dist: -1.0, max_fps: 0, chat: true, chat_size: 1.0, tooltips: true, name_tags: true, show_fps: false, perf_overlay: "off".into(), clouds: true, cloud_quality: "high".into(), street_light: "off".into(), ray_tracing_on: false, light_shadows: "off".into(), cloud_shadows: false, light_glow: false, rain_quality: "high".into(), vehicle_smoke: "all".into(), puddles: "high".into(), windy_trees: true, road_snow: false, pax_density: 1.0, vol_ai: 1.0, vol_scenery: 1.0, mirror_size: 256, mirror_hud: 0, mirror_hud_every_frame: false, mirror_refresh: "full".into(), mirror_quality: "standard".into(), mirror_shadows: false, mirror_particles: false, doppler: true, driver: true, maintenance: 0, ai_unsched_factor: 1.0, ai_max_scheduled: 0, ai_max_parked: 0, ai_max_humans: 200, ai_wait_timed_stops_only: false, collision_vehicles: true, collision_objects: true, collision_pedestrians: true, realistic_road_physics: false, head_movement: true, driverview_smooth: true, hands_in_cab: false, alt_view: true, precision_zoom: false, zoom_hold_amount: 0.5, zoom_hold_latch: false, flashlight_cursor: false, time_speed: 1.0, time_sync: false, metar_sync: false, metar_station: String::new(), machine_translation: false, shadow_casters: "all".into(), ctrl_deadzone: 0.0, right_stick_look: true, ctrl_background: false, pad_steer_smooth: 120.0, pad_steer_linear: false, pad_steer_speed: 2.0, pad_deadzone: 0.08, pad_type: "auto".into(), pad_buttons: true, arrows_switch_cams: true, ctrl_off: String::new(), steering_linear: false, old_steering: false, red_steer_spd: false, reflections: 1.0, road_glare: 1.0, traffic_headlights: 1.0, led_glow: 6, led_mips: 1.3, night_brightness: 0.0, mouse_sens: 1.0, mouse_pedal_strength: 1.0, graphics_api: "auto".into(), ff_invert: false, ff_enabled: true, ff_road_vib: 1.0, ff_engine_vib: 1.0, ff_fade: 0.28, brake_hold: true, mouse_steering: false, mouse_right_off: false, mouse_smooth: true, mouse_hold: true, mouse_pedals: true, key_pedal_speed: 1.0, look_sens: 1.0, look_smoothing_ms: 0.0, blinker_cancel: true, wheel_range: 900.0, wheel_lock: 0.0, cab_wheel_rotation: 0, fov: 0.0, camera_collision: true, steer_look: false, steer_look_angle: 30.0, steer_look_response: 0.25, head_idle: 0.0, head_idle_pace: 1.0, pedal_throttle: 1.0, pedal_brake: 1.0, seat: [0.0; 3], seat_pitch_deg: 0.0, head_tracking: false, head_tracking_port: 4242, head_tracking_invert: String::new(), head_tracking_yaw_sens: 100.0, head_tracking_pitch_sens: 100.0, head_tracking_roll_sens: 100.0, head_tracking_x_sens: 100.0, head_tracking_y_sens: 100.0, head_tracking_z_sens: 100.0, head_tracking_invert_yaw: false, head_tracking_invert_pitch: false, head_tracking_invert_roll: false, head_tracking_invert_x: false, head_tracking_invert_y: false, head_tracking_invert_z: false, head_tracking_source: "auto".into(), tobii_edges: false, head_tracking_smoothing: 0.5, head_tracking_dead_zone: 0.1, discord_status: false, discord_app_id: String::new(), voice_enabled: false, voice_mode: "ptt".into(), voice_mic_gain: 1.0, voice_threshold_db: -45.0, voice_input_device: String::new(), voice_volume: 1.0, voice_volume_nearby: 1.0, voice_volume_radio: 1.0, voice_range: 75.0, voice_talker_list: true, voice_all_off: false, info_bar: false, hud_sizes: [1.0; 3] }
+        Self { msaa: 4, anisotropy: 8, ssao: true, shadows: true, shadow_size: 2048, shadow_blobs: true, lamp_shadows: true, navigator: true, ui_opacity: 0.85, ui_theme: "dark".into(), notes: true, notes_driving: true, notes_script: true, notes_trip: true, notes_tickets: true, ui_scale: 1.0, pause_quick_actions: "default".into(), ui_theme_pack: String::new(), ui_scale_window: true, navigator_corner: "bottom-left".into(), boarding: "auto".into(), passenger_animation: "enhanced".into(), passenger_hailing: true, passenger_full_bus_reaction: true, pax_short_rides_stand: false, passenger_connections: true, passenger_transfer_percent: 20.0, units: "metric".into(), photo_mode: "simple".into(), character_models: "original".into(), standing_chance: 0.05, ambient: true, vol_ambient: 0.8, radio_fx: Default::default(), detail_textures: true, exact_fare: true, pax_bad_driving: true, auto_announce: false, enhanced: false, graphics: "vanilla_plus".into(), triple: Default::default(), triple_span: true, triple_hud_center: true, vr: false, vr_scale: 0.65, vr_head_smoothing_ms: 0.0, vr_mirror_rate: 16.0, vr_desktop_mirror: true, fullscreen: false, vsync: true, volume: 0.6, drive_keys: "simple".into(), touch_door_mode: "standard".into(), touch_pedal_length: 1.0, touch_pedal_deadzone: 0.15, post_aa: "fxaa".into(), render_scale: 0.0, upscaler: "default".into(), fsr_quality: "quality".into(), fsr_sharpness: 0.8, language: "ENG".into(), pax_voices: "all".into(), nav_arrows: false, nav_ai: true, nav_ai_cars: true, nav_surface: true, nav_light: false, nav_3d: true, nav_classic_2d: false, nav_widget: true, milezero: false, nav_size: 1.0, get_up: false, trip_summary: true, full_tank: true, sim_thread: false, texture_compression: true, gpu_texture_compression: true, video_memory: 0, auto_clutch: true, momentary_gears: false, auto_shift: false, min_obj_size: 0.013, max_obj_dist: -1.0, max_fps: 0, chat: true, chat_size: 1.0, tooltips: true, name_tags: true, show_fps: false, perf_overlay: "off".into(), clouds: true, cloud_quality: "high".into(), street_light: "off".into(), ray_tracing_on: false, light_shadows: "off".into(), cloud_shadows: false, light_glow: false, rain_quality: "high".into(), vehicle_smoke: "all".into(), puddles: "high".into(), windy_trees: true, road_snow: false, pax_density: 1.0, vol_ai: 1.0, vol_scenery: 1.0, mirror_size: 256, mirror_hud: 0, mirror_hud_every_frame: false, mirror_refresh: "full".into(), mirror_quality: "standard".into(), mirror_shadows: false, mirror_particles: false, doppler: true, driver: true, maintenance: 0, ai_unsched_factor: 1.0, ai_max_scheduled: 0, ai_max_parked: 0, ai_max_humans: 200, ai_wait_timed_stops_only: false, collision_vehicles: true, collision_objects: true, collision_pedestrians: true, realistic_road_physics: false, head_movement: true, driverview_smooth: true, hands_in_cab: false, alt_view: true, precision_zoom: false, zoom_hold_amount: 0.5, zoom_hold_latch: false, flashlight_cursor: false, time_speed: 1.0, time_sync: false, metar_sync: false, metar_station: String::new(), machine_translation: false, shadow_casters: "all".into(), ctrl_deadzone: 0.0, right_stick_look: true, ctrl_background: false, pad_steer_smooth: 120.0, pad_steer_linear: false, pad_steer_speed: 2.0, pad_deadzone: 0.08, pad_type: "auto".into(), pad_buttons: true, arrows_switch_cams: true, ctrl_off: String::new(), steering_linear: false, old_steering: false, red_steer_spd: false, reflections: 1.0, road_glare: 1.0, traffic_headlights: 1.0, led_glow: 6, led_mips: 1.3, night_brightness: 0.0, mouse_sens: 1.0, mouse_pedal_strength: 1.0, graphics_api: "auto".into(), ff_invert: false, ff_enabled: true, ff_road_vib: 1.0, ff_engine_vib: 1.0, ff_fade: 0.28, brake_hold: true, mouse_steering: false, mouse_right_off: false, mouse_smooth: true, mouse_hold: true, mouse_pedals: true, key_pedal_speed: 1.0, look_sens: 1.0, look_smoothing_ms: 0.0, blinker_cancel: true, wheel_range: 900.0, wheel_lock: 0.0, cab_wheel_rotation: 0, fov: 0.0, camera_collision: true, steer_look: false, steer_look_angle: 30.0, steer_look_response: 0.25, head_idle: 0.0, head_idle_pace: 1.0, pedal_throttle: 1.0, pedal_brake: 1.0, seat: [0.0; 3], seat_pitch_deg: 0.0, head_tracking: false, head_tracking_port: 4242, head_tracking_invert: String::new(), head_tracking_yaw_sens: 100.0, head_tracking_pitch_sens: 100.0, head_tracking_roll_sens: 100.0, head_tracking_x_sens: 100.0, head_tracking_y_sens: 100.0, head_tracking_z_sens: 100.0, head_tracking_invert_yaw: false, head_tracking_invert_pitch: false, head_tracking_invert_roll: false, head_tracking_invert_x: false, head_tracking_invert_y: false, head_tracking_invert_z: false, head_tracking_source: "auto".into(), tobii_edges: false, head_tracking_smoothing: 0.5, head_tracking_dead_zone: 0.1, discord_status: false, discord_app_id: String::new(), voice_enabled: false, voice_mode: "ptt".into(), voice_mic_gain: 1.0, voice_threshold_db: -45.0, voice_input_device: String::new(), voice_volume: 1.0, voice_volume_nearby: 1.0, voice_volume_radio: 1.0, voice_range: 75.0, voice_talker_list: true, voice_all_off: false, info_bar: false, hud_sizes: [1.0; 3] , optional_features: Default::default(), wheelchair_spawn_percent: 3.0, illegal_parking_frequency: 0.8, passenger_umbrellas: true, ticket_chance_enabled: false, ticket_chance_percent: -1.0, passenger_hailing_maps: omsi_launcher_lib::passenger_defaults::MAPS.into() }
     }
 }
 
@@ -687,6 +691,7 @@ impl Settings {
 
     pub fn from_text(text: &str) -> Settings {
         let mut s = Settings::default();
+        let effects_migrated=text.lines().any(|l|l.trim()=="passenger_effects_221=1");
         let mut version = 0u32;
         let mut graphics: Option<String> = None;
         let mut theme = (false, None);
@@ -694,6 +699,7 @@ impl Settings {
             let Some((k, v)) = line.split_once('=') else { continue };
             let (k, v) = (k.trim().to_ascii_lowercase(), v.trim());
             let b = |v: &str| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes");
+            if s.optional_features.set(&k, b(v)).is_some() { continue; }
             match k.as_str() {
                 "version" => version = v.parse().unwrap_or(0),
                 "msaa" => s.msaa = v.parse().unwrap_or(s.msaa),
@@ -709,10 +715,16 @@ impl Settings {
                 "boarding" => s.boarding = v.to_ascii_lowercase(),
                 "standing_chance" => s.standing_chance = v.trim_end_matches('%').parse::<f32>().ok().filter(|x| x.is_finite()).map(|x| (x / 100.0).clamp(0.0, 1.0)).unwrap_or(s.standing_chance),
                 "photo_mode" => s.photo_mode = if v.eq_ignore_ascii_case("advanced") { "advanced" } else { "simple" }.into(),
-                "passenger_connections" => s.passenger_connections = b(v),
-                "passenger_transfer_percent" => s.passenger_transfer_percent = v.parse::<f32>().ok().filter(|x| x.is_finite()).unwrap_or(20.0).clamp(0.0,100.0),
+                "ticket_chance_enabled" => s.ticket_chance_enabled=b(v),
+                "ticket_chance_percent" => s.ticket_chance_percent=v.parse::<f32>().ok().filter(|x|x.is_finite()).unwrap_or(-1.0).clamp(-1.0,100.0),
+                "wheelchair_spawn_percent" => s.wheelchair_spawn_percent=v.trim_end_matches('%').parse::<f32>().ok().filter(|x|x.is_finite()).unwrap_or(3.0).clamp(0.0,100.0),
+                "passenger_transfer_percent" => s.passenger_transfer_percent=v.parse::<f32>().ok().filter(|x|x.is_finite()).unwrap_or(20.0).clamp(0.0,100.0),
+                "illegal_parking_frequency" => s.illegal_parking_frequency=v.parse::<f32>().ok().filter(|x|x.is_finite()).unwrap_or(0.8).clamp(0.0,5.0),
+                "passenger_umbrellas" => s.passenger_umbrellas = b(v),
                 "passenger_hailing" => s.passenger_hailing = b(v),
                 "passenger_full_bus_reaction" => s.passenger_full_bus_reaction = b(v),
+                "passenger_connections" => s.passenger_connections = b(v),
+                "passenger_hailing_maps" => s.passenger_hailing_maps = v.to_string(),
                 "pax_short_rides_stand" => s.pax_short_rides_stand = b(v),
                 "passenger_animation" => s.passenger_animation = if v.eq_ignore_ascii_case("enhanced") { "enhanced" } else { "original" }.into(),
                 "character_models" => s.character_models = if v.eq_ignore_ascii_case("improved") { "improved" } else { "original" }.into(),
@@ -975,8 +987,20 @@ impl Settings {
                 _ => {}
             }
         }
+        // The 0.3.47 and PT-BR toggles now start enabled in Settings::default.
+        // An explicit saved 0 always wins, including in legacy settings files.
+        // Keep the existing one-time enhanced-pose migration (a mode, not a
+        // bool switch) until the user's config receives the 0.3.47 marker.
+        if !text.lines().any(|line| line.trim() == "passenger_features_0347=1") {
+            s.passenger_animation = "enhanced".into();
+        }
+        s.optional_features.weather_clothing = false;
+        s.optional_features.passenger_connections_enabled = false;
         if !theme.0 && theme.1 == Some(true) { s.ui_theme = "light".into(); }
         s.settle_after_reading(graphics, version);
+        if !effects_migrated{
+            s.passenger_hailing_maps=omsi_launcher_lib::passenger_defaults::migrate_maps(&s.passenger_hailing_maps);
+        }
         s
     }
 
@@ -1090,10 +1114,14 @@ impl Settings {
         text.push_str(&format!("rain_quality={}\n", self.rain_quality));
         text.push_str(&format!("puddles={}\n", self.puddles));
         text.push_str(&format!("gpu_texture_compression={}\n", self.gpu_texture_compression as u8));
-        text.push_str(&format!("passenger_animation={}\n", self.passenger_animation));
-        text.push_str(&format!("passenger_connections={}\npassenger_transfer_percent={}\n", self.passenger_connections as u8, self.passenger_transfer_percent));
-        text.push_str(&format!("passenger_hailing={}\n", self.passenger_hailing as u8));
-        text.push_str(&format!("passenger_full_bus_reaction={}\n", self.passenger_full_bus_reaction as u8));
+        text.push_str(&format!("ticket_chance_enabled={}\nticket_chance_percent={}\n",self.ticket_chance_enabled as u8,self.ticket_chance_percent));
+        text.push_str(&format!("passenger_features_0347=1\npassenger_connections={}\npassenger_full_bus_reaction={}\n",self.passenger_connections as u8,self.passenger_full_bus_reaction as u8));
+        text.push_str(&format!("passenger_transfer_percent={}\n",self.passenger_transfer_percent));
+        text.push_str(&format!("illegal_parking_frequency={}\n",self.illegal_parking_frequency));
+        if self.language.eq_ignore_ascii_case("PTB") {text.push_str("ptbr_passenger_audio=1\n");}
+        text.push_str(&format!("wheelchair_spawn_percent={}\n",self.wheelchair_spawn_percent));
+        self.optional_features.write_text(&mut text);
+        text.push_str(&format!("passenger_effects_221=1\npassenger_animation={}\npassenger_umbrellas={}\npassenger_hailing={}\npassenger_hailing_maps={}\n", self.passenger_animation,self.passenger_umbrellas as u8,self.passenger_hailing as u8,self.passenger_hailing_maps));
         text.push_str(&format!("pax_short_rides_stand={}\n", self.pax_short_rides_stand as u8));
         text.push_str(&format!("photo_mode={}\n", self.photo_mode));
         text.push_str(&format!("character_models={}\n", self.character_models));
@@ -1149,8 +1177,7 @@ impl Settings {
         self.ssao = false;
         self.shadow_size = self.shadow_size.min(2048);
         self.mirror_size = self.mirror_size.min(256);
-        // (the Enhanced extras are what the driver gave up on in the reports of 0.3.42: they
-        // go at once, the mode itself after a second loss)
+        // Official 0.3.44: turn off expensive Enhanced effects after driver loss.
         self.ray_tracing_on = false;
         self.cloud_shadows = false;
         self.light_glow = false;
@@ -1159,6 +1186,7 @@ impl Settings {
             self.light_shadows = "street".into();
         }
         if n >= 2 {
+            // Official 0.3.44: a second device loss falls back to Vanilla+.
             if graphics_mode(&self.graphics) == "enhanced" {
                 self.graphics = "vanilla_plus".into();
             }
@@ -1277,6 +1305,9 @@ pub fn view_distance() -> Option<f64> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+#[path = "settings/optional_features_tests.rs"]
+mod optional_features_tests;
 
 impl Settings {
     /// The player's bus's `wearlifespan` for the maintenance condition (OMSI's table).

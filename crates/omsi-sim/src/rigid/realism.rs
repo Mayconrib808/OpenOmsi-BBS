@@ -26,7 +26,7 @@ pub fn air_density(temp_c: f32, altitude: f32) -> f32 {
 }
 
 /// How a vehicle presents itself to the air, in its own frame.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Aero {
     /// Drag coefficient times frontal area (m²) and side coefficient times side area (m²).
     pub cd_a: f32,

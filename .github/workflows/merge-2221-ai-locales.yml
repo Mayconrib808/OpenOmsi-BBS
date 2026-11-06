@@ -1,0 +1,34 @@
+name: Merge 2.2.2.1 localized AI switches
+on:
+  push:
+    branches: [feature/openomsi-2.2.2.1-requested-issues]
+    paths:
+      - .github/workflows/merge-2221-ai-locales.yml
+      - .github/scripts/apply-2221-ai-locales.py
+  workflow_dispatch: {}
+permissions:
+  contents: write
+concurrency:
+  group: merge-2221-ai-locales
+  cancel-in-progress: false
+jobs:
+  merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/openomsi-2.2.2.1-requested-issues
+          persist-credentials: true
+      - name: Merge 29 verified translations into the main catalog
+        run: python .github/scripts/apply-2221-ai-locales.py
+      - name: Commit localized app catalog to feature branch
+        shell: bash
+        run: |
+          git add crates/omsi-app/locales/app.yml
+          if git diff --cached --quiet; then
+            echo 'Translations already present'
+            exit 0
+          fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'i18n: translate 2.2.2.1 AI features in all 29 languages'
+          git push origin HEAD:feature/openomsi-2.2.2.1-requested-issues

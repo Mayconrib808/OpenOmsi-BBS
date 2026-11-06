@@ -75,6 +75,7 @@ fn diagnostic_type(reverse: bool) -> VehicleType {
             viewpoint: 0,
             skin: Vec::new(),
             keep_winding: false,
+            pick_geometry: Default::default(),
         })
         .collect();
     ty

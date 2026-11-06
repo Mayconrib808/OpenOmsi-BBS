@@ -230,6 +230,7 @@ impl crate::ai_traffic::TrafficSim {
 /// and the simulation can step on meanwhile. Kept from one to the next (`PeopleSim::snapshot_into`).
 #[derive(Default)]
 pub struct PeopleFrame {
+    pub wheelchair_equipment: Vec<crate::people::wheelchair::EquipmentPose>,
     /// The people's clock (s).
     pub time: f64,
     /// Where the player looks from (None: the camera stands in).
@@ -238,13 +239,13 @@ pub struct PeopleFrame {
     pub buses: Arc<Vec<crate::people::cabin::BusNow>>,
     /// Everybody, in the simulation's order.
     pub people: Vec<PersonFrame>,
-    /// Reused cache: capacity is checked only for targeted buses.
     pub capacity_cache: Vec<(crate::people::BusId, bool)>,
 }
 
 /// One person of a [`PeopleFrame`].
 #[derive(Clone)]
 pub struct PersonFrame {
+    pub wheelchair: Option<crate::people::wheelchair::ChairPose>,
     pub id: u32,
     pub ty: Arc<crate::human::HumanType>,
     pub position: glam::DVec3,
@@ -267,13 +268,16 @@ pub struct PersonFrame {
     pub facts: crate::people::PoseFacts,
     /// The state's name (`OMSI_TRACE_PAX`).
     pub state: &'static str,
-    /// Optional visual target of an approaching compatible bus.
+    /// Visual-only compatible bus approaching this waiting passenger.
     pub hail_target: Option<glam::DVec3>,
+    /// A compatible bus is still approaching; lower the arm once it has stopped.
     pub hail_moving: bool,
     pub hail_bus: Option<crate::people::BusId>,
     pub hail_full: bool,
     pub hail_signal_enabled: bool,
     pub hail_reaction_enabled: bool,
+    /// Close a carried umbrella while approaching the entry threshold.
+    pub close_umbrella: bool,
     /// `OMSI_CHECK_TPOSE`: the person's label and state, and a passenger's details.
     pub debug: Option<[String; 2]>,
 }
@@ -283,6 +287,9 @@ impl crate::people::PeopleSim {
     /// buffer kept).
     pub fn snapshot_into(&self, out: &mut PeopleFrame) {
         let debug = omsi_cfg::flags::OMSI_CHECK_TPOSE.is_set();
+        out.wheelchair_equipment.clear();
+        out.wheelchair_equipment.extend(self.wheelchairs.equipment);
+        out.wheelchair_equipment.extend_from_slice(&self.wheelchairs.remote_equipment);
         out.time = self.time;
         out.eye = self.eye;
         out.buses.clone_from(&self.last_buses);
@@ -297,7 +304,7 @@ impl crate::people::PeopleSim {
                     (p.position - eye.pos).length_squared() <= 300.0 * 300.0
                 })
             {
-                self.visual_hail_bus(i, &self.last_buses)
+                self.visual_hail_bus(i, &self.last_buses).or_else(|| self.visual_mirror_hail_bus(i, &self.last_buses))
                     .and_then(|(bus_id, moving, pos)| {
                         let bus = self.last_buses.iter().find(|b| b.id == bus_id)?;
                         let full = if let Some((_, value)) = capacity_cache.iter().find(|(id, _)| *id == bus_id) {
@@ -328,6 +335,7 @@ impl crate::people::PeopleSim {
                 None
             };
             PersonFrame {
+            wheelchair: self.wheelchairs.pose(p.id),
             id: p.id,
             ty: p.ty.clone(),
             position: p.position,
@@ -340,7 +348,7 @@ impl crate::people::PeopleSim {
             interior: p.interior,
             puppet: p.puppet.is_some(),
             hidden: self.avatar_hidden.get(&p.id).copied(),
-            facts: p.pose_facts(),
+            facts: p.pose_facts_with_buses(&self.last_buses),
             state: p.state.name(),
             hail_target: hail.map(|(_, pos, _, _)| pos),
             hail_moving: hail.is_some_and(|(_, _, moving, _)| moving),
@@ -348,6 +356,7 @@ impl crate::people::PeopleSim {
             hail_full: hail.is_some_and(|(_, _, _, full)| full),
             hail_signal_enabled: self.visual_hailing,
             hail_reaction_enabled: self.visual_full_bus_reaction,
+            close_umbrella: matches!(p.place, crate::people::Place::Bus(..)),
             debug: debug.then(|| {
                 let pax = match &p.state {
                     crate::people::State::Pax(x) => format!("pax_state {} speed {:.2} seat_h {:.2} room {:.2} st {}", x.pax_state, x.speed, x.seat_h, x.room, x.st),
@@ -357,6 +366,47 @@ impl crate::people::PeopleSim {
             }),
             }
         }));
+        // Low-frequency gameplay evidence, not a per-person/per-frame log flood.
+        // The old log never recorded whether a waiting passenger found a
+        // compatible bus, which made visual-hailing regressions untestable.
+        static LAST_HAIL_AUDIT_WINDOW: std::sync::atomic::AtomicU64 =
+            std::sync::atomic::AtomicU64::new(u64::MAX);
+        let audit_window = (self.time.max(0.0) / 30.0) as u64;
+        if LAST_HAIL_AUDIT_WINDOW.swap(audit_window, std::sync::atomic::Ordering::Relaxed) != audit_window {
+            let mut waiting_visible = 0usize;
+            let mut bus_near_waiter = 0usize;
+            for (i, person) in self.people.iter().enumerate() {
+                if self.eye.is_some_and(|eye| (person.position-eye.pos).length_squared() > 300.0*300.0) {
+                    continue;
+                }
+                let local_waiting = self.pax(i).is_some_and(|pax|
+                    pax.inside.is_none() && pax.task == crate::people::pax::Task::WaitingForBus);
+                // Mirrored waiters are State::Idle and carry their host-owned
+                // waiting state separately. Omitting them made LAN logs claim
+                // that no passengers were visible even while a stop was full.
+                let mirrored_waiting = person.remote && self.mirror_wait.contains_key(&person.id);
+                if !local_waiting && !mirrored_waiting {
+                    continue;
+                }
+                waiting_visible += 1;
+                if self.last_buses.iter().any(|b|
+                    (b.pos-person.position).length_squared() <= 90.0*90.0) {
+                    bus_near_waiter += 1;
+                }
+            }
+            let matched = out.people.iter().filter(|p| p.hail_target.is_some()).count();
+            let moving = out.people.iter().filter(|p| p.hail_target.is_some() && p.hail_moving).count();
+            let drawable = out.people.iter().filter(|p| p.hail_target.is_some()
+                && p.hail_moving && !p.puppet && p.hidden.is_none()
+                && matches!(p.place, crate::people::Place::Ground)).count();
+            // Differentiate a stop with no moving buses from the classic regression
+            // where a stationary compatible bus masks an approaching service.
+            let buses_moving = self.last_buses.iter()
+                .filter(|b| b.speed.is_finite() && b.speed > 0.08).count();
+            log::info!("PASSENGER_HAIL_AUDIT settings_signal={} settings_full={} waiting_visible_300m={} waiting_near_bus_90m={} compatible_target={} stationary_target={} moving_target={} render_candidates={} moving_buses={} total_buses={}",
+                self.visual_hailing,self.visual_full_bus_reaction,waiting_visible,bus_near_waiter,
+                matched,matched.saturating_sub(moving),moving,drawable,buses_moving,self.last_buses.len());
+        }
     }
 }
 

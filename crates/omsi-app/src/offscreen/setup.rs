@@ -34,7 +34,39 @@ impl<'a> Offscreen<'a> {
         crate::lights::load_smoke_texture(&mut renderer, &args.root);
         crate::lights::set_corona_root(&args.root);
         let mut scene = renderer.new_scene();
-        let (world, camera) = lan::answering_while(&mut lan_off, args.bus.as_deref(), || load_world(args, &renderer, &mut scene))?;
+        // The ordinary game's window streams tiles, but upstream --server loads
+        // the entire map (radius=0 becomes radius=99). Use exactly the same
+        // streamer on the dedicated host instead of reducing a FIXED radius:
+        // a player spawning on the opposite side of a map must get roads,
+        // AI, stops and collision there too.
+        // A saved radius, --all or a legacy launcher must never disable streaming.
+        let dynamic_server = args.server.is_some();
+        let (world, camera, streamer) = if dynamic_server {
+            let (w, cam, entry) = open_world(args)?;
+            let w = Arc::new(w);
+            let centers = [entry];
+            let mut stream = tiles::Streamer::new(
+                w.clone(), &centers, 1350.0, 700.0, crate::release_free_memory,
+            );
+            let began = Instant::now();
+            lan::answering_while(&mut lan_off, args.bus.as_deref(), || -> Result<()> {
+                // Bootstrap only the first neighborhood. Additional neighborhoods
+                // are loaded as players join/drive; never wait for every tile.
+                while stream.initial_progress().is_some() {
+                    stream.update(&renderer, &mut scene, &centers,
+                        std::time::Duration::from_millis(10), None);
+                    std::thread::sleep(std::time::Duration::from_millis(3));
+                }
+                Ok(())
+            })?;
+            log::info!("BBS dynamic server: initial region ready after {:.2} s, {} tiles (entire map NOT preloaded)",
+                began.elapsed().as_secs_f32(), w.loaded_tiles().len());
+            (w, cam, Some(stream))
+        } else {
+            let (w, cam) = lan::answering_while(&mut lan_off, args.bus.as_deref(),
+                || load_world(args, &renderer, &mut scene))?;
+            (Arc::new(w), cam, None)
+        };
         // the map's own route arrows, with OMSI 2's route arrows
         world.show_help_arrows(&renderer, &mut scene, settings.nav_arrows);
         let lan_seed = lan_off.as_ref().map(lan::population_seed);
@@ -54,7 +86,20 @@ impl<'a> Offscreen<'a> {
         } else {
             None
         };
-        if let Some(s) = schedule.as_mut() {
+        // Transit timetables and signalling blocks need the global route worker
+        // on headless hosts as well. The windowed game starts/polls it, but the
+        // streamed dedicated server previously did neither: transit departures
+        // stayed unrouted, leaving streets full of cars and no scheduled buses.
+        // This uses the global navigation index, not full visual tile preload.
+        if dynamic_server {
+            if let Some(s) = schedule.as_mut() {
+                s.start_transit(world.clone());
+                log::info!("BBS dynamic server: scheduled transit routes queued for background resolution");
+            }
+        }
+        // Keep the timetable and map index global, but prepare vehicles only when
+        // their region is used. A headless host needs no all-depot texture warmup.
+        if let Some(s) = schedule.as_mut().filter(|_| !dynamic_server) {
             lan::answering_while(&mut lan_off, args.bus.as_deref(), || {
                 s.precache(
                     &world,
@@ -98,7 +143,7 @@ impl<'a> Offscreen<'a> {
         let player_ref: Option<Player> = None;
         let envir = omsi_content::Envir::load(&args.root.join("envir.cfg")).ok();
         let (weather, model) = crate::weather_setup::load_weather_run(args);
-        let mut sky = crate::weather_setup::SkyState { clouds: None, model, look: args.session_settings };
+        let mut sky = crate::weather_setup::SkyState { clouds: None, model, look: args.session_settings, ..Default::default() };
         setup_sky(args, &renderer, &mut scene, envir.as_ref(), Some(&weather), &mut sky.clouds);
         if let Some(p) = player.as_mut() {
             apply_weather(&mut p.vehicle, &weather, initial_wetness(&weather));
@@ -136,7 +181,7 @@ impl<'a> Offscreen<'a> {
         let total_frames = if server { usize::MAX } else { total_frames };
         if server {
             quit::install(|_| {});
-            log::info!("server: running; Ctrl+C or SIGTERM stops it");
+            log::info!("server: initializing simulation; readiness follows the initial traffic/passenger frames");
         }
         let timed: Vec<(String, f32)> = parse_triggers(args)
             .into_iter()
@@ -244,6 +289,8 @@ impl<'a> Offscreen<'a> {
         let real_time = RealTime::default();
         let recorder = record::Recorder::new(out, player.as_mut(), &args.root, settings.doppler);
         Ok(Offscreen {
+            coop_ai: Default::default(),
+            bcs_responses:crate::bcs_events::HostResponses::new(settings.optional_features.bcs_event_scenes),
             args,
             out,
             w,
@@ -253,6 +300,7 @@ impl<'a> Offscreen<'a> {
             renderer,
             scene,
             world,
+            streamer,
             camera,
             traffic,
             schedule,
@@ -316,6 +364,7 @@ fn new_traffic(
     lan_seed: Option<u64>,
 ) -> Result<Option<traffic::Traffic>> {
     let mut t = traffic::Traffic::new(&args.root, world, args.traffic)?;
+    t.optional_features = settings::Settings::load().optional_features;
     t.lights_only = !(args.traffic > 0 || args.schedule || crate::rail_drive::args_rail(args) || args.lan_join.is_some());
     t.no_timetable_buses = args.no_timetable_buses;
     t.drive_through_parked = args.ai_drive_through_parked;
@@ -425,14 +474,15 @@ fn new_humans(
         // the map's camera they filled the whole pool, and the players met nobody)
         h.players_only = args.server.is_some() && player.is_none();
         h.exact_fare = settings.exact_fare;
-        h.transfer_percent = if args.passenger_connections_allowed(false) && settings.passenger_connections {
-            settings.passenger_transfer_percent
-        } else { 0.0 };
-        h.visual_hailing = settings.passenger_hailing && settings.passenger_animation == "enhanced";
-        h.visual_full_bus_reaction = settings.passenger_full_bus_reaction && settings.passenger_animation == "enhanced";
+        h.optional_features = settings.optional_features;
+        h.wheelchairs.spawn_percent=settings.wheelchair_spawn_percent;
+        h.transfer_percent = if settings.passenger_connections { settings.passenger_transfer_percent } else { 0.0 };
+        h.visual_hailing = settings.passenger_hailing;
+        h.visual_full_bus_reaction = settings.passenger_full_bus_reaction;
         h.bad_driving = settings.pax_bad_driving;
         h.boarding = settings.boarding.clone();
         h.stand_chance = settings.standing_chance;
+        h.brazilian_voice_dir = crate::humans::brazilian_voice_dir(&settings.language);
         h.short_rides_stand = settings.pax_short_rides_stand;
         h.voices = match settings.pax_voices.as_str() { "off" => 2, "tickets" => 1, _ => 0 };
         if let Some(p) = player.as_mut() {
@@ -510,4 +560,56 @@ fn ground_sample(world: &World, traffic: Option<&traffic::Traffic>, center: DVec
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod dedicated_streaming_tests {
+    use super::*;
+
+    #[test]
+    fn dedicated_612_tiles_keeps_global_data_and_streams_two_moving_regions() {
+        use std::time::{Duration,Instant};
+        let root=std::env::temp_dir().join(format!("bbs-stream-612-{}",std::process::id()));
+        let _=std::fs::remove_dir_all(&root);std::fs::create_dir_all(root.join("maps/Test")).unwrap();
+        struct Cleanup(PathBuf);impl Drop for Cleanup{fn drop(&mut self){let _=std::fs::remove_dir_all(&self.0);}}
+        let _cleanup=Cleanup(root.clone());
+        let mut global=String::from("[name]\nStreaming 612\n");
+        for x in 0..34 { for y in 0..18 {
+            let name=format!("tile_{x}_{y}.map");
+            global.push_str(&format!("[map]\n{x}\n{y}\n{name}\n"));
+            std::fs::write(root.join("maps/Test").join(name),"[terrain]\n").unwrap();
+        }}
+        std::fs::write(root.join("maps/Test/global.cfg"),global).unwrap();
+        let mut args=Args::parse_from(["openomsi","--root",root.to_str().unwrap(),"--map","maps/Test/global.cfg","--all","--radius","1"]);
+        args.server=Some(root.join("server.cfg"));args.traffic=0;args.passengers=false;args.schedule=false;
+        args.cam=Some("150,150,10,0,0".into());args.size="64x36".into();
+        crate::server::SERVER_MODE.store(true,std::sync::atomic::Ordering::Relaxed);
+        let out=root.join("unused.png");
+        let mut run=Offscreen::setup(&args,&out,None,lan::LanGame::default()).unwrap();
+        println!("BBS_STREAM_TEST initial_loaded={} global_tiles={} radius=1 all=true",run.world.loaded_tiles().len(),run.world.global.tiles.len());
+        assert_eq!(run.world.global.tiles.len(),612);
+        assert!(run.streamer.is_some(),"saved radius or --all disabled dedicated streaming");
+        assert!(run.world.loaded_tiles().len()<100,"all map tiles were prepared at startup");
+        let ts=omsi_map::tile_size();
+        let near=DVec3::new(150.,150.,0.);let far=DVec3::new(33.*ts+150.,17.*ts+150.,0.);
+        let started=Instant::now();
+        loop {
+            run.streamer.as_mut().unwrap().update(&run.renderer,&mut run.scene,&[near,far],Duration::from_millis(10),None);
+            let loaded=run.world.loaded_tiles();
+            if loaded.contains(&(0,0))&&loaded.contains(&(33,17)){break;}
+            assert!(started.elapsed()<Duration::from_secs(30),"second player's region never loaded: {loaded:?}");
+            std::thread::sleep(Duration::from_millis(3));
+        }
+        println!("BBS_STREAM_TEST two_distant_regions_loaded={}",run.world.loaded_tiles().len());
+        assert!(run.world.loaded_tiles().len()<612);
+        let started=Instant::now();
+        while run.world.loaded_tiles().contains(&(0,0)) {
+            run.streamer.as_mut().unwrap().update(&run.renderer,&mut run.scene,&[far],Duration::from_millis(10),None);
+            assert!(started.elapsed()<Duration::from_secs(30),"abandoned region never unloaded");
+            std::thread::sleep(Duration::from_millis(3));
+        }
+        println!("BBS_STREAM_TEST after_move_loaded={} old_region_unloaded=true",run.world.loaded_tiles().len());
+        assert!(run.world.loaded_tiles().contains(&(33,17)));
+        assert_eq!(run.world.global.tiles.len(),612,"global map/timetable metadata was discarded");
+    }
 }

@@ -3,7 +3,28 @@
 
 use super::*;
 
+#[cfg(test)]
+mod initial_fuel_2212_tests {
+    use super::*;
+    #[test] fn external_level_suppresses_autofill_including_empty_tank(){
+        assert!(VehicleInstance::has_initial_fuel(Some("engine_tank_content=37.5")));
+        assert!(VehicleInstance::has_initial_fuel(Some("other=4,FUEL=0")));
+        assert!(!VehicleInstance::has_initial_fuel(None));
+        assert!(!VehicleInstance::has_initial_fuel(Some("other=99")));
+        assert!(!VehicleInstance::has_initial_fuel(Some("engine_tank_content=NaN")));
+        assert!(!VehicleInstance::has_initial_fuel(Some("fuel=-1")));
+    }
+}
 impl VehicleInstance {
+    /// Explicit external fuel (BCS or CLI) owns the initial level, including zero.
+    pub fn has_initial_fuel(setvar:Option<&str>)->bool{
+        setvar.is_some_and(|text|text.split(',').any(|entry|{
+            let Some((key,value))=entry.split_once('=') else{return false};
+            (key.trim().eq_ignore_ascii_case("engine_tank_content")||key.trim().eq_ignore_ascii_case("fuel"))
+                && value.trim().parse::<f32>().is_ok_and(|v|v.is_finite()&&v>=0.)
+        }))
+    }
+
     pub(super) fn get(&self, id: Option<omsi_script::VarId>) -> f32 {
         id.map(|i| self.state.vars[i as usize]).unwrap_or(0.0)
     }
@@ -116,6 +137,12 @@ impl VehicleInstance {
     }
 
     pub fn trigger(&mut self, name: &str) -> bool {
+        let input=name.to_ascii_lowercase();
+        if ["horn","hupe","buzina","bus_horn"].contains(&input.as_str()) {
+            self.set_engine_var("bbs_input_horn",1.0);
+        } else if ["horn_off","hupe_off","buzina_off","bus_horn_off"].contains(&input.as_str()) {
+            self.set_engine_var("bbs_input_horn",0.0);
+        }
         let p = self.ty.program.clone();
         let rear_target_was_open = self.var("doorTarget_23").is_some_and(|target| target > 0.0);
         let rear_force_close_was_active = self.var("bdoor_embtn_cls").is_some_and(|close| close > 0.5);

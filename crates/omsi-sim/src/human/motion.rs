@@ -24,6 +24,7 @@ impl Pose {
             sit: 0.0,
             seat: Vec3::ZERO,
             seat_pelvis: None,
+            seat_feet: None,
             reach: 0.0,
             reach_at: Vec3::new(0.3, 0.5, 1.1),
             grip: 0.0,
@@ -285,6 +286,7 @@ impl Pose {
 
         // sitting down and getting up
         let wants_sit = input.activity == Activity::Sit && input.seat.is_some();
+        self.seat_feet = input.seat_feet.filter(|feet| wants_sit && feet.iter().all(|p|p.is_finite()));
         if let Some(s) = input.seat {
             self.seat = s;
             self.seat_pelvis = input.seat_pelvis.filter(|p| p.is_finite());

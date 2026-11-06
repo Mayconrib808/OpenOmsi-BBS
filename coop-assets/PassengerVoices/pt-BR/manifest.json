@@ -1,0 +1,160 @@
+{
+  "locale": "PTB",
+  "provided_by_user": true,
+  "target_lufs": -16,
+  "true_peak_db": -4,
+  "clips": [
+    {
+      "source": "WhatsApp Audio 2026-11-02 at 13.37.29.mp4",
+      "name": "OpenDoor_1.wav",
+      "meaning": "Pedido para abrir a porta",
+      "source_sha256": "d3ab0543c5baf440e830a8cb193b54a822dfd491d0ea9fd989dd1bc277cb46f0",
+      "sha256": "3cf0649f3db867528141cbb1eb53ee3986a55a5358d1438df6fcc8d18edbe4d0",
+      "normalization": {
+        "input_i": "-21.28",
+        "input_tp": "-0.52",
+        "input_lra": "1.80",
+        "input_thresh": "-31.90",
+        "output_i": "-18.06",
+        "output_tp": "-4.00",
+        "output_lra": "0.00",
+        "output_thresh": "-28.68",
+        "normalization_type": "dynamic",
+        "target_offset": "2.06"
+      }
+    },
+    {
+      "source": "WhatsApp Audio 2026-11-02 at 13.37.29 (1).mp4",
+      "name": "OpenDoor_2.wav",
+      "meaning": "Pedido para abrir a porta",
+      "source_sha256": "4563b3fba6f599f9844e1ad40b5e005fc337d610f62f5b7cf27e0d281891b556",
+      "sha256": "92e036c9ef4c5d0cf6c3629b4e0101eeaf2ece04e798e6769a80c6dbcf912d49",
+      "normalization": {
+        "input_i": "-19.61",
+        "input_tp": "-0.95",
+        "input_lra": "0.10",
+        "input_thresh": "-31.15",
+        "output_i": "-18.60",
+        "output_tp": "-4.00",
+        "output_lra": "0.00",
+        "output_thresh": "-30.05",
+        "normalization_type": "dynamic",
+        "target_offset": "2.60"
+      }
+    },
+    {
+      "source": "WhatsApp Audio 2026-11-02 at 13.37.30 (2).mp4",
+      "name": "OpenDoor_3.wav",
+      "meaning": "Pedido para abrir a porta",
+      "source_sha256": "8d22d50b5ac42a50e04c0aa1608128348ab14c185be3311c453cd44c77f940c2",
+      "sha256": "30642c564ac00df6ef6d183bd5105b0b1182d6384ebb3eaa61084175f6c92efd",
+      "normalization": {
+        "input_i": "-18.44",
+        "input_tp": "-2.39",
+        "input_lra": "0.00",
+        "input_thresh": "-30.47",
+        "output_i": "-20.05",
+        "output_tp": "-4.00",
+        "output_lra": "0.00",
+        "output_thresh": "-32.08",
+        "normalization_type": "linear",
+        "target_offset": "4.05"
+      }
+    },
+    {
+      "source": "WhatsApp Audio 2026-11-02 at 13.37.29 (2).mp4",
+      "name": "MissedStop_1.wav",
+      "meaning": "Passou do meu ponto",
+      "source_sha256": "0298e7873260ad0d38c1a7e731c7d6c6736052a2b0f72e53b43c0e435b15bbb1",
+      "sha256": "d925a2112bdbbeb83b1fe3c68d7d52433d5657a15554d0d23655a01d77e20eb6",
+      "normalization": {
+        "input_i": "-16.20",
+        "input_tp": "-0.42",
+        "input_lra": "0.00",
+        "input_thresh": "-26.75",
+        "output_i": "-19.78",
+        "output_tp": "-4.00",
+        "output_lra": "0.00",
+        "output_thresh": "-29.97",
+        "normalization_type": "linear",
+        "target_offset": "3.78"
+      }
+    },
+    {
+      "source": "WhatsApp Audio 2026-11-02 at 13.37.30 (4).mp4",
+      "name": "MissedStop_2.wav",
+      "meaning": "Passou do meu ponto; pedido para parar no próximo",
+      "source_sha256": "663d4de6ce08171d948902e4a401952c4b6ade1848c907c22abf3faf92a300b0",
+      "sha256": "b9f7dce9a4e42116b59490d3cebe08c71fdc041ed6d35f2f99d7d1bce06a3448",
+      "normalization": {
+        "input_i": "-24.10",
+        "input_tp": "-4.80",
+        "input_lra": "2.10",
+        "input_thresh": "-34.51",
+        "output_i": "-18.16",
+        "output_tp": "-4.00",
+        "output_lra": "1.10",
+        "output_thresh": "-28.44",
+        "normalization_type": "dynamic",
+        "target_offset": "2.16"
+      }
+    },
+    {
+      "source": "WhatsApp Audio 2026-11-02 at 13.37.30.mp4",
+      "name": "ExitThanks_1.wav",
+      "meaning": "Valeu, motô",
+      "source_sha256": "12104bcc3b7531c35f2ab58af93f3f8db17538c4ad4088975bbd07e36103f41c",
+      "sha256": "f506a1e43129f23c7c0b731982b8677056f48d76643db636c1bf12aa71f096e9",
+      "normalization": {
+        "input_i": "-18.81",
+        "input_tp": "-4.11",
+        "input_lra": "0.00",
+        "input_thresh": "-32.16",
+        "output_i": "-18.71",
+        "output_tp": "-4.00",
+        "output_lra": "0.00",
+        "output_thresh": "-32.06",
+        "normalization_type": "linear",
+        "target_offset": "2.71"
+      }
+    },
+    {
+      "source": "WhatsApp Audio 2026-11-02 at 13.37.30 (1).mp4",
+      "name": "ExitThanks_2.wav",
+      "meaning": "Obrigado, motorista",
+      "source_sha256": "14b574c58b10aa23c1feaff64701969d631dcb21330b46330b26b7ae48264880",
+      "sha256": "0ee821667754b0ee9fe5da376e847df99e9fcf62d42f7d630caebeb8f8130940",
+      "normalization": {
+        "input_i": "-20.39",
+        "input_tp": "-4.38",
+        "input_lra": "0.00",
+        "input_thresh": "-31.68",
+        "output_i": "-20.00",
+        "output_tp": "-4.00",
+        "output_lra": "0.00",
+        "output_thresh": "-31.29",
+        "normalization_type": "linear",
+        "target_offset": "4.00"
+      }
+    },
+    {
+      "source": "WhatsApp Audio 2026-11-02 at 13.37.30 (3).mp4",
+      "name": "ExitThanks_3.wav",
+      "meaning": "Tchau, tchau",
+      "source_sha256": "1ff61962061b740b294523f1cee64ffd32c967a1eb174f73e65c960b635e59dd",
+      "sha256": "1436d630ecbf2660b441510a2481a1c1cb8c2a93f7b0d62b43b6f2389e842611",
+      "normalization": {
+        "input_i": "-17.76",
+        "input_tp": "0.27",
+        "input_lra": "0.00",
+        "input_thresh": "-28.72",
+        "output_i": "-22.01",
+        "output_tp": "-4.00",
+        "output_lra": "0.00",
+        "output_thresh": "-32.97",
+        "normalization_type": "linear",
+        "target_offset": "6.01"
+      }
+    }
+  ]
+}

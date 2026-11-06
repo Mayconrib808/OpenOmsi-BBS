@@ -204,6 +204,10 @@ impl TrafficSim {
             let blocked = o.state.speed < 0.3 && !o.why.0.is_empty() && !o.is_rail();
             let n = o.horn.honked_at as u64;
             let oseed = o.seed;
+            // An illegally parked driver hears the real AI horn event.
+            if let Some((parking, _)) = self.cars[j].temporary_park.as_mut() {
+                parking.hear_horn(now, oseed);
+            }
             let h = &mut self.cars[j].horn;
             h.honked_at += 1;
             if blocked && h.reply_at.is_none() && random::draw(oseed, 200 + n) < 0.4 {

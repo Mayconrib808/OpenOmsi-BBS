@@ -1,0 +1,55 @@
+name: P16 offset-stop boarding final gate regression
+
+on:
+  push:
+    branches:
+      - fix/p16-boarding-offset-final-gate-20261104
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  boarding-regression:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Run actual offset-stop passenger boarding regressions
+        shell: pwsh
+        run: |
+          cargo test --locked -p omsi-sim offset_platform_ -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Offset platform boarding regression failed' }
+      - name: Run complete passenger simulation regression suite
+        shell: pwsh
+        run: |
+          cargo test --locked -p omsi-sim --lib
+          if ($LASTEXITCODE -ne 0) { throw 'Passenger simulation suite failed' }
+      - name: Run route-preview regression
+        shell: pwsh
+        run: |
+          cargo test --locked -p omsi-app coop_route_preview_skips_headless_dedicated_host_but_keeps_players -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Route preview regression failed' }
+      - name: Check native client/server compilation
+        shell: pwsh
+        run: |
+          cargo check --locked -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'P16 native compilation failed' }
+      - name: Build test binary
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app --bin openomsi
+          if ($LASTEXITCODE -ne 0) { throw 'P16 native build failed' }
+          if (!(Test-Path target/release/openomsi.exe)) { throw 'Native test binary missing' }
+          & target/release/openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Native test binary version check failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-P16-boarding-offset-gate-CANDIDATE
+          path: target/release/openomsi.exe
+          if-no-files-found: error
+          retention-days: 7

@@ -163,6 +163,16 @@ pub struct CarRun {
 }
 
 impl CarRun {
+    pub(super) fn export_handover(&self)->(Vec<f32>,Vec<String>,([f32;8],[f32;10],[String;8],u64)) {
+        (self.state.vars.clone(),self.state.str_vars.clone(),self.machine.export_handover())
+    }
+    pub(super) fn accepts_handover(&self,s:&(Vec<f32>,Vec<String>,([f32;8],[f32;10],[String;8],u64)))->bool {
+        s.0.len()==self.state.vars.len() && s.1.len()==self.state.str_vars.len()
+    }
+    pub(super) fn import_handover(&mut self,s:&(Vec<f32>,Vec<String>,([f32;8],[f32;10],[String;8],u64))) {
+        self.state.vars.clone_from(&s.0);self.state.str_vars.clone_from(&s.1);self.machine.import_handover(&s.2);
+    }
+
     /// Start a car's scripts: every value as the leading vehicle has it, the place in the
     /// train (`place`, as [`TrailerPart::place_in_train`] gives it) set, {init} run.
     pub(super) fn start(ty: &VehicleType, lead: &mut VehicleInstance, place: [f32; 3]) -> CarRun {

@@ -85,7 +85,20 @@ pub(super) fn bones(p: &PersonFrame, ty: &omsi_sim::human::HumanType, st: &mut P
         Some(lift) => origin.z + lift,
         None => origin.z,
     };
-    let sample = |at| floor::sample(world, bus, at, level);
+    // The simulation already knows the pedestrian's supporting platform. A nearby
+    // road/roof triangle must not lift both IK feet off that platform while hailing.
+    let waiting = matches!(p.state, "WaitingForBus" | "ToBus" | "WalkingToBus");
+    let sample = |at| floor::sample(world, bus, at, level).map(|z|
+        if bus.is_none() && waiting && seat.is_none() { z.clamp(level - 0.035, level + 0.035) } else { z });
+    // Pose the movement actually drawn, including the smoothed approach to the door.
+    // Inside a bus this is cabin-local, so its road speed never becomes a walking speed.
+    let mut velocity = match st.visual_origin {
+        Some((f, previous)) if f == frame && dt > 1e-4 && (origin-previous).length() < 0.75 => (origin-previous).truncate()/dt as f64,
+        _ => p.vel,
+    };
+    st.visual_origin = Some((frame, origin));
+    if waiting && velocity.length() > 1.45 { velocity = velocity.normalize() * 1.45; }
+    if activity == omsi_sim::human::Activity::Stand && velocity.length() < 0.08 { velocity = glam::DVec2::ZERO; }
     // (seated: the pelvis where the original seated pose has it - on a bus seat and on a
     // stop's bench alike - in the pose's frame, which stands `floor_lift` higher)
     let seat_pelvis = seat.map(|_| {
@@ -101,7 +114,7 @@ pub(super) fn bones(p: &PersonFrame, ty: &omsi_sim::human::HumanType, st: &mut P
         origin: origin + glam::DVec3::Z * floor_lift as f64,
         heading,
         frame,
-        velocity: p.vel,
+        velocity,
         seat,
         seat_pelvis,
         reach,

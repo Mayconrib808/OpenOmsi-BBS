@@ -79,6 +79,7 @@ impl Traffic {
         state.length = front + rear;
         let body = AiBody::new(&ty.def, MotionKind::Road);
         self.sim.cars.push(AiCar {
+            response: None,
             id,
             state,
             vehicle,
@@ -98,6 +99,7 @@ impl Traffic {
             amber: None,
             amber_start: false,
             passing: None,
+            bus_lane_pass: None,
             current_light: None,
             amber_decision: 0.0,
             gone: false,
@@ -133,6 +135,8 @@ impl Traffic {
             horn: Default::default(),
             make_way: None,
             park: None,
+            temporary_park: None,
+            parking_sampled_lane: None,
             guard: Default::default(),
         });
         self.looks.forget(id);

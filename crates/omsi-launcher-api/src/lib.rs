@@ -1106,3 +1106,18 @@ mod support_package_tests {
         assert!(filename.ends_with(".zip"), "{filename}");
     }
 }
+
+#[cfg(test)]
+mod engine_identity_tests {
+    struct Lobby;
+    impl super::Platform for Lobby {
+        fn renderer(&self, _: serde_json::Value, _: std::time::Duration) -> Result<(serde_json::Value, Vec<u8>), String> { unreachable!() }
+    }
+    #[test]
+    fn actual_launcher_bootstrap_exposes_engine_0347_and_protocol_16() {
+        assert_eq!(omsi_net::PROTOCOL,16);
+        let actual=super::bootstrap(&Lobby).unwrap();
+        assert_eq!(actual["version"],omsi_platform::VERSION);
+        assert!(actual["version"].as_str().unwrap().starts_with("0.3.47"));
+    }
+}

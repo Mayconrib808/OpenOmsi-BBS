@@ -32,7 +32,7 @@ impl App {
 
 crate::app::stage_ctx!(
     /// The player's bus's step: its part of the game.
-    PlayerStepCx { reads: [sound, menus], writes: [player, gfx, world, input, clock, ui, view, integrations, traffic] }
+    PlayerStepCx { reads: [sound, menus, net], writes: [player, gfx, world, input, clock, ui, view, integrations, traffic] }
 );
 
 /// The bus's step (scripts, physics, the head) and the situation's other vehicles: the
@@ -90,7 +90,7 @@ pub(super) fn player_step(cx: PlayerStepCx, dt: f32) {
             dt,
             cx.sound.audio.as_ref(),
             cx.view.cam.in_cab,
-            !matches!(cx.view.view.as_str(), "free" | "foot"),
+            !matches!(cx.view.view.as_str(), "free" | "foot") || cx.net.coop.drive.owner_active(),
         );
         crate::devtools::apply_holds(cx.ui.devtools.as_deref(), &mut p.vehicle);
         if let Some(g) = p.vehicle.trolley.as_deref_mut() {
@@ -215,7 +215,7 @@ pub(super) fn player_step(cx: PlayerStepCx, dt: f32) {
 
 crate::app::stage_ctx!(
     /// The player's bus into the scene: its part of the game.
-    PlayerToSceneCx { reads: [view, world, people, ui], writes: [player, gfx, perf] }
+    PlayerToSceneCx { reads: [view, world, people, ui, net], writes: [player, gfx, perf] }
 );
 
 /// The bus and its driver into the scene.
@@ -240,8 +240,39 @@ pub(super) fn player_to_scene(cx: PlayerToSceneCx, dt: f32) {
     // the photo mode keeps the driver's view while its camera flies off, and taken from
     // there every photo showed the bus without its driver)
     // (out of the seat: nobody at the wheel)
-    let at_eyes = *cx.view.view == "driver" && (cx.ui.photo.is_none() || cx.view.camera.as_ref().is_none_or(|c| (c.position - crate::camera_util::driver_eye(p)).length() < 0.5));
-    p.sync_driver_hands(r, scene, dt, cx.common.settings.driver && cx.people.on_foot.is_none(), at_eyes, cx.common.settings.hands_in_cab);
+    // A new real human is driving the delegated bus. They must remain visible
+    // to the old owner even if that owner's local "show my own driver" setting
+    // is off, or the old owner's view is temporarily left in "driver" mode.
+    // Never tag the visiting driver's mesh as mirrors-only in that situation.
+    let delegated = cx.net.coop.drive.owner_active();
+    let at_eyes = !delegated && *cx.view.view == "driver" && (cx.ui.photo.is_none() || cx.view.camera.as_ref().is_none_or(|c| (c.position - crate::camera_util::driver_eye(p)).length() < 0.5));
+    let (show_driver, mirror_only) = driver_visual_flags(
+        delegated, cx.common.settings.driver, cx.people.on_foot.is_some(), at_eyes,
+    );
+    p.sync_driver_hands(r, scene, dt, show_driver, mirror_only, cx.common.settings.hands_in_cab);
+}
+
+// A delegated driver is another player's avatar, not the old owner's
+// optional "my own driver" prop. The remote human is never mirrors-only.
+fn driver_visual_flags(delegated: bool, own_driver_enabled: bool, on_foot: bool, near_driver_eyes: bool) -> (bool, bool) {
+    if delegated { (true, false) }
+    else { (own_driver_enabled && !on_foot, near_driver_eyes) }
+}
+
+#[cfg(test)]
+mod coop13_driver_visibility_regressions {
+    use super::driver_visual_flags;
+    #[test]
+    fn delegated_driver_remains_visible_to_original_owner() {
+        for driver_setting in [false, true] {
+            for near_eyes in [false, true] {
+                assert_eq!(driver_visual_flags(true, driver_setting, true, near_eyes), (true, false));
+            }
+        }
+        assert_eq!(driver_visual_flags(false, false, false, false), (false, false));
+        assert_eq!(driver_visual_flags(false, true, true, false), (false, false));
+        assert_eq!(driver_visual_flags(false, true, false, true), (true, true));
+    }
 }
 
 crate::app::stage_ctx!(

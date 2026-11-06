@@ -18,6 +18,7 @@ fn player() -> Player {
         ..Default::default()
     });
     ty.meshes.push(omsi_sim::vehicle::VehicleMesh {
+        pick_geometry: Default::default(),
         def_index: 0,
         data: Default::default(),
         file: Default::default(),

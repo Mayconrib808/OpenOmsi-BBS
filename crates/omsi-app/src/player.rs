@@ -138,6 +138,10 @@ pub(crate) struct Player {
     /// Which vehicle this is, for as long as the session runs (the people riding in one
     /// the player left know it by this, see `Humans::player_bus_swapped`).
     pub(crate) uid: u64,
+    /// This canonical bus is simulated by another authorized machine.
+    pub(crate) authority_remote: bool,
+    /// The canonical owner when this is a borrowed, fully local driving vehicle.
+    pub(crate) borrowed_from: Option<u32>,
     pub(crate) vehicle: omsi_sim::VehicleInstance,
     pub(crate) render: scene::VehicleRender,
     /// Renders of the coupled parts, parallel to `vehicle.trailers`.
@@ -1013,6 +1017,11 @@ impl Player {
     }
 
     pub(crate) fn tick(&mut self, dt: f32, audio: Option<&omsi_audio::AudioEngine>, inside: bool, listener_follows_bus: bool) {
+        if self.authority_remote {
+            self.vehicle.refresh_transfer_visuals(dt);
+            self.sound_step(audio, inside, listener_follows_bus);
+            return;
+        }
         self.tick_startup(dt);
         self.tick_auto_drag(dt);
         // (the script's trigger only, as Omsi.exe calls it: no alias, no log line a frame)
@@ -1041,9 +1050,10 @@ impl Player {
             throttle,
             brake,
         );
+        let accessibility_hold = omsi_sim::people::wheelchair::interlocked();
         self.vehicle.set_controls(omsi_sim::Controls {
-            throttle,
-            brake,
+            throttle: if accessibility_hold {0.0} else {throttle},
+            brake: if accessibility_hold {1.0} else {brake},
             clutch: a.clutch.unwrap_or(self.axes.clutch).max(self.axes.clutch),
             // (a wheel at rest does not hold against the keys)
             steering: match a.steering {

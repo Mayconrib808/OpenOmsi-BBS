@@ -180,11 +180,14 @@ impl TrafficSim {
         self.pull_out_step(i, ts);
         self.guard_pass(i, &ts.by_lane);
         self.finish_pass(i);
+        self.advance_bus_lane_pass(i, ts);
         let car = &self.cars[i];
         let mut why = if car.state.change.is_some() {
             "change"
         } else if car.passing.is_some() {
             "pass"
+        } else if car.bus_lane_pass.is_some() {
+            "bus_lane_pass"
         } else if car.park.is_some() {
             "park"
         } else if car.pull_out > 0.0 {
@@ -220,6 +223,10 @@ impl TrafficSim {
                 why = "corridor";
             } else if self.queues_for_own_stop(i, sc.lead, sc.obstacle_len) {
                 why = "own_stop";
+            } else if self.courtesy_change(i, ts) {
+                why = "bus_courtesy";
+            } else if self.try_bus_lane_pass(i, sc, ts) {
+                why = "bus_lane_pass";
             } else if self.discretionary_change(i, ts) {
                 why = "choice";
             } else {
@@ -518,6 +525,61 @@ impl TrafficSim {
         true
     }
 
+    /// #3436: If a bus is indicating out of its bay, cars behind it first try
+    /// the normal, collision-checked adjacent-lane planner. This is never a
+    /// forced move: a blocked lane leaves the existing stop/yield behaviour.
+    /// The scan is limited to vehicles already indexed on this car's lane.
+    fn courtesy_change(&mut self, i: usize, ts: &TickScene) -> bool {
+        if !self.cars_yield_to_buses { return false; }
+        let car = &self.cars[i];
+        let st = &car.state;
+        if car.is_bus() || car.is_rail() || car.park.is_some() || car.passing.is_some()
+            || st.change.is_some() || !st.route.is_empty() || st.change_cooldown > 0.0
+            || st.speed < 2.0 || self.time < car.sideways.retry
+            || self.net.lanes[st.lane].kind != LaneKind::Street
+        { return false; }
+        let lane = &self.net.lanes[st.lane];
+        let (target, dir) = if self.net.left_hand { (lane.right, 2) } else { (lane.left, 1) };
+        let Some(target) = target.filter(|&l| self.open_to(i, l)) else { return false; };
+        let need = (st.speed * 5.5 + 10.0).max(40.0);
+        if self.open_road_ahead(st, need) < need { return false; }
+        let s_target = self.net.beside_s(st.lane, target, st.s);
+        if self.open_run(st, target, s_target, need + 15.0) < need + 15.0 { return false; }
+        let player_leaving = ts.player.and_then(|p| self.letting_out(i, &p))
+            .is_some_and(|gap| courtesy_window(gap, st.speed));
+        let mut ai_bus_to_yield: Option<u64> = None;
+        let ai_leaving = ts.by_lane.get(&st.lane).into_iter().flatten().any(|&(j, s, _, foreign)| {
+            if foreign || i == j { return false; }
+            let bus = &self.cars[j];
+            let gap = s - bus.state.rear - st.s - st.front;
+            let eligible=courtesy_window(gap, st.speed)
+                && bus.state.speed < 0.5
+                && bus.bus.as_ref().is_some_and(|b| {
+                    b.phase == Phase::Closing
+                        && b.stops.front().is_some_and(|stop| stop.bay.abs() > 0.5)
+                })
+                && bus.state.signal == (if self.net.left_hand { 2 } else { 1 });
+            if eligible {ai_bus_to_yield=Some(bus.id);}
+            eligible
+        });
+        if !(player_leaving || ai_leaving) { return false; }
+        let source_lane = st.lane;
+        let car_id = car.id;
+        let changed = self.try_change(i, target, dir, ChangeKind::Choice, ts, None);
+        crate::feature_audit::record(crate::feature_audit::Role::Host,"cars_yield_to_buses",
+            if changed {crate::feature_audit::ResultKind::Executed}
+            else {crate::feature_audit::ResultKind::Blocked},
+            if changed {"lane_change_started"}else{"safe_lane_change_rejected"},
+            &format!("car={} bus={} from_lane={} to_lane={} player_bus={} ai_bus={:?} outcome={}",
+                car_id,if player_leaving {"player".to_string()} else {format!("{:?}",ai_bus_to_yield)},
+                source_lane,target,player_leaving,ai_bus_to_yield,if changed {"yielded"}else{"blocked"}));
+        if changed {
+            log::info!("FEATURE AUDIT cars_yield_to_buses performed car={} lane={} target={} player_bus_leaving={} ai_bus_leaving={}",
+                car_id, source_lane, target, player_leaving, ai_leaving);
+        }
+        changed
+    }
+
     /// A lane change of the driver's own choosing: past a slow car ahead into a free lane on
     /// the overtaking side, else back to the lane on its own side of the road when that is
     /// free and stays open. The wish has to hold for `WISH_HOLD`, a change back is not made
@@ -740,5 +802,25 @@ impl TrafficSim {
             log::info!("t={:.2}: car {} swerves to {target:+.2} (was {:+.2}, now at {:+.2})", self.time, car.id, car.state.lateral_target, car.state.lateral);
         }
         car.state.lateral_target = target;
+    }
+}
+
+/// Conservative distance for a courteous lane change. Never swerve when the bus
+/// is already beside the car or too far ahead to be relevant.
+pub fn courtesy_window(gap: f32, speed: f32) -> bool {
+    gap.is_finite() && speed.is_finite() && speed >= 0.0
+        && gap > speed * 1.25 + 5.0 && gap < 75.0
+}
+
+#[cfg(test)]
+mod courtesy_tests {
+    use super::courtesy_window;
+    #[test]
+    fn courtesy_does_not_force_unsafe_last_second_moves() {
+        assert!(courtesy_window(35.0, 8.0));
+        assert!(!courtesy_window(7.0, 8.0));
+        assert!(!courtesy_window(100.0, 8.0));
+        assert!(!courtesy_window(f32::NAN, 8.0));
+        assert!(!courtesy_window(30.0, f32::INFINITY));
     }
 }

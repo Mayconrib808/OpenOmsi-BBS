@@ -61,6 +61,8 @@ pub fn debug() -> bool {
 #[derive(Debug, Clone, Default)]
 pub struct BlockerShape {
     pub blocks: bool,
+    // Rain includes thin and glazed roofs without changing camera collision.
+    rain: Option<Box<BlockerShape>>,
     /// Bounds of the solid triangles in the object's own frame.
     pub lo: Vec3,
     pub hi: Vec3,
@@ -201,16 +203,24 @@ impl TriBvh {
 }
 
 impl BlockerShape {
+    pub(crate) fn has_rain_cover(&self) -> bool { self.rain.is_some() }
     /// The farthest a solid point lies from the object's origin in the ground plane.
     pub fn radius(&self) -> f64 {
         let x = self.lo.x.abs().max(self.hi.x.abs()) as f64;
         let y = self.lo.y.abs().max(self.hi.y.abs()) as f64;
-        (x * x + y * y).sqrt()
+        (x * x + y * y).sqrt().max(self.rain.as_ref().map_or(0.0, |r| r.radius()))
     }
 }
 
 /// Decide once per type what of it stops the camera.
 pub fn classify(ot: &ObjectType) -> BlockerShape {
+    let mut shape = classify_surfaces(ot, false);
+    let rain = classify_surfaces(ot, true);
+    if rain.blocks { shape.rain = Some(Box::new(rain)); }
+    shape
+}
+
+fn classify_surfaces(ot: &ObjectType, rain: bool) -> BlockerShape {
     let mut shape = BlockerShape {
         lo: Vec3::splat(f32::MAX),
         hi: Vec3::splat(f32::MIN),
@@ -222,6 +232,7 @@ pub fn classify(ot: &ObjectType) -> BlockerShape {
     let (mut area, mut tris) = (0.0f32, 0usize);
     for (mi, (mesh, o3d_mats, overrides)) in ot.meshes.iter().enumerate() {
         if ot.mesh_visible.get(mi).and_then(|v| v.as_ref()).is_some() {
+            shape.solid.push(Vec::new());
             continue;
         }
         let shadow = ot.mesh_shadow.get(mi).copied().unwrap_or(false);
@@ -232,8 +243,8 @@ pub fn classify(ot: &ObjectType) -> BlockerShape {
                 let texture = o3d_mats.get(slot).map(|m| m.texture.as_str()).unwrap_or("");
                 !shadow
                     && !crate::is_null_texture(texture)
-                    && crate::material_alpha(o3d_mats, slot, &base)
-                        == omsi_render::AlphaMode::Opaque
+                    && (crate::material_alpha(o3d_mats, slot, &base) == omsi_render::AlphaMode::Opaque
+                        || rain && crate::material_alpha(o3d_mats, slot, &base) == omsi_render::AlphaMode::Blend)
             })
             .collect();
         for &(first, count, slot) in &mesh.ranges {
@@ -271,7 +282,12 @@ pub fn classify(ot: &ObjectType) -> BlockerShape {
         && size.x.max(size.y) >= MIN_WIDTH
         && size.x.min(size.y) >= 0.1
         && fill >= MIN_FILL;
-    if debug() {
+    if rain {
+        let mut dimensions = [size.x, size.y, size.z];
+        dimensions.sort_by(f32::total_cmp);
+        shape.blocks = area >= 0.25 && dimensions[1] >= 0.45;
+    }
+    if debug() && !rain {
         log::info!(
             "camera: {} {} ({tris} solid triangles, {:.1} x {:.1} x {:.1} m, fill {fill:.2})",
             ot.sco.path.display(),
@@ -345,6 +361,17 @@ fn ray_object(
         TriBvh::build(tris)
     });
     bvh.ray(o, d, max as f32).map(|t| t as f64)
+}
+
+/// Does actual scenery geometry cover this head? Test both faces, including glass,
+/// never just a building's box (which would close umbrellas in courtyards).
+pub fn rain_sheltered(world: &World, head: DVec3) -> bool {
+    if !head.is_finite() { return false; }
+    let origin = head + DVec3::Z * 0.08;
+    world.camera_blockers(head.truncate(), head.truncate()).iter().any(|(ot, b)| {
+        ot.occluder_shape().and_then(|s| s.rain.as_deref()).is_some_and(|roof|
+            ray_object(ot, roof, b.pos, &b.xf, origin, DVec3::Z, 50.0).is_some())
+    })
 }
 
 /// Entry and exit parameter of a ray through an axis-aligned box.
@@ -593,6 +620,17 @@ impl SpringArm {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn rain_probe_uses_triangles_of_a_thin_roof_and_leaves_its_openings_exposed() {
+        let roof = TriBvh::build(vec![
+            [Vec3::new(-2.,-2.,3.),Vec3::new(0.,-2.,3.),Vec3::new(-2.,2.,3.)],
+            [Vec3::new(0.,-2.,3.),Vec3::new(0.,2.,3.),Vec3::new(-2.,2.,3.)],
+        ]);
+        assert!((roof.ray(Vec3::new(-1.,0.,1.7),Vec3::Z,50.).unwrap()-1.3).abs()<1e-5);
+        assert!(roof.ray(Vec3::new(1.,0.,1.7),Vec3::Z,50.).is_none());
+        assert!(roof.ray(Vec3::new(-1.,0.,3.5),Vec3::Z,50.).is_none());
+    }
 
     fn run(arm: &mut SpringArm, want: f32, free: f32, secs: f32) -> f32 {
         let mut l = 0.0;

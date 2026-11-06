@@ -111,6 +111,7 @@ pub(crate) fn passengers(app: &App) -> Option<(usize, usize, usize)> {
     for p in h.people.iter().filter(|p| p.inside(BusId::Player)) {
         match &p.state {
             State::Pax(x) if x.task == Task::SittingInBus => seated += 1,
+            _ if h.wheelchairs.pose(p.id).is_some() => seated += 1,
             _ => standing += 1,
         }
     }

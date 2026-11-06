@@ -1,0 +1,67 @@
+name: Verify 2.2.2.1 remote seated passengers and multiplayer regressions
+on:
+  push:
+    branches: [fix/2221-lan-seated-people]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: fix-2221-lan-seated-people
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.1-seating-fix
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: fix-2221-lan-seat
+      - name: Verify remote seat transition and physical bench tests
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim remote_seat_pose_requires_authoritative_seated_activity_and_index
+          if ($LASTEXITCODE -ne 0) { throw 'Remote LAN seating test failed' }
+          cargo test --locked --release -p omsi-sim people::pose_facts::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Passenger pose regression' }
+          cargo test --locked --release -p omsi-net world::tests
+          if ($LASTEXITCODE -ne 0) { throw 'World network regression' }
+      - name: Inspector and AI traffic tests
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim people::inspector::
+          if ($LASTEXITCODE -ne 0) { throw 'Inspector regression' }
+          cargo test --locked --release -p omsi-sim illegal_parking::tests
+          if ($LASTEXITCODE -ne 0) { throw 'Traffic regression' }
+          cargo test --locked --release -p omsi-sim bus_stop_overtake_safety_tests
+          if ($LASTEXITCODE -ne 0) { throw 'Bus overtaking regression' }
+      - name: Compile Windows openOMSI and cooperative server
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Client/server build failed' }
+          & ./target/release/openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Binary smoke check failed' }
+      - name: Stage a separate hotfix candidate for code review only
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force candidate | Out-Null
+          Copy-Item target/release/openomsi.exe candidate/openomsi.exe
+          (Get-FileHash candidate/openomsi.exe -Algorithm SHA256).Hash | Out-File candidate/SHA256.txt
+          git rev-parse HEAD | Out-File candidate/SOURCE_COMMIT.txt
+          'QA candidate only; not published in Buscar atualizações. The previous 2.2.2.1 installer remains live.' | Out-File candidate/README.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.1-LAN-seat-hotfix-candidate
+          path: candidate/*
+          if-no-files-found: error
+          retention-days: 30

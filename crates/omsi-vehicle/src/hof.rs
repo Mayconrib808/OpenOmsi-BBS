@@ -340,6 +340,13 @@ pub fn closest_name(names: &[&str], hints: &[&str]) -> Option<usize> {
 /// The depot file of `dir` that belongs to the place `hints` name (see [`closest_name`]),
 /// by its file name or its `[name]`.
 pub fn depot_like(dir: &Path, hints: &[&str]) -> Option<Hof> {
+    // A map's exact HOF name is authoritative. A vague similarity score could
+    // otherwise choose another installed map's depot when both share words.
+    // depot_in first checks the bus-local HOF, then the shared HOFs directory.
+    for hint in hints.iter().filter(|hint| !hint.trim().is_empty()) {
+        let name = hint.trim().strip_suffix(".hof").unwrap_or(hint.trim());
+        if let Some(hof) = depot_in(dir, name) { return Some(hof); }
+    }
     let files = depot_files(dir);
     let names: Vec<String> = files
         .iter()
