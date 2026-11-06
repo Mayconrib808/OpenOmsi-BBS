@@ -58,7 +58,7 @@ function inspectCandidate(){
   if(original.version!=='2.2.3.1'||original.sequence!==2026110501||original.updater_sha256!==before.installer.sha256||original.coop_protocol!==17||original.native_version!=='0.3.49-coop.17-2.2.3.1')throw Error('Original P17 game changed');
   if(spec.sha256!=='34c80650a32b26348b9da3e64f127429b20d184fad673ed9e47d38545f4fccea'||spec.parts.length!==21)throw Error('P17 Coop archive changed');
   if(report.parts_unchanged!==spec.parts.length||report.managed_files_unchanged!==Object.keys(spec.files).length)throw Error('Hotfix native assets changed');
-  if(info.candidate_run_id!==report.candidate_run_id||info.candidate_commit!==report.candidate_commit||info.setup_sha256!==report.setup_sha256)throw Error('Candidate provenance changed');
+  if(info.candidate_run_id!==42136557845||info.candidate_commit!=='2f7cfa39ad8a80310abf7546daff17dd65b0e80c'||info.candidate_artifact_id!==13465592792||info.candidate_artifact_sha256!=='6af1fa504e00a4419c1fe1b1069bc97fc51c962dbdfd62e41b0d9dbb27276183'||info.setup_sha256!==report.setup_sha256)throw Error('Approved Hotfix source/artifact or Setup hash changed');
   for(const p of spec.parts){
     const buffer=readFileSync('approved-new/coop-assets/'+p.sha256+'.bin');
     if(buffer.length!==p.size||sha(buffer)!==p.sha256)throw Error('P17 historical part corrupted');
