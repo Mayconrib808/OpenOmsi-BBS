@@ -45,11 +45,11 @@ async function getLive(){
   return Buffer.from(await r.arrayBuffer());
 }
 function inspectCandidate(){
-  const report=json('approved-hotfix1/build-report.json');
-  const install=json('approved-hotfix1/one-click-install-test.json');
+  const report=json('approved-2231hf1/build-report.json');
+  const install=json('approved-2231hf1/one-click-install-test.json');
   const original=json('approved-new/build-report.json');
   const spec=json('approved-new/coop-spec.json');
-  const bin=readFileSync('approved-hotfix1/Atualizar-Bridge.exe');
+  const bin=readFileSync('approved-2231hf1/Atualizar-Bridge.exe');
   if(report.version!==release.version||report.sequence!==release.sequence||report.updater_sha256!==installer.sha256||report.installer_size!==installer.size||sha(bin)!==installer.sha256||bin.length!==installer.size)throw Error('Approved Hotfix Windows updater/hash incorrect');
   if(report.candidate_base_run!==42116052029||report.candidate_base_artifact!==13457334107||report.candidate_base_updater_sha256!==before.installer.sha256||report.candidate_base_coop_archive_sha256!==spec.sha256)throw Error('Hotfix was not built over original approved P17');
   if(report.coop_protocol!==17||report.native_version!=='0.3.49-coop.17-2.2.3.1'||report.windows_ifoe_denied_registry_tested!==true||report.windows_bcs_native_fallback_tested!==true||report.windows_setup_activation_tested!==true||report.installer_first_click_tested!==true||report.other_six_components_unchanged!==true)throw Error('IFEO/fallback/Windows setup test missing');
