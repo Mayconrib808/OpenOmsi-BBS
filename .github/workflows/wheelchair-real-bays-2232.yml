@@ -1,4 +1,4 @@
-name: Verify wheelchair bays and combustion fuel fixes
+name: Verify accessibility flow and combustion fuel fixes
 on:
   push:
     branches: [fix/wheelchair-real-bays-2232]
@@ -7,7 +7,7 @@ permissions:
   contents: read
 concurrency:
   group: wheelchair-real-bays-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 env:
   CARGO_INCREMENTAL: '0'
   OMSI_NO_UPDATE: '1'
@@ -31,6 +31,7 @@ jobs:
           set -euo pipefail
           cargo test --locked -p omsi-sim --lib 2>&1 | tee simulation-tests.log
           cargo check --locked -p omsi-app -p omsi-lan 2>&1 | tee application-check.log
+          python3 tools/check_accessibility_locales.py
           python3 -m py_compile tools/validate_wheelchair_nine.py
           git diff --exit-code
       - uses: actions/upload-artifact@v4

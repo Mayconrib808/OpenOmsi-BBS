@@ -1,0 +1,55 @@
+{
+  "kind": "Passenger flow regression derived from supplied game log and reproduced against pre-fix source",
+  "input_log": {
+    "filename": "game(20261106-164011).log",
+    "sha256": "f780caf6cbc506cc4143f779e52e82065a4489a945f3b89417805257eca8f2c1",
+    "game_build": "9b1d236"
+  },
+  "observations": {
+    "ordinary_passenger": {
+      "id": 1560,
+      "reason": "walking_or_path_blocked",
+      "first_utc": "2026-11-06T16:37:09Z",
+      "last_utc": "2026-11-06T16:40:05Z",
+      "path_cursor": 16,
+      "target": 19,
+      "exit_open": [
+        true,
+        true
+      ]
+    },
+    "waiting_boarding_person": 2216,
+    "waiting_boarding_selected_utc": "2026-11-06T16:33:37Z",
+    "last_secured_person": 1396,
+    "last_secured_person_has_logged_alighting_request": false,
+    "interpretation": "At the screenshot the generic assistance action corresponds to a pending boarding; the log does not show a new alighting request from person 1396. Repeated crowd-yield movement interferes with ordinary alighting paths."
+  },
+  "regressions": [
+    {
+      "test": "wheelchair_corridor_never_drags_a_passenger_away_from_the_exit",
+      "before": "failed: alighting passenger pulled two metres away from the path",
+      "after": "passed"
+    },
+    {
+      "test": "wheelchair_cabin_yield_starts_with_assistance_and_reserves_the_new_standing_place",
+      "before": "failed: waiting chair moved interior passengers before assistance",
+      "after": "passed"
+    },
+    {
+      "test": "wheelchair_alighting_preempts_unstarted_boarding_and_keeps_both_passengers",
+      "before": "failed: waiting boarding retained the controller despite an alighting request",
+      "after": "passed"
+    }
+  ],
+  "behavior": [
+    "Alighting and boarding walkers retain their own path and are not displaced by accessibility crowd yielding.",
+    "Interior yielding starts with a nearby assisted or physically ready native service.",
+    "A yielding rider reserves their new standing place and releases the previous place.",
+    "Yield control ends when the target is reached or the passenger changes task.",
+    "Alighting can defer unstarted boarding without removing either passenger or changing mobility.",
+    "The assistance panel distinguishes Prepare boarding from Prepare alighting in all supported languages.",
+    "Pending wheelchair calls use one normal bell press while preserving the persistent HUD warning."
+  ],
+  "gameplay_verified": false,
+  "paired_gameplay_verified": false
+}

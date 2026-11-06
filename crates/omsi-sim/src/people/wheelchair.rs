@@ -996,7 +996,6 @@ impl PeopleSim {
                 journey.alight_requested = true;
             }
             if journey.alight_requested {
-                self.stop_request = true;
                 if bus.speed.abs()<0.025 {
                     let outside=bn.world(profile.outside(0.0));
                     if let Some(height)=world.walk_height_near(outside.x,outside.y,bn.pos.z) {

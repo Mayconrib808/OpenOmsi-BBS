@@ -13,16 +13,22 @@ pub(crate) fn panel(app:&crate::App,pal:Palette)->Panel {
             rows.push(note(&tr(if matches!(p.equipment,Equipment::NativeRamp|Equipment::NativeLift){
                 "Original equipment: passengers board when the door and ramp are ready"
             }else{"Auxiliary lift: stop, open the accessible door and start assistance"}),pal));
+            if wc.wants_alight() {
+                rows.push(note(&tr("A wheelchair passenger wants to alight at the next stop"),pal));
+            }
             if let Some(j)=wc.journey.as_ref() {
-                rows.push(note(&tr(if j.alight_requested&&j.stage==wheelchair::Stage::Riding {
-                    "A wheelchair passenger wants to alight at the next stop"
-                }else{j.stage.ui_label()}),pal));
+                if !(j.alight_requested&&j.stage==wheelchair::Stage::Riding) {
+                    rows.push(note(&tr(j.stage.ui_label()),pal));
+                }
                 if !j.hold_reason.is_empty(){rows.push(note(&tr(hold_label(j.hold_reason)),pal));}
-                rows.push(button("assist",&tr("Prepare boarding or alighting"),Some("accessible")));
+                if j.stage==wheelchair::Stage::Waiting {
+                    rows.push(button("assist",&tr("Prepare boarding"),Some("accessible")));
+                }else if j.stage==wheelchair::Stage::Riding&&j.alight_requested {
+                    rows.push(button("assist",&tr("Prepare alighting"),Some("accessible")));
+                }
             }else{
                 if wc.wants_alight() {
-                    rows.push(note(&tr("A wheelchair passenger wants to alight at the next stop"),pal));
-                    rows.push(button("assist",&tr("Prepare boarding or alighting"),Some("accessible")));
+                    rows.push(button("assist",&tr("Prepare alighting"),Some("accessible")));
                 }else{
                     rows.push(note(&tr("Waiting for an approaching passenger or an alighting request"),pal));
                 }
