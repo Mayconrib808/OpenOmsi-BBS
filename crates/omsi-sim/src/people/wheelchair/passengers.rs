@@ -246,7 +246,11 @@ impl PeopleSim {
     pub(super) fn clear_wheelchair_corridor(&mut self,id:u32,profile:&Profile,journey:&Journey,bn:&BusNow,world:&dyn World,dt:f32) {
         if !dt.is_finite()||dt<=0.0||bn.speed.abs()>0.025{return;}
         let mut path=vec![journey.local,profile.outside(journey.ground_height),profile.threshold];path.extend_from_slice(&profile.route);path.push(profile.bay);
-        let corridor=|at:Vec3|corridor_contains(&path,at,0.8);
+        // In narrow double-deck MAN corridors an 0.8 m half-width occupied
+        // every standing spot. Clear the real wheelchair envelope, not the
+        // model's wide decorative hitbox, so passengers can yield into a
+        // standing spot outside the actual travel path.
+        let corridor=|at:Vec3|corridor_contains(&path,at,0.66);
         let movers:Vec<_>=self.people.iter().enumerate().filter_map(|(i,p)| {
             let State::Pax(x)=&p.state else{return None};if p.id==id||self.wheelchairs.is_chair(p.id){return None;}
             let inside=x.inside==Some(BusId::Player);let at=bn.to_local(p.position);
