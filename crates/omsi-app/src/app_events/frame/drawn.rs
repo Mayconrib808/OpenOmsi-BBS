@@ -34,15 +34,24 @@ impl App {
             if let (Some(eye), Some(cam), Some(d)) = (self.session.on_foot.as_ref().and_then(|f| f.eye_aboard()), self.camera.as_mut(), moved) {
                 cam.position = eye + d;
             }
-            self.coop_drawn_view();
             if let Some(t) = self.session.traffic.as_mut() {
                 t.sim.show_actual();
             }
+            if let Some(hub) = self.integrations.plugins.as_ref().map(|p| p.hub.clone()) {
+                let changes = |all| hub.cables.borrow_mut().changes(all).into_iter().map(|(k, c)| (k, c.map(scene_cable))).collect();
+                self.gfx.plugin_cables.sync(changes, self.player.as_ref().map(|p| &p.vehicle), r, scene);
+            }
         }
+        self.coop_drawn_view();
         self.player_back_to_sim_pose(sim);
         // The tooltip is for the picture being drawn, including the cooperative
         // cashier camera and its shifted eye, rather than the avatar's view from
         // the earlier walking tick.
         self.frame_player_hover();
     }
+}
+
+/// A plugin's cable as the scene draws it.
+fn scene_cable(c: omsi_plugin::api::cables::Cable) -> omsi_scene::plugin_cables::Cable {
+    omsi_scene::plugin_cables::Cable { on_bus: c.frame == omsi_plugin::api::cables::CableFrame::Bus, points: c.points, radius: c.radius, color: c.color }
 }
