@@ -4,6 +4,7 @@ on:
     branches: [fix/2231-wheelchair-universal-hud-and-signal-reset]
     paths:
       - '.github/workflows/integrate-openomsi-0350-2232.yml'
+      - 'tools/reconcile_openomsi_0350_bridge_2232.py'
       - 'crates/omsi-app/src/offscreen/**'
       - 'crates/omsi-app/src/app_events/frame/interface.rs'
       - 'crates/omsi-app/src/app_events/frame/people.rs'
@@ -65,6 +66,7 @@ jobs:
             echo '::error::Upstream 0.3.50 merge needs manual reconciliation. NO distribution changes.'
             exit 1
           fi
+          python3 tools/reconcile_openomsi_0350_bridge_2232.py
           git add -A
           git -c user.name='Bridge Integrator' -c user.email='integrator@localhost.invalid' commit -m 'Integrate official openOMSI 0.3.50 source with Bridge P17 accessibility and HostAgent fixes'
           git diff --stat "$synthetic" HEAD > integration-0350-report/upstream-integration-stat.txt
