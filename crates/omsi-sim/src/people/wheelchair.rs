@@ -712,6 +712,12 @@ pub struct Wheelchairs {
     pub assisted: bool,
     pub special_stop_signal: bool,
     pub stop_signal_variables:Vec<String>,
+    // Edge of the wheelchair call button, not one new press per simulation
+    // frame. Repeated int_haltewunsch presses kept some native lamps latched.
+    pub stop_request_armed: bool,
+    // The Bridge owns these bus light variables only from its own wheelchair
+    // request until the last requesting chair has finished alighting.
+    pub stop_light_written: bool,
     pub journey: Option<Journey>,
     pub person: Option<u32>,
     pub status: String,
@@ -740,6 +746,8 @@ impl Default for Wheelchairs {
             assisted: false,
             special_stop_signal: false,
             stop_signal_variables:Vec::new(),
+            stop_request_armed: false,
+            stop_light_written: false,
             journey: None,
             person: None,
             status: String::new(),
@@ -764,6 +772,32 @@ impl Wheelchairs {
             .flatten().or_else(||self.riders.get(&id).map(|r|r.journey.pose))
             .or_else(||self.mobile.get(&id).map(|m|m.pose))
             .or_else(||self.remote_poses.get(&id).copied())
+    }
+    /// Reflect actual accessibility requests into the model's own dedicated
+    /// warning indicator if it has one, and release only the indicator that we
+    /// asserted when that request is complete. The HUD alert is independent of
+    /// these optional variables and works on every supported vehicle.
+    pub fn sync_stop_signal(&mut self, v: &mut VehicleInstance) {
+        if self.stop_signal_variables.is_empty() {
+            self.stop_light_written = false;
+            return;
+        }
+        if self.wants_alight() {
+            for name in &self.stop_signal_variables {
+                if v.var(name).is_some() {
+                    v.set_var(name, 1.0);
+                }
+            }
+            self.stop_light_written = true;
+        } else if self.stop_light_written {
+            for name in &self.stop_signal_variables {
+                if v.var(name).is_some() {
+                    v.set_var(name, 0.0);
+                }
+            }
+            self.stop_light_written = false;
+            log::info!("WHEELCHAIR stop_signal_cleared after completed alighting");
+        }
     }
     pub fn feedback_from(&self, v: &VehicleInstance) -> Feedback {
         let Some(p) = self.profile.as_ref() else {
@@ -809,6 +843,8 @@ impl PeopleSim {
             }
         }
         self.wheelchairs.journey = None;
+        self.wheelchairs.stop_request_armed = false;
+        self.wheelchairs.stop_light_written = false;
         self.wheelchairs.crowd_targets.clear();
         self.wheelchairs.equipment = None;
         self.wheelchairs.profiles.clear();
