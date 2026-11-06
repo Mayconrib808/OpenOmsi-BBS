@@ -987,6 +987,63 @@ func TestActivationIntegrityAllowsCustomHostWithoutSkippingBridgeChecks(t *testi
 	}
 }
 
+// Regression: a 2.2.3.1 Setup replaced by a signed Hotfix retains a legacy
+// docs/SHA256.txt on some older, partially upgraded installations. The legacy
+// manifest still lists the PREVIOUS Setup.exe hash. Activation must use P17
+// authenticated runtime pins, but an actual modified game/runtime must fail.
+func TestP17ActivationAcceptsStaleSetupManifestButRejectsCorruptedRuntime(t *testing.T) {
+	dir := t.TempDir()
+	originalDistribution, originalPins := bundledCoopDistribution, activationPinnedRuntimeSHA256
+	defer func() { bundledCoopDistribution, activationPinnedRuntimeSHA256 = originalDistribution, originalPins }()
+
+	runtimeFiles := []string{
+		"PeDePeAdapter/openomsi.exe",
+		"app/OpenOMSI_BCS_Bridge.exe",
+		"app/compat/Omsi.exe",
+		"app/compat/omsi-plugin-host32.exe",
+		"OpenOmsi Coop 0.3.41/programa/openomsi.exe",
+		"OpenOmsi Coop 0.3.41/programa/openomsi-launcher-app.exe",
+		"app/server-dinamico-p17/openomsi.exe",
+		"app/hosts-p17/HostAgent.exe",
+	}
+	bundledCoopDistribution = coopDistribution{
+		FullPaths: true, Prefix: "Bridge-2.2.3.1/", Files: map[string]string{},
+	}
+	hashes := make([]string, 0, len(runtimeFiles))
+	for _, name := range runtimeFiles {
+		contents := []byte("approved P17 runtime: " + name)
+		target := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil { t.Fatal(err) }
+		if err := os.WriteFile(target, contents, 0644); err != nil { t.Fatal(err) }
+		hashes = append(hashes, fmt.Sprintf("%x", sha256.Sum256(contents)))
+	}
+	for i, name := range runtimeFiles[4:] { bundledCoopDistribution.Files[name] = hashes[i+4] }
+	activationPinnedRuntimeSHA256 = strings.Join(hashes[:4], ":")
+	setupPath := filepath.Join(dir, "Setup.exe")
+	if err := os.WriteFile(setupPath, []byte("new signed Hotfix 1 Setup"), 0644); err != nil { t.Fatal(err) }
+	oldSHA := fmt.Sprintf("%x", sha256.Sum256([]byte("original Setup")))
+	if err := os.MkdirAll(filepath.Join(dir,"docs"), 0755); err != nil { t.Fatal(err) }
+	var legacy strings.Builder
+	fmt.Fprintf(&legacy, "%s  Setup.exe\n", oldSHA)
+	for i, name := range runtimeFiles[:4] { fmt.Fprintf(&legacy, "%s  %s\n", hashes[i], name) }
+	if err := os.WriteFile(filepath.Join(dir,"docs","SHA256.txt"), []byte(legacy.String()), 0644); err != nil { t.Fatal(err) }
+	if _, err := verifyPackageWithPolicy(dir,nil,true); err == nil || !strings.Contains(err.Error(), "SHA256 mismatch: Setup.exe") {
+		t.Fatalf("legacy activation does not reproduce screenshot: %v", err)
+	}
+	if count, err := verifyPackageForActivation(dir); err != nil || count != 8 {
+		t.Fatalf("signed P17 activation rejected legitimate updated Setup with stale legacy list: count=%d error=%v",count,err)
+	}
+	for _, name := range []string{runtimeFiles[1],runtimeFiles[4],runtimeFiles[7]} {
+		path := filepath.Join(dir,filepath.FromSlash(name))
+		good, err := os.ReadFile(path); if err != nil { t.Fatal(err) }
+		if err := os.WriteFile(path,[]byte("CORRUPTED"),0644);err!=nil{t.Fatal(err)}
+		if _, err := verifyPackageForActivation(dir); err == nil || !strings.Contains(err.Error(),"SHA256 mismatch") {
+			t.Fatalf("tampered signed P17 file was not rejected: %s / %v",name,err)
+		}
+		if err := os.WriteFile(path,good,0644);err!=nil{t.Fatal(err)}
+	}
+}
+
 func TestDiagnosticCollectionOnlyIncludesExpectedLocalFiles(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(appDir(dir), 0755)
