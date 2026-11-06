@@ -1,0 +1,61 @@
+name: Build Bridge 2.2.3.1 Hotfix 2 signed activation repair
+on:
+  push:
+    branches: [release/2.2.3.1-hotfix.2]
+    paths: [.github/workflows/build-2231-hotfix2.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-2231-hotfix2-windows
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Verify previous published full P17 candidate and immutable artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/42116052029 | ConvertFrom-Json
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '4a9f9c5bde053fcce92e100e65c544fb4163c9e7') { throw 'Original P17 candidate not approved' }
+          $a=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/42116052029/artifacts | ConvertFrom-Json
+          $p=$a.artifacts | Where-Object { $_.id -eq 13457334107 -and $_.name -eq 'Bridge-2.2.3.1-FULL-CANDIDATE' }
+          if (!$p -or $p.expired -or $p.digest -ne 'sha256:cbd0f2221a780b09433c4621b8f8158d235ef8226f0493cfbe798775ecec51ba') { throw 'Original signed-update input mismatch' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.1-FULL-CANDIDATE
+          run-id: 42116052029
+          github-token: ${{ github.token }}
+          path: approved-new
+      - name: Test stale SHA256 Setup activation regression and native P17 runtime tamper rejection
+        shell: pwsh
+        run: |
+          python scripts/build_2203.py --tests-only
+          if ($LASTEXITCODE -ne 0) { throw 'Source tests failed: stale SHA256 activation or P17 tamper rejection' }
+      - name: Build new Setup and updater, verify six languages, denied IFEO recovery, and Windows first-click update
+        shell: pwsh
+        run: |
+          python scripts/build_2231_hotfix2.py --approved approved-new --output hotfix-output
+          if ($LASTEXITCODE -ne 0) { throw '2.2.3.1 Hotfix 2 Windows build or stale-SHA activation regression failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3.1-Hotfix2-FULL-CANDIDATE
+          path: |
+            hotfix-output/stale-sha-activation-tested.txt
+            hotfix-output/Atualizar-Bridge.exe
+            hotfix-output/build-report.json
+            hotfix-output/one-click-install-test.json
+            hotfix-output/one-click-install-setup.log
+          retention-days: 90
+          if-no-files-found: error
