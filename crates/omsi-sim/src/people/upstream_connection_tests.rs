@@ -110,7 +110,7 @@ fn wheelchair_request_stays_active_until_alt_assistance_completes_alighting() {
 }
 
 #[test]
-fn wheelchair_boarding_yields_past_an_occupied_bay_with_no_free_standing_place() {
+fn wheelchair_waits_for_an_occupied_bay_then_boards_after_it_is_freed() {
     let (mut h,bn,view,world)=wheelchair_service("wheelchair-full-bay");
     let (mut crowd,_,_,_)=wheelchair_service("wheelchair-crowd");
     let mut other=crowd.people.pop().unwrap();other.id=2;
@@ -125,7 +125,17 @@ fn wheelchair_boarding_yields_past_an_occupied_bay_with_no_free_standing_place()
         h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
         if h.wheelchairs.riders.contains_key(&id){break;}
     }
-    assert!(h.wheelchairs.riders.contains_key(&id),"occupied bay permanently blocked boarding");
+    assert!(!h.wheelchairs.riders.contains_key(&id),"an occupied bay cannot be secured by a timeout");
+    assert!((h.people[1].position-bn.world(bay)).length()<0.01,"crowd was moved into another occupied place");
+    let outside=bn.world(Vec3::new(3.0,5.0,0.0));
+    h.people[1].position=outside;h.people[1].place=Place::Ground;
+    if let State::Pax(x)=&mut h.people[1].state {x.inside=None;x.bus=None;x.pos=outside;}
+    for _ in 0..12000 {
+        h.tick_wheelchairs(1.0/60.0,&world,Some(&view),std::slice::from_ref(&bn));
+        if h.wheelchairs.riders.contains_key(&id){break;}
+    }
+    assert!(h.wheelchairs.riders.contains_key(&id),"boarding must resume when the real bay is free");
+    assert!((h.wheelchairs.riders[&id].journey.local-bay).length()<0.005);
     assert_eq!(h.people.len(),2);
 }
 

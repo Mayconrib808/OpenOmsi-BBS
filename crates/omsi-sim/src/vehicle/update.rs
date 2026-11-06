@@ -191,6 +191,7 @@ impl VehicleInstance {
 
     /// Run one simulation frame: physics, scripts, then animations.
     pub fn update(&mut self, dt: f32) {
+        let fuel = self.fuel_before_frame();
         self.host.clock.advance(dt);
         self.step_physics(dt);
         self.update_ground_probe();
@@ -206,6 +207,7 @@ impl VehicleInstance {
         self.vm.run_frame(&p, &mut self.state, &mut self.host);
         // and once more after them: what is drawn is the scheme's (see the method)
         self.apply_scheme_vars_each_frame();
+        self.finish_fuel_frame(fuel);
         self.show_radio_text();
         self.clear_pax_requests();
         self.update_visuals(dt);
@@ -238,6 +240,7 @@ impl VehicleInstance {
     /// Run the scripts' frame once with no time passing (no physics, no clock): what a
     /// switch just pressed makes of the variables the scripts derive from it.
     pub fn update_scripts_only(&mut self, _dt: f32) {
+        let fuel = self.fuel_before_frame();
         crate::timetable_run::apply_pending_destination(self);
         let p = self.ty.program.clone();
         let gap = self.host.clock.timegap;
@@ -245,6 +248,7 @@ impl VehicleInstance {
         self.run_control_cables();
         self.vm.run_frame(&p, &mut self.state, &mut self.host);
         self.apply_scheme_vars_each_frame();
+        self.finish_fuel_frame(fuel);
         self.host.clock.timegap = gap;
     }
 

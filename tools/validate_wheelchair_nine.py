@@ -6,7 +6,9 @@ result verifies discovery and a CPU-only controller cycle, NOT visual/gameplay
 compatibility, passenger AI, collision with moving riders, or multiplayer.
 """
 import argparse
+import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import shutil
@@ -19,7 +21,7 @@ CASES = [
     ("Articulado Scania", ("Articulado Scania.zip",), "Mi4_K310UA_F_ZF.bus"),
     ("Articulado Mi4 Voith", ("Articulado(2).zip",), "Mi4_UA_F_Voith.bus"),
     ("Articulado Mi4 ZF", ("Articulado(2).zip",), "Mi4_UA_F_ZF.bus"),
-    ("Torino 2007 VW T2 BH", ("Torino 2007.zip",), "Torino_2007_VW_T2_BH.bus"),
+    ("Torino 2007 VW T2 BH", ("Torino 2007.zip", "Torino 2007(1).zip"), "Torino_2007_VW_T2_BH.bus"),
     ("Torino 2025", ("Torino 2025.zip",), "TS_1726-AR_Manual.bus"),
     ("Torino S Rio Ita", ("Torino S.zip",), "Torino_S_Rio_Ita.bus"),
     ("VIP I 3 portas", ("Vip 1 3 portas.zip",), "Vip 1 OF 1721 Manual.bus"),
@@ -95,6 +97,33 @@ def verdict(data: dict) -> tuple[str, str]:
     if exercise.get("skipped"):
         return "PENDENTE_NO_JOGO", str(exercise["skipped"])
     controller = exercise.get("controller") or {}
+    profiles = discovery.get("profiles") or []
+    accesses = discovery.get("access_profiles") or []
+    for access in accesses:
+        if not any(math.dist(access["bay"], bay["bay"]) < 0.005 for bay in profiles):
+            return "FALHOU", "entrada alternativa mudou a vaga física"
+    all_cycles = data.get("bay_exercises") or []
+    if len(all_cycles) != len(profiles) + len(accesses):
+        return "FALHOU", "nem todas as vagas e portas foram exercitadas"
+    for entry in all_cycles:
+        cycle = (entry.get("exercise") or {}).get("controller") or {}
+        at, expected = cycle.get("secured_position"), cycle.get("expected_bay")
+        heading, wanted = cycle.get("secured_heading"), cycle.get("expected_heading")
+        if cycle.get("boarding") != "Riding" or cycle.get("alighting") != "Finished" \
+            or cycle.get("interlocked_after_stow") is not False \
+            or cycle.get("max_step_metres", 1) > 0.012 \
+            or at is None or expected is None or math.dist(at, expected) > 0.005 \
+            or heading is None or wanted is None or abs((heading-wanted+180) % 360-180) > 0.2:
+            return "FALHOU", "posição, orientação ou ciclo incorreto na vaga vinculada à porta"
+    if Path(str(data.get("bus", ""))).stem.casefold() == "torino_2007_vw_t2_bh":
+        if len(profiles) != 1:
+            return "FALHOU", f"Torino 2007 deve reconhecer uma vaga real, recebeu {len(profiles)}"
+        for access in profiles + accesses:
+            x, y, _ = access["bay"]
+            if not (-1.05 <= x <= -0.50 and -4.55 <= y <= -3.19 \
+                    and -4.5 <= access["threshold"][1] <= -3.3 \
+                    and access["door_var"] in ("door_8", "door_9")):
+                return "FALHOU", "Torino 2007 tentou usar outra área ou porta"
     boarding = controller.get("boarding")
     alighting = controller.get("alighting")
     step = controller.get("max_step_metres")
@@ -145,10 +174,15 @@ def main() -> int:
                 records.append({
                     "model": title, "status": status, "detail": detail,
                     "archive": archive.name, "bus_file": str(bus_file.relative_to(unpacked[key])),
+                    "archive_sha256": hashlib.sha256(archive.read_bytes()).hexdigest(),
                     "discovery_ms": data.get("discovery_ms"),
                     "profile": (data.get("detection") or {}).get("profile"),
                     "reasons": (data.get("detection") or {}).get("reasons"),
                     "controller": (data.get("native_exercise") or {}).get("controller"),
+                    "physical_capacity": len((data.get("detection") or {}).get("profiles") or []),
+                    "profiles": (data.get("detection") or {}).get("profiles"),
+                    "access_profiles": (data.get("detection") or {}).get("access_profiles"),
+                    "bay_exercises": data.get("bay_exercises"),
                 })
             except (ValueError, RuntimeError, OSError, BadZipFile, subprocess.TimeoutExpired, json.JSONDecodeError) as e:
                 records.append({"model": title, "status": "ERRO", "detail": str(e)})

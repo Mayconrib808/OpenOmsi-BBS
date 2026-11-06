@@ -76,14 +76,15 @@ impl Wheelchairs {
         false
     }
     pub fn free_profiles(&self)->impl Iterator<Item=&Profile> {
-        self.profiles.iter().filter(|p| {
+        self.profiles.iter().chain(&self.access_profiles).filter(|p| {
             !self.riders.values().any(|r|(r.profile.bay-p.bay).truncate().length()<1.35)
                 &&!self.journey.as_ref().zip(self.profile.as_ref()).is_some_and(|(j,other)|
                     j.stage!=Stage::Finished&&(other.bay-p.bay).truncate().length()<1.35)
         })
     }
     pub fn supports_bus(&self,id:BusId,side:Option<f32>)->bool {
-        id==BusId::Player&&self.profiles.iter().any(|p|side.is_none_or(|s|s==p.side()))
+        id==BusId::Player&&self.profiles.iter().chain(&self.access_profiles)
+            .any(|p|side.is_none_or(|s|s==p.side()))
     }
 }
 
@@ -269,10 +270,16 @@ impl PeopleSim {
                         q.z=bn.to_local(DVec3::new(to.x,to.y,z)).z;Some(q)
                     }).next()
                 }else{
-                    // Compress a full standing crowd into existing standing places;
-                    // preserve the other wheelchair bays and the model's floor.
+                    // Yield into a genuinely free standing place. An occupied
+                    // target is not a solution to an occupied wheelchair bay.
                     let taken=self.seats.get(&BusId::Player);
                     bn.cabin.seats.iter().enumerate().filter(|(k,s)|!s.seated&&s.floor.is_finite()&&!corridor(s.floor)&&!bn.places_off.get(*k).copied().unwrap_or(false)&&(s.floor.z-at.z).abs()<0.35&&!self.wheelchairs.riders.values().any(|r|(s.floor-r.profile.bay).truncate().length()<0.9))
+                    .filter(|(k,s)| !taken.and_then(|t|t.get(*k)).copied().unwrap_or(false)
+                        && !self.wheelchairs.crowd_targets.values().any(|(t,g)| !*g&&(*t-s.floor).length()<0.35)
+                        && !self.people.iter().any(|p|p.id!=pid && {
+                            let q=bn.to_local(p.position);
+                            (q.z-s.floor.z).abs()<0.72&&(q.truncate()-s.floor.truncate()).length()<0.35
+                        }))
                     .min_by(|(ka,a),(kb,b)| {
                         let score=|k:usize,q:Vec3|(q-at).length_squared()+if taken.and_then(|t|t.get(k)).copied().unwrap_or(false){100.0}else{0.0}+if self.wheelchairs.crowd_targets.values().any(|(t,g)|!*g&&(*t-q).length()<0.35){20.0}else{0.0};
                         score(*ka,a.floor).total_cmp(&score(*kb,b.floor))

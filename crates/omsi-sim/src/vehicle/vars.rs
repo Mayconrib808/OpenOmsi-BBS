@@ -16,6 +16,33 @@ mod initial_fuel_2212_tests {
     }
 }
 impl VehicleInstance {
+    pub(super) fn fuel_before_frame(&self) -> Option<(f32, Option<f32>)> {
+        let litres = self.var("engine_tank_content").filter(|v| v.is_finite() && *v >= 0.0)?;
+        Some((litres, self.var("engine_fuel_used").filter(|v| v.is_finite())))
+    }
+
+    /// A combustion engine cannot return diesel to its tank on overrun. Some
+    /// add-ons subtract a signed engine-power integral, giving negative fuel
+    /// consumption while braking. Limit ordinary frame consumption, not explicit
+    /// tank assignments or the veh_tank service/trigger used to refuel.
+    pub(super) fn finish_fuel_frame(&mut self, before: Option<(f32, Option<f32>)>) {
+        let Some((litres, used)) = before else { return; };
+        let now = self.var("engine_tank_content").unwrap_or(litres);
+        let remaining = if now.is_finite() { now.clamp(0.0, litres) } else { litres };
+        self.set_var("engine_tank_content", remaining);
+        if let Some(used) = used {
+            let now = self.var("engine_fuel_used").unwrap_or(used);
+            self.set_var("engine_fuel_used", if now.is_finite() { now.max(used) } else { used });
+        }
+        if let Some(rate) = self.var("engine_consumption_h") {
+            self.set_var("engine_consumption_h", if rate.is_finite() { rate.max(0.0) } else { 0.0 });
+        }
+        if let Some(capacity) = self.ty.program.constant("engine_tank_capacity")
+            .filter(|c| c.is_finite() && *c > 0.0) {
+            self.set_var("tank_percent", (remaining / capacity).clamp(0.0, 1.0));
+        }
+    }
+
     /// Explicit external fuel (BCS or CLI) owns the initial level, including zero.
     pub fn has_initial_fuel(setvar:Option<&str>)->bool{
         setvar.is_some_and(|text|text.split(',').any(|entry|{

@@ -32,8 +32,10 @@ pub struct Detection {
     pub static_equipment: Vec<String>,
     pub reasons: Vec<String>,
     pub profile: Option<Profile>,
-    /// Distinct verified bays, including alternatives served by the same door.
+    /// Distinct physical bays, with one canonical access route for each.
     pub profiles: Vec<Profile>,
+    /// Additional entrances to those same bays; these never add capacity.
+    pub access_profiles: Vec<Profile>,
 }
 static CACHE: OnceLock<Mutex<HashMap<u64, Detection>>> = OnceLock::new();
 fn equipment_name(name: &str) -> bool {
@@ -75,6 +77,113 @@ fn reserved_name(name: &str) -> bool {
         && !["painel", "panel", "adesivo", "luz", "light", "display", "ads_"]
             .iter()
             .any(|k| n.contains(k))
+}
+/// Read the material's own geometry, not the bounds of a whole interior mesh.
+/// Builders often put the wheelchair backrest/rails in a generically named mesh
+/// and identify that part only by its material (for example fkn-cadeirante).
+fn reserved_material_points(m: &crate::vehicle::VehicleMesh) -> Vec<Vec3> {
+    let mut points = Vec::new();
+    for &(start, count, slot) in &m.data.ranges {
+        if !m.materials.get(slot as usize).is_some_and(|mat| reserved_name(&mat.texture)) {
+            continue;
+        }
+        for side in [-1.0_f32, 1.0] {
+            let mut low = Vec3::splat(f32::INFINITY);
+            let mut high = Vec3::splat(f32::NEG_INFINITY);
+            for &i in &m.data.indices[start as usize..(start + count) as usize] {
+                let p = m.data.positions[i as usize];
+                if p.is_finite() && p.x * side > 0.35 {
+                    low = low.min(p);
+                    high = high.max(p);
+                }
+            }
+            // A symbol on the body is not a reserved compartment. Require a
+            // physical interior part with height and a bounded longitudinal span.
+            let size = high - low;
+            if low.is_finite() && (0.2..=2.8).contains(&size.y) && size.z > 0.25 {
+                points.push((low + high) * 0.5);
+            }
+        }
+    }
+    points
+}
+
+/// Older add-ons have no accessibility names. A bounded gap between fixed seat
+/// rows on one side can still describe a real compartment. The aisle, door wells,
+/// driver's cab and open ends of the cabin cannot create capacity this way.
+fn seat_row_compartments(c: &Cabin) -> Vec<Vec3> {
+    let mut areas = Vec::new();
+    for side in [-1.0_f32, 1.0] {
+        let mut rows: Vec<_> = c.seats.iter()
+            .filter(|s| s.seated && s.switch_var.is_none() && s.pos.x * side > 0.4)
+            .map(|s| s.pos.y).collect();
+        rows.sort_by(f32::total_cmp);
+        rows.dedup_by(|a, b| (*a - *b).abs() < 0.20);
+        for row in rows.windows(2) {
+            if !(1.65..=3.4).contains(&(row[1] - row[0])) { continue; }
+            let y = (row[0] + row[1]) * 0.5;
+            if c.entries.iter().chain(&c.exits).any(|d|
+                d.side == side && (d.inside.y - y).abs() < 0.95) { continue; }
+            areas.push(Vec3::new(side * 0.72, y, 0.0));
+        }
+    }
+    areas
+}
+
+fn reserved_area(c: &Cabin, at: Vec3, threshold: Vec3, areas: &[Vec3]) -> Option<usize> {
+    if at.x.abs() < 0.50 { return None; }
+    areas.iter().enumerate().filter(|(_, area)| {
+        if area.x.signum() != at.x.signum() || (area.x - at.x).abs() > 0.65
+            || (area.y - at.y).abs() > 0.80 { return false; }
+        let nearest = c.entries.iter().chain(&c.exits)
+            .filter(|d| d.side == threshold.x.signum())
+            .map(|d| (d.inside.y - area.y).abs()).fold(f32::INFINITY, f32::min);
+        // A compartment is served by its adjacent door. A route failure there
+        // must not move its rider to a different entrance or a different bay.
+        if (threshold.y - area.y).abs() > nearest + 0.25 { return false; }
+        !c.entries.iter().chain(&c.exits).any(|d| d.side == at.x.signum()
+            && (d.inside.y - at.y).abs() < 0.95)
+    }).min_by(|(_, a), (_, b)| (a.truncate() - at.truncate()).length_squared()
+        .total_cmp(&(b.truncate() - at.truncate()).length_squared())).map(|(i, _)| i)
+}
+
+fn fixed_seats_clear(c: &Cabin, at: Vec3, heading: f32) -> bool {
+    let (sin, cos) = heading.to_radians().sin_cos();
+    let forward = Vec3::new(sin, cos, 0.0);
+    let right = Vec3::new(cos, -sin, 0.0);
+    let centre = at + forward * 0.15;
+    let half = right.abs() * 0.38 + forward.abs() * 0.54;
+    !c.seats.iter().any(|seat| {
+        if !seat.seated || seat.switch_var.is_some() || (seat.floor.z - at.z).abs() > 0.45 {
+            return false;
+        }
+        let (s, co) = seat.rot.to_radians().sin_cos();
+        let seat_half = Vec3::new(co.abs(), s.abs(), 0.0) * 0.22
+            + Vec3::new(s.abs(), co.abs(), 0.0) * 0.30;
+        let delta = (seat.pos - centre).abs();
+        delta.x < half.x + seat_half.x && delta.y < half.y + seat_half.y
+    })
+}
+
+fn route_seats_clear(c: &Cabin, start: Vec3, route: &[Vec3], bay: Vec3) -> bool {
+    let mut from = start;
+    for &to in route.iter().chain(std::iter::once(&bay)) {
+        let direction = to - from;
+        let steps = (direction.truncate().length() / 0.08).ceil().max(1.0) as usize;
+        // The assisted passage can squeeze beside decorative seat/rail edges,
+        // but its centre must stay in the passenger aisle, not cross a seat.
+        // The final parked pose still checks the full wheelchair footprint.
+        if !(0..=steps).all(|i| {
+            let at = from.lerp(to, i as f32 / steps as f32);
+            !c.seats.iter().any(|seat| seat.seated && seat.switch_var.is_none()
+                && (seat.floor.z - at.z).abs() < 0.45
+                && (seat.pos.x - at.x).abs() < 0.25 && (seat.pos.y - at.y).abs() < 0.30)
+        }) {
+            return false;
+        }
+        from = to;
+    }
+    true
 }
 fn live_animation(ty: &VehicleType, index: usize) -> bool {
     let mut at = Some(index);
@@ -277,6 +386,7 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
         reasons: Vec::new(),
         profile: None,
         profiles: Vec::new(),
+        access_profiles: Vec::new(),
     };
     let mut natives = Vec::new();
     let mut reserved = Vec::new();
@@ -303,7 +413,18 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
         if reserved_name(&d.file) {
             reserved.push((lo + hi) * 0.5);
         }
+        if d.animations.is_empty() && d.anim_parent.is_none() && !equipment_name(&d.file) {
+            reserved.extend(reserved_material_points(m));
+        }
     }
+    if reserved.is_empty() {
+        reserved = seat_row_compartments(c);
+    }
+    if reserved.is_empty() {
+        out.reasons.push("No reserved compartment identified; free aisle floor does not add wheelchair capacity".into());
+        return out;
+    }
+    out.reasons.push(format!("Identified reserved compartments: {reserved:?}"));
     let geometry = Geometry::new(v);
     let half = ty
         .def
@@ -431,13 +552,16 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             }
             if let Some(route) = routes
                 .into_iter()
-                .find(|r| geometry.route_clear(threshold, r, bay, heading))
+                .find(|r| geometry.route_clear(threshold, r, bay, heading)
+                    && route_seats_clear(c, threshold, r, bay))
             { selected_bays.push((bay, heading, route,Vec::new())); }
         }
         if selected_bays.is_empty() {
             if let Some((bay,heading,maneuvers))=geometry.plan_route(threshold,&bays) {
-                let route=maneuvers.iter().map(|m|m.at).collect();
-                selected_bays.push((bay,heading,route,maneuvers));
+                let route=maneuvers.iter().map(|m|m.at).collect::<Vec<_>>();
+                if route_seats_clear(c,threshold,&route,bay) {
+                    selected_bays.push((bay,heading,route,maneuvers));
+                }
             }
         }
         if selected_bays.is_empty() {
@@ -447,9 +571,10 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             // to overlap. It never invents a door or crosses a missing floor.
             let assisted=find_assisted_bays(c,&geometry,threshold,&reserved);
             if let Some((bay,heading,route))=assisted.into_iter().find_map(|(bay,heading)|
-                geometry.assisted_route(threshold,bay).map(|route|(bay,heading,route))) {
+                geometry.assisted_route(threshold,bay).filter(|r|route_seats_clear(c,threshold,r,bay))
+                    .map(|route|(bay,heading,route))) {
                 selected_bays.push((bay,heading,route,Vec::new()));
-                out.reasons.push(format!("Door y={:.2}: assisted cabin-floor route; interior prop clearance relaxed",threshold.y));
+                out.reasons.push(format!("Door y={:.2}: assisted route to identified reserved compartment; fixed seats retained",threshold.y));
             }
         }
         if selected_bays.is_empty() {
@@ -534,8 +659,9 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
             out.reasons.push(e);
             continue;
         }
-        let score =
-            (bay - threshold).truncate().length() + if p.native.is_some() { 0.0 } else { 4.0 };
+        let area = reserved_area(c, bay, threshold, &reserved).unwrap();
+        let score = (bay.truncate() - reserved[area].truncate()).length() * 8.0
+            + (bay - threshold).truncate().length() + if p.native.is_some() { 0.0 } else { 4.0 };
         choices.push((score, p));
         }
         if !hint && native.is_none() && !choices.is_empty() {
@@ -545,10 +671,34 @@ fn discover(v: &VehicleInstance, c: &Cabin, key: u64) -> Detection {
     }
     }
     choices.sort_by(|a, b| a.0.total_cmp(&b.0));
-    for (_, p) in choices {
-        if !out.profiles.iter().any(|other| (other.bay-p.bay).truncate().length()<1.35) {
-            out.profiles.push(p);
+    let mut used_areas = HashSet::new();
+    for (_, p) in &choices {
+        let area = reserved_area(c, p.bay, p.threshold, &reserved).unwrap();
+        if !used_areas.contains(&area)
+            && !out.profiles.iter().any(|other| (other.bay-p.bay).truncate().length()<1.35) {
+            used_areas.insert(area);
+            out.profiles.push(p.clone());
         }
+    }
+    // A dual-sided bus may reach one compartment from either curb. Keep those
+    // verified routes available while counting the physical bay only once and
+    // securing every entrance at the exact same final position and heading.
+    let mut entrances = HashSet::new();
+    for p in &out.profiles {
+        let area = reserved_area(c,p.bay,p.threshold,&reserved).unwrap();
+        entrances.insert((area,p.door_var.clone()));
+    }
+    for (_, mut p) in choices {
+        let area = reserved_area(c,p.bay,p.threshold,&reserved).unwrap();
+        if entrances.contains(&(area,p.door_var.clone())) {continue;}
+        let Some(canonical) = out.profiles.iter().find(|other|
+            reserved_area(c,other.bay,other.threshold,&reserved)==Some(area)) else {continue;};
+        let Some(route) = geometry.assisted_route(p.threshold,canonical.bay)
+            .filter(|r|route_seats_clear(c,p.threshold,r,canonical.bay)) else {continue;};
+        p.bay=canonical.bay;p.bay_heading=canonical.bay_heading;p.route=route;p.maneuvers.clear();
+        if p.validate().is_err(){continue;}
+        entrances.insert((area,p.door_var.clone()));
+        out.access_profiles.push(p);
     }
     out.profile = out.profiles.first().cloned();
     if out.profile.is_none() && out.reasons.is_empty() {
@@ -762,7 +912,10 @@ impl Geometry {
                 for i in 1..=steps {
                     let at=from.lerp(*to,i as f32/steps as f32);
                     // The auxiliary bridge covers the doorway's shallow lip.
-                    if at.x.abs()>start.x.abs()-0.25{continue;}
+                    // The auxiliary bridge spans the step well of this exact
+                    // doorway, up to the aisle. It cannot cover a cabin gap or
+                    // carry a rider longitudinally through missing floor.
+                    if at.x * start.x.signum() > 0.35 && (at.y-start.y).abs()<0.40 {continue;}
                     if !self.height(at).is_some_and(|z|(z-at.z).abs()<0.12){return false;}
                 }
                 from=*to;
@@ -1129,26 +1282,24 @@ fn bay_floor_supported(g:&Geometry, p:Vec3, heading:f32)->bool {
     let (sin,cos)=heading.to_radians().sin_cos();
     let forward=Vec3::new(sin,cos,0.0);
     let right=Vec3::new(cos,-sin,0.0);
-    [-1.0_f32,1.0].into_iter().all(|x|
-        [-1.0_f32,1.0].into_iter().all(|y|
-            g.height(p+right*(x*0.30)+forward*(y*0.43))
+    [-0.38_f32,0.38].into_iter().all(|x|
+        [-0.38_f32,0.69].into_iter().all(|y|
+            g.height(p+right*x+forward*y)
                 .is_some_and(|h|(h-p.z).abs()<0.07)))
 }
 fn find_assisted_bays(c:&Cabin,g:&Geometry,threshold:Vec3,reserved:&[Vec3])->Vec<(Vec3,f32)> {
     let mut bays=Vec::new();
     for side in [-threshold.x.signum(),threshold.x.signum()] {
         for ix in 0..10 {
-            for iy in -40_i32..=40 {
+            for iy in -80_i32..=80 {
                 let mut p=Vec3::new(side*(0.18+ix as f32*0.09),threshold.y+iy as f32*0.065,threshold.z);
                 if side==threshold.x.signum()&&iy.abs()<14{continue;}
+                if reserved_area(c,p,threshold,reserved).is_none(){continue;}
                 let Some(z)=g.height(p)else{continue;};p.z=z;
-                let near_reserved=reserved.iter().any(|r|(r.truncate()-p.truncate()).length()<1.0);
-                if c.seats.iter().any(|s|s.seated&&s.switch_var.is_none()&&!near_reserved
-                    &&(s.floor.x-p.x).abs()<0.35&&(s.floor.y-p.y).abs()<0.55){continue;}
                 for heading in [180.0_f32,0.0,90.0,270.0] {
-                    if bay_floor_supported(g,p,heading) {
+                    if bay_floor_supported(g,p,heading) && fixed_seats_clear(c,p,heading) {
                         let hint=reserved.iter().map(|r|(r.truncate()-p.truncate()).length()).fold(1.5,f32::min);
-                        let score=(p.y-threshold.y).abs()+hint*0.5+(p.x.abs()-0.65).abs();
+                        let score=hint*8.0+(p.y-threshold.y).abs()*0.1;
                         bays.push((score,(p,heading)));break;
                     }
                 }
@@ -1170,7 +1321,7 @@ fn find_bays(
         // Profile::validate permits a bay up to 1.10 m from the centre,
         // so do not stop the universal search at only 0.90 m.
         for ix in 0..11 {
-            for iy in -40_i32..=40 {
+            for iy in -80_i32..=80 {
                 // A same-side bay can be adjacent to a wide accessible door.
                 // Reject only the doorway footprint, not the surrounding cabin.
                 if side == threshold.x.signum() && iy.abs() < 14 {
@@ -1181,23 +1332,13 @@ fn find_bays(
                     threshold.y + iy as f32 * 0.065,
                     threshold.z,
                 );
+                if reserved_area(c,p,threshold,reserved).is_none(){continue;}
                 let Some(z) = g.height(p) else {
                     continue;
                 };
                 p.z = z;
                 if static_boxes.iter().any(|(a, b)| {
                     a.x < p.x + 0.38 && b.x > p.x - 0.38 && a.y < p.y + 0.69 && b.y > p.y - 0.69
-                }) {
-                    continue;
-                }
-                if c.seats.iter().any(|s| {
-                    s.seated
-                        && s.switch_var.is_none()
-                        && !reserved
-                            .iter()
-                            .any(|r| (r.truncate() - s.floor.truncate()).length() < 0.7)
-                        && (s.floor.x - p.x).abs() < 0.38
-                        && (s.floor.y - p.y).abs() < 0.6
                 }) {
                     continue;
                 }
@@ -1209,10 +1350,10 @@ fn find_bays(
                 // forward/back. Both the four wheel contacts and the complete
                 // body must fit; alternative headings are not a bypass.
                 for heading in [180.0_f32,0.0,90.0,270.0] {
-                    if bay_floor_supported(g,p,heading) && g.chair_clear(p,heading) {
+                    if bay_floor_supported(g,p,heading) && fixed_seats_clear(c,p,heading) && g.chair_clear(p,heading) {
                         bays.push((
-                            (p.y-threshold.y).abs()
-                                + hint*0.5
+                            (p.y-threshold.y).abs()*0.1
+                                + hint*8.0
                                 + (p.x.abs()-0.65).abs()
                                 + if heading==180.0{0.0}else if heading==0.0{0.2}else{0.35},
                             (p,heading),
@@ -1371,6 +1512,64 @@ pub fn feedback(v: &VehicleInstance, p: &Profile) -> Feedback {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn flat_floor() -> Geometry {
+        let a=Vec3::new(-1.25,-6.0,1.07);let b=Vec3::new(1.25,-6.0,1.07);
+        let c=Vec3::new(1.25,6.0,1.07);let d=Vec3::new(-1.25,6.0,1.07);
+        Geometry::index(vec![[a,b,c],[a,c,d]],Vec::new())
+    }
+    fn bay_cabin() -> Cabin {
+        static NEXT: std::sync::atomic::AtomicUsize=std::sync::atomic::AtomicUsize::new(0);
+        let dir=std::env::temp_dir().join(format!("reserved-bay-{}-{}",std::process::id(),
+            NEXT.fetch_add(1,std::sync::atomic::Ordering::Relaxed)));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("cabin.cfg"),
+            "[entry]\n0\n[exit]\n1\n[exit]\n2\n\
+             [passpos]\n-0.7\n-5.0\n1.42\n0.35\n0\n\
+             [passpos]\n-0.7\n-3.0\n1.42\n0.35\n0\n").unwrap();
+        std::fs::write(dir.join("paths.cfg"),
+            "[pathpnt]\n1.15\n5.29\n1.07\n[pathpnt]\n1.15\n1.02\n1.07\n\
+             [pathpnt]\n1.15\n-3.83\n1.07\n[pathlink]\n0\n1\n[pathlink]\n1\n2\n").unwrap();
+        let def=omsi_vehicle::Vehicle{path:dir.join("fixture.bus"),passenger_cabin:Some("cabin.cfg".into()),
+            paths:Some("paths.cfg".into()),..Default::default()};
+        let c=Cabin::load_train(&[(&def,Vec3::ZERO,f32::INFINITY)]).unwrap();
+        std::fs::remove_dir_all(dir).unwrap();c
+    }
+    #[test]
+    fn free_floor_and_an_aisle_do_not_create_wheelchair_bays() {
+        let c=bay_cabin();let g=flat_floor();let door=Vec3::new(1.15,1.02,1.07);
+        assert!(find_bays(&c,&g,door,&[],&[]).is_empty());
+        assert!(find_assisted_bays(&c,&g,door,&[]).is_empty());
+    }
+    #[test]
+    fn the_rear_compartment_cannot_be_replaced_by_front_or_middle_floor() {
+        let c=bay_cabin();let g=flat_floor();let areas=[Vec3::new(-0.78,-3.87,1.75)];
+        let rear=Vec3::new(1.15,-3.83,1.07);
+        let front=Vec3::new(1.15,5.29,1.07);let middle=Vec3::new(1.15,1.02,1.07);
+        assert!(find_assisted_bays(&c,&g,front,&areas).is_empty());
+        assert!(find_assisted_bays(&c,&g,middle,&areas).is_empty());
+        let bays=find_assisted_bays(&c,&g,rear,&areas);
+        assert!(!bays.is_empty());
+        assert!(bays.iter().all(|(p,heading)|p.x< -0.5&&(p.y+3.87).abs()<=0.8
+            && fixed_seats_clear(&c,*p,*heading)));
+        assert!(reserved_area(&c,Vec3::new(0.27,3.47,1.07),front,&areas).is_none());
+        assert!(reserved_area(&c,Vec3::new(0.54,-0.41,1.07),middle,&areas).is_none());
+    }
+    #[test]
+    fn reserved_material_bounds_do_not_use_the_whole_interior_mesh() {
+        let m=crate::vehicle::VehicleMesh{
+            def_index:0,data:omsi_geometry::MeshData{
+                positions:vec![Vec3::new(1.0,4.0,1.0),Vec3::new(1.0,5.0,2.0),Vec3::new(0.5,5.0,2.0),
+                    Vec3::new(-1.19,-4.55,1.07),Vec3::new(-0.36,-3.19,2.43),Vec3::new(-1.19,-3.19,2.43)],
+                indices:vec![0,1,2,3,4,5],ranges:vec![(0,3,0),(3,3,1)],..Default::default()},
+            materials:vec![omsi_o3d::Material{texture:"interior.bmp".into(),..Default::default()},
+                omsi_o3d::Material{texture:"fkn-cadeirante.bmp".into(),..Default::default()}],
+            pick_geometry:Default::default(),file:PathBuf::new(),overrides:Vec::new(),pivot:Mat4::IDENTITY,
+            viewpoint:0,skin:Vec::new(),keep_winding:false,
+        };
+        let areas=reserved_material_points(&m);
+        assert_eq!(areas.len(),1);
+        assert!((areas[0]-Vec3::new(-0.775,-3.87,1.75)).length()<0.001);
+    }
     #[test]
     fn indexed_door_leaf_variables_accept_common_omsi_naming_without_button_fallback() {
         for name in ["door_1","door2_positiony","door_3_pos","door4_position",
