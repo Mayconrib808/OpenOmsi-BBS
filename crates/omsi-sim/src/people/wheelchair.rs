@@ -387,8 +387,22 @@ impl Journey {
     /// cycle is distance based, so stopped hands never continue propelling.
     fn drive(&mut self, target: Vec3, dt: f32, blockers: &[Vec3], reverse:bool) -> bool {
         let delta = target - self.local;
-        if delta.length() < 0.002 {
-            return true;
+        if delta.length() < 0.002 { return true; }
+        // The old drive() tested only XY at completion. On auxiliary lifts or
+        // multi-level interiors (e.g. MAN DL09), two route vertices can share XY
+        // while their cabin-floor heights differ; that skipped a vertical step
+        // and sent the chair to the next corridor waypoint below the floor.
+        let planar = delta.truncate().length();
+        if planar < 0.002 {
+            // Do not teleport a chair through a deck or across a missing floor.
+            if delta.z.abs() > 0.55 {
+                self.hold_reason = "Aguardando nivelamento da plataforma";
+                return false;
+            }
+            self.local.z += delta.z.clamp(-dt * 1.2, dt * 1.2);
+            self.hold_reason = "";
+            self.pose.moving = 0.0;
+            return (target.z - self.local.z).abs() < 0.002;
         }
         let wanted = (delta.x as f64).atan2(delta.y as f64).to_degrees()+if reverse{180.0}else{0.0};
         let yaw = angle_delta(self.heading, wanted).clamp(-55.0 * dt as f64, 55.0 * dt as f64);
@@ -399,7 +413,10 @@ impl Journey {
             0.0
         };
         let mut next = self.local + delta.truncate().normalize_or_zero().extend(0.0) * ds;
-        if ds>0.0 {next.z=self.local.z+delta.z*(ds/delta.truncate().length()).min(1.0);}
+        if ds>0.0 {
+            let rise=delta.z*(ds/planar).min(1.0);
+            next.z=self.local.z+rise.clamp(-dt * 1.2,dt * 1.2);
+        }
         // These blockers are *people*, not vehicle meshes. Ask the crowd to
         // move first; never strand a whole trip because an inspector or an
         // ordinary passenger is frozen on a lift. The geometry planner still
@@ -425,6 +442,7 @@ impl Journey {
             0.0
         };
         (target - self.local).truncate().length() < 0.002
+            && (target.z-self.local.z).abs()<0.002
     }
     fn turn_to(&mut self, heading: f64, dt: f32) -> bool {
         let yaw = angle_delta(self.heading, heading).clamp(-45.0 * dt as f64, 45.0 * dt as f64);
@@ -1438,6 +1456,22 @@ pub(crate) mod tests {
         j.advance(&p,0.02,0.0,Feedback::default(),false,&[]);assert!(j.interlocked());assert!(j.hold_reason.contains("recolhimento"));
         j.advance(&p,0.02,0.0,Feedback{stowed:true,..Default::default()},false,&[]);assert!(!j.interlocked());assert!(j.hold_reason.is_empty());
     }
+    #[test]
+    fn a_dl09_auxiliary_lift_cannot_skip_a_cabin_height_waypoint() {
+        let mut j=Journey::new(&profile(),0.0,0.0);
+        j.local=Vec3::new(0.2,0.5,0.16);
+        let upper=Vec3::new(0.2,0.5,0.46);
+        assert!(!j.drive(upper,0.02,&[],false));
+        assert!(j.local.z>0.16 && j.local.z<upper.z);
+        let mut reached=false;
+        for _ in 0..100 { if j.drive(upper,0.02,&[],false){reached=true;break;} }
+        assert!(reached);
+        assert!((j.local-upper).length()<0.002);
+        let before=j.local;
+        assert!(!j.drive(Vec3::new(before.x,before.y,before.z+0.8),0.02,&[],false));
+        assert_eq!(j.local,before,"unverified deck transition must not teleport");
+    }
+
     #[test]
     fn wheelchair_stop_call_is_one_press_and_recovers_for_later_requests() {
         let p=profile();
