@@ -136,3 +136,27 @@ elif "        self.coop_drawn_view();\n        self.player_back_to_sim_pose(sim)
 put(path, s)
 
 print("Reconciled 0.3.50 Settings, viewpoint-aware mouse picking and coop draw borrow.", flush=True)
+
+# Official 0.3.50's NVIDIA regression test expects the upstream release.yml,
+# which the BCS Bridge intentionally does not ship (its release channel uses
+# different signed publishing workflows). Verify the pinned official release
+# recipe from Git, and additionally check Bridge's real candidate workflow.
+# This avoids introducing a new, unreviewed release workflow into the repo.
+path = "launcher/tests/nvidia-dlss-install.test.mjs"
+s = get(path)
+original = "const release = file('../../.github/workflows/release.yml');"
+if original in s:
+    s = once(s, "import { readFileSync } from 'node:fs';",
+             "import { readFileSync } from 'node:fs';\nimport { execFileSync } from 'node:child_process';", path)
+    s = once(s, original, """// The BCS Bridge does not install the upstream release workflow. Read the
+// exact pinned official 0.3.50 recipe, not a substitute publishing workflow.
+const release = execFileSync('git', [
+  'show', '11ff78bab1998963162be97c49e909a2996710e1:.github/workflows/release.yml'
+], { encoding: 'utf8' });
+const bridgeCandidate = file('../../.github/workflows/integrate-openomsi-0350-2232.yml');""", path)
+    s = once(s, "  assert.doesNotMatch(release, /nvngx|sl\\.interposer|Streamline/i);",
+             """  assert.doesNotMatch(release, /nvngx|sl\\.interposer|Streamline/i);
+  assert.doesNotMatch(bridgeCandidate, /nvngx|sl\\.interposer|Streamline/i);""", path)
+    put(path, s)
+elif "const bridgeCandidate = file(" not in s:
+    raise RuntimeError(f"{path}: upstream NVIDIA test changed unexpectedly")
