@@ -54,6 +54,15 @@ impl Wheelchairs {
             ||self.riders.values().any(|r|
                 r.journey.alight_requested&&r.journey.stage!=Stage::Finished)
     }
+    /// Deliver only one script-level stop press per outstanding accessibility
+    /// request. The warning light is handled separately and stays active until
+    /// the last requesting wheelchair has finished alighting.
+    pub fn take_new_stop_request(&mut self)->bool {
+        let pending=self.wants_alight();
+        let new_request=pending&&!self.stop_request_armed;
+        self.stop_request_armed=pending;
+        new_request
+    }
     pub fn request_alight(&mut self,id:u32)->bool {
         let journey=if self.person==Some(id){self.journey.as_mut()}
             else{self.riders.get_mut(&id).map(|r|&mut r.journey)};
@@ -148,11 +157,7 @@ impl PeopleSim {
         // A call is an edge, not a button held down on every simulation tick.
         // A level-triggered request repeatedly fired int_haltewunsch, latching
         // native stop lights and hiding the distinction from an ordinary call.
-        let wheelchair_call = self.wheelchairs.wants_alight();
-        if wheelchair_call && !self.wheelchairs.stop_request_armed {
-            self.stop_request = true;
-        }
-        self.wheelchairs.stop_request_armed = wheelchair_call;
+        if self.wheelchairs.take_new_stop_request() { self.stop_request = true; }
     }
     pub(crate) fn begin_wheelchair_boarding(&mut self,i:usize,bn:&BusNow,world:&dyn World)->bool {
         if bn.id!=BusId::Player||self.wheelchairs.journey.is_some()||bn.speed.abs()>0.025 {return false;}
