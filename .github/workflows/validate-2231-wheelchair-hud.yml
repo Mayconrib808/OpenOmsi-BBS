@@ -7,6 +7,8 @@ on:
       - 'crates/omsi-app/src/app_events/frame/people.rs'
       - 'crates/omsi-sim/src/people/wheelchair.rs'
       - 'crates/omsi-sim/src/people/wheelchair/passengers.rs'
+      - 'crates/omsi-app/src/offscreen/setup.rs'
+      - 'crates/omsi-app/src/offscreen/step.rs'
       - '.github/workflows/validate-2231-wheelchair-hud.yml'
   workflow_dispatch: {}
 permissions:
@@ -40,7 +42,9 @@ jobs:
           rustfmt --check --edition 2021 crates/omsi-app/src/app_events/frame/interface.rs crates/omsi-app/src/app_events/frame/people.rs crates/omsi-sim/src/people/wheelchair/passengers.rs crates/omsi-sim/src/people/wheelchair.rs || true
       - name: Run wheelchair state-machine and P17 passenger regression tests
         run: cargo test --locked --release -p omsi-sim --lib wheelchair
-      - name: Compile actual gameplay HUD with wheelchair alerts
+      - name: Run scheduled-bus timetable and accessibility regressions
+        run: cargo test --locked --release -p omsi-sim --lib timetable_run
+      - name: Compile actual gameplay HUD and HostAgent offscreen AI simulation
         run: cargo check --locked -p omsi-app
   windows:
     runs-on: windows-2022
