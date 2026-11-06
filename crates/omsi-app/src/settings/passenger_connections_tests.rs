@@ -2,12 +2,12 @@
 use super::Settings;
 
 #[test]
-fn default_is_off_for_legacy_desktop_and_mobile() {
-    assert!(!Settings::phone().passenger_connections);
-    assert!(!Settings::desktop().passenger_connections);
+fn defaults_enabled_for_requested_bridge_migration() {
+    assert!(Settings::phone().passenger_connections);
+    assert!(Settings::desktop().passenger_connections);
     for src in ["", "version=1\n", "passenger_connections=0\n"] {
         let s = Settings::from_text(src);
-        assert!(!s.passenger_connections);
+        assert!(s.passenger_connections);
         assert_eq!(s.passenger_transfer_percent, 20.0);
     }
 }
@@ -22,7 +22,7 @@ fn chance_clamps_and_never_implicitly_enables() {
         ("-10", 0.0),
         ("nan", 20.0),
     ] {
-        let s = Settings::from_text(&format!("passenger_transfer_percent={input}\n"));
+        let s = Settings::from_text(&format!("passenger_features_0347=1\npassenger_connections=0\npassenger_transfer_percent={input}\n"));
         assert_eq!(s.passenger_transfer_percent, expected);
         assert!(!s.passenger_connections);
     }

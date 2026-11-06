@@ -86,6 +86,33 @@ use omsi_lan::mirror::relative_to_roots;
         assert_eq!(v.var("AI_target_index"), Some(2.0));
     }
 
+#[test]
+fn passenger_hail_intent_changes_are_retransmitted_to_multiplayer_clients() {
+    use omsi_net::world::PersonIntent;
+    let mut i = PersonIntent {
+        stop: 7665, line: Some(12345), dest: Some("Centro".into()),
+        transfers: 0, previous_bus: None,
+    };
+    let original = super::passenger_description_hash("Humans/Person.hum", false, Some(&i));
+    assert_eq!(original, super::passenger_description_hash("Humans/Person.hum", false, Some(&i)));
+    let key = (true, 42);
+    let mut view = super::View::default();
+    assert_ne!(view.described.get(&key).copied(), Some(original));
+    view.described.insert(key, original);
+    assert_eq!(view.described.get(&key).copied(), Some(original));
+    i.stop = 7674;
+    let changed_stop = super::passenger_description_hash("Humans/Person.hum", false, Some(&i));
+    assert_ne!(original, changed_stop, "the new stop must be described");
+    i.line = Some(6789);
+    let changed_line = super::passenger_description_hash("Humans/Person.hum", false, Some(&i));
+    assert_ne!(changed_stop, changed_line, "a new service must be described");
+    i.dest = Some("Terminal".into());
+    let changed_destination = super::passenger_description_hash("Humans/Person.hum", false, Some(&i));
+    assert_ne!(changed_line, changed_destination, "a new destination must be described");
+    assert_ne!(changed_destination, super::passenger_description_hash("Humans/Person.hum", false, None));
+    assert_ne!(changed_destination, super::passenger_description_hash("Humans/Person.hum", true, Some(&i)));
+    assert_ne!(changed_destination, super::passenger_description_hash("Humans/Other.hum", false, Some(&i)));
+}
     /// What the host tells of a timetable bus holds the fleet number and plate it drew and its
     /// depot file by name: a player's copy showed no number and read the destination's row in
     /// a depot file of its own choosing.

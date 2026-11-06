@@ -3,6 +3,8 @@
 //! host's people instead of its own and simulates only those who board its bus.
 
 use super::*;
+use super::pax_stops::entry_on_platform;
+use super::pax::duty_destination_fit;
 
 /// Where one of the host's people is this frame, as a client draws them.
 #[derive(Debug, Clone, Copy)]
@@ -36,6 +38,7 @@ pub fn remote_bus_player(bus: u64) -> Option<u32> {
 
 /// One of the host's people as it tells the clients.
 pub struct LanPerson {
+    pub wheelchair: bool,
     pub id: u32,
     pub ty: Arc<HumanType>,
     pub pos: DVec3,
@@ -46,7 +49,187 @@ pub struct LanPerson {
     pub waiting: Option<(i64, usize)>,
 }
 
+#[cfg(test)]
+mod service_intent_2212_tests{
+    use super::*;
+    #[test] fn line_identity_ignores_loading_order_but_not_destinations(){
+        let a:HashSet<String>=["Terminal A","Terminal B"].into_iter().map(str::to_string).collect();
+        let b:HashSet<String>=["Terminal B","Terminal A"].into_iter().map(str::to_string).collect();
+        let c:HashSet<String>=["Terminal C"].into_iter().map(str::to_string).collect();
+        assert_eq!(PeopleSim::hail_line_key(&a),PeopleSim::hail_line_key(&b));
+        assert_ne!(PeopleSim::hail_line_key(&a),PeopleSim::hail_line_key(&c));
+    }
+}
 impl PeopleSim {
+    pub fn connection_history(&self,id:u32,owner:u32)->(u8,Option<u64>) {
+        let Some(p)=self.people.iter().find(|p|p.id==id&&!p.remote).and_then(|p|
+            if let State::Pax(p)=&p.state{Some(p.as_ref())}else{None}) else{return (0,None)};
+        (p.transfer_count,p.transfer_from.map(|b|match b {BusId::Player=>remote_bus_id(owner),BusId::Ai(id)=>id}))
+    }
+    pub fn mirror_connection_history(&mut self,id:u32,count:u8,previous:Option<u64>,owner:u32) {
+        let previous=previous.map(|id|if id==remote_bus_id(owner){BusId::Player}else{BusId::Ai(id)});
+        self.mirror_connection_history.insert(id,(count.min(2),previous));
+    }
+
+    /// Same upstream recognition with authoritative host intent for a mirror waiter.
+    pub fn visual_mirror_hail_bus(&self, i: usize, buses: &[BusNow]) -> Option<(BusId, bool, DVec3)> {
+        let p = &self.people[i];
+        if !p.remote || p.puppet.is_some() { return None; }
+        let (stop, _) = self.mirror_wait.get(&p.id)?;
+        let s = self.stops.get(stop)?;
+        let h = s.heading.to_radians();
+        let forward = DVec2::new(h.sin(), h.cos());
+        buses.iter().filter(|b| !matches!(b.takes, Takes::Nobody)
+            && Self::visual_hail_range(b.pos-s.pos, forward)
+            && (b.pos-p.position).length_squared() <= 90.0*90.0
+            && b.fwd().dot(forward)>0. && b.served.is_none_or(|id| id==*stop)
+            && self.mirror_bus_fit(p.id,b,p.position)==Some(true))
+            .min_by(|a,b| Self::visual_hail_target_order(
+                a.speed, (a.pos-p.position).length_squared(),
+                b.speed, (b.pos-p.position).length_squared()))
+            .map(|b| (b.id,b.speed.is_finite() && b.speed>0.08,b.pos))
+    }
+
+    /// Exact individual service preference, supplied only by the authoritative host.
+    pub fn mirror_bus_fit(&self,id:u32,bn:&BusNow,position:DVec3)->Option<bool>{
+        let (stop,key,line,dest)=self.mirror_hail_intent.get(&id)?;
+        if self.mirror_connection_history.get(&id).is_some_and(|(_,b)|*b==Some(bn.id)){return Some(false)}
+        if self.mirror_wait.get(&id)?.0!=*stop{return None}
+        let s=self.stops.get(stop)?;
+        if matches!(bn.takes,Takes::Nobody){return Some(false)}
+        if bn.served.is_some_and(|v|v!=*stop) || bn.route.as_ref().is_some_and(|r|r.is_last_stop(s)){return Some(false)}
+        // Mirrors used to reject a passenger whenever the driver's terminus
+        // had not been initialized, even with a matching route/line already
+        // transmitted by the host. Keep host line intent authoritative, but
+        // do not require the optional HOF label to be populated.
+        let term=bn.terminus.as_deref();
+        if term.is_some_and(|t|at_stop(*stop,s,Some(t),&bn.takes)==AtStop::Empties){return Some(false)}
+        let side=self.preferred_entry_side(*stop,bn,position);
+        if self.wheelchairs.is_chair(id)&&!self.wheelchairs.supports_bus(bn.id,side){return Some(false)}
+        if !bn.cabin.entries.iter().any(|d|d.point.is_some() && entry_on_platform(side,d.side)){return Some(false)}
+        // A line key describes the host's stop table, not this client's HOF.
+        // Failure to resolve it must not veto a duty that demonstrably calls at
+        // this stop and subsequently at the authoritative destination. An
+        // arbitrary terminus or an unrelated/private/finished duty is not proof.
+        if key.is_some() && line.is_none(){
+            return Some(duty_destination_fit(*stop,s,dest.as_deref(),&bn.takes).is_some());
+        }
+        let route_match=line.and_then(|k|s.lines.get(k))
+            .is_some_and(|(_,termini)|bn.route.as_ref().and_then(|r|r.takes_waiting_for(termini)).is_some());
+        let stop_served=term.is_some_and(|t|matches!(at_stop(*stop,s,Some(t),&bn.takes),AtStop::Serves));
+        // Stop-level at_stop and a passenger's individual route fit differ.
+        // Do not veto an individual fit just because the stop-wide label was
+        // not recognized: the local authoritative bus_for accepts that fit.
+        // For a passenger with no line index, an explicitly served stop is
+        // enough, as in normal no-line boarding. Never accept a passing bus.
+        Some(match line.and_then(|k|s.lines.get(k)){
+            Some((_,termini))=>term
+                .and_then(|t|fit(*stop,s,dest.as_deref(),termini,t,&bn.takes))
+                .is_some() || route_match,
+            None=>line.is_none() && (stop_served || bn.served==Some(*stop)),
+        })
+    }
+    /// Stable identity of the termini, independent of HashMap loading/line order.
+    pub fn hail_line_key(termini:&HashSet<String>)->u64{
+        let mut names:Vec<_>=termini.iter().map(|s|s.trim()).collect();names.sort_unstable();
+        let mut h=0xcbf29ce484222325u64;
+        for name in names{for byte in name.bytes().chain(std::iter::once(0)){h^=byte as u64;h=h.wrapping_mul(0x100000001b3);}}
+        h
+    }
+    pub fn hail_intent(&self,id:u32)->Option<(i64,Option<u64>,Option<String>)>{
+        let p=self.people.iter().find(|p|p.id==id && !p.remote)?;
+        let State::Pax(p)=&p.state else{return None};
+        let stop=p.stop?;
+        let key=match p.line{Some(k)=>Some(Self::hail_line_key(&self.stops.get(&stop)?.lines.get(k)?.1)),None=>None};
+        Some((stop,key,p.dest.clone()))
+    }
+    /// The native client has finished walking to a connecting stop. Only after the
+    /// host confirms taking ownership may we retire this client-owned passenger.
+    pub fn finish_returned_connection(&mut self, wire_id: u32) -> bool {
+        let Some(i) = self.people.iter().position(|person| {
+            if person.remote || person.puppet.is_some() { return false; }
+            let id = if person.id >= (1 << 30) {
+                ((person.id - (1 << 30)) & 0x7F_FFFF) | 0x80_0000
+            } else { person.id & 0x7F_FFFF };
+            id == wire_id && matches!(&person.state, State::Pax(p)
+                if p.task == Task::WaitingForBus && p.transfer_from == Some(BusId::Player)
+                    && p.transfer_count > 0)
+        }) else { return false; };
+        self.release(i);
+        let person = self.people.swap_remove(i);
+        self.retire(&person);
+        true
+    }
+
+    /// Promote a client-owned connection to a real host passenger. The host chooses
+    /// a free waiting place and new world id (never trusts either from the client).
+    pub fn adopt_returned_connection(&mut self, world: &dyn World, kind: usize,
+        stop: i64, line_key: Option<u64>, destination: Option<String>, peer: u32,
+        position: DVec3, heading: f64, transfer_count: u8) -> Option<u32> {
+        if !position.is_finite() || !heading.is_finite() || !(1..=2).contains(&transfer_count) { return None; }
+        let s = self.stops.get(&stop)?;
+        if (s.gather - position).length() > 40.0 { return None; }
+        let dest = destination?.trim().to_string();
+        if dest.is_empty() || dest.len() > 180 { return None; }
+        let key = line_key?;
+        let line = s.lines.iter().position(|(name, terms)|
+            name.trim() == dest && Self::hail_line_key(terms) == key)?;
+        if !s.dests.iter().any(|(name, weight)| name.trim() == dest && *weight > 0.0) {
+            return None;
+        }
+        if kind >= self.types.len() || !self.pool_room() { return None; }
+        let spot = self.take_spot(stop)?;
+        let sp = self.stops.get(&stop)?.spots.get(spot)?.clone();
+        let walk = 1.1 + (self.rand_f() as f32 * 2.0 - 1.0) * 0.2;
+        let r = self.rand_f();
+        let mut pax = Pax::new(walk, r);
+        pax.task = Task::WaitingForBus;
+        pax.stop = Some(stop);
+        pax.spot = Some(spot);
+        pax.dest = Some(dest);
+        pax.line = Some(line);
+        pax.transfer_from = Some(BusId::Ai(remote_bus_id(peer)));
+        pax.transfer_count = transfer_count;
+        pax.ride_km = self.rand_f() as f32 * 19.0 + 1.0;
+        pax.pos = sp.pos;
+        pax.yaw = sp.face.to_radians();
+        if sp.height != 0.0 {
+            pax.seat_h = sp.height;
+            pax.pos -= DVec3::Z * self.types[kind].def.seat_height as f64;
+            pax.pax_state = 2.0;
+        }
+        let at = pax.pos;
+        let yaw = sp.face;
+        let i = match self.spawn_as(world, at, yaw, State::Pax(Box::new(pax)), Some(kind)) {
+            Some(i) => i,
+            None => { self.free_spot(stop, spot); return None; }
+        };
+        let id = self.people[i].id;
+        Some(id)
+    }
+
+    pub fn mirror_hail_intent(&mut self,id:u32,intent:Option<(i64,Option<u64>,Option<String>)>){
+        if let Some((stop,key,dest))=intent{
+            if self.mirror_hail_intent.get(&id).is_some_and(|old|old.0==stop && old.1==key && old.3==dest && (key.is_none()||old.2.is_some())){return}
+            let line=key.and_then(|key|self.stops.get(&stop)?.lines.iter().position(|(_,terms)|Self::hail_line_key(terms)==key))
+                .or_else(||{
+                    // Add-on HOFs can name the same destination while exporting
+                    // their terminal sets in different orders/versions. Accept
+                    // an authoritative destination name only if unique at this
+                    // stop; never guess between duplicate route names.
+                    let name=dest.as_deref()?.trim();
+                    key?;
+                    if name.is_empty(){return None;}
+                    let mut matching=self.stops.get(&stop)?.lines.iter().enumerate()
+                        .filter(|(_, (n,_))|n.trim().eq_ignore_ascii_case(name));
+                    let index=matching.next()?.0;
+                    matching.next().is_none().then_some(index)
+                });
+            self.mirror_hail_intent.insert(id,(stop,key,line,dest));
+        }else{self.mirror_hail_intent.remove(&id);
+        self.mirror_connection_history.remove(&id);}
+    }
+
     /// Is person `id` (one drawn for another game) here?
     pub fn has_mirror(&self, id: u32) -> bool {
         self.people.iter().any(|p| p.id == id && p.remote)
@@ -60,12 +243,13 @@ impl PeopleSim {
             .filter(|p| p.puppet.is_none() && !p.remote)
             .filter_map(|p| match p.place {
                 Place::Bus(BusId::Player, l) => Some(LanPerson {
+                    wheelchair: self.wheelchairs.is_chair(p.id),
                     id: p.id,
                     ty: p.ty.clone(),
                     pos: p.position,
                     heading: p.heading,
                     speed: 0.0,
-                    activity: p.activity,
+                    activity: p.pose_facts().activity,
                     aboard: Some((
                         0,
                         l,
@@ -126,7 +310,10 @@ impl PeopleSim {
         self.people
             .iter()
             .filter(|p| p.puppet.is_none() && !p.remote)
-            .filter(|p| (p.position - near).length_squared() < r2)
+            .filter(|p| (p.position - near).length_squared() < r2 ||
+                (self.mirror && matches!(&p.state, State::Pax(x)
+                    if x.task == Task::WaitingForBus && x.transfer_from == Some(BusId::Player)
+                        && x.transfer_count > 0)))
             .filter_map(|p| {
                 let aboard = match p.place {
                     Place::Bus(BusId::Player, _) => return None,
@@ -142,16 +329,23 @@ impl PeopleSim {
                     Place::Ground => None,
                 };
                 let waiting = match &p.state {
-                    State::Pax(x) if aboard.is_none() && x.task == Task::WaitingForBus => x.stop.zip(x.spot),
+                    State::Pax(x) if aboard.is_none() && x.task == Task::WaitingForBus => {
+                        if self.mirror {
+                            if self.return_capable && x.transfer_from == Some(BusId::Player) && x.transfer_count > 0 {
+                                x.stop.map(|stop| (stop, x.spot.unwrap_or(255)))
+                            } else { None }
+                        } else { x.stop.zip(x.spot) }
+                    },
                     _ => None,
                 };
                 Some(LanPerson {
+                    wheelchair: self.wheelchairs.is_chair(p.id),
                     id: p.id,
                     ty: p.ty.clone(),
                     pos: p.position,
                     heading: p.heading,
                     speed: if aboard.is_some() { 0.0 } else { p.vel.length() },
-                    activity: p.activity,
+                    activity: p.pose_facts().activity,
                     aboard,
                     waiting,
                 })
@@ -221,6 +415,8 @@ impl PeopleSim {
         self.claims_out.clear();
         self.claimed.clear();
         self.mirror_wait.clear();
+        self.mirror_hail_intent.clear();
+        self.mirror_connection_history.clear();
     }
 
     /// The human type of a file relative to a content root (`Humans/…/x.hum`).
@@ -287,15 +483,25 @@ impl PeopleSim {
             }
             None => {
                 self.mirror_wait.remove(&id);
+        self.mirror_hail_intent.remove(&id);
+        self.mirror_connection_history.remove(&id);
             }
         }
         match pose.aboard {
-            Some((bus, local, lheading, _)) => {
+            Some((bus, local, lheading, seat)) => {
                 p.place = Place::Bus(BusId::Ai(bus), local);
                 p.lheading = lheading;
                 p.vel = DVec2::ZERO;
+                // A remote person is State::Idle, not State::Pax. The packet's
+                // seat and activity must survive to both original and enhanced
+                // animation, otherwise the client draws a standing skeleton
+                // intersecting a seat despite correct bus-local coordinates.
+                p.remote_seat = if pose.activity == Activity::Sit { seat } else { None };
             }
-            None => p.place = Place::Ground,
+            None => {
+                p.place = Place::Ground;
+                p.remote_seat = None;
+            }
         }
     }
 
@@ -307,6 +513,8 @@ impl PeopleSim {
         }
         self.claimed.remove(&id);
         self.mirror_wait.remove(&id);
+        self.mirror_hail_intent.remove(&id);
+        self.mirror_connection_history.remove(&id);
     }
 
     /// A remote person this frame: they stand where the host put them.
@@ -356,9 +564,18 @@ impl PeopleSim {
         // what a waiting person of ours has (sub_626044 and task 6): a destination drawn
         // from the stop (both sides load the same map) and a distance to ride without one;
         // with neither they would get off again at once (#813)
-        let (dest, line) = self.draw_dest(stop);
+        let (dest,line)=match self.mirror_hail_intent.remove(&id).filter(|(wanted,_,_,_)|*wanted==stop){
+            Some((_,key,line,dest))=>{
+                pax.host_destination=key.is_some()&&line.is_none();
+                (dest,line)
+            },
+            None=>self.draw_dest(stop),
+        };
         pax.dest = dest;
         pax.line = line;
+        let (count,previous)=self.mirror_connection_history.remove(&id).unwrap_or((2,None));
+        pax.transfer_count=count;
+        pax.transfer_from=previous;
         pax.ride_km = self.rand_f() as f32 * 19.0 + 1.0;
         pax.pos = self.people[i].position;
         pax.yaw = self.people[i].heading.to_radians();
@@ -377,6 +594,7 @@ impl PeopleSim {
         let p = &mut self.people[i];
         p.remote = false;
         p.state = State::Pax(Box::new(pax));
+        if self.wheelchairs.is_chair(id){self.register_wheelchair(i);}
         true
     }
 
@@ -387,20 +605,45 @@ impl PeopleSim {
         }
         let now = self.time;
         self.claimed.retain(|_, t| now - *t < 10.0);
+        let report = now - self.demand_audit.last_mirror_claim_report_at >= 30.0;
         let at: Vec<i64> = self
             .stops
             .iter()
             .filter(|(_, s)| s.buses.iter().any(|b| b.0 == BusId::Player))
             .map(|(id, _)| *id)
             .collect();
-        if at.is_empty() {
-            return;
-        }
+        let player = self.last_buses.iter().find(|b| b.id == BusId::Player);
+        let (mut waiting_at, mut rejected, mut pending, mut requested) = (0, 0, 0, 0);
         for (id, (stop, _)) in &self.mirror_wait {
-            if at.contains(stop) && !self.claimed.contains_key(id) {
-                self.claimed.insert(*id, now);
-                self.claims_out.push(*id);
-            }
+            if !at.contains(stop) { continue; }
+            waiting_at += 1;
+            let fits=self.people.iter().find(|p|p.id==*id).and_then(|person|
+                player.and_then(|b|self.mirror_bus_fit(*id,b,person.position))).unwrap_or(true);
+            if !fits { rejected += 1; continue; }
+            if self.claimed.contains_key(id) { pending += 1; continue; }
+            self.claimed.insert(*id, now);
+            self.claims_out.push(*id);
+            requested += 1;
+        }
+        if report {
+            self.demand_audit.last_mirror_claim_report_at = now;
+            let unresolved = self.mirror_wait.keys().filter(|id|
+                self.mirror_hail_intent.get(*id).is_some_and(|(_,key,line,_)|
+                    key.is_some() && line.is_none())).count();
+            let nearest_stop = player.and_then(|bus| self.mirror_wait.values()
+                .filter_map(|(id,_)| self.stops.get(id).map(|s|
+                    (*id,(s.pos-bus.pos).length())))
+                .min_by(|a,b|a.1.total_cmp(&b.1)));
+            let duty = player.map(|b| match &b.takes {
+                Takes::Duty {trip,next,done} => format!("{} public={} next={} finished={} calls={}",
+                    trip.name,trip.public,next,done,trip.stops.len()),
+                Takes::Terminus => "destination-display".into(),
+                Takes::Nobody => "not-taking-passengers".into(),
+            });
+            log::info!("PASSENGER_CLAIM_AUDIT role=client waiting={} loaded_stops={} registered_player_stops={} waiting_at_registered={} unresolved_host_lines={} service_rejected={} pending={} requested={} nearest_waiting_stop={:?} terminus={:?} duty={:?} entry_open={:?}",
+                self.mirror_wait.len(),self.stops.len(),at.len(),waiting_at,unresolved,
+                rejected,pending,requested,nearest_stop,player.and_then(|b|b.terminus.as_deref()),
+                duty,player.map(|b|b.entry_open.as_slice()));
         }
     }
 }

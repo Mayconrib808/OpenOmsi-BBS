@@ -1,0 +1,123 @@
+name: Build 2.2.2 native integration
+concurrency:
+  group: openomsi-native-${{ github.ref }}
+  cancel-in-progress: true
+on:
+  push:
+    branches: [work/native-222-build, fix/2223-boarding-traffic-diagnostics-20261030]
+    paths: [ci/release222/apply_2223.py, ci/release222/native.patch, ci/release222/inspector-patrol.patch, ci/release222/door-reaction.patch, ci/release222/lan-traffic.patch, ci/release222/police-response.patch, ci/release222/emergency-model-axis.patch, crates/omsi-sim/src/people/buses.rs, crates/omsi-sim/src/people/tests.rs, crates/omsi-sim/src/people/pax_stops.rs, crates/omsi-app/src/traffic/population.rs, crates/omsi-app/src/app_impl/lan_tick.rs, crates/omsi-app/src/lan_world.rs, .github/workflows/native-222-build.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  native:
+    runs-on: windows-2022
+    timeout-minutes: 100
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2
+      OPENOMSI_BCS_EVENTS_BETA_DEFAULT: '1'
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - name: Use LF source files on the ephemeral Windows runner
+        shell: pwsh
+        run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Apply cumulative source delta and record exact source tree
+        shell: pwsh
+        run: |
+          git apply --index ci/release222/native.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Cumulative source patch failed' }
+          git apply --index ci/release222/inspector-patrol.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Inspector route-patrol patch failed' }
+          git apply --index ci/release222/door-reaction.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Door reaction diagnostics patch failed' }
+          git apply --index ci/release222/lan-traffic.patch
+          if ($LASTEXITCODE -ne 0) { throw 'LAN guest traffic-density patch failed' }
+          git apply --index ci/release222/police-response.patch
+          if ($LASTEXITCODE -ne 0) { throw 'BCS police response lifecycle patch failed' }
+          git apply --index ci/release222/emergency-model-axis.patch
+          if ($LASTEXITCODE -ne 0) { throw 'Emergency model coordinate patch failed' }
+          python ci/release222/apply_2223.py
+          if ($LASTEXITCODE -ne 0) { throw '2.2.3 source fix layering failed' }
+          git add crates/omsi-app/src/app_impl/lan_tick.rs crates/omsi-sim/src/people/pax_stops.rs crates/omsi-sim/src/people/pax_task.rs crates/omsi-app/src/traffic/population.rs crates/omsi-app/src/lan_world.rs
+          git -c user.name=Codex -c user.email=codex@openai.com commit -m 'Materialize 2.2.2 plus 2.2.3 regression fixes'
+          if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          key: native-222-release
+      - name: Generate included original emergency assets
+        shell: pwsh
+        run: |
+          python tools/generate_bcs_assets.py bcs-assets
+          if ($LASTEXITCODE -ne 0) { throw 'Emergency asset generation failed' }
+          @'
+          from pathlib import Path
+          for model,expected in [('Police',4.5),('Fire',7.0)]:
+              path=Path('bcs-assets')/'Vehicles'/'OpenOMSI_BCS'/model/'body.obj'
+              vertices=[[float(v) for v in line.split()[1:]] for line in path.read_text().splitlines() if line.startswith('v ')]
+              height=max(v[1] for v in vertices)-min(v[1] for v in vertices)
+              length=max(v[2] for v in vertices)-min(v[2] for v in vertices)
+              assert length>=expected and height<3.5, (model,length,height)
+              print(f'{model} CC0 vehicle: length={length:.1f}m, height={height:.1f}m (OBJ y-up export)')
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Emergency fallback geometry points along the wrong axis' }
+      - name: Build matching Windows client and server runtime
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Windows build failed' }
+          & .\target\release\openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Native startup failed' }
+      - name: Check response lifecycle and international name inference
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim ai_traffic::response::tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Responder regression failed' }
+          cargo test --locked --release -p omsi-sim people::inspector::patrol_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'BCS inspector patrol regression failed' }
+          cargo test --locked --release -p omsi-sim tolerant_stop_box_tests -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Passenger tolerance regression failed' }
+          cargo test --locked --release -p omsi-sim one_entry_one_exit_with_separate_rear_leaf_can_open_for_alighting -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Physically-open rear door regression failed' }
+          cargo test --locked --release -p omsi-app bcs_events:: -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'BCS emergency dispatch regression failed' }
+          '#[path="crates/omsi-app/src/bcs_events/names.rs"] mod names;' | Set-Content names-check.rs
+          rustc --edition=2024 --test names-check.rs -o names-check.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Name lookup test build failed' }
+          .\names-check.exe
+          if ($LASTEXITCODE -ne 0) { throw 'International name lookup failed' }
+          cargo run --locked --release -p omsi-sim --example bcs_models -- bcs-assets
+          if ($LASTEXITCODE -ne 0) { throw 'Bundled emergency models failed to load' }
+      - name: Package exact binary and corresponding source
+        shell: pwsh
+        run: |
+          @'
+          import hashlib,json,os,shutil,subprocess
+          from pathlib import Path
+          out=Path('native');out.mkdir()
+          commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          shutil.copy2('target/release/openomsi.exe',out/'openomsi.exe')
+          shutil.copytree('bcs-assets',out/'bcs-assets')
+          for dll in Path('target/release').glob('*.dll'):shutil.copy2(dll,out/dll.name)
+          version=subprocess.check_output([str((out/'openomsi.exe').resolve()),'--version'],text=True)
+          assert os.environ['OPENOMSI_VERSION'] in version
+          (out/'version.txt').write_text(version)
+          subprocess.run(['git','archive','--format=tar.gz','--prefix=openomsi-222/','-o',str(out/'openomsi-source.tar.gz'),commit],check=True)
+          digest=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
+          (out/'SOURCE.json').write_text(json.dumps(dict(commit=commit,build_commit=os.environ['GITHUB_SHA'],source_tree=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),run_id=int(os.environ['GITHUB_RUN_ID']),upstream_commit='17be22987d7c01c813a1473e7696fc71fb3b1d89',native_sha256=digest(out/'openomsi.exe'),source_sha256=digest(out/'openomsi-source.tar.gz'),version=os.environ['OPENOMSI_VERSION'],windows_gameplay_tested=False),indent=2))
+          '@ | python -
+          if ($LASTEXITCODE -ne 0) { throw 'Source packaging failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2-native-Windows
+          path: native/*
+          retention-days: 30

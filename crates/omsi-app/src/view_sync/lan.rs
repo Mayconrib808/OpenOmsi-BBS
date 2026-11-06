@@ -81,10 +81,19 @@ pub(crate) fn apply_lan(
                 }
             }
             RemoteEvent::Made(id) => {
-                if let Some(rv) = game.remotes.get(&id) {
+                if let Some(old) = view.remotes.remove(&id) { release(r, scene, w, audio, old); }
+                if let Some(rv) = game.remotes.get(&id).filter(|_| frame.hide_vehicle_for != Some(id)) {
                     view.remotes.insert(id, made(w, r, scene, rv));
                 }
             }
+        }
+    }
+    if let Some(id) = frame.hide_vehicle_for {
+        if let Some(old) = view.remotes.remove(&id) { release(r, scene, w, audio, old); }
+    }
+    for (id,rv) in &game.remotes {
+        if frame.hide_vehicle_for != Some(*id) && !view.remotes.contains_key(id) {
+            view.remotes.insert(*id, made(w,r,scene,rv));
         }
     }
     for (id, inside) in changes.heard {
@@ -113,16 +122,20 @@ pub(crate) fn apply_lan(
     // draw them like AI traffic
     for (id, rv) in game.remotes.iter_mut() {
         let Some(v) = view.remotes.get_mut(id) else { continue };
-        if v.driver_for.as_deref() != Some(rv.last.figure.as_str()) && !rv.stand_in {
-            v.driver_for = Some(rv.last.figure.clone());
+        let borrowed = frame.borrowed_drivers.iter()
+            .find(|(owner, _)| *owner == *id)
+            .and_then(|(_, figure)| omsi_net::human_path(figure));
+        let actual_figure = borrowed.as_deref().unwrap_or(rv.last.figure.as_str());
+        if v.driver_for.as_deref() != Some(actual_figure) {
+            v.driver_for = Some(actual_figure.to_string());
             if let Some(mut d) = v.driver.take() {
                 d.hide(r, scene);
             }
             // their own figure at the wheel (a figure picked by their id otherwise)
-            v.driver = crate::driver::DriverFigure::new_named(w, r, scene, rv.vehicle(), omsi_net::human_path(&rv.last.figure).as_deref(), 1000 + *id as u64);
+            v.driver = crate::driver::DriverFigure::new_named(w, r, scene, rv.vehicle(), omsi_net::human_path(actual_figure).as_deref(), 1000 + *id as u64);
         }
         if let Some(d) = v.driver.as_mut() {
-            d.update(r, scene, rv.vehicle(), &v.render, dt.max(1.0 / 120.0), rv.last.walker.is_none(), false);
+            d.update(r, scene, rv.vehicle(), &v.render, dt.max(1.0 / 120.0), (borrowed.is_some() || rv.last.walker.is_none()) && frame.hide_driver_for != Some(*id), false);
         }
         // drawn as the own bus is: its outside meshes from outside, its inside ones to
         // whoever stands in it (the outside and the AI meshes together fought over the

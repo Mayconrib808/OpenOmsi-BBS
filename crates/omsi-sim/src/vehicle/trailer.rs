@@ -969,3 +969,23 @@ impl TrailerPart {
         }
     }
 }
+
+/// Every dynamic articulation/section state; no scripts run when it is restored.
+#[derive(Clone,Debug,serde::Serialize,serde::Deserialize)]
+pub struct TrailerHandover {
+ position:[f64;3],heading:f64,pivot:Option<[f64;3]>,kappa:f32,lead_turn:(f32,f32),
+ odometer:f32,pitch:f32,bank:f32,axle_z:Option<f64>,axle_vz:f64,remote:bool,
+ run:Option<(Vec<f32>,Vec<String>,([f32;8],[f32;10],[String;8],u64))>,
+}
+impl TrailerPart {
+ pub fn export_handover(&self)->TrailerHandover {
+  TrailerHandover{position:self.position.to_array(),heading:self.heading,pivot:self.pivot.map(|p|p.to_array()),kappa:self.kappa,lead_turn:self.lead_turn,odometer:self.odometer,pitch:self.pitch,bank:self.bank,axle_z:self.axle_z,axle_vz:self.axle_vz,remote:self.remote,run:self.run.as_ref().map(|r|r.export_handover())}
+ }
+ pub fn accepts_handover(&self,s:&TrailerHandover)->bool {
+  match (self.run.as_ref(),s.run.as_ref()) {(Some(r),Some(s))=>r.accepts_handover(s),(None,None)=>true,_=>false}
+ }
+ pub fn import_handover(&mut self,s:&TrailerHandover){
+  self.position=DVec3::from_array(s.position);self.heading=s.heading;self.pivot=s.pivot.map(DVec3::from_array);self.kappa=s.kappa;self.lead_turn=s.lead_turn;self.odometer=s.odometer;self.pitch=s.pitch;self.bank=s.bank;self.axle_z=s.axle_z;self.axle_vz=s.axle_vz;self.remote=s.remote;
+  if let (Some(r),Some(s))=(self.run.as_mut(),s.run.as_ref()){r.import_handover(s);}
+ }
+}

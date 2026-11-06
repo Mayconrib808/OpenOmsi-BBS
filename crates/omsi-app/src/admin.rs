@@ -28,7 +28,7 @@ use omsi_lan::admin::{act_on_session, answer, beside, Action, Admin, Done, Weath
 use omsi_lan::commands::Command;
 
 /// The clock speeds offered.
-pub(crate) const SPEEDS: [f64; 6] = [1.0, 2.0, 4.0, 8.0, 15.0, 30.0];
+pub(crate) const SPEEDS: [f64; 7] = [1.0, 2.0, 4.0, 8.0, 15.0, 30.0, 32.0];
 
 /// The lines of the administration menu: (label, action).
 pub(crate) fn items(app: &App) -> Vec<(String, String)> {
@@ -62,6 +62,12 @@ pub(crate) fn items(app: &App) -> Vec<(String, String)> {
         out.push((format!("{}: {} ({})", omsi_ui::tr("Traffic"), t.target, omsi_ui::tr("more / less")), "traffic next".into()));
     }
     out.push(("Clock +1 hour".into(), "time 3600".into()));
+    for minutes in [1, 5, 10, 15, 17, 30] {
+        out.push((format!("Relógio +{minutes} min"), format!("time {}", minutes * 60)));
+    }
+    for minutes in [1, 5, 10, 15] {
+        out.push((format!("Relógio -{minutes} min"), format!("time -{}", minutes * 60)));
+    }
     out.push(("Clock -1 hour".into(), "time -3600".into()));
     let speed = lan.clock_speed;
     for s in SPEEDS {

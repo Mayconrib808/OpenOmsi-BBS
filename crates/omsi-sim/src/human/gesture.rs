@@ -145,6 +145,18 @@ mod brazilian_hail_tests {
     }
 
     #[test]
+    fn seated_driver_wave_changes_bones_without_a_wheel_and_preserves_other_arm() {
+        let rig = rig(1.77); let mut pose = Pose::new(42);
+        for _ in 0..90 { pose.advance(&rig, &PoseInput { activity: Activity::Sit, seat: Some(Vec3::new(0.0, 0.0, 0.65)), ..Default::default() }, 1.0/30.0); }
+        for side in 0..2 {
+            let mut posed=pose.bones(&rig);let old=posed.clone();
+            assert_eq!(driver_greeting(&rig,&mut posed,side,0.0,0.4),0.0);assert_eq!(posed.bones,old.bones);
+            assert!(driver_greeting(&rig,&mut posed,side,1.0,0.4)>0.10);
+            assert_eq!(posed.bones[HAND[1-side]],old.bones[HAND[1-side]]);
+            assert!(posed.bones.iter().all(|b|b.is_finite()));assert!(posed.wrist[side].z>posed.elbow[side].z);
+        }
+    }
+    #[test]
     fn hail_extends_from_shoulder_in_body_frame_at_different_sizes_and_headings() {
         for height in [1.10, 1.45, 1.77, 2.05] {
             let r = rig(height);
@@ -341,4 +353,44 @@ mod brazilian_hail_tests {
         accessory_hail_arm(&r, &mut bones, 99, Vec3::Y, 1., f32::NAN);
         assert!(bones.iter().all(|b| b.is_finite()));
     }
+}
+
+pub fn accessory_head(rig: &Rig, bones: &[Affine3A; SLOTS]) -> Vec3 {
+    bones[HEAD].transform_point3(Vec3::new(rig.head_pivot.x, rig.head_pivot.y, rig.head_top))
+}
+
+pub fn accessory_arm(rig: &Rig, bones: &mut [Affine3A; SLOTS], side: usize, target: Vec3, amount: f32, grip: bool, wave: f32) {
+    let side=side.min(1);
+    let sh=bones[MAIN].transform_point3(rig.shoulder[side]);
+    let old=bones[HAND[side]].transform_point3(rig.wrist[side]);
+    let target=old.lerp(target,amount.clamp(0.0,1.0));
+    let pole=Vec3::new(SIDE[side]*0.75,-0.2,-0.8);
+    let (el,wr,_)=two_bone(sh,rig.upper_arm,rig.forearm,target,pole);
+    let a=(el-sh).normalize_or(-Vec3::Z);
+    let c=(wr-el).normalize_or(-Vec3::Z);
+    let front=(c-a*a.dot(c)).normalize_or(Vec3::Y);
+    let bend=a.dot(c).clamp(-1.0,1.0).acos();
+    let fore_front=front*bend.cos()-a*bend.sin();
+    let upper=bone_rot(rig.elbow[side]-rig.shoulder[side],Vec3::Y,a,front);
+    let fore=bone_rot(rig.wrist[side]-rig.elbow[side],Vec3::Y,c,fore_front);
+    // Hold the shaft upright: the rest fingers point along X, palm towards -Z.
+    let hand=if grip { bone_rot(rig.wrist[side]-rig.elbow[side],-Vec3::Z,Vec3::Y,Vec3::X*SIDE[side]) }
+        else { fore*Mat3A::from_rotation_y(wave) };
+    bones[UPPER[side]]=joint_xf(rig.shoulder[side],sh,upper);
+    bones[FORE[side]]=joint_xf(rig.elbow[side],el,fore);
+    bones[HAND[side]]=joint_xf(rig.wrist[side],wr,hand);
+}
+
+/// Driver gesture applied directly to the bones that are skinned this frame.
+pub fn driver_greeting(rig: &Rig, posed: &mut Posed, side: usize, amount: f32, phase: f32) -> f32 {
+    if !posed.ok || !amount.is_finite() || amount <= 0.0 || !phase.is_finite() { return 0.0; }
+    let side = side.min(1);
+    let before = posed.bones[HAND[side]].transform_point3(rig.wrist[side]);
+    let shoulder = posed.bones[MAIN].transform_point3(rig.shoulder[side]);
+    let scale = (rig.upper_arm + rig.forearm).clamp(0.3, 1.0);
+    let target = shoulder + Vec3::new(SIDE[side] * 0.24, 0.20, 0.40 + (phase * 16.0).sin() * 0.06) * scale;
+    accessory_arm(rig, &mut posed.bones, side, target, amount, false, (phase * 16.0).sin() * 0.22);
+    posed.elbow[side] = posed.bones[FORE[side]].transform_point3(rig.elbow[side]);
+    posed.wrist[side] = posed.bones[HAND[side]].transform_point3(rig.wrist[side]);
+    before.distance(posed.wrist[side])
 }

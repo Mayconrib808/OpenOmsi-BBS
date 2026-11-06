@@ -3,10 +3,10 @@ use super::*;
 fn optional_passenger_preference_survives_launcher_saves() {
     let key = "passenger_connections";
     for phone in [false, true] {
-        assert_eq!(settings_from_text_on(None, phone)[key], false);
+        assert_eq!(settings_from_text_on(None, phone)[key], true);
         assert_eq!(
             settings_from_text_on(Some("version=1\n"), phone)[key],
-            false
+            true
         );
         for on in [false, true, false] {
             let old = format!("{key}=0\n{key}=1\n");
@@ -27,7 +27,7 @@ fn optional_passenger_preference_survives_launcher_saves() {
 #[test]
 fn connection_chance_round_trips_without_enabling_connections() {
     for input in ["-10", "0", "35", "100", "150", "NaN", "inf"] {
-        let settings = settings_from_text(Some(&format!("passenger_transfer_percent={input}\n")));
+        let settings = settings_from_text(Some(&format!("passenger_features_0347=1\npassenger_connections=0\npassenger_transfer_percent={input}\n")));
         let chance = settings["passenger_transfer_percent"].as_f64().unwrap();
         assert!(chance.is_finite() && (0.0..=100.0).contains(&chance));
         let text = settings_to_text(&settings, None);

@@ -163,6 +163,19 @@ fn the_rear_section_is_in_the_sync_table() {
 }
 
 #[test]
+fn walking_without_a_bus_keeps_the_players_chosen_character() {
+    let root=std::env::temp_dir().join("coop-character-install");
+    let args=LanConfig {root:root.clone(), ..Default::default()};
+    let file=root.join("Humans/Other/woman01.hum");
+    let mut game=LanGame::default();
+    let pose=my_pose(&mut game,None,Some(&file),&args,None,0);
+    assert_eq!(pose.figure,"Humans/Other/woman01.hum");
+    assert!(!pose.has_vehicle(),"Choosing a character must not create a vehicle");
+    assert!(pose.bus.is_empty());
+    assert!(my_pose(&mut game,None,None,&args,None,0).figure.is_empty());
+}
+
+#[test]
 fn admin_password_command_is_private_for_any_case() {
     assert_eq!(admin_chat_arg("/admin hunter2"), Some("hunter2"));
     assert_eq!(admin_chat_arg("/Admin hunter2"), Some("hunter2"));

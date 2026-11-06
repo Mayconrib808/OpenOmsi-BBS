@@ -1,0 +1,95 @@
+name: Fast-path 2.2.2.2 Windows native release build after previously approved tests
+on:
+  push:
+    branches: [feat/winter-artist-assets]
+    paths: [.github/workflows/stage-2222-fast-native.yml]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: stage-2222-fast-native
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.2
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: 2222-fast-native-release
+      - name: Verify independently approved clothing parser and audit before fast build
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          foreach ($id in @(41258339681,41258420970)) {
+            $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/$id | ConvertFrom-Json
+            if($r.status -ne 'completed' -or $r.conclusion -ne 'success') { throw "Required independent test $id not approved" }
+          }
+          if (-not (Test-Path crates/omsi-app/src/view_sync/people/winter.rs) -or -not (Test-Path crates/omsi-sim/src/feature_audit.rs)) { throw 'Missing actual 2.2.2.2 features' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-Bridge-WinterClothes-REAL-ARTIST-MODELS-TEST-ONLY
+          run-id: 41257972400
+          github-token: ${{ github.token }}
+          path: staged-winter
+      - name: Prepare unchanged BCS 3D responder assets and actual artist clothing
+        shell: pwsh
+        run: |
+          python scripts/build_bcs_real_vehicles.py --root "$PWD/staging/bcs-assets"
+          if ($LASTEXITCODE -ne 0) { throw 'Fallback vehicle generation failed' }
+          Copy-Item staged-winter/bcs-assets/WinterClothes staging/bcs-assets/WinterClothes -Recurse
+          $m=Get-Content staged-winter/winter-candidate-manifest.json -Raw | ConvertFrom-Json
+          if ($m.garments.Count -ne 7 -or $m.release_approved -or $m.gameplay_visual_tested) { throw 'Wrong garment catalog or unsupported gameplay claims' }
+          foreach($name in @('elvs_hooded_sweat_jacket1','mindfront_knitted_hat_01','toigo_gloves_short')) {
+            if(-not (Test-Path "staging/bcs-assets/WinterClothes/$name/garment.obj")) { throw "Missing $name" }
+          }
+          if(-not (Test-Path staging/bcs-assets/WinterClothes/AUTHORS_AND_LICENSES.txt)) { throw 'Artist credits missing' }
+      - name: Compile signed-release Windows native binary once
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if($LASTEXITCODE -ne 0) { throw 'Native Windows 2.2.2.2 build failed' }
+          & ./target/release/openomsi.exe --version
+          if($LASTEXITCODE -ne 0) { throw 'Native CLI smoke test failed' }
+      - name: Package exact game, P15 host and winter assets for Setup release
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          Copy-Item target/release/openomsi.exe staging/openomsi.exe
+          $sha=(Get-FileHash staging/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $info=[ordered]@{
+            bridge_release_target='2.2.2.2'
+            native_version=$env:OPENOMSI_VERSION
+            source_commit='${{ github.sha }}'
+            exe_sha256=$sha
+            winter_source_run_id=41257972400
+            native_audit_included=$true
+            gameplay_visual_tested=$false
+            status='NOT_PUBLISHED'
+          }
+          $info|ConvertTo-Json|Set-Content -Encoding utf8 staging/BUILD-INFO.json
+          Compress-Archive -Path staging/openomsi.exe,staging/BUILD-INFO.json,staging/bcs-assets -DestinationPath OpenOMSI-2.2.2.2-native-windows-candidate.zip -CompressionLevel Optimal
+          $sum=(Get-FileHash OpenOMSI-2.2.2.2-native-windows-candidate.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Encoding ascii OpenOMSI-2.2.2.2-native-windows-candidate.zip.sha256 "$sum  OpenOMSI-2.2.2.2-native-windows-candidate.zip"
+          Write-Host "2.2.2.2 native release SHA256: $sha"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-2.2.2.2-native-windows-CANDIDATE
+          path: |
+            OpenOMSI-2.2.2.2-native-windows-candidate.zip
+            OpenOMSI-2.2.2.2-native-windows-candidate.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

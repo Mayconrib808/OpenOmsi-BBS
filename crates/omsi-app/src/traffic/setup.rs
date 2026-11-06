@@ -138,6 +138,10 @@ impl Traffic {
         let max_scheduled = crate::settings::Settings::load().ai_max_scheduled;
         let random = RandomTypes { types, groups, group_curves, group_uvg, uvg_defaults };
         let mut sim = TrafficSim::assemble(root, net, random, lights, controller_of_object, (parked_cars, lane_tiles), density_curve, (unsched_factor, max_scheduled), target);
+        // Actual date and active Chrono folder are resolved in traffic_inputs,
+        // not guessed here before the host's clock has been synchronized.
+        sim.extended_density_map_dir = world.map_dir.clone();
+        sim.holiday_calendar = omsi_map::Calendar::load(&world.map_dir.join("Holidays.txt")).unwrap_or_default();
         // (#1773: off, an early timetable bus waits at every stop, as in OMSI)
         sim.timed_waits_only = crate::settings::Settings::load().ai_wait_timed_stops_only;
         Ok(Traffic::with_sim(sim, root))

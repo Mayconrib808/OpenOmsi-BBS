@@ -108,6 +108,7 @@ pub mod scripttex;
 pub mod freetex;
 pub mod ai_context;
 pub mod sounds;
+pub mod handover;
 pub mod voice_net;
 pub use voice_net::{VoiceIn, VoicePolicy};
 pub mod ws;
@@ -213,6 +214,11 @@ const SOUND_RATE: (f32, f32) = (512.0, 2048.0);
 const SOUND_ACK_RATE: (f32, f32) = (2048.0, 8192.0);
 use voice_net::VOICE_RATE;
 const MESSAGE_RATE: (f32, f32) = (10.0, 20.0);
+// Boarding a crowd sends one description per person plus CLAIM/WANT packets.
+// Keep each bounded independently: none may consume vehicle poses or commands.
+const PERSON_DESC_RATE: (f32, f32) = (128.0, 256.0);
+const PERSON_CONTROL_RATE: (f32, f32) = (64.0, 128.0);
+const PERSON_WORLD_RATE: (f32, f32) = (128.0, 128.0);
 const CHAT_RATE: (f32, f32) = (1.0, 3.0);
 mod receive_budget;
 mod receive_world;
@@ -848,6 +854,14 @@ pub struct Aboard {
 }
 
 impl Pose {
+    /// Live world interest includes the parked bus AND its walking owner.
+    /// A heartbeat without either must not populate the map origin.
+    pub fn world_interest_centers(&self) -> impl Iterator<Item = [f64; 3]> {
+        self.has_vehicle().then_some([self.x, self.y, self.z]).into_iter()
+            .chain(self.walker.map(|w| [w.x, w.y, w.z]))
+            .filter(|p| p.iter().all(|v| v.is_finite()))
+    }
+
     /// Does this pose carry a vehicle (rather than being a player's heartbeat)?
     pub fn has_vehicle(&self) -> bool {
         self.flags & FLAG_VEHICLE != 0 && !self.bus.is_empty()
@@ -1123,6 +1137,9 @@ enum PeerTraffic {
     Sounds,
     Voice,
     Tack,
+    PersonDescription,
+    PersonControl,
+    PersonWorld,
     Message,
     Chat,
     SoundAcks,
@@ -1177,12 +1194,15 @@ pub struct Peer {
     voice: Bucket,
     tacks: Bucket,
     messages: Bucket,
+    person_descriptions: Bucket,
+    person_control: Bucket,
+    person_world: Bucket,
     chat: Bucket,
     sound_acks: Bucket,
     /// Datagrams of this player the host threw away (too many at once).
     pub dropped: u32,
     /// Rate-limit rejections by PeerTraffic category (no payloads stored).
-    drop_counts: [u32; 10],
+    drop_counts: [u32; PeerTraffic::SoundAcks as usize + 1],
     /// The nonce of the player's hellos (host side).
     nonce: Option<u64>,
     secret: [u8; 16],
@@ -1224,10 +1244,13 @@ impl Peer {
             voice: Bucket::new(VOICE_RATE.1),
             tacks: Bucket::new(traffic_net::TACK_RATE.1),
             messages: Bucket::new(MESSAGE_RATE.1),
+            person_descriptions: Bucket::new(PERSON_DESC_RATE.1),
+            person_control: Bucket::new(PERSON_CONTROL_RATE.1),
+            person_world: Bucket::new(PERSON_WORLD_RATE.1),
             chat: Bucket::new(CHAT_RATE.1),
             sound_acks: Bucket::new(SOUND_ACK_RATE.1),
             dropped: 0,
-            drop_counts: [0; 10],
+            drop_counts: [0; PeerTraffic::SoundAcks as usize + 1],
             history: std::collections::VecDeque::new(),
             nonce: None,
             secret: admission::random_bytes(),
@@ -1374,6 +1397,7 @@ pub struct LanSession {
     script_textures: scripttex::Sync,
     freetex_packets: Vec<Vec<u8>>,
     sounds: sounds::Sync,
+    handover: handover::Sync,
     /// Voice chat (`voice_net`): what the session allows, the players an administrator
     /// silenced (host), the frames that came in, and where we are.
     voice_policy: VoicePolicy,
@@ -1387,6 +1411,10 @@ pub struct LanSession {
     wants: Vec<(u32, Vec<world::EntityRef>)>,
     claims: Vec<(u32, Vec<u32>)>,
     grants: Vec<(Vec<u32>, bool)>,
+    /// Acknowledgements that a connecting passenger is authoritative on the host.
+    return_acks: Vec<u32>,
+    /// Explicit host capability: older servers keep their existing passenger behavior.
+    return_capable: bool,
     world_seq: u16,
     /// People on foot of the clients' own (boarding and leaving their buses), as they send
     /// them up (host): (player, when it came, frame); and their descriptions.
@@ -1520,6 +1548,7 @@ impl LanSession {
             script_textures: scripttex::Sync::default(),
             freetex_packets: Vec::new(),
             sounds: sounds::Sync::default(),
+            handover: handover::Sync::default(),
             voice_policy: VoicePolicy::default(),
             voice_muted: Default::default(),
             voice_listeners: Default::default(),
@@ -1532,6 +1561,8 @@ impl LanSession {
             wants: Vec::new(),
             claims: Vec::new(),
             grants: Vec::new(),
+            return_acks: Vec::new(),
+            return_capable: false,
             world_seq: 0,
             world_up: Vec::new(),
             descs_up: Vec::new(),
@@ -2093,6 +2124,26 @@ impl LanSession {
         }
     }
 
+    /// Whether this host supports transferring alighting passengers back to it.
+    pub fn return_capable(&self) -> bool { self.return_capable }
+
+    /// Advertise backwards-compatible feature support only from a real host.
+    pub fn announce_return_capability(&self) {
+        if self.role == Role::Host { self.broadcast(b"PAXRETURN1", None); }
+    }
+
+    /// Acknowledge a passenger returned to host ownership. Repeated until the client
+    /// ceases advertising the waiting person, so UDP loss cannot strand the transfer.
+    pub fn acknowledge_return(&self, peer: u32, id: u32) {
+        if let Some(to) = self.peer_addr(peer).filter(|_| self.role == Role::Host) {
+            self.send(format!("RETURNED|{id}").as_bytes(), to);
+        }
+    }
+
+    pub fn take_return_acks(&mut self) -> Vec<u32> {
+        std::mem::take(&mut self.return_acks)
+    }
+
     /// World frames that came since the last call, with when they came (client).
     pub fn take_world(&mut self) -> Vec<(Instant, world::WorldFrame)> {
         std::mem::take(&mut self.world_in)
@@ -2303,9 +2354,11 @@ impl LanSession {
         let peers: Vec<u32> = self.peers.keys().copied().collect();
         self.script_textures.retain_peers(&peers);
         self.sounds.retain_peers(&peers);
+        self.handover.retain_peers(&peers);
         self.var_receiver.retain_peers(&peers);
         self.schema_receiver.retain_peers(&peers);
         if self.connected {
+            for packet in self.handover.tick(PROTOCOL as u8, self.my_id, dt) { self.route_handover(&packet); }
             for packet in self.sounds.tick(PROTOCOL as u8, self.my_id, dt) {
                 self.route_sound(&packet);
             }
@@ -2333,7 +2386,7 @@ impl LanSession {
                 continue;
             };
             log::warn!(
-                "LAN: player {id} timed out after {:.1} s without an accepted datagram (loading={}, rate-limited total={}, state={}, variables={}, animations={}, textures={}, sounds={}, voice={}, tack={}, messages={}, chat={}, sound acks={})",
+                "LAN: player {id} timed out after {:.1} s without an accepted datagram (loading={}, rate-limited total={}, state={}, variables={}, animations={}, textures={}, sounds={}, voice={}, tack={}, person descriptions={}, person control={}, person world={}, messages={}, chat={}, sound acks={})",
                 now.duration_since(p.last_seen).as_secs_f32(),
                 !p.has_pose,
                 p.dropped,
@@ -2346,7 +2399,10 @@ impl LanSession {
                 p.drop_counts[6],
                 p.drop_counts[7],
                 p.drop_counts[8],
-                p.drop_counts[9]
+                p.drop_counts[9],
+                p.drop_counts[10],
+                p.drop_counts[11],
+                p.drop_counts[12]
             );
             gone.push(id);
             self.gone_lately.push((p.nonce, p.pose.name.clone(), id, now));
@@ -2614,13 +2670,43 @@ impl LanSession {
             }
             if self.on_table_or_voice(&data, from) { continue; }
             if data[0] == world::WORLD_MAGIC {
-                self.on_world_datagram(&data, from, n);
+                // a client takes the world from its host (above); a host takes the people of
+                // a client's own from that client (within its rate)
+                if self.role == Role::Host {
+                    let Some(id) = self
+                        .peers
+                        .iter()
+                        .find(|(_, p)| p.addr == Some(from))
+                        .map(|(id, _)| *id)
+                    else {
+                        continue;
+                    };
+                    if self.checked_peer(id, from, PERSON_WORLD_RATE, PeerTraffic::PersonWorld).is_none() {
+                        continue;
+                    }
+                    if let Some(mut f) = world::decode(&data, PROTOCOL as u8) {
+                        self.world_received += n as u64;
+                        f.lights.clear();
+                        if self.world_up.len() < 256 {
+                            self.world_up.push((id, Instant::now(), f));
+                        }
+                    }
+                } else {
+                    if let Some(f) = world::decode(&data, PROTOCOL as u8) {
+                        self.world_received += n as u64;
+                        // (a game that stopped ticking does not pile them up without end)
+                        if self.world_in.len() < 256 {
+                            self.world_in.push((Instant::now(), f));
+                        }
+                    }
+                }
                 continue;
             }
             if data[0] == wire::STATE_MAGIC {
                 self.on_state(&data, from);
                 continue;
             }
+            if data[0] == handover::MAGIC { self.on_handover(&data, from); continue; }
             if data[0] == sounds::MAGIC {
                 self.on_sound(&data, from);
                 continue;
@@ -2738,7 +2824,7 @@ impl LanSession {
                     let Some(id) = field(&parts, 1).parse::<u32>().ok() else {
                         continue;
                     };
-                    if self.checked_peer(id, from, MESSAGE_RATE, PeerTraffic::Message).is_none() {
+                    if self.checked_peer(id, from, PERSON_CONTROL_RATE, PeerTraffic::PersonControl).is_none() {
                         continue;
                     }
                     if parts[0] == "WANT" {
@@ -2766,7 +2852,7 @@ impl LanSession {
                     else {
                         continue;
                     };
-                    if self.checked_peer(id, from, MESSAGE_RATE, PeerTraffic::Message).is_none() {
+                    if self.checked_peer(id, from, PERSON_DESC_RATE, PeerTraffic::PersonDescription).is_none() {
                         continue;
                     }
                     if let Some(d @ world::Desc::Person { .. }) = world::Desc::decode(&parts) {
@@ -2791,6 +2877,18 @@ impl LanSession {
                         .collect();
                     if !list.is_empty() {
                         self.grants.push((list, parts[0] == "GRANT"));
+                    }
+                }
+                ("PAXRETURN1", Role::Client) => {
+                    if self.host == Some(from) { self.return_capable = true; }
+                }
+                ("RETURNED", Role::Client) => {
+                    if self.host == Some(from) {
+                        if let Some(id) = field(&parts, 1).parse::<u32>().ok().filter(|id| *id <= world::MAX_ID) {
+                            if self.return_acks.len() < 256 {
+                                self.return_acks.push(id);
+                            }
+                        }
                     }
                 }
                 ("SAY", Role::Client) => {
@@ -2850,6 +2948,9 @@ impl LanSession {
             PeerTraffic::Voice => peer.voice.take(rate),
             PeerTraffic::Tack => peer.tacks.take(rate),
             PeerTraffic::Message => peer.messages.take(rate),
+            PeerTraffic::PersonDescription => peer.person_descriptions.take(rate),
+            PeerTraffic::PersonControl => peer.person_control.take(rate),
+            PeerTraffic::PersonWorld => peer.person_world.take(rate),
             PeerTraffic::Chat => peer.chat.take(rate),
             PeerTraffic::SoundAcks => peer.sound_acks.take(rate),
         };
@@ -2912,8 +3013,10 @@ impl LanSession {
         if peer.history.len() >= 12 {
             peer.history.pop_front();
         }
-        peer.history.push_back((now, state.clone()));
         peer.pose.set_state(state);
+        // History drives the rendered bus and its driver figure. Wire STATE
+        // packets contain motion only; preserve the INFO identity before caching.
+        peer.history.push_back((now, peer.pose.clone()));
         if self.role == Role::Host {
             self.broadcast(data, Some(id));
         }
@@ -3304,6 +3407,7 @@ impl LanSession {
                 self.vars_in.clear();
                 self.schemas_in.clear();
                 self.sounds = sounds::Sync::default();
+                self.handover = handover::Sync::default();
                 self.var_receiver = vars::VarReceiver::default();
                 self.schema_receiver = vars::VarReceiver::default();
                 self.reset_peer_sync(1);

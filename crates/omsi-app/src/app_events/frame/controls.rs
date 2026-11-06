@@ -166,7 +166,7 @@ impl App {
         let bus_view = self.mouse_steers_in_view();
         // (the plugins' panels having the mouse hold the wheel and the pedals as
         // looking round does: the cursor goes to their buttons)
-        let panels_mouse = self.integrations.plugin_focus() || self.game_panels_mouse();
+        let panels_mouse = self.integrations.plugin_focus() || self.game_panels_mouse() || self.net.coop.panel;
         // (the cursor locked while a mouse button looks round, held while the mouse steers,
         // let go when it is wanted: mouse_grab.rs)
         self.sync_look_hold();
@@ -266,6 +266,7 @@ impl App {
 
     /// The controllers' buttons: the game's own actions, then the bus's, with the axes.
     pub(super) fn frame_pad_actions(&mut self, analog: crate::controllers::Analog, actions: Vec<(String, bool)>) {
+        if self.drive_pad(analog, &actions) { return; }
         // the controller's view buttons are the game's, not the bus's: looking around
         // while held (`view_look_*`), the bus radio while held (`voice_radio`), and
         // OMSI's view actions (other cameras, views)

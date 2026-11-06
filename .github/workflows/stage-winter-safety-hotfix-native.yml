@@ -1,0 +1,74 @@
+name: Build winter safety hotfix native OpenOMSI
+on:
+  push:
+    branches: [fix/winter-visual-mesh-qa-gate]
+    paths:
+      - .github/workflows/stage-winter-safety-hotfix-native.yml
+      - crates/omsi-app/src/view_sync/people/winter.rs
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.46-coop.15-2.2.2.2-hotfix.1
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+      TAURI_CONFIG: '{"version":"0.3.46"}'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: winter-visual-safety
+      - uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-Bridge-WinterClothes-REAL-ARTIST-MODELS-TEST-ONLY
+          run-id: 41257972400
+          github-token: ${{ github.token }}
+          path: test-assets
+      - name: Validate unapproved meshes cannot render
+        shell: pwsh
+        env:
+          OPENOMSI_WINTER_TEST_ASSETS: ${{ github.workspace }}/test-assets
+        run: |
+          cargo test --locked -p omsi-app winter::tests:: -- --nocapture
+          if ($LASTEXITCODE -ne 0) { throw 'Winter safety tests failed' }
+      - name: Prepare original emergency and clothing assets
+        shell: pwsh
+        run: |
+          python scripts/build_bcs_real_vehicles.py --root "$PWD/staging/bcs-assets"
+          if ($LASTEXITCODE -ne 0) { throw 'Emergency asset build failed' }
+          Copy-Item test-assets/bcs-assets/WinterClothes staging/bcs-assets/WinterClothes -Recurse
+      - name: Build safety-patched game and P15 server
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Native hotfix build failed' }
+          & ./target/release/openomsi.exe --version
+          if ($LASTEXITCODE -ne 0) { throw 'Native smoke test failed' }
+      - name: Package exact hotfix candidate
+        shell: pwsh
+        run: |
+          Copy-Item target/release/openomsi.exe staging/openomsi.exe
+          $sha=(Get-FileHash staging/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+          $info=[ordered]@{bridge_release_target='2.2.2.2-hotfix.1';native_version=$env:OPENOMSI_VERSION;source_commit='${{ github.sha }}';exe_sha256=$sha;winter_visual_safety_gate=$true;gameplay_visual_tested=$false;status='CANDIDATE-NOT-PUBLISHED'}
+          $info|ConvertTo-Json|Set-Content -Encoding utf8 staging/BUILD-INFO.json
+          Compress-Archive -Path staging/openomsi.exe,staging/BUILD-INFO.json,staging/bcs-assets -DestinationPath OpenOMSI-winter-safety-hotfix-native.zip -CompressionLevel Optimal
+          $hash=(Get-FileHash OpenOMSI-winter-safety-hotfix-native.zip -Algorithm SHA256).Hash.ToLowerInvariant()
+          Set-Content -Encoding ascii OpenOMSI-winter-safety-hotfix-native.zip.sha256 "$hash  OpenOMSI-winter-safety-hotfix-native.zip"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-winter-safety-hotfix-native-CANDIDATE
+          path: |
+            OpenOMSI-winter-safety-hotfix-native.zip
+            OpenOMSI-winter-safety-hotfix-native.zip.sha256
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0

@@ -424,6 +424,7 @@ fn synthetic_material_plan_preserves_lightmap_thresholds_and_alpha_slots() {
         include_str!("../../../../omsi-model/tests/fixtures/material-compatibility.cfg")));
     ty.meshes.push(VehicleMesh {
         def_index: 0, data: MeshData::default(), file: PathBuf::new(),
+        pick_geometry: Default::default(),
         materials: (0..2).map(|_| omsi_o3d::Material {
             texture: "display.dds".into(), ..Default::default()
         }).collect(),

@@ -1,0 +1,44 @@
+name: Test actual winter clothing loader on Windows with 7 artist assets
+on:
+  push:
+    branches: [feat/winter-artist-assets]
+    paths:
+      - .github/workflows/test-artist-winter-loader.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: test-artist-winter-loader
+  cancel-in-progress: true
+jobs:
+  stock-people-asset-test:
+    runs-on: windows-2022
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: stock-human-artist-winter-loader
+      - name: Download authentic retargeted winter garments for parser test
+        uses: actions/download-artifact@v4
+        with:
+          name: OpenOMSI-Bridge-WinterClothes-REAL-ARTIST-MODELS-TEST-ONLY
+          run-id: 41257972400
+          github-token: ${{ github.token }}
+          path: test-assets
+      - name: Confirm no model is approved for release before in-game fit tests
+        shell: pwsh
+        run: |
+          $meta=Get-Content test-assets/winter-candidate-manifest.json -Raw | ConvertFrom-Json
+          if ($meta.release_approved -or $meta.gameplay_visual_tested -or $meta.rigged_on_stock_passengers) {
+            throw 'Unverified winter garments cannot be marked gameplay tested'
+          }
+      - name: Real game loader tests with every 3D model, texture and UV
+        shell: pwsh
+        env:
+          OPENOMSI_WINTER_TEST_ASSETS: ${{ github.workspace }}/test-assets
+        run: |
+          cargo test --locked -p omsi-app authored_bundle_is_readable_by_the_real_game_loader -- --nocapture
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

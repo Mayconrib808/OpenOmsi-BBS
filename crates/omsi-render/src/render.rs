@@ -162,6 +162,10 @@ impl Renderer {
         std::mem::take(&mut self.tone.lightning.strikes).into_iter().map(|s| (s.delay, s.distance, s.dir)).collect()
     }
 
+    pub fn set_visibility(&self,scene:&mut Scene,instance:usize,visible:bool) {
+        let i=&mut scene.instances[instance];
+        if i.visible!=visible {i.visible=visible;Self::mark_changed(scene,instance);}
+    }
     /// Change the dynamic parameters of an instance. `slot_alpha` entries beyond the mesh's
     /// slot count are ignored; missing ones keep 1.0.
     pub fn set_params(

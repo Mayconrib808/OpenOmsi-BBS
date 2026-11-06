@@ -209,6 +209,14 @@ const MAX_OPS: u64 = 2_000_000;
 const MAX_INIT_OPS: u64 = 50_000_000;
 
 impl Vm {
+    /// A handover preserves registers, stacks and the PRNG between complete blocks.
+    pub fn export_handover(&self)->([f32;8],[f32;10],[String;8],u64) {
+        (self.stacks.st,self.stacks.reg,self.stacks.sst.clone(),self.rng)
+    }
+    pub fn import_handover(&mut self, data:&([f32;8],[f32;10],[String;8],u64)) {
+        self.stacks.st=data.0;self.stacks.reg=data.1;self.stacks.sst=data.2.clone();self.rng=data.3;
+    }
+
     pub fn new() -> Self {
         Self::default()
     }

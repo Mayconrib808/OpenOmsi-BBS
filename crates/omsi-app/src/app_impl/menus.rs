@@ -335,6 +335,12 @@ impl App {
     /// The actions of the vehicle and world pages (and of what the plugins and the input
     /// script ask of the menu by name). False when `id` is none of them.
     pub(crate) fn page_action(&mut self, id: &str) -> bool {
+        if !self.drive_menu_allowed(id){
+            self.coop_notice("Este comando depende da direção. Para trocar ou remover o veículo, devolva a direção primeiro.",
+                "This command requires vehicle authority. Return the wheel before replacing or removing the vehicle.",
+                "Dieser Befehl benötigt Fahrzeugkontrolle. Vor Fahrzeugwechsel oder Entfernen die Lenkung zurückgeben.");
+            return true;
+        }
         match id {
             "swap" | "place" => {
                 // (a plain "Place a vehicle" puts one beside; "Swap" in the driven one's place)
@@ -417,8 +423,8 @@ impl App {
             "dest_form" => crate::game_panels::open_dest_form(self),
             "quick_menu" => crate::game_panels::quick_menu::toggle(self),
             "driver" => self.open_list(crate::game_lists::ListKind::Drivers),
-            "number" => self.open_list(crate::game_lists::ListKind::Numbers),
             "livery" => self.open_list(crate::game_lists::ListKind::Liveries),
+            "number" => self.open_list(crate::game_lists::ListKind::Numbers),
             "dest" => self.open_list(crate::game_lists::ListKind::Destinations),
             "hof" => self.open_list(crate::game_lists::ListKind::Hofs),
             "tplist" => self.open_list(crate::game_lists::ListKind::Spots),
@@ -556,6 +562,7 @@ impl crate::App {
         let lines = self.plugin_menu_lines();
         let before = v.iter().position(|x| matches!(x.0, "save" | "admin" | "quit")).unwrap_or(v.len()).max(at);
         v.splice(before..before, lines.into_iter().map(|m| ("plugin", Cow::Owned(m.label.clone()), Some(m))));
+        v.retain(|line|self.drive_menu_allowed(line.0));
         v
     }
 

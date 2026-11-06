@@ -63,7 +63,7 @@ thiserror = "2"
 log = "0.4"
 env_logger = "0.11"
 encoding_rs = "0.8"
-glam = "0.30"
+glam = { version = "0.30", features = ["serde"] }
 spade = "2"
 rayon = "1.10"
 walkdir = "2"

@@ -446,14 +446,33 @@ impl EntityRef {
 /// with the car's row, see `traffic_table`; `DESC|c|…` was protocol 14's.)
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Desc {
-    Person { id: u32, file: String },
+    Person { id: u32, file: String, intent: Option<PersonIntent>, wheelchair: bool },
 }
 
+/// Optional descriptor suffix; legacy clients still read the unchanged first four fields.
+#[derive(Debug,Clone,PartialEq,Eq)]
+pub struct PersonIntent { pub stop:i64,pub line:Option<u64>,pub dest:Option<String>, pub transfers:u8, pub previous_bus:Option<u64> }
+impl PersonIntent {
+    fn decode(parts:&[&str])->Option<Self>{
+        if parts.get(4).copied()!=Some("i1") || parts.len()<8{return None}
+        let stop=parts[5].parse().ok()?;
+        let line=if parts[6]=="-" {None}else{Some(parts[6].parse::<u64>().ok()?)};
+        let dest=crate::clean_text(parts[7],180);
+        let transfers=match parts.get(8) { Some(value)=>value.parse::<u8>().ok().filter(|n|*n<=2)?, None=>2 };
+        let previous_bus=match parts.get(9).copied() { None|Some("-")=>None,Some(value)=>Some(value.parse().ok()?) };
+        Some(Self{stop,line,dest:(!dest.trim().is_empty()).then(||dest.trim().to_string()),transfers,previous_bus})
+    }
+}
 impl Desc {
     pub fn encode(&self) -> String {
         match self {
-            Desc::Person { id, file } => {
-                format!("DESC|p|{id}|{}", crate::clean_text(file, 260))
+            Desc::Person { id, file, intent, wheelchair } => {
+                let mut text=format!("DESC|p|{id}|{}", crate::clean_text(file, 260));
+                if let Some(i)=intent {
+                    text.push_str(&format!("|i1|{}|{}|{}|{}|{}",i.stop,i.line.map_or("-".into(),|v|v.to_string()),crate::clean_text(i.dest.as_deref().unwrap_or(""),180),i.transfers,i.previous_bus.map_or("-".into(),|v|v.to_string())));
+                }
+                if *wheelchair { text.push_str("|m1|wheelchair"); }
+                text
             }
         }
     }
@@ -468,6 +487,8 @@ impl Desc {
             "p" => Some(Desc::Person {
                 id,
                 file: content_file(parts[3], &["hum"])?,
+                intent: PersonIntent::decode(parts),
+                wheelchair: parts.ends_with(&["m1","wheelchair"]),
             }),
             _ => None,
         }
@@ -498,6 +519,54 @@ pub fn content_file(p: &str, exts: &[&str]) -> Option<String> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn wheelchair_descriptor_keeps_mobility_and_connection_history_independent() {
+        for intent in [None, Some(PersonIntent {
+            stop: 123, line: Some(7), dest: Some("Terminal Central".into()),
+            transfers: 1, previous_bus: Some((1 << 40) | 7),
+        })] {
+            let person = Desc::Person {
+                id: 25, file: "Humans/Generic/m1.hum".into(), intent, wheelchair: true,
+            };
+            let wire = person.encode();
+            assert_eq!(Desc::decode(&wire.split('|').collect::<Vec<_>>()), Some(person));
+            assert_eq!(wire.split('|').take(4).collect::<Vec<_>>().join("|"),
+                "DESC|p|25|Humans/Generic/m1.hum");
+        }
+        for suffix in ["|m1|walking", "|m1", "|wheelchair", "|i1|bad|m1|wheelchair|extra"] {
+            let wire = format!("DESC|p|25|Humans/Generic/m1.hum{suffix}");
+            assert!(matches!(Desc::decode(&wire.split('|').collect::<Vec<_>>()),
+                Some(Desc::Person { wheelchair: false, .. })));
+        }
+    }
+
+    #[test] fn intent_descriptor_2212_is_optional_and_legacy_compatible(){
+        let legacy="DESC|p|25|Humans/Generic/m1.hum";
+        let old=Desc::decode(&legacy.split('|').collect::<Vec<_>>()).unwrap();
+        assert_eq!(old.encode(),legacy);
+        let now=Desc::Person{ wheelchair: false, id:25,file:"Humans/Generic/m1.hum".into(),intent:Some(PersonIntent{stop:123,line:Some(7),dest:Some("Terminal Central".into()),transfers:1,previous_bus:Some((1<<40)|7)})};
+        let encoded=now.encode();
+        assert_eq!(Desc::decode(&encoded.split('|').collect::<Vec<_>>()),Some(now));
+        // A legacy decoder only consumes these unchanged fields.
+        assert_eq!(encoded.split('|').take(4).collect::<Vec<_>>().join("|"),legacy);
+        assert!(matches!(Desc::decode(&"DESC|p|25|Humans/Generic/m1.hum|i1|bad|999999|bad".split('|').collect::<Vec<_>>()),Some(Desc::Person{intent:None,..})));
+    }
+    #[test]
+    fn connection_history_defaults_conservatively_for_legacy_and_rejects_invalid_counts() {
+        let legacy="DESC|p|25|Humans/Generic/m1.hum|i1|123|7|Terminal";
+        let Some(Desc::Person{intent:Some(intent),..})=Desc::decode(&legacy.split('|').collect::<Vec<_>>()) else{panic!("legacy descriptor")};
+        assert_eq!(intent.transfers,2);
+        for count in [0,1,2] {
+            let wire=format!("{legacy}|{count}|1099511627783");
+            let Some(Desc::Person{intent:Some(intent),..})=Desc::decode(&wire.split('|').collect::<Vec<_>>()) else{panic!("history lost")};
+            assert_eq!(intent.transfers,count);
+            assert_eq!(intent.previous_bus,Some((1<<40)|7));
+        }
+        for count in ["3","255","-1","bad"] {
+            let wire=format!("{legacy}|{count}|-");
+            assert!(matches!(Desc::decode(&wire.split('|').collect::<Vec<_>>()),Some(Desc::Person{intent:None,..})));
+        }
+    }
     #[test]
     fn a_frame_round_trips_in_spandau_coordinates() {
         let f = WorldFrame {
@@ -657,17 +726,19 @@ mod tests {
             let parts: Vec<&str> = bad.split('|').collect();
             assert!(Desc::decode(&parts).is_none(), "{bad}");
         }
-        let p = Desc::Person {
+        let p = Desc::Person { wheelchair: false,
             id: 5,
             file: "Humans\\Generic\\m1.hum".into(),
+                intent: None,
         };
         let text = p.encode();
         let parts: Vec<&str> = text.split('|').collect();
         assert_eq!(
             Desc::decode(&parts).unwrap(),
-            Desc::Person {
+            Desc::Person { wheelchair: false,
                 id: 5,
-                file: "Humans/Generic/m1.hum".into()
+                file: "Humans/Generic/m1.hum".into(),
+                intent: None,
             }
         );
         let refs = vec![

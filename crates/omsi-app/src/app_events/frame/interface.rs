@@ -126,6 +126,15 @@ impl App {
         // the editors' keys while one is on: help to look up, not news - they stay in the
         // corner as long as the editor does
         let mut lines: Vec<String> = mirror_help;
+        // A real wheelchair request is safety-critical regardless of the bus's
+        // native warning lamp, wheelchair-light variables or the chosen model.
+        // The existing check suppressed ALL messages on buses with a special
+        // stop signal, leaving the driver to guess why the lamp was lit.
+        let wheelchair_alighting = self.player.is_some()
+            && self.session.humans.as_ref().is_some_and(|h| h.wheelchairs.wants_alight());
+        if wheelchair_alighting {
+            lines.push(omsi_ui::tr("A wheelchair passenger wants to alight at the next stop").into_owned());
+        }
         if self.menus.editor.is_some() {
             lines.push("Object editor: click picks | drag moves | wheel turns (Shift lifts) | Del | C copy | V variant | Backspace undo | Ctrl+S save | Esc".into());
         }
@@ -204,6 +213,16 @@ impl App {
         if !self.settings.notes {
             said.clear();
         }
+        // Accessibility requests MUST notify the driver even if optional
+        // gameplay hints are disabled. NoteWatch creates the alert once at the
+        // rising edge, while the persistent text above remains until alighting.
+        if wheelchair_alighting {
+            said.push((
+                "wheelchair alight request".into(),
+                omsi_ui::tr("A wheelchair passenger wants to alight at the next stop").into_owned(),
+                NoticeKind::Alert,
+            ));
+        }
         self.menus.note_watch.frame(dt, &said, &mut self.menus.notices);
         self.integrations.update_watch.tick(&mut self.menus.notices);
         if let Some((before, text, left)) = omsi_lan::mods::upload::notice() {
@@ -245,6 +264,12 @@ impl App {
         nav_hidden: bool,
         vr_nav_display: Option<crate::vr_navigator::Display>,
     ) {
+        let passengers = self.coop_riders();
+        let route_owner = match self.foot_bus() {
+            Some(crate::humans::BusId::Ai(id)) => crate::humans::remote_bus_player(id),
+            _ => None,
+        };
+        let followed_bus = route_owner.and_then(|id| self.net.remotes.remotes.get(&id));
         let (Some(r), Some(scene)) = (self.renderer.as_ref(), self.scene.as_mut()) else { return };
         // (on foot with no bus of one's own the navigator and the city map go on as well:
         // a walker who had deleted the bus could not open the map, #2118)
@@ -275,7 +300,17 @@ impl App {
                     d.learn_places(places);
                 }
             }
-            let (line, terminus, stops, trip) = navigator::duty_parts(self.session.duty.as_ref());
+            // The passenger's navigator displays the actual driver's tour, even if
+            // the passenger chose another tour of the same line. Do not overwrite
+            // the passenger's own BCS duty with this read-only preview.
+            if let (Some(places), Some((_, d))) = (nav.places(), self.net.coop.drive.passenger_duty.as_mut()) {
+                d.learn_places(places);
+            }
+            let followed_duty = route_owner.and_then(|owner|
+                self.net.coop.drive.passenger_duty.as_ref()
+                    .filter(|(id, _)| *id == owner).map(|(_, d)| d));
+            let duty = followed_duty.or(self.session.duty.as_ref());
+            let (line, terminus, stops, trip) = navigator::duty_parts(duty);
             match (trip, self.session.schedule.as_ref(), self.session.traffic.as_ref(), self.world.as_ref()) {
                 (Some((key, name)), Some(sch), _, _) if nav.map_net().is_some() => {
                     if nav.wants_route(&key, 0) {
@@ -316,11 +351,12 @@ impl App {
             // (on foot the map follows the walker, not the bus left standing - but on a duty it
             // stays the bus's: the route and the stops are the bus's, and walking round the bus
             // standing at a stop recalculated the route and moved the stops on, #2426)
-            let (at, heading) = match (self.session.on_foot.as_ref(), p) {
-                (Some(_), Some(p)) if self.session.duty.is_some() => (p.vehicle.position, p.vehicle.heading),
-                (Some(f), _) => (f.pos, f.heading),
-                (None, Some(p)) => (p.vehicle.position, p.vehicle.heading),
-                (None, None) => return,
+            let (at, heading) = match (followed_bus, self.session.on_foot.as_ref(), p) {
+                (Some(remote), Some(_), _) => (remote.vehicle().position, remote.vehicle().heading),
+                (None, Some(_), Some(p)) if duty.is_some() => (p.vehicle.position, p.vehicle.heading),
+                (None, Some(f), _) => (f.pos, f.heading),
+                (_, None, Some(p)) => (p.vehicle.position, p.vehicle.heading),
+                _ => return,
             };
             let frame = navigator::NavFrame {
                 traffic: self.session.traffic.as_deref(),
@@ -328,14 +364,14 @@ impl App {
                 players: self.net.lan.as_ref().map(|l| crate::lan::nav_players(&self.net.remotes, l.my_id)).unwrap_or_default(),
                 bus: at,
                 heading,
-                speed_kmh: p.map_or(0.0, |p| p.vehicle.physics.velocity_kmh()),
+                speed_kmh: followed_bus.map_or_else(|| p.map_or(0.0, |p| p.vehicle.physics.velocity_kmh()), |remote| remote.last.speed_kmh),
                 outside_temp,
                 inside_temp,
                 line,
                 terminus,
                 stops,
-                delay: self.session.duty.as_ref().zip(p).map(|(_, p)| p.vehicle.host.tt_delay as f64),
-                passengers: self.session.humans.as_ref().map(|h| h.riding()),
+                delay: duty.zip(p).map(|(_, p)| p.vehicle.host.tt_delay as f64),
+                passengers,
                 stop_requested: p.is_some_and(|p| navigator::stop_requested(&p.vehicle)),
                 time: self.clock.time,
                 weekday: self.clock.weekday(),
@@ -430,6 +466,7 @@ impl App {
         menu_lines: Vec<crate::app_impl::MenuLine>,
         menu_tabs: Option<(Vec<String>, usize)>,
     ) {
+        let passengers = self.coop_riders();
         let menu_lines: Vec<(&str, &str)> = menu_lines.iter().map(|(id, label, _)| (*id, label.as_ref())).collect();
         // (the steering cross: before the renderer and the scene are borrowed)
         let steer_cross = self.steer_cross_point();
@@ -586,7 +623,7 @@ impl App {
                 // (not over the city map, which has the stops and their times: it
                 // covered the map's zoom and close buttons)
                 timetable: (self.menus.timetable && !map_open).then(|| timetable_rows(self.session.duty.as_ref(), self.player.as_ref().map(|p| p.vehicle.host.tt_delay as f64))).flatten(),
-                info: self.menus.info_bar.then(|| info_line(&self.clock, self.player.as_ref(), self.session.duty.as_ref(), self.session.humans.as_ref().map(|h| h.riding()), self.session.career.metres, self.menus.navigator.as_ref().filter(|n| n.enabled).and_then(|n| n.speed_limit))),
+                info: self.menus.info_bar.then(|| info_line(&self.clock, self.player.as_ref(), self.session.duty.as_ref(), passengers, self.session.career.metres, self.menus.navigator.as_ref().filter(|n| n.enabled).and_then(|n| n.speed_limit))),
                 info_room: self.input.touch.info_room.filter(|_| self.input.touch.enabled),
                 tutorial: self.menus.tutorial.as_ref().filter(|t| !t.hidden && self.menus.game_menu.is_none()).and_then(|t| t.page().map(|p| (p.title.as_str(), p.text.as_str(), p.image.as_deref(), t.at, t.pages.len()))),
                 chat,

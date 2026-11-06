@@ -163,6 +163,11 @@ impl Schedule {
         scene: &mut Scene,
         day_time: f64,
     ) {
+        // The dedicated server has no displayed fleet. Its traffic creates the
+        // actual vehicles in live interest regions; do not decode every paint.
+        if crate::server::SERVER_MODE.load(std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
         let ready = self.fleet_ready.lock().pop();
         if let Some(key) = ready {
             if let Some(ty) = self.fleet_reading.remove(&key) {

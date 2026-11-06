@@ -36,13 +36,31 @@ pub(crate) fn traffic_tick(
         // `omsi_net::vars`, for a copy of the same vehicle files)
         t.other_priority = remotes.remotes.iter().filter(|(_, r)| r.vehicle().var("TrafficPriority").is_some_and(|v| v > 0.5)).map(|(id, _)| *id).collect();
         t.player_blinker = player.map(|p| lan::indicator(&p.vehicle)).unwrap_or(0);
+        t.sim.player_horn = player.is_some_and(|p| omsi_sim::ai_traffic::greetings::horn_active(&p.vehicle));
         t.note_high_beam(player.and_then(|p| p.vehicle.var("lights_fern")).is_some_and(|v| v > 0.5), dt);
         // (the player's tram or train asks the lights on the rails ahead)
         t.player_rail = player.and_then(|p| {
             let r = p.rail.as_ref()?;
             Some(omsi_sim::ai_traffic::model::PlayerRail { lane: r.lane, s: r.s, along: r.along, train: omsi_sim::ai_traffic::model::is_train(&p.vehicle.ty.def) })
         });
+        let mut greetings = (t.optional_features.ai_bus_greetings || t.optional_features.ai_driver_wave).then(|| std::mem::take(&mut t.greetings));
+        if let Some(greetings) = greetings.as_mut() { greetings.restore(&mut t.sim); }
         t.tick(dt, player.map(|p| player_outline(p)));
+        if let Some(mut greetings) = greetings {
+            // Mirrors use the same geometry for cosmetic gestures, but are
+            // forbidden to emit another greeting horn/flash on top of the host.
+            if !t.sim.mirror || t.optional_features.ai_driver_wave {
+                use omsi_sim::ai_traffic::greetings::{Bus, BusId};
+                let mut buses: Vec<Bus> = remotes.remotes.iter()
+                    .map(|(id,r)| { let mut b = Bus::from_vehicle(BusId::Player(*id), r.vehicle(), &r.last.line,
+                        r.last.flags & omsi_net::FLAG_HORN != 0); b.high_beam = r.last.head == 3; b.speed = r.last.speed_kmh / 3.6; b }).collect();
+                if let Some(p) = player { buses.push(Bus::from_vehicle(BusId::Player(0), &p.vehicle, "", false)); }
+                let greeting_dt = if dt > 0.0 { dt } else { t.sim.last_dt };
+                let host_signals = t.optional_features.ai_bus_greetings && !t.sim.mirror;
+                greetings.update_with_signals(&mut t.sim, buses, greeting_dt, host_signals);
+            }
+            t.greetings = greetings;
+        }
         let t0 = Instant::now();
         // the signals first: the switches that a clear signal locks read them
         let aspects = t.signal_aspects(&world.signal_routes, player_rail);
@@ -219,6 +237,7 @@ pub(crate) fn people_in_career(career: &mut career::Career, h: &mut humans::Huma
 /// (`tick`: unless paused or the session was written) and a crash in it: its energy (J,
 /// 0: none).
 pub(crate) fn career_step(career: &mut career::Career, p: &mut Player, riders: usize, on_duty: bool, dt: f32, tick: bool) -> f32 {
+    if p.borrowed_from.is_some() { return 0.0; }
     // the engine's own variables of the bus (see `update_engine_vars`)
     p.vehicle.host.humans_count = riders as f32;
     p.vehicle.host.schedule_active = if on_duty { 1.0 } else { 0.0 };

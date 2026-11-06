@@ -713,6 +713,29 @@ mod tests {
     }
 
     #[test]
+    fn greeting_keeps_two_audible_presses_after_cabin_filter_and_model_pitch() {
+        for pitch in [0.5,1.0,2.0] {
+            let source=Clip {sample_rate:48000,channels:1,samples:(0..2400).map(|i|
+                ((i as f32*std::f32::consts::TAU*500.0/48000.0).sin()*10000.0) as i16).collect()};
+            let pattern=crate::greeting::double_horn_timed(&source,None,true,pitch);
+            let n=pattern.press_frames;let gap=pattern.gap_frames;
+            let frames=pattern.clip.frames();
+            let (mut mixer,_,_)=shared();
+            let mut horn=voice(Arc::new(pattern.clip),1.0);
+            horn.params.looping=false;horn.params.lowpass_hz=3800.0;
+            horn.params.important=true;
+            mixer.voices.push(horn);
+            let mut heard=vec![0.0;frames];
+            mixer.render(&mut heard);
+            let energy=|a:usize,b:usize| heard[a..b].iter().map(|v|v*v).sum::<f32>()/(b-a) as f32;
+            let first=energy(2400,n-2400);let second=energy(n+gap+2400,frames-2400);
+            assert!(first>0.005 && second>0.005,"one of the two presses disappeared at pitch {pitch}");
+            assert!(energy(n+2400,n+gap-2400)<first*0.001,"cabin filter merged both presses");
+            assert!((second/first-1.0).abs()<0.01);
+        }
+    }
+
+    #[test]
     fn parameters_arrive_with_the_next_block() {
         let clip = Arc::new(Clip { sample_rate: 48_000, channels: 1, samples: vec![16_384; 5] });
         let (mut s, mut cmds, _) = shared();

@@ -313,6 +313,8 @@ pub struct LanGame {
     /// Clock difference still to catch up (s).
     slew: f64,
     status_t: f32,
+    controllers: hashbrown::HashMap<u32, u32>,
+    reported_controllers: hashbrown::HashMap<u32,(u32,u64,Instant)>,
     log_t: f32,
     /// Seconds the session has been ticked.
     clock: f32,
@@ -333,10 +335,30 @@ pub struct LanGame {
     my_texture_table: Option<(usize, u32)>,
 }
 
+// A dedicated server has no App/DriveState, but must show the current driver.
+// This authenticated sender-owned assignment grants no vehicle control.
+pub fn note_driver_authority(game:&mut LanGame,lan:&LanSession,from:u32,text:&str)->bool {
+ if !text.starts_with("COOPAUTH1 ") {return false;}
+ let Some((token,driver,active))=crate::vehicle_transfer::parse_authority_notice(text) else{return true;};
+ if from==driver||!lan.peers().any(|p|p.pose.id==from)
+    ||!(driver==lan.my_id||lan.peers().any(|p|p.pose.id==driver)){return true;}
+ if active {game.reported_controllers.insert(from,(driver,token,Instant::now()));}
+ else if game.reported_controllers.get(&from).is_some_and(|(_,t,_)|*t==token){
+    game.reported_controllers.remove(&from);
+ }
+ true
+}
+
 /// What the frame knows that LAN play needs, filled by the game each frame.
 pub struct LanInput<'a> {
     /// Where the listener (camera) is.
     pub listener: Option<DVec3>,
+    /// Local rendering preference; never transmitted to other clients.
+    pub hide_driver_for: Option<u32>,
+    pub hide_vehicle_for: Option<u32>,
+    /// Visual driver occupants of remote buses; does not grant control.
+    pub borrowed_drivers: Vec<(u32, String)>,
+    pub controllers: Vec<(u32, u32)>,
     /// The listener sits in our own bus's cabin: another player's bus is heard through our
     /// own bodywork and glass just as an AI one is (see `SoundSet::set_muffled`).
     pub muffled: bool,
@@ -962,7 +984,11 @@ fn write_status(lan: &LanSession, game: &LanGame, player: Option<&omsi_sim::Vehi
         .peers()
         .map(|peer| {
             let d = player.filter(|_| peer.pose.has_vehicle()).map(|pl| relative_position(pl, &peer.pose));
-            serde_json::json!({ "id": peer.pose.id, "name": peer.pose.name, "bus": peer.pose.bus, "line": peer.pose.line, "destination": peer.pose.destination, "passengers": peer.pose.passengers, "where": d, "drawn": game.remotes.contains_key(&peer.pose.id) })
+            let source = game.controllers.iter().find(|(_, driver)| **driver == peer.pose.id)
+                .and_then(|(owner,_)| lan.peers().find(|p| p.pose.id == *owner));
+            let bus = if game.controllers.contains_key(&peer.pose.id) { "" }
+                else { source.map_or(peer.pose.bus.as_str(), |p|p.pose.bus.as_str()) };
+            serde_json::json!({ "id": peer.pose.id, "name": peer.pose.name, "bus": bus, "logical_bus_owner": source.map(|p|p.pose.id), "line": peer.pose.line, "destination": peer.pose.destination, "passengers": peer.pose.passengers, "where": d, "drawn": game.remotes.contains_key(&peer.pose.id) })
         })
         .collect();
     let code = lan.code();
@@ -1149,11 +1175,8 @@ fn line_and_destination(v: &omsi_sim::VehicleInstance, duty: Option<(&str, &str)
     if let Some((l, d)) = duty {
         return (l.to_string(), d.to_string());
     }
-    let line = v
-        .var("IBIS_Linie_Complex")
-        .filter(|x| *x >= 100.0)
-        .map(|x| ((x / 100.0) as i32).to_string())
-        .unwrap_or_default();
+    let line = omsi_sim::ai_traffic::greetings::Bus::from_vehicle(
+        omsi_sim::ai_traffic::greetings::BusId::Player(0),v,"",false).line;
     let dest = match (v.var("IBIS_TerminusIndex"), v.host.hof.as_ref()) {
         // terminus code 0 is the blank display ("Leerfeld")
         (Some(i), Some(h)) if i >= 0.0 => h
@@ -1202,7 +1225,12 @@ pub fn my_pose(
     duty: Option<(&str, &str)>,
     riders: usize,
 ) -> Pose {
-    let Some(v) = p else { return Pose::default() };
+    let Some(v) = p else {
+        return Pose {
+            figure: figure.map(|f| content_relative(f, &args.root)).unwrap_or_default(),
+            ..Pose::default()
+        };
+    };
     let table = sync_table(game, v);
     let val = |n: &str| v.var(n).unwrap_or(0.0);
     let on = |n: &str| val(n) > 0.5;
@@ -1217,7 +1245,7 @@ pub fn my_pose(
         ),
         (
             omsi_net::FLAG_HORN,
-            table.horn.iter().any(|id| get(*id) > 0.5),
+            table.horn.iter().any(|id| get(*id) > 0.5) || omsi_sim::ai_traffic::greetings::horn_active(v),
         ),
         (omsi_net::FLAG_BRAKE, on("lights_brems")),
         (omsi_net::FLAG_REVERSE, on("lights_rueckfahr")),
@@ -1238,7 +1266,7 @@ pub fn my_pose(
             flags |= bit;
         }
     }
-    let head = if on("lights_fern") {
+    let head = if omsi_sim::ai_traffic::greetings::high_active(v) {
         3
     } else if on("lights_abbl") || on("lights_main") || v.var("Spot_Select").is_some_and(|s| s >= 0.0) {
         // (a mod bus names its lamps its own way; its selected spotlight is the dipped
@@ -2204,6 +2232,11 @@ pub fn tick_send(
     duty: Option<(&str, &str)>,
     frame: &LanInput,
 ) -> Sent {
+    game.reported_controllers.retain(|owner,(driver,_,t)|t.elapsed()<Duration::from_secs(5)
+        &&lan.peers().any(|p|p.pose.id==*owner)
+        &&(*driver==lan.my_id||lan.peers().any(|p|p.pose.id==*driver)));
+    game.controllers=game.reported_controllers.iter().map(|(owner,(driver,_,_))|(*owner,*driver))
+        .chain(frame.controllers.iter().copied()).collect();
     let mut updates = Vec::new();
     if lan.role == Role::Client && ws_came_back() {
         lan.rehello();
@@ -2479,6 +2512,8 @@ pub fn tick_receive(
                 // (who they are, what their bus shows: the newest state's)
                 ip.name = pose.name.clone();
                 ip.bus = pose.bus.clone();
+                ip.figure = pose.figure.clone();
+                ip.paint = pose.paint.clone();
                 ip.table = pose.table;
                 ip.line = pose.line.clone();
                 ip.destination = pose.destination.clone();
@@ -2488,6 +2523,11 @@ pub fn tick_receive(
             }
             None => drive_remote(rv, &pose, dt, false),
         }
+        let scheme = if pose.paint.is_empty() { None } else {
+            rv.vehicle.ty.paint_schemes.iter().position(|s| s.name.eq_ignore_ascii_case(&pose.paint))
+        };
+        rv.vehicle.host.paint_scheme = Some(scheme);
+        rv.vehicle.apply_paint_vars(scheme);
         // (its sounds follow it: `view_sync::lan`)
         game.drawn.heard.push((pose.id, frame.inside_of == Some(pose.id)));
     }

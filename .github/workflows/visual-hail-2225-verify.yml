@@ -1,0 +1,57 @@
+name: Verify native visual passenger hailing fix (0.3.47 P16)
+'on':
+  push:
+    branches:
+      - fix/2225-visual-hail-route-fallback
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: visual-hail-2225-${{ github.sha }}
+  cancel-in-progress: false
+jobs:
+  native:
+    name: Verify hailing regression, simulation, and native P16 executable
+    runs-on: windows-2022
+    timeout-minutes: 120
+    env:
+      OPENOMSI_VERSION: 0.3.47-coop.16-2.2.2.4-hotfix.1-candidate
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      CARGO_INCREMENTAL: '0'
+      OMSI_NO_UPDATE: '1'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: visual-hail-route-2225
+      - name: Check native simulation regression tests
+        shell: pwsh
+        run: |
+          cargo test --locked --release -p omsi-sim --lib
+          if ($LASTEXITCODE -ne 0) { throw 'Simulation regression failed' }
+      - name: Compile full P16 game/server and verify help output
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw 'Native P16 game/server did not compile' }
+          & target/release/openomsi.exe --help | Out-File -FilePath native-hail-help.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw 'Native P16 EXE help failed' }
+      - name: Archive built executable and exact commit metadata
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path verified-native -Force | Out-Null
+          Copy-Item target/release/openomsi.exe verified-native/openomsi.exe
+          Copy-Item native-hail-help.txt verified-native/native-hail-help.txt
+          git rev-parse HEAD | Out-File verified-native/source-commit.txt -Encoding ascii
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-0.3.47-P16-hailing-fix-native-CANDIDATE
+          path: verified-native/
+          compression-level: 0
+          retention-days: 30

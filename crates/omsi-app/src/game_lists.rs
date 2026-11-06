@@ -900,6 +900,7 @@ pub(crate) fn menu_extras(
             (MenuKind::Tours, Some((title("Line and tour..."), format!("{} {}", tr("Line"), sign))), preview)
         }
         ListKind::Drivers => (MenuKind::List, head("Driver..."), None),
+        ListKind::Liveries => (MenuKind::List, head("Livery / Pintura..."), None),
         ListKind::Numbers => (MenuKind::List, head("Fleet number..."), None),
         ListKind::Liveries => (MenuKind::List, head("Livery..."), None),
         ListKind::Streets => (MenuKind::List, head("Find a street..."), None),
@@ -1440,4 +1441,3 @@ mod tests {
         assert!(!super::numeric_ibis_line("EXP"));
     }
 }
-

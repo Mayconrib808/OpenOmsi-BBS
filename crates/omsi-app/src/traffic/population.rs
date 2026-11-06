@@ -253,7 +253,10 @@ impl Traffic {
                 && c.state.s > self.sim.net.lanes[c.state.lane].length() - 25.0;
             // a random car still on its way that goes out of range sleeps instead (see
             // `DormantCar`); only one whose trip is over leaves the map
-            let sleeps_instead = random && !c.gone && !c.is_bus() && self.sim.net.lanes.get(c.state.lane).map(|l| l.kind == LaneKind::Street).unwrap_or(false);
+            // Dedicated responses cannot lose their route/signal overrides in the
+            // ordinary dormant registry and later reappear as an always-active model.
+            let sleeps_instead = random && !c.gone && !c.is_bus() && c.response.is_none()
+                && self.sim.net.lanes.get(c.state.lane).map(|l| l.kind == LaneKind::Street).unwrap_or(false);
             let remove = if unloaded {
                 true
             } else if at_edge {
@@ -329,26 +332,9 @@ impl Traffic {
         }
         // aircraft: a few on the flight paths, independent of the street target
         let has_air = self.sim.types.iter().any(|t| t.2 == LaneKind::Air);
-        // the map's traffic density by hour (and group) scales the street traffic ...
-        let density = self.street_density();
-        // ... and so does how much road there is around: the same number of cars looks
-        // empty on a six-lane Berlin junction and crowded on a village lane, so the count
-        // asked for is per a neighbourhood of about 250 lanes; and as Omsi spawns on each
-        // path at a rate of its [rule] trafficdensity, paths of low density bring fewer cars
-        // and those of density 0 (or kept clear of cars) none
-        let near_density: Vec<f32> = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius)
-            .into_iter()
-            .map(|i| &self.sim.net.lanes[i])
-            .filter(|l| {
-                l.kind == LaneKind::Street
-                    && l.points
-                        .first()
-                        .map(|p| (*p - center).length() < self.sim.spawn_radius)
-                        .unwrap_or(false)
-            })
-            .map(|l| if l.no_cars { 0.0 } else { l.density.clamp(0.0, 4.0) })
-            .collect();
-        let street_target = (self.sim.target as f32 * density * road_scale(&near_density)).round() as usize;
+        // The same local-road calculation is used for the host and each LAN bubble.
+        // With the extra-density option off it is the original road_scale target.
+        let street_target = self.street_target_near(center);
         // the cars that come into range again, where they have got to
         self.wake_dormant(world, center, street_target);
         // the whole map's population: as dense as around the player, on every street the
@@ -376,6 +362,28 @@ impl Traffic {
             log::info!("population t={:.1}: street target {street_target}, {} cars, {} dormant; admission: {} admitted, refused {:?}, retried {:?}, {} waiting; removals {:?}", self.sim.time, self.sim.cars.len(), self.sim.dormant.len(), a.admitted, a.denied, a.retried, a.len(), self.sim.removals);
         }
         self.sim.initial = false;
+    }
+
+    /// Road population near the receiving LAN player, not near the host.
+    fn street_target_near(&self, center: DVec3) -> usize {
+        let extra = self.optional_features.extra_traffic_density;
+        let lanes = self.sim.net.lanes_starting_near(center, self.sim.spawn_radius);
+        let mut densities = Vec::with_capacity(lanes.len());
+        let mut lane_metres = 0.0;
+        for index in lanes {
+            let lane = &self.sim.net.lanes[index];
+            if lane.kind != LaneKind::Street
+                || !lane.points.first().is_some_and(|p| (*p - center).length() < self.sim.spawn_radius) {
+                continue;
+            }
+            densities.push(if lane.no_cars { 0.0 } else { lane.density.clamp(0.0, 4.0) });
+            // No length summation is performed for a disabled optional feature.
+            if extra && !lane.no_cars && lane.density.is_finite() && lane.density > 0.0 {
+                lane_metres += lane.length().clamp(0.0, 300.0) * lane.density.clamp(0.0, 2.0);
+            }
+        }
+        let scale = optional_road_scale(&densities, lane_metres, extra);
+        (self.sim.target as f32 * self.street_density() * scale).round() as usize
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -426,9 +434,71 @@ impl Traffic {
         let mut candidates = pick(true);
         if candidates.is_empty() {
             candidates = pick(false);
+        } else if kind == LaneKind::Street {
+            // Tile streaming can truncate the far end of one direction of a
+            // divided avenue. If only the reverse paths are labelled dead ends,
+            // excluding every one can leave that side permanently empty.
+            // Respect no_cars and trafficdensity (both checked by pick(false)).
+            let sector = |lane: usize| -> usize {
+                let l = &self.sim.net.lanes[lane];
+                ((l.at(l.length() * 0.5).1.rem_euclid(360.0) / 45.0).floor() as usize).min(7)
+            };
+            let mut through = [0usize; 8];
+            for &(lane, _) in &candidates {
+                through[sector(lane)] += 1;
+            }
+            let mut fallback = [0usize; 8];
+            // Do not scan a second set of lanes if there is no paired
+            // direction to repair: most minor streets need no fallback.
+            if (0..8).any(|d| through[d] == 0 && through[(d + 4) % 8] > 0) {
+                for (lane, weight) in pick(false) {
+                    let direction = sector(lane);
+                    let reach = self.sim.net.reach.get(lane).copied().unwrap_or(0.0);
+                    if through[direction] == 0
+                        && through[(direction + 4) % 8] > 0
+                        && directional_road_fallback(reach)
+                    {
+                        // Modest weight: do not crowd real long cul-de-sacs.
+                        candidates.push((lane, weight * 0.20));
+                        fallback[direction] += 1;
+                    }
+                }
+            }
+            if self.sim.debug_population && fallback.iter().any(|&n| n > 0) {
+                log::info!(
+                    "traffic directional fallback at ({:.0}, {:.0}): through {:?}, fallback {:?} (N,NE,E,SE,S,SW,W,NW)",
+                    center.x, center.y, through, fallback
+                );
+            }
         }
         if candidates.is_empty() {
             return;
+        }
+        if kind==LaneKind::Street {
+            let sector=|lane:usize|->usize {
+                let l=&self.sim.net.lanes[lane];
+                ((l.at(l.length()*0.5).1.rem_euclid(360.0)/45.0).floor() as usize).min(7)
+            };
+            let mut demand=[0.0_f32;8];let mut present=[0_usize;8];
+            let mut available=[0_usize;8];
+            let mut on_lane:HashMap<usize,usize>=HashMap::new();
+            for &(lane,weight) in &candidates {let dir=sector(lane);demand[dir]+=weight;available[dir]+=1;}
+            for car in self.sim.cars.iter().filter(|c|!c.is_bus()&&(c.vehicle.position-center).length()<radius) {
+                if car.state.lane<self.sim.net.lanes.len(){present[sector(car.state.lane)]+=1;*on_lane.entry(car.state.lane).or_default()+=1;}
+            }
+            if self.sim.debug_population {
+                log::info!("traffic directions at ({:.0},{:.0}): eligible lanes {:?}, cars {:?}, weights {:?} (N,NE,E,SE,S,SW,W,NW)", center.x, center.y, available, present, demand);
+            }
+            let total_demand=demand.iter().sum::<f32>().max(1.0);
+            let total_present=present.iter().sum::<usize>() as f32;
+            for (lane,weight) in &mut candidates {
+                let k=sector(*lane);
+                let expected=(total_present+8.0)*demand[k]/total_demand;
+                let directional=(expected/(present[k] as f32+1.0)).clamp(0.4,2.5);
+                let occupied=on_lane.get(lane).copied().unwrap_or(0) as f32;
+                let fill=occupied*20.0/self.sim.net.lanes[*lane].length().max(8.0);
+                *weight*=directional/(1.0+fill*fill);
+            }
         }
         let mut acc = 0.0f32;
         let cumulative: Vec<f32> = candidates.iter().map(|c| { acc += c.1; acc }).collect();
@@ -784,12 +854,17 @@ impl Traffic {
         for c in centers {
             if done
                 .iter()
-                .any(|d| (*d - c).truncate().length() < self.sim.spawn_radius)
+                .any(|d| (*d - c).truncate().length() < self.sim.spawn_radius * 0.65)
             {
                 continue;
             }
+            let local_target = self.street_target_near(c);
+            if self.sim.debug_population {
+                log::info!("population LAN center ({:.0},{:.0}): host target {}, player target {}, admission refused {:?} retried {:?}",
+                    c.x, c.y, target, local_target, self.sim.admission.denied, self.sim.admission.retried);
+            }
             self.sim.count_near = Some((c, self.sim.spawn_radius));
-            self.populate_kind(world, c, LaneKind::Street, target);
+            self.populate_kind(world, c, LaneKind::Street, local_target);
             self.sim.count_near = None;
             done.push(c);
         }
@@ -818,5 +893,52 @@ mod missing_tile_tests {
         assert!(!ground_missing_for_good(Some((4, 7)), (5, 7), map_has, |_| true));
         // no tile of its own known
         assert!(!ground_missing_for_good(None, (4, 9), map_has, |_| true));
+    }
+}
+
+/// The off path is exactly the existing road-density scale. Sparse/closed roads
+/// are not forced to a minimum scale of one by the optional length correction.
+fn optional_road_scale(densities: &[f32], lane_metres: f32, enabled: bool) -> f32 {
+    let original = road_scale(densities);
+    if !enabled || !lane_metres.is_finite() { return original; }
+    original.max((lane_metres / 6000.0).clamp(0.0, 4.0))
+}
+
+/// A path extending for at least 250 m can safely carry local traffic
+/// during streaming. Short true dead ends remain excluded.
+fn directional_road_fallback(reach: f32) -> bool {
+    reach.is_finite() && reach >= 250.0
+}
+
+#[cfg(test)]
+mod directional_fallback_tests {
+    use super::directional_road_fallback;
+
+    #[test]
+    fn only_long_drivable_stretches_are_eligible() {
+        assert!(!directional_road_fallback(50.0));
+        assert!(!directional_road_fallback(249.9));
+        assert!(directional_road_fallback(250.0));
+        assert!(directional_road_fallback(400.0));
+        assert!(!directional_road_fallback(f32::NAN));
+    }
+}
+
+#[cfg(test)]
+mod optional_density_tests {
+    use super::{optional_road_scale, road_scale};
+    #[test]
+    fn disabled_extra_density_keeps_the_original_target_and_zero_roads_stay_zero() {
+        for densities in [vec![], vec![0.0], vec![0.1, 0.2], vec![1.0; 300]] {
+            assert_eq!(optional_road_scale(&densities, 50000.0, false), road_scale(&densities));
+            assert_eq!(optional_road_scale(&densities, 0.0, true), road_scale(&densities));
+        }
+        assert_eq!(optional_road_scale(&[0.0], 0.0, true), 0.0);
+    }
+    #[test]
+    fn long_avenues_can_increase_the_shared_local_target_with_a_bounded_extra_scale() {
+        let original = road_scale(&[1.0, 1.0]);
+        assert!(optional_road_scale(&[1.0, 1.0], 12000.0, true) > original);
+        assert_eq!(optional_road_scale(&[1.0, 1.0], 100000.0, true), 4.0);
     }
 }
