@@ -1,8 +1,8 @@
 {
-  "version": "0.3.49",
+  "version": "0.3.50",
   "repository": "openOMSI-org/openOMSI",
-  "upstream_commit": "0784e3cd02ea6fc013b31cdfff4a7932742632ca",
-  "upstream_tag": "v0.3.49",
+  "upstream_commit": "11ff78bab1998963162be97c49e909a2996710e1",
+  "upstream_tag": "v0.3.50",
   "protocol": 17,
   "whole_engine_upgrade": true,
   "coop_patches_retained": true
