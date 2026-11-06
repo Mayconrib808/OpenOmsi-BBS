@@ -291,6 +291,14 @@ impl Offscreen<'_> {
                 }
             }
             if let Some(s) = schedule.as_mut() {
+                // The windowed app polls solved transit routes and signal blocks
+                // before dispatch. Do the same on the HostAgent's headless world.
+                // Without this, the route worker can finish but its results are
+                // never installed, so transit AI buses remain absent forever.
+                if let Some(blocks) = s.poll_transit() {
+                    log::info!("BBS server: transit routing completed; {} signal blocks available",blocks.len());
+                    t.sim.set_blocks(blocks);
+                }
                 // at start, pick up trips that left within the last 20 minutes (a few per
                 // frame until they are all out, as the window does)
                 if i.is_multiple_of(super::steps_in(2.0)) || s.pending() > 0 {
