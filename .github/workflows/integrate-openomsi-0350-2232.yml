@@ -1,0 +1,138 @@
+name: Bridge 2.2.3.2 - full openOMSI 0.3.50/P17 integration (candidate, NOT published)
+on:
+  push:
+    branches: [fix/2231-wheelchair-universal-hud-and-signal-reset]
+    paths: ['.github/workflows/integrate-openomsi-0350-2232.yml']
+  workflow_dispatch: {}
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: bridge-2232-full-0350-merge
+  cancel-in-progress: false
+jobs:
+  merge-and-tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 100
+    outputs:
+      integrated_sha: ${{ steps.publish-source.outputs.integrated_sha }}
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: openomsi-0350-bridge-2232
+      - name: Native Linux prerequisites
+        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
+      - name: Merge every official v0.3.50 change onto the exact P17 Bridge source
+        id: reconcile
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p integration-0350-report
+          git remote add official https://github.com/openOMSI-org/openOMSI.git
+          base=0784e3cd02ea6fc013b31cdfff4a7932742632ca
+          upstream=11ff78bab1998963162be97c49e909a2996710e1
+          git fetch --no-tags official "$base" "$upstream"
+          git merge-base --is-ancestor "$base" "$upstream" || { echo 'Upstream 0.3.50 is not based on pinned 0.3.49'; exit 1; }
+          bridge_head=$(git rev-parse HEAD)
+          echo "Bridge fixes source: $bridge_head" | tee integration-0350-report/provenance.txt
+          echo "Official 0.3.50: $upstream" | tee -a integration-0350-report/provenance.txt
+          bridge_tree=$(git rev-parse 'HEAD^{tree}')
+          synthetic=$(printf 'Ephemeral Bridge 0.3.49/P17 comparison root\n' | git -c user.name='Bridge Integrator' -c user.email='integrator@localhost.invalid' commit-tree "$bridge_tree" -p "$base")
+          git -c advice.detachedHead=false checkout --detach "$synthetic"
+          set +e
+          git -c user.name='Bridge Integrator' -c user.email='integrator@localhost.invalid' merge --no-ff --no-commit -X ours "$upstream" > integration-0350-report/merge.log 2>&1
+          rc=$?
+          set -e
+          cat integration-0350-report/merge.log
+          git diff --name-only --diff-filter=U | tee integration-0350-report/unresolved.txt
+          git status --short > integration-0350-report/status.txt
+          if [ "$rc" -ne 0 ] || [ -s integration-0350-report/unresolved.txt ]; then
+            echo '::error::Upstream 0.3.50 merge needs manual reconciliation. NO distribution changes.'
+            exit 1
+          fi
+          git add -A
+          git -c user.name='Bridge Integrator' -c user.email='integrator@localhost.invalid' commit -m 'Integrate official openOMSI 0.3.50 source with Bridge P17 accessibility and HostAgent fixes'
+          git diff --stat "$synthetic" HEAD > integration-0350-report/upstream-integration-stat.txt
+          git rev-parse HEAD | tee integration-0350-report/integrated-commit.txt
+          echo "Integrated official 0.3.50 into the Bridge source candidate; compiler and behavioural tests still required."
+      - name: Full P17 wheelchair, timetable, LAN and bridge simulation tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p omsi-sim --lib
+          cargo test --locked -p omsi-net --lib
+          cargo test --locked -p omsi-audio --lib
+          cargo check --locked -p omsi-app -p omsi-lan -p omsi-launcher-core
+      - name: Publish the tested merged source only (NOT signed release or updater feed)
+        id: publish-source
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          commit=$(git rev-parse HEAD)
+          branch=integration/2232-openomsi0350-p17-source
+          git -c credential.helper= push --force-with-lease "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$commit:refs/heads/$branch"
+          echo "integrated_sha=$commit" >> "$GITHUB_OUTPUT"
+      - name: Upload integration audit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2232-openomsi0350-source-merge-audit
+          path: integration-0350-report/
+          retention-days: 45
+          if-no-files-found: warn
+  windows-native-and-launcher:
+    needs: merge-and-tests
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      OPENOMSI_VERSION: 0.3.50-coop.17-2.2.3.2-candidate
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      OMSI_NO_UPDATE: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '3'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.merge-and-tests.outputs.integrated_sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: 2232-0350-native-p17
+      - name: Compile actual native game including full 0.3.50 code and P17 features
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw '0.3.50/P17 Windows game build failed' }
+          New-Item -ItemType Directory -Force candidate | Out-Null
+          Copy-Item target/release/openomsi.exe candidate/openomsi.exe
+          & candidate/openomsi.exe --help | Out-File candidate/native-help.txt -Encoding utf8
+          if ($LASTEXITCODE -ne 0) { throw '0.3.50/P17 executable startup failed' }
+      - name: Compile actual updated desktop launcher (not just core)
+        shell: pwsh
+        run: |
+          cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw '0.3.50 Windows launcher compilation failed' }
+          Copy-Item launcher/src-tauri/target/release/openomsi-launcher.exe candidate/openomsi-launcher.exe -ErrorAction SilentlyContinue
+      - name: Preserve candidate proof; no automatic publication
+        uses: actions/upload-artifact@v4
+        with:
+          name: 2232-openomsi0350-P17-Windows-CANDIDATE
+          path: candidate/
+          retention-days: 60
+          if-no-files-found: error
