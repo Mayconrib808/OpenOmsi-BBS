@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.3.1"
+const changelogSeenVersion = "2.2.3.1-hotfix.1"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -21,7 +21,7 @@ const (
     logIDDone=1401
     logIDSectionBase=1410
 )
-type logString struct {pt,en,de string}
+type logString struct {pt,en,de,es,fr,ru string}
 type logEntry struct {title,body logString}
 type logSection struct {label logString; accent uintptr; entries []logEntry}
 type logPaintStruct struct {
@@ -40,8 +40,16 @@ var changelogWindow uintptr
 var changelogProcedure=syscall.NewCallback(changelogWindowProc)
 var changelogState *logWindowState
 
-func logT(pt,en,de string) logString {return logString{pt,en,de}}
-func logL(lang string,t logString) string{return localText(lang,t.pt,t.en,t.de)}
+func logT(pt,en,de string) logString {return logString{pt:pt,en:en,de:de,es:en,fr:en,ru:en}}
+func logT6(pt,en,de,es,fr,ru string) logString {return logString{pt,en,de,es,fr,ru}}
+func logL(lang string,t logString) string {
+    switch normalizeLanguage(lang) {
+    case "es": return t.es
+    case "fr": return t.fr
+    case "ru": return t.ru
+    default: return localText(lang,t.pt,t.en,t.de)
+    }
+}
 func logAccent(r,g,b byte)uintptr{return guiRGB(r,g,b)}
 
 func allLogSections() []logSection {
@@ -912,6 +920,35 @@ func passenger223Hotfix2LogSection() logSection {
 }
 
 func selectLogSections(from string) []logSection {
+ hotfix := logSection{
+  label: logT6("2.2.3.1 HOTFIX 1 — SETUP E ATIVAÇÃO",
+      "2.2.3.1 HOTFIX 1 — SETUP AND ACTIVATION",
+      "2.2.3.1 HOTFIX 1 — SETUP UND AKTIVIERUNG",
+      "2.2.3.1 HOTFIX 1 — INSTALACIÓN Y ACTIVACIÓN",
+      "2.2.3.1 HOTFIX 1 — INSTALLATION ET ACTIVATION",
+      "2.2.3.1 HOTFIX 1 — УСТАНОВКА И АКТИВАЦИЯ"),
+  accent:logAccent(112,219,164),
+  entries:[]logEntry{
+   {logT6("Ativação sem bloqueio do Registro", "Activation without Registry blockage",
+           "Aktivierung ohne Registry-Sperre",
+           "Activación sin bloqueo del Registro", "Activation sans blocage du Registre", "Активация без блокировки реестра"),
+    logT6("Quando o Windows recusar a gravação IFEO, o Setup usa a integração nativa do BCS e salva um backup das preferências. Sem alterar permissões do Windows.",
+          "When Windows denies the IFEO write, Setup uses native BCS integration and backs up preferences. Windows permissions remain unchanged.",
+          "Wenn Windows das Schreiben in IFEO verweigert, nutzt Setup die native BBS-Integration und sichert die Einstellungen.",
+          "Si Windows deniega la escritura IFEO, Setup utiliza la integración nativa de BCS y guarda una copia de los ajustes. No cambia los permisos.",
+          "Si Windows refuse l'écriture IFEO, Setup utilise l'intégration native de BBS et sauvegarde les préférences sans changer les permissions.",
+          "Если Windows запрещает запись IFEO, мастер использует встроенную интеграцию BBS и сохраняет резервную копию настроек, не меняя права доступа.")},
+   {logT6("Integridade e idiomas", "Package integrity and languages", "Paketintegrität und Sprachen",
+          "Integridad e idiomas", "Intégrité et langues", "Целостность и языки"),
+    logT6("Corrigida a verificação do pacote cumulativo 2.2.3.1. Interface em português, inglês, alemão, espanhol, francês e russo. OpenOMSI 0.3.49 e HostAgent P17 preservados.",
+          "Fixed cumulative 2.2.3.1 package verification. Setup supports Portuguese, English, German, Spanish, French and Russian. OpenOMSI 0.3.49 and HostAgent P17 are preserved.",
+          "Die Paketprüfung wurde korrigiert. Setup unterstützt Portugiesisch, Englisch, Deutsch, Spanisch, Französisch und Russisch. OpenOMSI 0.3.49 und HostAgent P17 bleiben erhalten.",
+          "Corregida la validación del paquete 2.2.3.1. Setup ahora admite portugués, inglés, alemán, español, francés y ruso. Se conservan OpenOMSI 0.3.49 y HostAgent P17.",
+          "Vérification du paquet 2.2.3.1 corrigée. Setup propose le portugais, l'anglais, l'allemand, l'espagnol, le français et le russe. OpenOMSI 0.3.49 et HostAgent P17 sont préservés.",
+          "Исправлена проверка пакета 2.2.3.1. Доступны португальский, английский, немецкий, испанский, французский и русский языки. OpenOMSI 0.3.49 и HostAgent P17 сохранены.")},
+  },
+ }
+ if from == "2.2.3.1" {return []logSection{hotfix}}
  newest := logSection{label:logT("2.2.3.1 • OPENOMSI 0.3.49", "2.2.3.1 • OPENOMSI 0.3.49", "2.2.3.1 • OPENOMSI 0.3.49"), accent:logAccent(112,219,164), entries:[]logEntry{
  {logT("OpenOMSI 0.3.49 e protocolo 17", "OpenOMSI 0.3.49 and protocol 17", "OpenOMSI 0.3.49 und Protokoll 17"),
   logT("Atualização integral do jogo, Launcher, servidor e HostAgent P17. Configurações, mapas, voz, senhas e inventários anteriores são preservados.", "Full game, Launcher, server and HostAgent P17 update. Existing settings, maps, voice, passwords and inventories are retained.", "Vollständiges Update von Spiel, Launcher, Server und HostAgent P17. Einstellungen, Karten, Sprache, Kennwörter und Inventare bleiben erhalten.")},
