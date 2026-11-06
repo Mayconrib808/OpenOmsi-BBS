@@ -126,7 +126,13 @@ impl App {
         // the editors' keys while one is on: help to look up, not news - they stay in the
         // corner as long as the editor does
         let mut lines: Vec<String> = mirror_help;
-        if self.session.humans.as_ref().is_some_and(|h|h.wheelchairs.wants_alight()&&!h.wheelchairs.special_stop_signal) {
+        // A real wheelchair request is safety-critical regardless of the bus's
+        // native warning lamp, wheelchair-light variables or the chosen model.
+        // The existing check suppressed ALL messages on buses with a special
+        // stop signal, leaving the driver to guess why the lamp was lit.
+        let wheelchair_alighting = self.player.is_some()
+            && self.session.humans.as_ref().is_some_and(|h| h.wheelchairs.wants_alight());
+        if wheelchair_alighting {
             lines.push(omsi_ui::tr("A wheelchair passenger wants to alight at the next stop").into_owned());
         }
         if self.menus.editor.is_some() {
@@ -206,6 +212,16 @@ impl App {
         // server's, the plugins' and the update check's notifications still come)
         if !self.settings.notes {
             said.clear();
+        }
+        // Accessibility requests MUST notify the driver even if optional
+        // gameplay hints are disabled. NoteWatch creates the alert once at the
+        // rising edge, while the persistent text above remains until alighting.
+        if wheelchair_alighting {
+            said.push((
+                "wheelchair alight request".into(),
+                omsi_ui::tr("A wheelchair passenger wants to alight at the next stop").into_owned(),
+                NoticeKind::Alert,
+            ));
         }
         self.menus.note_watch.frame(dt, &said, &mut self.menus.notices);
         self.integrations.update_watch.tick(&mut self.menus.notices);
