@@ -23,6 +23,7 @@ pub(crate) mod radio_panel;
 pub(crate) use dest_form::open as open_dest_form;
 pub(crate) use move_here::ask as ask_move;
 pub(crate) mod quick_menu;
+pub(crate) mod remote_panel;
 pub(crate) mod trip_summary;
 pub(crate) mod view_editor;
 #[cfg(test)]
@@ -49,6 +50,7 @@ pub(crate) struct GamePanels {
     pub(crate) multiplayer: Option<multiplayer::Multiplayer>,
     pub(crate) view: Option<view_editor::ViewEditor>,
     pub(crate) radio: Option<radio_panel::RadioPanel>,
+    pub(crate) remote: Option<remote_panel::RemotePanel>,
     /// Where the map camera's click asks to move the bus to.
     pub(crate) move_to: Option<glam::DVec3>,
 }
@@ -151,6 +153,7 @@ impl crate::App {
                 "view" => view_editor::click(self, el),
                 "move" => move_here::click(self, el),
                 "radio" => radio_panel::click(self, el),
+                "remote" => remote_panel::click(self, el),
                 _ => {}
             }
         }
@@ -199,6 +202,7 @@ impl crate::App {
             ("wheelchair", self.menus.game_panels.wheelchair.then(||wheelchair::panel(self,pal))),
             ("move", self.menus.game_panels.move_to.map(|at| move_here::panel(at, pal))),
             ("radio", self.menus.game_panels.radio.as_ref().map(|r| r.panel(self, pal))),
+            ("remote", self.menus.game_panels.remote.as_ref().map(|r| r.panel(self, pal))),
         ];
         let gp = &mut self.menus.game_panels;
         for (id, p) in panels {
@@ -291,7 +295,7 @@ impl crate::App {
             if gp.quick.take().is_some() {
                 return true;
             }
-            return gp.multiplayer.is_some() || gp.trip.is_some() || gp.dest.is_some() || gp.move_to.is_some();
+            return gp.multiplayer.is_some() || gp.trip.is_some() || gp.dest.is_some() || gp.move_to.is_some() || gp.remote.is_some();
         };
         match (pr.kind, pr.element.as_deref()) {
             (crate::plugin_ui::HitKind::Slider, Some(el)) => {

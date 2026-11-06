@@ -1,0 +1,2 @@
+Bridge fixes source: 93cda4f1dc13edc8b643600372bd2c1e9795f9a5
+Official 0.3.50: 11ff78bab1998963162be97c49e909a2996710e1
