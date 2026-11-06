@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-const bridgeVersion = "2.2.3.1-hotfix.2"
+const bridgeVersion = "2.2.3.2"
 const bridgeAuthor = "Mayconrib808"
 
 // Large maps can take several minutes on first load. All startup watchers share one limit.

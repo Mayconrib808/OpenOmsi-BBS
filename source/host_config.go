@@ -92,7 +92,7 @@ func defaultHostAgentConfig() hostAgentConfig {
 		c.Company.Protocol = protocol
 		c.Company.OpenOMSIVersion = "0.3.47"
 		if protocol == 17 {
-			c.Company.OpenOMSIVersion = "0.3.49"
+			c.Company.OpenOMSIVersion = "0.3.50"
 		}
 	}
 	return c

@@ -103,7 +103,7 @@ func verifyPackageForActivation(dir string) (int, error) {
 	// build-time trusted SHA-256 values. The updater authenticates Setup.exe
 	// itself using the separately signed manifest before installation.
 	if bundledCoopDistribution.FullPaths &&
-		strings.HasPrefix(bundledCoopDistribution.Prefix, "Bridge-2.2.3.1/") &&
+		signedCumulativePrefix(bundledCoopDistribution.Prefix) &&
 		activationPinnedRuntimeSHA256 != "" {
 		return verifySignedCumulativeActivation(dir)
 	}
@@ -113,7 +113,7 @@ func verifyPackageForActivation(dir string) (int, error) {
 
 func verifySignedCumulativeActivation(dir string) (int, error) {
 	if !bundledCoopDistribution.FullPaths ||
-		!strings.HasPrefix(bundledCoopDistribution.Prefix, "Bridge-2.2.3.1/") {
+		!signedCumulativePrefix(bundledCoopDistribution.Prefix) {
 		return 0, fmt.Errorf("legacy package manifest missing; this Setup has no 2.2.3.1 cumulative integrity proof")
 	}
 	const expectedPins = 4
@@ -365,4 +365,9 @@ func packageOptionalDocumentation(rel string) bool {
 		return strings.HasSuffix(name, ".md") || strings.HasSuffix(name, ".txt")
 	}
 	return false
+}
+
+// Both cumulative P17 release lines carry build-time executable pins.
+func signedCumulativePrefix(prefix string) bool {
+ return prefix == "Bridge-2.2.3.1/" || prefix == "Bridge-2.2.3.2/"
 }

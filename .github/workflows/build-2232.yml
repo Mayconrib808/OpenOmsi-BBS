@@ -1,0 +1,97 @@
+name: Build complete Bridge 2.2.3.2 from approved 0.3.50 P17 binaries
+on:
+  push:
+    branches: [release/2.2.3.2]
+    paths: [.github/workflows/build-2232.yml, scripts/build_2232.py, source/**]
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-2232-windows-package
+  cancel-in-progress: false
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 90
+    env:
+      PYTHONUTF8: '1'
+      OMSI_NO_UPDATE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Verify exact approved native run and artifact
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/42202071912 | ConvertFrom-Json
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '6babaf1f5ea0c729b63626b3769023f444e5af34') { throw 'Native candidate not approved' }
+          $a=gh api repos/$env:GITHUB_REPOSITORY/actions/artifacts/13497261270 | ConvertFrom-Json
+          if ($a.expired -or $a.digest -ne 'sha256:2a3b85fb01b010898227654fbef8404ae54abadca8d61aed5d0c3aaf980de371') { throw 'Native immutable artifact changed' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.1-FULL-CANDIDATE
+          run-id: 42116052029
+          github-token: ${{ github.token }}
+          path: approved
+      - uses: actions/download-artifact@v4
+        with:
+          name: 2232-openomsi0350-P17-Windows-CANDIDATE
+          run-id: 42202071912
+          github-token: ${{ github.token }}
+          path: native
+      - uses: actions/checkout@v4
+        with:
+          ref: 9b1d236c84b8af2f4c5a13d7c110b0db5e0c1c68
+          path: native-source
+          persist-credentials: false
+      - name: Archive the exact tested native source and run Windows bridge regressions
+        shell: pwsh
+        run: |
+          git -C native-source archive --format=tar.gz --prefix=openomsi-2232/ -o ../native/openomsi-source.tar.gz HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Native source archive failed' }
+          python scripts/build_2203.py --tests-only
+          if ($LASTEXITCODE -ne 0) { throw 'Windows bridge regressions failed' }
+      - name: Build cumulative updater and verify real P17 controls, native DLLs, activation and first-click migration
+        shell: pwsh
+        run: |
+          python scripts/build_2232.py --approved approved --native native --source native/openomsi-source.tar.gz --output output
+          if ($LASTEXITCODE -ne 0) { throw '2.2.3.2 package or actual Windows installation failed' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Bridge-2.2.3.2-failure-diagnostics
+          path: |
+            output/one-click-install-setup.log
+            output/runtime/app/*log*
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3.2-FULL-CANDIDATE
+          path: |
+            output/Atualizar-Bridge.exe
+            output/build-report.json
+            output/coop-spec.json
+            output/coop-assets/*
+            output/native-p17-controls.json
+            output/one-click-install-test.json
+            output/one-click-install-setup.log
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3.2-SIGNING-METADATA
+          path: |
+            output/build-report.json
+            output/coop-spec.json
+            output/native-p17-controls.json
+            output/one-click-install-test.json
+          retention-days: 90
+          if-no-files-found: error

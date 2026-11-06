@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.3.1-hotfix.2"
+const changelogSeenVersion = "2.2.3.2"
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -919,7 +919,7 @@ func passenger223Hotfix2LogSection() logSection {
     }
 }
 
-func selectLogSections(from string) []logSection {
+func select2231LogSections(from string) []logSection {
  hotfix2 := logSection{
   label: logT6("2.2.3.1 HOTFIX 2 — INTEGRIDADE DA ATIVAÇÃO",
       "2.2.3.1 HOTFIX 2 — ACTIVATION INTEGRITY",
@@ -982,4 +982,19 @@ func selectLogSections(from string) []logSection {
  result:=[]logSection{newest}
  if from==changelogSeenVersion || from=="2.2.3-hotfix.2" {return result}
  return append(result,selectPreviousLogSections(from)...)
+}
+
+func selectLogSections(from string) []logSection {
+ newest := logSection{label:logT("2.2.3.2 • OPENOMSI 0.3.50", "2.2.3.2 • OPENOMSI 0.3.50", "2.2.3.2 • OPENOMSI 0.3.50"), accent:logAccent(112,219,164), entries:[]logEntry{
+ {logT6("OpenOMSI 0.3.50 completo", "Complete OpenOMSI 0.3.50", "Vollständiges OpenOMSI 0.3.50", "OpenOMSI 0.3.50 completo", "OpenOMSI 0.3.50 complet", "Полное обновление OpenOMSI 0.3.50"),
+ logT6("Jogo, Launcher e servidor atualizados com todas as alterações oficiais da 0.3.50. HostAgent e migração mantêm o protocolo P17, mapas, voz, senhas e preferências.", "Game, Launcher and server include all official 0.3.50 changes. HostAgent and migration retain P17, maps, voice, passwords and preferences.", "Spiel, Launcher und Server enthalten alle offiziellen Änderungen von 0.3.50. HostAgent und Migration behalten P17, Karten, Sprache und Einstellungen bei.", "Juego, Launcher y servidor incluyen todos los cambios oficiales de 0.3.50. Se conservan P17 y los ajustes del HostAgent.", "Le jeu, le Launcher et le serveur intègrent toutes les modifications officielles de 0.3.50. P17 et les réglages du HostAgent sont conservés.", "Игра, Launcher и сервер включают все официальные изменения 0.3.50. Сохранены P17 и настройки HostAgent.")},
+ {logT6("Cadeirante: aviso e sinal", "Wheelchair request and signal", "Rollstuhlanzeige und Haltewunsch", "Aviso y señal de silla de ruedas", "Demande et signal du fauteuil roulant", "Уведомление и сигнал коляски"),
+ logT6("O pedido de desembarque aparece na tela mesmo em ônibus sem indicador próprio. O sinal da cadeira é limpo ao concluir o desembarque e ao encerrar a assistência.", "The alighting request appears on screen even on buses without a dedicated indicator. The wheelchair signal resets after alighting and assistance.", "Der Ausstiegswunsch erscheint auch ohne eigene Fahrzeuganzeige. Das Rollstuhlsignal wird nach Ausstieg und Hilfe zurückgesetzt.", "La solicitud de bajada aparece en pantalla aunque no haya indicador propio. La señal se apaga al terminar la asistencia.", "La demande de descente apparaît même sans indicateur dédié. Le signal est réinitialisé après la descente et l'assistance.", "Запрос выхода виден даже без отдельного индикатора. Сигнал сбрасывается после выхода и помощи.")},
+ {logT6("Ativação corrigida", "Activation fixes retained", "Aktivierungskorrekturen erhalten", "Activación corregida", "Activation corrigée", "Исправления активации"),
+ logT6("Inclui as correções de pacote incompleto ou alterado e de ativação do BCS publicadas na 2.2.3.1 Hotfix 2.", "Includes the incomplete or modified package and BCS activation fixes from 2.2.3.1 Hotfix 2.", "Enthält die Paket- und BBS-Aktivierungskorrekturen aus 2.2.3.1 Hotfix 2.", "Incluye las correcciones de paquete y activación de BCS de 2.2.3.1 Hotfix 2.", "Inclut les corrections du paquet et de l'activation BBS de 2.2.3.1 Hotfix 2.", "Включены исправления пакета и активации BBS из 2.2.3.1 Hotfix 2.")},
+ }}
+ result:=[]logSection{newest}
+ from=strings.TrimSpace(from)
+ if from==changelogSeenVersion || from=="2.2.3.1-hotfix.2" {return result}
+ return append(result,select2231LogSections(from)...)
 }
