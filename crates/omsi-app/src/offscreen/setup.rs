@@ -86,6 +86,17 @@ impl<'a> Offscreen<'a> {
         } else {
             None
         };
+        // Transit timetables and signalling blocks need the global route worker
+        // on headless hosts as well. The windowed game starts/polls it, but the
+        // streamed dedicated server previously did neither: transit departures
+        // stayed unrouted, leaving streets full of cars and no scheduled buses.
+        // This uses the global navigation index, not full visual tile preload.
+        if dynamic_server {
+            if let Some(s) = schedule.as_mut() {
+                s.start_transit(world.clone());
+                log::info!("BBS dynamic server: scheduled transit routes queued for background resolution");
+            }
+        }
         // Keep the timetable and map index global, but prepare vehicles only when
         // their region is used. A headless host needs no all-depot texture warmup.
         if let Some(s) = schedule.as_mut().filter(|_| !dynamic_server) {
