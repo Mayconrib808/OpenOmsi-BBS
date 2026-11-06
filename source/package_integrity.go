@@ -103,7 +103,8 @@ func verifyPackageForActivation(dir string) (int, error) {
 	// build-time trusted SHA-256 values. The updater authenticates Setup.exe
 	// itself using the separately signed manifest before installation.
 	if bundledCoopDistribution.FullPaths &&
-		strings.HasPrefix(bundledCoopDistribution.Prefix, "Bridge-2.2.3.1/") {
+		strings.HasPrefix(bundledCoopDistribution.Prefix, "Bridge-2.2.3.1/") &&
+		activationPinnedRuntimeSHA256 != "" {
 		return verifySignedCumulativeActivation(dir)
 	}
 	// Older, non-P17 releases still use the legacy full manifest policy.
