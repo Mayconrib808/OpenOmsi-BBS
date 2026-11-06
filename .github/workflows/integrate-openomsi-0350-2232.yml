@@ -133,6 +133,19 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw '0.3.50/P17 Windows game build failed' }
           New-Item -ItemType Directory -Force candidate | Out-Null
           Copy-Item target/release/openomsi.exe candidate/openomsi.exe
+          # The upstream Steamworks build links steam_api64.dll at load time.
+          # The executable is tested from candidate/, not target/release/, so
+          # preserve the exact repository-provided Steam redistributable beside
+          # it; never download an unverified third-party DLL or skip the gate.
+          $steamSource = 'assets/steam_redist/steam_api64.dll'
+          if (!(Test-Path $steamSource -PathType Leaf)) {
+            throw "Required official Steam redistributable missing from checked-out source: $steamSource"
+          }
+          Copy-Item $steamSource candidate/steam_api64.dll -ErrorAction Stop
+          $steamSourceHash = (Get-FileHash $steamSource -Algorithm SHA256).Hash
+          $steamCandidateHash = (Get-FileHash candidate/steam_api64.dll -Algorithm SHA256).Hash
+          if ($steamSourceHash -ne $steamCandidateHash) { throw 'Steam DLL candidate hash differs from tracked source' }
+          "steam_api64.dll SHA256: $($steamCandidateHash.ToLowerInvariant())" | Set-Content candidate/steam-runtime-provenance.txt -Encoding utf8
           # The release game is a Windows GUI-subsystem executable. PowerShell's
           # direct invocation does not reliably wait for its exit or capture
           # clap --help; use the updater's actual --self-test contract instead.
