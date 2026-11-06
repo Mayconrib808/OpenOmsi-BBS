@@ -2,7 +2,12 @@ name: Bridge 2.2.3.2 - full openOMSI 0.3.50/P17 integration (candidate, NOT publ
 on:
   push:
     branches: [fix/2231-wheelchair-universal-hud-and-signal-reset]
-    paths: ['.github/workflows/integrate-openomsi-0350-2232.yml']
+    paths:
+      - '.github/workflows/integrate-openomsi-0350-2232.yml'
+      - 'crates/omsi-app/src/offscreen/**'
+      - 'crates/omsi-app/src/app_events/frame/interface.rs'
+      - 'crates/omsi-app/src/app_events/frame/people.rs'
+      - 'crates/omsi-sim/src/people/wheelchair*'
   workflow_dispatch: {}
 permissions:
   contents: write
@@ -73,6 +78,8 @@ jobs:
           cargo test --locked -p omsi-net --lib
           cargo test --locked -p omsi-audio --lib
           cargo check --locked -p omsi-app -p omsi-lan -p omsi-launcher-core
+          node --test launcher/tests/optional-features.test.mjs launcher/tests/nvidia-dlss-install.test.mjs
+          python3 tools/check_accessibility_locales.py
       - name: Publish the tested merged source only (NOT signed release or updater feed)
         id: publish-source
         shell: bash
@@ -123,12 +130,27 @@ jobs:
           Copy-Item target/release/openomsi.exe candidate/openomsi.exe
           & candidate/openomsi.exe --help | Out-File candidate/native-help.txt -Encoding utf8
           if ($LASTEXITCODE -ne 0) { throw '0.3.50/P17 executable startup failed' }
-      - name: Compile actual updated desktop launcher (not just core)
+      - name: Compile actual updated desktop launcher and CLI (not just core)
         shell: pwsh
         run: |
+          cargo build --locked --release -p omsi-launcher-core --bin openomsi-launcher
+          if ($LASTEXITCODE -ne 0) { throw '0.3.50 Windows launcher CLI compilation failed' }
           cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
-          if ($LASTEXITCODE -ne 0) { throw '0.3.50 Windows launcher compilation failed' }
-          Copy-Item launcher/src-tauri/target/release/openomsi-launcher.exe candidate/openomsi-launcher.exe -ErrorAction SilentlyContinue
+          if ($LASTEXITCODE -ne 0) { throw '0.3.50 Windows desktop launcher compilation failed' }
+          $desktop='launcher/src-tauri/target/release/openomsi-launcher-app.exe'
+          if (!(Test-Path $desktop)) { throw 'Expected actual desktop launcher executable missing' }
+          if (!(Test-Path 'target/release/openomsi-launcher.exe')) { throw 'Expected launcher CLI executable missing' }
+          Copy-Item $desktop candidate/openomsi-launcher-app.exe -ErrorAction Stop
+          Copy-Item target/release/openomsi-launcher.exe candidate/openomsi-launcher.exe -ErrorAction Stop
+          @{
+            version=$env:OPENOMSI_VERSION
+            source_commit='${{ needs.merge-and-tests.outputs.integrated_sha }}'
+            desktop_sha256=(Get-FileHash $desktop -Algorithm SHA256).Hash.ToLowerInvariant()
+            cli_sha256=(Get-FileHash target/release/openomsi-launcher.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            native_sha256=(Get-FileHash target/release/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            validation='compiled-only-not-live-tested'
+            protocol=17
+          } | ConvertTo-Json | Set-Content candidate/BUILD-INFO.json -Encoding utf8
       - name: Preserve candidate proof; no automatic publication
         uses: actions/upload-artifact@v4
         with:
