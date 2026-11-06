@@ -47,8 +47,12 @@ impl Wheelchairs {
         self.mobile.contains_key(&id)||self.person==Some(id)||self.riders.contains_key(&id)
     }
     pub fn wants_alight(&self)->bool {
-        self.journey.as_ref().is_some_and(|j|j.alight_requested&&j.boarded)
-            ||self.riders.values().any(|r|r.journey.alight_requested)
+        // A completed trip may linger while the equipment is stowed. It no
+        // longer requests a stop: clear the cab lamp and HUD immediately.
+        self.journey.as_ref().is_some_and(|j|
+            j.alight_requested&&j.boarded&&j.stage!=Stage::Finished)
+            ||self.riders.values().any(|r|
+                r.journey.alight_requested&&r.journey.stage!=Stage::Finished)
     }
     pub fn request_alight(&mut self,id:u32)->bool {
         let journey=if self.person==Some(id){self.journey.as_mut()}
@@ -141,7 +145,14 @@ impl PeopleSim {
             }
             m.position=p.position;m.heading=p.heading;
         }
-        if self.wheelchairs.wants_alight() {self.stop_request=true;}
+        // A call is an edge, not a button held down on every simulation tick.
+        // A level-triggered request repeatedly fired int_haltewunsch, latching
+        // native stop lights and hiding the distinction from an ordinary call.
+        let wheelchair_call = self.wheelchairs.wants_alight();
+        if wheelchair_call && !self.wheelchairs.stop_request_armed {
+            self.stop_request = true;
+        }
+        self.wheelchairs.stop_request_armed = wheelchair_call;
     }
     pub(crate) fn begin_wheelchair_boarding(&mut self,i:usize,bn:&BusNow,world:&dyn World)->bool {
         if bn.id!=BusId::Player||self.wheelchairs.journey.is_some()||bn.speed.abs()>0.025 {return false;}
