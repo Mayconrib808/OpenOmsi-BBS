@@ -1,0 +1,413 @@
+name: Publish signed Bridge 2.2.3.2 Hotfix 1 accessibility and fuel update
+on:
+  push:
+    branches: [publish/2.2.3.2-hotfix.1]
+    paths: [build-support/release2232-hotfix1/stable.json, .github/workflows/publish-2232-hotfix1.yml]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: openomsi-update-distribution
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: "Verify exact 2.2.3.2 Windows installer, game, Launcher and P17 candidate"
+        id: candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node - <<'NODE'
+          const fs=require('fs'),{execFileSync}=require('child_process');
+          const p=require('./build-support/release2232-hotfix1/publication.json');
+          const r=JSON.parse(execFileSync('gh',['api','repos/'+process.env.GITHUB_REPOSITORY+'/actions/runs/'+p.candidate_run_id],{encoding:'utf8'}));
+          if(r.status!=='completed'||r.conclusion!=='success'||r.head_sha!==p.candidate_commit||r.path!=='.github/workflows/build-2232-hotfix1.yml')throw Error('Wrong or failed 2.2.3.2 release candidate');
+          const arts=JSON.parse(execFileSync('gh',['api','repos/'+process.env.GITHUB_REPOSITORY+'/actions/runs/'+p.candidate_run_id+'/artifacts'],{encoding:'utf8'})).artifacts;
+          const art=arts.find(a=>a.name==='Bridge-2.2.3.2-Hotfix1-FULL-CANDIDATE');
+          if(!art||art.id!==p.candidate_artifact_id||art.digest!=='sha256:'+p.candidate_artifact_sha256||art.expired)throw Error('P17 artifact ID/digest does not match approved Windows candidate');
+          fs.appendFileSync(process.env.GITHUB_OUTPUT,'run_id='+p.candidate_run_id+'\n');
+          NODE
+      - name: Check publisher syntax and preflight all signed releases
+        run: |
+          node --check build-support/release2232-hotfix1/publication.mjs
+          node build-support/release2232-hotfix1/publication.mjs validate-signatures
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.2-Hotfix1-FULL-CANDIDATE
+          run-id: ${{ steps.candidate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: approved-2232hotfix1
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.2-FULL-CANDIDATE
+          run-id: 42215835902
+          github-token: ${{ github.token }}
+          path: approved-2232
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.1-Hotfix2-FULL-CANDIDATE
+          run-id: 42143188216
+          github-token: ${{ github.token }}
+          path: approved-2231hf2
+      # Keep the exact previous Hotfix 1 updater as a valid rollback download.
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.1-Hotfix1-FULL-CANDIDATE
+          run-id: 42136557845
+          github-token: ${{ github.token }}
+          path: approved-2231hf1
+      # Retain original 2.2.3.1 P17 game/Launcher/HostAgent parts unchanged.
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.1-FULL-CANDIDATE
+          run-id: 42116052029
+          github-token: ${{ github.token }}
+          path: approved-new
+      - name: Free the redundant portable ZIP for approved-new
+        run: find approved-new -maxdepth 1 -type f -name "*-FULL.zip" -delete
+      # Preserve exact previously published 2.2.3 Hotfix 2 Windows update and native assets.
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3-Hotfix2-FULL-CANDIDATE
+          run-id: 41959476802
+          github-token: ${{ github.token }}
+          path: approved-prior223hf2
+      - name: Free the redundant portable ZIP for approved-prior223hf2
+        run: find approved-prior223hf2 -maxdepth 1 -type f -name "*-FULL.zip" -delete
+      # Preserve the signed immediate predecessor's exact full payload.
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3-Hotfix1-FULL-CANDIDATE
+          run-id: 41950261402
+          github-token: ${{ github.token }}
+          path: approved-prior223hf1
+      - name: Free the redundant portable ZIP for approved-prior223hf1
+        run: find approved-prior223hf1 -maxdepth 1 -type f -name "*-FULL.zip" -delete
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3-FULL-CANDIDATE
+          run-id: 41911761748
+          github-token: ${{ github.token }}
+          path: approved-prior223
+      - name: Free the redundant portable ZIP for approved-prior223
+        run: find approved-prior223 -maxdepth 1 -type f -name "*-FULL.zip" -delete
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.5-FULL-CANDIDATE
+          run-id: 41871370040
+          github-token: ${{ github.token }}
+          path: approved-prior2224hf5
+      - name: Free the redundant portable ZIP for approved-prior2224hf5
+        run: find approved-prior2224hf5 -maxdepth 1 -type f -name "*-FULL.zip" -delete
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.4-FULL-CANDIDATE
+          run-id: 41764488561
+          github-token: ${{ github.token }}
+          path: approved-prior2224hf4
+      - name: Free the redundant portable ZIP for approved-prior2224hf4
+        run: find approved-prior2224hf4 -maxdepth 1 -type f -name "*-FULL.zip" -delete
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.3-FULL-CANDIDATE
+          run-id: 41583888736
+          github-token: ${{ github.token }}
+          path: approved-prior2224hf3
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.2-CANDIDATE
+          run-id: 41539618533
+          github-token: ${{ github.token }}
+          path: approved-prior2224hf2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-hotfix.1-CANDIDATE
+          run-id: 41528869591
+          github-token: ${{ github.token }}
+          path: approved-prior2224hf1
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.4-Final-CANDIDATE
+          run-id: 41493867516
+          github-token: ${{ github.token }}
+          path: approved-prior2224
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.3-Final-CANDIDATE
+          run-id: 41439660434
+          github-token: ${{ github.token }}
+          path: approved-prior2223
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.2-Test2-CANDIDATE
+          run-id: 41351927542
+          github-token: ${{ github.token }}
+          path: approved-prior2222test2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.2-Test1-CANDIDATE
+          run-id: 41339056680
+          github-token: ${{ github.token }}
+          path: approved-prior2222test1
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.2-Hotfix1-CANDIDATE
+          run-id: 41275207490
+          github-token: ${{ github.token }}
+          path: approved-prior2222hotfix1
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.2-CANDIDATE
+          run-id: 41266019936
+          github-token: ${{ github.token }}
+          path: approved-prior2222
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.2-CANDIDATE
+          run-id: 41267406617
+          github-token: ${{ github.token }}
+          path: approved-prior2222-repaired
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.1-Hotfix2-CANDIDATE
+          run-id: 41251880784
+          github-token: ${{ github.token }}
+          path: approved-prior2211hf2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.1-Hotfix1-CANDIDATE
+          run-id: 41237643318
+          github-token: ${{ github.token }}
+          path: approved-prior2211hf1
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2.1-CANDIDATE
+          run-id: 41229974775
+          github-token: ${{ github.token }}
+          path: approved-prior2221
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2-Hotfix3-CANDIDATE
+          run-id: 41213659422
+          github-token: ${{ github.token }}
+          path: approved-prior222hotfix3
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2-Hotfix2-CANDIDATE
+          run-id: 41159417197
+          github-token: ${{ github.token }}
+          path: approved-prior222hotfix2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2-PatrolFix-CANDIDATE
+          run-id: 41145308223
+          github-token: ${{ github.token }}
+          path: approved-hotfix1
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.2-CANDIDATE
+          run-id: 41136169138
+          github-token: ${{ github.token }}
+          path: approved-original
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix3-candidate
+          run-id: 40901236438
+          github-token: ${{ github.token }}
+          path: approved-current
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix2-candidate
+          run-id: 40765546864
+          github-token: ${{ github.token }}
+          path: approved-hotfix2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-hotfix1-candidate
+          run-id: 40602950335
+          github-token: ${{ github.token }}
+          path: approved-hotfix2219
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.9-candidate
+          run-id: 40590327114
+          github-token: ${{ github.token }}
+          path: approved-prior2219
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.8-candidate
+          run-id: 40526580430
+          github-token: ${{ github.token }}
+          path: approved-prior2218
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.8-hotfix1-candidate
+          run-id: 40577793377
+          github-token: ${{ github.token }}
+          path: approved-hotfix2218
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.8-hotfix1-candidate
+          run-id: 40149656930
+          github-token: ${{ github.token }}
+          path: approved-hf1
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.8-hotfix2-candidate
+          run-id: 40197474614
+          github-token: ${{ github.token }}
+          path: approved-hf2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.8-update-candidate
+          run-id: 40139360336
+          github-token: ${{ github.token }}
+          path: approved-prior2208
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.7-candidate
+          run-id: 40121432530
+          github-token: ${{ github.token }}
+          path: approved-prior2207
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.1-approved-publication
+          run-id: 39795944956
+          github-token: ${{ github.token }}
+          path: approved-previous
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.2-update-candidate
+          run-id: 39863166328
+          github-token: ${{ github.token }}
+          path: approved-previous2
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.3-update-candidate
+          run-id: 39973561655
+          github-token: ${{ github.token }}
+          path: approved-base
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.3-hotfix.2-candidate
+          run-id: 39992267151
+          github-token: ${{ github.token }}
+          path: approved-hotfix
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.4-candidate
+          run-id: 40017148265
+          github-token: ${{ github.token }}
+          path: approved-prior2204
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.5-candidate
+          run-id: 40056968283
+          github-token: ${{ github.token }}
+          path: approved-prior2205
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.6-candidate
+          run-id: 40097453331
+          github-token: ${{ github.token }}
+          path: approved-prior2206
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.6-candidate
+          run-id: 40106329076
+          github-token: ${{ github.token }}
+          path: approved-prior22061
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.6-candidate
+          run-id: 40110829067
+          github-token: ${{ github.token }}
+          path: approved-prior22062
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.0.8-hotfix3-candidate
+          run-id: 40199374831
+          github-token: ${{ github.token }}
+          path: approved-hf3
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1-candidate
+          run-id: 40228211729
+          github-token: ${{ github.token }}
+          path: approved-prior221
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.1-candidate
+          run-id: 40242642374
+          github-token: ${{ github.token }}
+          path: approved-prior2211
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.2-candidate
+          run-id: 40249678167
+          github-token: ${{ github.token }}
+          path: approved-prior2212
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.3-candidate
+          run-id: 40261480962
+          github-token: ${{ github.token }}
+          path: approved-prior2213
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.4-candidate
+          run-id: 40363087739
+          github-token: ${{ github.token }}
+          path: approved-prior2214
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.6-candidate
+          run-id: 40409878722
+          github-token: ${{ github.token }}
+          path: approved-prior2216
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.1.7-candidate
+          run-id: 40452388183
+          github-token: ${{ github.token }}
+          path: approved-prior2217
+      - name: Check signed 2.2.3.2 with complete 0.3.50 provenance and Windows installation proof
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node build-support/release2232-hotfix1/publication.mjs prepare
+      - name: Existing update worker regression tests
+        run: node --test update-service/worker*.test.mjs
+      - name: Deploy signed 2.2.3.2 after verifying live predecessor
+        working-directory: distribution
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" && test -n "$CLOUDFLARE_ACCOUNT_ID"
+          npx --yes wrangler@4.149.0 deploy --config wrangler.jsonc
+      - name: Verify signed live manifest and new/previous package hashes
+        run: |
+          for attempt in $(seq 1 12); do
+            if node build-support/release2232-hotfix1/publication.mjs verify-live; then exit 0; fi
+            test "$attempt" -lt 12 || exit 1
+            sleep 5
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Bridge-2.2.3.2-Hotfix1-live-evidence
+          path: |
+            build-support/release2232-hotfix1/stable.json
+            build-support/release2232-hotfix1/publication.json
+            approved-2232hotfix1/build-report.json
+            approved-2232hotfix1/coop-spec.json
+            approved-2232hotfix1/native-p17-controls.json
+            approved-2232hotfix1/one-click-install-test.json
+          retention-days: 30
+          if-no-files-found: warn
+

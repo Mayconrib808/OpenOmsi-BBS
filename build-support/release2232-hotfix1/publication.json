@@ -1,0 +1,19 @@
+{
+  "version": "2.2.3.2-hotfix.1",
+  "sequence": 2026110602,
+  "previous_version": "2.2.3.2",
+  "previous_sequence": 2026110601,
+  "candidate_run_id": 42261964279,
+  "candidate_commit": "785fed6363b6f0cb9270455949f497ec52e5b81e",
+  "candidate_artifact_id": 13524799069,
+  "candidate_artifact_sha256": "fe476f9bdcab67cde2408344f15569db5e87c2b6e6bd4c1523faf40f25a4ddd8",
+  "installer_sha256": "bd6b6b3ce5dd14a0e13f41031b02feb66ac7d763fbf87492e92e1fdfb2f249bf",
+  "installer_size": 25068544,
+  "setup_sha256": "bd8d007c784aa1b87df39980250596f8c4a840269c23f2a1d11521b8aeb6f227",
+  "coop_archive_sha256": "8c95bba13b1e8b1bedb7a9ae9cd15835f2cadba08e2dfa97f7cf838590db1afc",
+  "native_run_id": 42256675047,
+  "native_source_commit": "c80715cefa0197031c4c9d9beee0d12284c70c86",
+  "native_version": "0.3.50-coop.17-2.2.3.2-hotfix.1-candidate",
+  "native_game_sha256": "edcf321cb0d2213e2b776adb7a886ce9e607db26de7ad3084513162d633ae9f1",
+  "protocol": 17
+}
