@@ -20,8 +20,12 @@ const before=decode(oldSigned),release=decode(signed),rollback=decode(readFileSy
 if(before.schema!==1||before.version!=='2.2.3.1'||before.sequence!==2026110501||before.installer.sha256!=='c0cf59361d96dbfe97e414d134b339db62b429ea805cd34387505e53eb664275')throw Error('Current 2.2.3.1 baseline changed');
 if(rollback.version!=='2.2.2.1-hotfix.2'||rollback.sequence!==2026103104)throw Error('Historical rollback signature changed');
 if(release.schema!==1||release.version!=='2.2.3.1-hotfix.1'||release.sequence!==2026110502||release.sequence<=before.sequence||release.installer.sha256===before.installer.sha256)throw Error('Invalid new signed version/sequence');
-for(const lang of ['pt','en','de','es','fr','ru']){
-  if(typeof release.notes?.[lang]!=='string'||release.notes[lang].length<70||!release.notes[lang].includes('2.2.3.1'))throw Error('Missing localized changelog '+lang);
+// The ORIGINAL 2.2.3.1 Setup refuses any release-notes key other than pt/en/de.
+// Six-language Setup UI remains bundled in the Hotfix installer, but the feed
+// MUST remain backwards-compatible so installed clients can download it.
+if(Object.keys(release.notes||{}).sort().join(',')!=='de,en,pt')throw Error('Legacy Setup will reject unsupported manifest notes languages');
+for(const lang of ['pt','en','de']){
+  if(typeof release.notes[lang]!=='string'||release.notes[lang].length<70||!release.notes[lang].includes('2.2.3.1'))throw Error('Missing compatible changelog '+lang);
 }
 if(info.version!==release.version||info.sequence!==release.sequence||info.previous_version!==before.version||info.previous_sequence!==before.sequence)throw Error('Publication metadata/manifest mismatch');
 const installer=release.installer;
@@ -69,7 +73,11 @@ if(process.argv[2]==='validate-signatures'){
   console.log('SIGNED PREFLIGHT VERIFIED: 2.2.3.1 Hotfix 1, original P17, immutable rollback and all six languages');
 }else if(process.argv[2]==='prepare'){
   const live=await getLive();
-  if(!live.equals(oldSigned)||decode(live).sequence!==before.sequence)throw Error('Live feed is not exactly signed 2.2.3.1; refusing overwrite');
+  const current=decode(live);
+  const originalFeed=live.equals(oldSigned)&&current.sequence===before.sequence;
+  const brokenSixLanguageFeed=current.version===release.version&&current.sequence===release.sequence&&current.installer.sha256===installer.sha256&&current.installer.size===installer.size&&Object.keys(current.notes||{}).sort().join(',')==='de,en,es,fr,pt,ru';
+  if(!originalFeed&&!brokenSixLanguageFeed)throw Error('Live update feed changed unexpectedly; refusing overwrite');
+  console.log('FEED REPAIR: replacing incompatible 6-language manifest with 3-language signed manifest, keeping the same approved Hotfix binary');
   const {report,spec}=inspectCandidate();
   mkdirSync('distribution/assets/packages',{recursive:true});
   if(!existsSync('approved-previous/assets'))throw Error('Missing historical immutable assets baseline');
