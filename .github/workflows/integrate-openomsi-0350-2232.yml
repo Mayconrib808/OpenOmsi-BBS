@@ -90,9 +90,12 @@ jobs:
         run: |
           set -euo pipefail
           commit=$(git rev-parse HEAD)
-          branch=integration/2232-openomsi0350-p17-source
-          git -c credential.helper= push --force-with-lease "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$commit:refs/heads/$branch"
+          # Each workflow run owns a unique immutable source ref. Avoid stale
+          # --force-with-lease failures and never overwrite a prior tested tree.
+          branch="integration/2232-openomsi0350-p17-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          git -c credential.helper= push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$commit:refs/heads/$branch"
           echo "integrated_sha=$commit" >> "$GITHUB_OUTPUT"
+          echo "Published immutable candidate source ref $branch at $commit"
       - name: Upload integration audit
         if: always()
         uses: actions/upload-artifact@v4
