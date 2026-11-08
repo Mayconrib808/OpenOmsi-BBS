@@ -36,3 +36,25 @@ unrelated, and neither system is secretly used as a DLSS 5 substitute.
 Official information:
 - https://www.nvidia.com/en-us/geforce/news/dlss-5-3d-guided-neural-rendering/
 - https://github.com/NVIDIA-RTX/Streamline
+
+## Optional experimental route with an external controller
+
+An independent, Apache-2.0 project, [UniversalDLSS5](https://github.com/MotionflowOffical/UniversalDLSS5),
+tries to execute NVIDIA Neural Rendering on games without native support. It is not
+an NVIDIA product and its injector compatibility is **not verified with openOMSI**.
+
+The desktop launcher's graphics settings can now store a locally selected
+`UniversalDLSS5.exe` and open its controller window. This is an **explicit manual**
+action by the player. The Bridge does not distribute third-party executables,
+download them, inject any graphics hook, or automatically launch a second game.
+The user must install the program from its project, independently obtain the
+legitimate vendor-signed `nvngx_dlssnr.dll` and any required Streamline NR
+plugin, start the game normally, and choose **Attach** inside the controller.
+The controller itself must report **Neural Active** before anyone claims the
+feature is working; a successful controller launch is not sufficient.
+
+Avoid combining this experimental injection with the ReShade Vulkan layer until
+compatibility is validated. Do not enable it automatically for public online
+sessions because manual third-party injection can interfere with game hooks.
+
+The native DLSS 5 implementation remains gated on NVIDIA's official NR SDK.

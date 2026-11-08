@@ -21,7 +21,7 @@ async fn work<F: FnOnce() -> Answer + Send + 'static>(f: F) -> Answer {
 }
 
 pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
-    tauri::generate_handler![call, call_bytes, pick_folder, pick_file, pick_mod, pick_hofs, open_path, open_url, update_relaunch, selftest_done, fit_zoom, nvidia_dlss_status, nvidia_dlss_install, nvidia_dlss5_status, reshade_status, reshade_set_enabled]
+    tauri::generate_handler![call, call_bytes, pick_folder, pick_file, pick_mod, pick_hofs, open_path, open_url, update_relaunch, selftest_done, fit_zoom, nvidia_dlss_status, nvidia_dlss_install, nvidia_dlss5_status, nvidia_dlss5_controller_select, nvidia_dlss5_controller_open, reshade_status, reshade_set_enabled]
 }
 
 #[tauri::command]
@@ -61,6 +61,18 @@ async fn nvidia_dlss_install(accepted_terms: bool) -> Answer {
 #[tauri::command]
 fn nvidia_dlss5_status() -> Value {
     crate::nvidia_dlss5::status()
+}
+
+/// Register an installed third-party controller only after the player chooses its executable.
+#[tauri::command]
+async fn nvidia_dlss5_controller_select(path: String) -> Answer {
+    work(move || crate::nvidia_dlss5::select_controller(path)).await
+}
+
+/// Launch an external controller UI, never an injector or SDK installer.
+#[tauri::command]
+async fn nvidia_dlss5_controller_open() -> Answer {
+    work(crate::nvidia_dlss5::open_controller).await
 }
 
 /// This window, for the commands of `omsi-launcher-api`.
