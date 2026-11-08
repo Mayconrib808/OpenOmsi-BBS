@@ -63,7 +63,7 @@ test('the notes opened are those since the last seen, up to this version', () =>
 });
 
 test('the changelog adds no interface text the translations lack', () => {
-  const yml = readFileSync(new URL('../../crates/omsi-app/locales/app.yml', import.meta.url), 'utf8');
+  const yml = readFileSync(new URL('../../crates/omsi-app/locales/app.yml', import.meta.url), 'utf8').replace(/\r\n?/g, '\n');
   for (const key of ["What's new", 'Open on GitHub', 'New', 'Beta', 'Installed', 'Latest', 'Close', 'Try again',
     'Asking GitHub for the releases…', 'The list of versions could not be read.', 'No release to choose from']) {
     assert(yml.includes('\n' + JSON.stringify(key) + ':\n'), key);
