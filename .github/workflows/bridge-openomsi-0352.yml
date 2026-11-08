@@ -1,0 +1,194 @@
+name: Bridge openOMSI 0.3.52 candidate
+on:
+  push:
+    branches: [integration/bridge-openomsi-0352]
+    paths:
+      - '.github/workflows/bridge-openomsi-0352.yml'
+      - 'tools/integrate_bridge_openomsi_0352.py'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: bridge-openomsi-0352-candidate
+  cancel-in-progress: true
+jobs:
+  merge-and-tests:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    outputs:
+      integrated_sha: ${{ steps.reconcile.outputs.integrated_sha }}
+    env:
+      OPENOMSI_VERSION: 0.3.52-coop.17-candidate
+      OMSI_NO_UPDATE: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 90
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bridge-openomsi-0352-checks
+      - name: Native Linux prerequisites
+        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
+      - name: Merge the exact stable upstream release into the Hotfix 1 source
+        id: reconcile
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=75 https://github.com/openOMSI-org/openOMSI.git refs/tags/v0.3.52:refs/tags/v0.3.52
+          test "$(git rev-parse v0.3.52^{commit})" = 41d69ab19043656b49d6cad0c34f85f3178503b8
+          test "$(git merge-base HEAD v0.3.52)" = 11ff78bab1998963162be97c49e909a2996710e1
+          if ! git merge --no-commit --no-ff v0.3.52; then
+            git rev-parse -q --verify MERGE_HEAD
+          fi
+          python3 tools/integrate_bridge_openomsi_0352.py
+          git add -A
+          git -c user.name='Bridge Integrator' -c user.email='integrator@localhost.invalid' commit -m 'Integrate openOMSI 0.3.52 and Bridge gameplay changes'
+          git merge-base --is-ancestor v0.3.52 HEAD
+          echo "integrated_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git archive --format=tar.gz -o /tmp/openomsi-source.tar.gz HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bridge-openomsi-0352-source
+          path: /tmp/openomsi-source.tar.gz
+          if-no-files-found: error
+      - name: Simulation, protocol, game, server and launcher regressions
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p omsi-sim -p omsi-net -p omsi-audio -p omsi-lan --lib
+          cargo check --locked -p omsi-app -p omsi-lan -p omsi-launcher-core
+          node --test launcher/tests/*.test.mjs
+          python3 tools/check_accessibility_locales.py
+  windows-native-and-launcher:
+    needs: merge-and-tests
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      OPENOMSI_VERSION: 0.3.52-coop.17-candidate
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      OMSI_NO_UPDATE: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '3'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bridge-openomsi-0352-source
+          path: source-archive
+      - name: Extract exact tested merged source
+        shell: bash
+        run: tar -xzf source-archive/openomsi-source.tar.gz
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: 0352-native-p17
+      - name: Compile actual native game including full 0.3.52 code and P17 features
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-app
+          if ($LASTEXITCODE -ne 0) { throw '0.3.52/P17 Windows game build failed' }
+          New-Item -ItemType Directory -Force candidate | Out-Null
+          Copy-Item target/release/openomsi.exe candidate/openomsi.exe
+          # The upstream Steamworks build links steam_api64.dll at load time.
+          # The executable is tested from candidate/, not target/release/, so
+          # preserve the exact repository-provided Steam redistributable beside
+          # it; never download an unverified third-party DLL or skip the gate.
+          $steamSource = 'assets/steam_redist/steam_api64.dll'
+          if (!(Test-Path $steamSource -PathType Leaf)) {
+            throw "Required official Steam redistributable missing from checked-out source: $steamSource"
+          }
+          Copy-Item $steamSource candidate/steam_api64.dll -ErrorAction Stop
+          $steamSourceHash = (Get-FileHash $steamSource -Algorithm SHA256).Hash
+          $steamCandidateHash = (Get-FileHash candidate/steam_api64.dll -Algorithm SHA256).Hash
+          if ($steamSourceHash -ne $steamCandidateHash) { throw 'Steam DLL candidate hash differs from tracked source' }
+          "steam_api64.dll SHA256: $($steamCandidateHash.ToLowerInvariant())" | Set-Content candidate/steam-runtime-provenance.txt -Encoding utf8
+          # The release game is a Windows GUI-subsystem executable. PowerShell's
+          # direct invocation does not reliably wait for its exit or capture
+          # clap --help; use the updater's actual --self-test contract instead.
+          $game = (Resolve-Path candidate/openomsi.exe).Path
+          # 0xC0000135 means Windows loader could not find a required DLL.
+          # Preserve an auditable dependency report instead of suppressing the gate.
+          $dumpbin = Get-ChildItem 'C:/Program Files/Microsoft Visual Studio/2022' -Filter dumpbin.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if ($dumpbin) {
+            & $dumpbin /dependents $game 2>&1 | Out-File candidate/native-dependencies.txt -Encoding utf8
+          } else {
+            'dumpbin.exe unavailable on this runner' | Set-Content candidate/native-dependencies.txt
+          }
+          'PATH directories:' | Set-Content candidate/native-runtime-paths.txt
+          $env:PATH -split ';' | Add-Content candidate/native-runtime-paths.txt
+          'Nearby native DLLs:' | Add-Content candidate/native-runtime-paths.txt
+          Get-ChildItem target/release -Filter '*.dll' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Name | Add-Content candidate/native-runtime-paths.txt
+          # Diagnose missing native imports without bypassing the self-test.
+          $lookupDirs = @((Split-Path $game), (Join-Path $env:WINDIR 'System32')) + ($env:PATH -split ';')
+          $lookupDirs = @($lookupDirs | Where-Object { $_ -and (Test-Path $_ -PathType Container) } | Select-Object -Unique)
+          $imports = @()
+          if ($dumpbin) {
+            $imports = @(& $dumpbin /dependents $game 2>&1 | ForEach-Object {
+              if ($_ -match '^\s*([A-Za-z0-9_.-]+\.dll)\s*$') { $Matches[1] }
+            } | Sort-Object -Unique)
+          }
+          $missing = @()
+          foreach ($dll in $imports) {
+            $resolved = $null
+            foreach ($dir in $lookupDirs) {
+              $candidate = Join-Path $dir $dll
+              if (Test-Path $candidate -PathType Leaf) { $resolved = $candidate; break }
+            }
+            if ($resolved) {
+              "FOUND $dll => $resolved" | Add-Content candidate/native-runtime-paths.txt
+            } else {
+              "NOT FOUND $dll" | Add-Content candidate/native-runtime-paths.txt
+              if ($dll -notmatch '^(api-ms-win-|ext-ms-win-)') { $missing += $dll }
+            }
+          }
+          if ($missing.Count -gt 0) {
+            "Unresolved direct native imports: $($missing -join ', ')" | Set-Content candidate/native-self-test.txt
+            throw "0.3.52/P17 missing direct Windows DLL dependencies: $($missing -join ', ')"
+          }
+          $probe = Start-Process -FilePath $game -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow
+          if ($null -eq $probe -or $probe.ExitCode -ne 0) {
+            $hexExit = if ($null -eq $probe) { 'no-process' } else { '0x{0:X8}' -f ([uint32]([int64]$probe.ExitCode -band 0xffffffffL)) }
+            "Native self-test failed: $hexExit. See native-dependencies.txt and native-runtime-paths.txt." | Set-Content candidate/native-self-test.txt
+            throw "0.3.52/P17 native self-test failed ($hexExit); runtime DLL dependency diagnostics preserved"
+          }
+          "Native executable --self-test exit code: $($probe.ExitCode)" | Set-Content candidate/native-self-test.txt -Encoding utf8
+      - name: Compile actual updated desktop launcher and CLI (not just core)
+        shell: pwsh
+        run: |
+          cargo build --locked --release -p omsi-launcher-core --bin openomsi-launcher
+          if ($LASTEXITCODE -ne 0) { throw '0.3.52 Windows launcher CLI compilation failed' }
+          cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { throw '0.3.52 Windows desktop launcher compilation failed' }
+          $desktop='launcher/src-tauri/target/release/openomsi-launcher-app.exe'
+          if (!(Test-Path $desktop)) { throw 'Expected actual desktop launcher executable missing' }
+          if (!(Test-Path 'target/release/openomsi-launcher.exe')) { throw 'Expected launcher CLI executable missing' }
+          Copy-Item $desktop candidate/openomsi-launcher-app.exe -ErrorAction Stop
+          Copy-Item target/release/openomsi-launcher.exe candidate/openomsi-launcher.exe -ErrorAction Stop
+          Copy-Item source-archive/openomsi-source.tar.gz candidate/openomsi-source.tar.gz
+          @{
+            source_sha256=(Get-FileHash candidate/openomsi-source.tar.gz -Algorithm SHA256).Hash.ToLowerInvariant()
+            version=$env:OPENOMSI_VERSION
+            source_commit='${{ needs.merge-and-tests.outputs.integrated_sha }}'
+            desktop_sha256=(Get-FileHash $desktop -Algorithm SHA256).Hash.ToLowerInvariant()
+            cli_sha256=(Get-FileHash target/release/openomsi-launcher.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            native_sha256=(Get-FileHash target/release/openomsi.exe -Algorithm SHA256).Hash.ToLowerInvariant()
+            validation='compiled-and-startup-tested'
+            upstream_commit='41d69ab19043656b49d6cad0c34f85f3178503b8'
+            run_id=$env:GITHUB_RUN_ID
+            protocol=17
+          } | ConvertTo-Json | Set-Content candidate/BUILD-INFO.json -Encoding utf8
+      - name: Preserve candidate proof and DLL diagnostics; no automatic publication
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-openOMSI-0352-P17-Windows-CANDIDATE
+          path: candidate/
+          retention-days: 60
+          if-no-files-found: warn
