@@ -1018,9 +1018,13 @@ func select2232Hotfix1LogSections(from string) []logSection {
 
 func selectLogSections(from string) []logSection {
     newest := logSection{
-        label: logT("2.2.3.3 • OPENOMSI 0.3.52", "2.2.3.3 • OPENOMSI 0.3.52", "2.2.3.3 • OPENOMSI 0.3.52"),
+        label: logT("2.2.3.3 HOTFIX 1 • OPENOMSI 0.3.52", "2.2.3.3 HOTFIX 1 • OPENOMSI 0.3.52", "2.2.3.3 HOTFIX 1 • OPENOMSI 0.3.52"),
         accent: logAccent(112, 219, 164),
         entries: []logEntry{
+            {logT("Controles nas viagens do BCS", "Controls on BCS trips", "Steuerung bei BCS-Fahrten"),
+             logT("As viagens do BCS usam o perfil do openOMSI. Os ajustes de teclado e controles ficam salvos para a próxima viagem.",
+                  "BCS trips use the openOMSI profile. Keyboard and controller changes are saved for the next trip.",
+                  "BCS-Fahrten nutzen das openOMSI-Profil. Änderungen an Tastatur und Controllern bleiben für die nächste Fahrt gespeichert.")},
             {logT("Jogo, Launcher e multiplayer", "Game, launcher and multiplayer", "Spiel, Launcher und Mehrspieler"),
              logT("Base estável 0.3.52 no jogo, Launcher, lobby e servidor. HostAgent e CompanyHost usam o protocolo 17.",
                   "The stable 0.3.52 base powers the game, launcher, lobby and server. HostAgent and CompanyHost use protocol 17.",
@@ -1037,7 +1041,7 @@ func selectLogSections(from string) []logSection {
     }
     result := []logSection{newest}
     from = strings.TrimSpace(from)
-    if from == changelogSeenVersion || from == "2.2.3.2-hotfix.1" {
+    if from == changelogSeenVersion || from == "2.2.3.3" || from == "2.2.3.2-hotfix.1" {
         return result
     }
     return append(result, select2232Hotfix1LogSections(from)...)

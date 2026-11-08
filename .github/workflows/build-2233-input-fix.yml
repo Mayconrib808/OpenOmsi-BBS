@@ -1,0 +1,97 @@
+name: Build and verify the Bridge BCS control profile hotfix
+on:
+  push:
+    branches: [fix/bcs-control-profiles]
+    paths:
+      - '.github/workflows/build-2233-input-fix.yml'
+      - 'scripts/build_2233_input_fix.py'
+      - 'source/**'
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-2233-input-fix
+  cancel-in-progress: true
+env:
+  NATIVE_SHA: '4d4ada3423370b9287415e9584d0b596d8d65994'
+  OPENOMSI_VERSION: '0.3.52-coop.17-2.2.3.3-hotfix.1'
+  OPENOMSI_COOP_GAME_ONLY: '1'
+  OMSI_NO_UPDATE: '1'
+  PYTHONUTF8: '1'
+  CARGO_INCREMENTAL: '0'
+  CARGO_BUILD_JOBS: '3'
+  CARGO_PROFILE_RELEASE_DEBUG: '0'
+  CARGO_PROFILE_RELEASE_LTO: 'false'
+  CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+jobs:
+  windows-candidate:
+    runs-on: windows-2022
+    timeout-minutes: 145
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          ref: '4d4ada3423370b9287415e9584d0b596d8d65994'
+          path: native-game
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native-game
+          key: 0352-native-p17-input-fix
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Check the exact 2.2.3.3 artifact and Bridge regressions
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/42429985391 | ConvertFrom-Json
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '8d2c771a0453936b395739a326e6aa0fd928901c') { throw 'Baseline workflow mismatch' }
+          $a=gh api repos/$env:GITHUB_REPOSITORY/actions/artifacts/13597618940 | ConvertFrom-Json
+          if ($a.expired -or $a.workflow_run.id -ne 42429985391 -or $a.digest -ne 'sha256:d6292b49d6becbdf5b62a29ddbc9d2646c7ea0168a82bd7b118f6462d318a6c4') { throw 'Baseline artifact mismatch' }
+          python scripts/build_2203.py --tests-only
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge tests failed' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.3-FULL-CANDIDATE
+          run-id: 42429985391
+          github-token: ${{ github.token }}
+          path: approved
+      - name: Verify Windows input profile persistence and build the actual game
+        working-directory: native-game
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$NATIVE_SHA"
+          cargo test --locked -p omsi-cfg --lib bcs_controls_outlive_the_temporary_content
+          cargo build --locked --release -p omsi-app
+          git archive --format=tar.gz -o openomsi-source.tar.gz HEAD
+      - name: Assemble and test the hotfix against the current installer
+        shell: pwsh
+        run: |
+          python scripts/build_2233_input_fix.py --approved approved --native native-game --output output
+          if ($LASTEXITCODE -ne 0) { throw 'Hotfix package verification failed' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Bridge-2.2.3.3-Input-Fix-Diagnostics
+          path: output/one-click-install-setup.log
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3.3-Hotfix1-FULL-CANDIDATE
+          path: |
+            output/Atualizar-Bridge.exe
+            output/build-report.json
+            output/coop-spec.json
+            output/coop-assets/*
+            output/one-click-install-test.json
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
