@@ -1,0 +1,21 @@
+{
+  "version": "2.2.3.3",
+  "sequence": 2026110701,
+  "previous_version": "2.2.3.2-hotfix.1",
+  "previous_sequence": 2026110602,
+  "candidate_run_id": 42429985391,
+  "candidate_commit": "8d2c771a0453936b395739a326e6aa0fd928901c",
+  "candidate_artifact_id": 13597618940,
+  "candidate_artifact_sha256": "d6292b49d6becbdf5b62a29ddbc9d2646c7ea0168a82bd7b118f6462d318a6c4",
+  "installer_sha256": "b963278bb5a651c483c691aadf11c9d2bce3e08cbc58b7a710aeeef89d0beaae",
+  "installer_size": 25072128,
+  "setup_sha256": "993b157e543b1e9ca0f2446c6e36a573b4ec82ce99510f561fb67fff32b70b69",
+  "coop_archive_sha256": "894b857be73dce64eff9fb957de1444c60ccd0fa16b866e789306e8d60190159",
+  "native_run_id": 42429949019,
+  "native_source_commit": "9d0dfb61a60cc900be0913e94f87a3d7c95ccd6b",
+  "native_version": "0.3.52-coop.17-candidate",
+  "native_game_sha256": "8c48cb83991a255f617937acfadccc57bea85454c7e4ed992c1a0bdb26be8705",
+  "desktop_launcher_sha256": "6a35d2c036a51cc981f0f3dc38e49ee0e8d6048077088491fc2d0fe37d8c2461",
+  "desktop_launcher_cli_sha256": "b19b2a391dd47b0bd02a74e9ccdcac9f16661b8ae193b9afcfb6a8946fc6446a",
+  "protocol": 17
+}
