@@ -174,14 +174,19 @@ func TestPeDePeNativeLuaTelemetryFollowsBBSIntoLaunchContent(t *testing.T) {
 		}
 	}
 	env := []string{"KEEP=1", "omsi_content=old-folder", "OMSI_CONTENT=another-old-folder", "omsi_content_zip=stale.zip", "OMSI_PLUGIN_HOST32=current-helper"}
-	got := peDePeNativeContentEnvironment(env, contentDir)
-	want := []string{"KEEP=1", "OMSI_PLUGIN_HOST32=current-helper", "OMSI_CONTENT=" + contentDir}
+	got := temporaryContentEnvironment(env, contentDir)
+	want := []string{"KEEP=1", "OMSI_PLUGIN_HOST32=current-helper", "OMSI_CONTENT=" + contentDir, "OMSI_INPUT_CONTENT=another-old-folder"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("wrong active plugin root: %q", got)
 	}
-	companyEnv := multiplayerEnvironment(got, contentDir, false)
-	if !strings.Contains(strings.Join(companyEnv, "\n"), "OMSI_CONTENT="+contentDir) {
-		t.Fatal("company multiplayer lost native telemetry plugin root")
+	companyDir := t.TempDir()
+	companyEnv := multiplayerEnvironment(got, companyDir, false)
+	wantCompany := []string{"KEEP=1", "OMSI_PLUGIN_HOST32=current-helper", "OMSI_CONTENT=" + companyDir, "OMSI_INPUT_CONTENT=another-old-folder", "OMSI_NO_LAN_MODS=1"}
+	if !reflect.DeepEqual(companyEnv, wantCompany) {
+		t.Fatal("company multiplayer lost the telemetry or persistent input root", companyEnv)
+	}
+	if got := temporaryContentEnvironment(nil, contentDir); !reflect.DeepEqual(got, []string{"OMSI_CONTENT=" + contentDir, "OMSI_INPUT_CONTENT="}) {
+		t.Fatal("trip without a content override must use the ordinary openOMSI inputs", got)
 	}
 }
 

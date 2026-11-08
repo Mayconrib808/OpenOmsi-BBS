@@ -218,17 +218,6 @@ func peDePeNativePlugin(adapterDir, contentDir string) (string, int, error) {
 	return source, len(b), nil
 }
 
-func peDePeNativeContentEnvironment(env []string, contentDir string) []string {
-	child := make([]string, 0, len(env)+1)
-	for _, entry := range env {
-		name, _, _ := strings.Cut(entry, "=")
-		if !strings.EqualFold(name, "OMSI_CONTENT") && !strings.EqualFold(name, "OMSI_CONTENT_ZIP") {
-			child = append(child, entry)
-		}
-	}
-	return append(child, "OMSI_CONTENT="+contentDir)
-}
-
 // Read the fresh BCS weather snapshot before waiting for multiplayer startup:
 // the native vendor command currently says natural rather than supplying the
 // temperature saved beside laststn.osn. Keep explicit future weather arguments.

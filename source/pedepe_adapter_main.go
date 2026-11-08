@@ -192,7 +192,7 @@ func main() {
 		if plan != nil {
 			cmd.Env = multiplayerEnvironment(cmd.Env, contentDir, plan.BusTransfers)
 		} else {
-			cmd.Env = peDePeNativeContentEnvironment(cmd.Env, contentDir)
+			cmd.Env = temporaryContentEnvironment(cmd.Env, contentDir)
 		}
 	}
 	cmd.Stdin = os.Stdin

@@ -228,7 +228,7 @@ func TestServerStatusBodyIsBoundedAndDeadlineCancelsUnavailableRoom(t *testing.T
 func TestMultiplayerChildUsesVerifiedAssetsAndDisablesPeerDownloads(t *testing.T) {
 	base := []string{"PATH=kept", "OMSI_PLUGIN_HOST32=helper", "omsi_content=other", "OMSI_CONTENT_ZIP=unsafe.zip", "omsi_no_lan_mods=0"}
 	got := multiplayerEnvironment(base, "empty-content", false)
-	want := []string{"PATH=kept", "OMSI_PLUGIN_HOST32=helper", "OMSI_CONTENT=empty-content", "OMSI_NO_LAN_MODS=1"}
+	want := []string{"PATH=kept", "OMSI_PLUGIN_HOST32=helper", "OMSI_CONTENT=empty-content", "OMSI_INPUT_CONTENT=other", "OMSI_NO_LAN_MODS=1"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatal(got)
 	}

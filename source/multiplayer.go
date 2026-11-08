@@ -285,15 +285,39 @@ func multiplayerArguments(plan *MultiplayerPlan) []string {
 	return []string{"--lan-join", strings.TrimRight(plan.Session.ServerURL, "/"), "--lan-name", plan.PlayerName}
 }
 
-func multiplayerEnvironment(base []string, contentDir string, transfers bool) []string {
-	var result []string
+func temporaryContentEnvironment(base []string, contentDir string) []string {
+	result := make([]string, 0, len(base)+2)
+	var previousContent, inputContent string
+	var inputContentSet bool
 	for _, entry := range base {
-		key, _, _ := strings.Cut(entry, "=")
-		if !strings.EqualFold(key, "OMSI_CONTENT") && !strings.EqualFold(key, "OMSI_CONTENT_ZIP") && !strings.EqualFold(key, "OMSI_NO_LAN_MODS") {
+		key, value, _ := strings.Cut(entry, "=")
+		switch {
+		case strings.EqualFold(key, "OMSI_CONTENT"):
+			previousContent = value
+		case strings.EqualFold(key, "OMSI_INPUT_CONTENT"):
+			inputContent, inputContentSet = value, true
+		case strings.EqualFold(key, "OMSI_CONTENT_ZIP"):
+		default:
 			result = append(result, entry)
 		}
 	}
-	result = append(result, "OMSI_CONTENT="+contentDir)
+	// An empty input override selects the normal openOMSI profile, even though
+	// OMSI_CONTENT now points at a directory that is deleted after this trip.
+	if !inputContentSet {
+		inputContent = previousContent
+	}
+	return append(result, "OMSI_CONTENT="+contentDir, "OMSI_INPUT_CONTENT="+inputContent)
+}
+
+func multiplayerEnvironment(base []string, contentDir string, transfers bool) []string {
+	env := temporaryContentEnvironment(base, contentDir)
+	result := env[:0]
+	for _, entry := range env {
+		key, _, _ := strings.Cut(entry, "=")
+		if !strings.EqualFold(key, "OMSI_NO_LAN_MODS") {
+			result = append(result, entry)
+		}
+	}
 	if !transfers {
 		result = append(result, "OMSI_NO_LAN_MODS=1")
 	}
