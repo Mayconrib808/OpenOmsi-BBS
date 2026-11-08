@@ -160,13 +160,25 @@ pub fn install_controller(accepted_terms: bool) -> Result<Value, String> {
         if !installer.is_file() {
             return Err("The verified DLSS 5 installer is missing after download".into());
         }
-        // The NSIS installer remains interactive: the player reviews and
-        // approves the separate third-party app's installation themselves.
-        // A restart/re-check of launcher status will locate its common path.
-        std::process::Command::new(&installer)
-            .current_dir(&cache)
-            .spawn()
+        // NSIS may request Windows elevation. Start-Process invokes Windows
+        // ShellExecute so UAC can prompt normally; CreateProcess alone fails
+        // with ERROR_ELEVATION_REQUIRED (740) on such installers.
+        // The installer remains interactive and never auto-attaches to games.
+        let starter = workspace.join("start-dlss5-installer.ps1");
+        std::fs::write(&starter, include_str!("../../../scripts/windows/start-dlss5-controller-installer.ps1"))
+            .map_err(|e| format!("Prepare DLSS 5 installer launcher: {e}"))?;
+        let opened = std::process::Command::new(&powershell)
+            .creation_flags(0x0800_0000)
+            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
+            .arg(&starter).arg("-Installer").arg(&installer)
+            .output()
             .map_err(|e| format!("Open verified third-party installer: {e}"))?;
+        if !opened.status.success() {
+            return Err(format!(
+                "The verified installer could not be opened (or UAC was declined): {}",
+                String::from_utf8_lossy(&opened.stderr).trim()
+            ));
+        }
         let mut state = status();
         state["controller_installer_started"] = json!(true);
         state["neural_rendering_active"] = json!(false);
