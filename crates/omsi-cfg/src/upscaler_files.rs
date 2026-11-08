@@ -99,7 +99,7 @@ pub fn first_api(chosen: &str, upscaler: &str, dir: &Path) -> &'static str {
 
 /// The upscalers that can run from the game's folder, as a menu lists them.
 pub fn menu_choices() -> impl Iterator<Item = (&'static str, &'static str)> {
-    available(&program_dir()).into_iter().map(|u| if u == "dlss" { ("dlss", "NVIDIA DLSS (experimental)") } else { ("fsr3", "AMD FSR 3 (experimental)") })
+    available(&program_dir()).into_iter().map(|u| if u == "dlss" { ("dlss", "NVIDIA DLSS Super Resolution (experimental)") } else { ("fsr3", "AMD FSR 3 (experimental)") })
 }
 
 #[cfg(test)]
