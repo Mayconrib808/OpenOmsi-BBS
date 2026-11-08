@@ -322,6 +322,7 @@ flags! {
     OMSI_IBIS_BUDGET: Num, Tuning, Use, "10", "Seconds the IBIS typist may take per entry.";
     OMSI_IGNORE_TRANSPORT: Bool, Switch, Use, "off", "Run a vehicle on a map built for other transport modes (the log still says so).";
     OMSI_INPUT: Text, Test, Use, "-", "Scripted keyboard, mouse and camera input for window runs.";
+    OMSI_INPUT_CONTENT: Text, Setup, Use, "OMSI_CONTENT", "Persistent content folder for input profiles when OMSI_CONTENT is temporary. An empty value selects the normal user and program folders.";
     OMSI_INSTANCE: Text, Setup, Use, "-", "The id of a game instance started by the launcher (set for the child process).";
     OMSI_INTEL_FULL_GPU: Bool, Switch, Use, "off", "Keep the requested settings on an Intel Vulkan adapter.";
     OMSI_JOINT_ANGLE: Num, Test, Use, "-", "Degrees: the rear section of an articulated bus held at that angle.";

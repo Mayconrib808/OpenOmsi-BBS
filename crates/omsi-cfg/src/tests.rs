@@ -88,6 +88,72 @@ fn applications_folder_is_no_content_folder() {
 }
 
 #[test]
+fn bcs_controls_outlive_the_temporary_content() {
+    // Flags are cached per process. Use a fresh game process for each trip and
+    // a private copy of the executable to model controls beside the game.
+    if let Ok(phase) = std::env::var("BRIDGE_INPUT_TEST_PHASE") {
+        if let Some(temporary) = std::env::var_os("OMSI_CONTENT") {
+            assert_eq!(content_dir(), Some(PathBuf::from(temporary)));
+        }
+        let profile = PathBuf::from(std::env::var_os("USERPROFILE").unwrap())
+            .join(".openomsi")
+            .join("Inputs");
+        adopt_own_inputs(None);
+        for name in OWN_INPUTS {
+            let own = own_input(name).unwrap();
+            assert_eq!(own, profile.join(name));
+            let loaded = input_in_use(name).unwrap();
+            if phase == "first-trip" {
+                assert_eq!(std::fs::read(loaded).unwrap(), name.as_bytes());
+                std::fs::write(own, b"remapped").unwrap();
+            } else {
+                assert_eq!(std::fs::read(loaded).unwrap(), b"remapped");
+            }
+        }
+        return;
+    }
+
+    let root = std::env::temp_dir().join(format!("omsi-bcs-inputs-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let program = root.join("game");
+    let source = std::env::current_exe().unwrap();
+    let probe = program.join(source.file_name().unwrap());
+    let installed = program.join("Inputs");
+    std::fs::create_dir_all(&installed).unwrap();
+    std::fs::copy(&source, &probe).unwrap();
+    for name in OWN_INPUTS {
+        std::fs::write(installed.join(name), name).unwrap();
+    }
+    for phase in ["first-trip", "second-trip", "direct"] {
+        let mut child = std::process::Command::new(&probe);
+        child
+            .args(["--exact", "tests::bcs_controls_outlive_the_temporary_content"])
+            .env_remove("HOME")
+            .env("USERPROFILE", root.join("profile"))
+            .env("BRIDGE_INPUT_TEST_PHASE", phase);
+        let content = root.join(phase);
+        if phase == "direct" {
+            child.env_remove("OMSI_CONTENT").env_remove("OMSI_INPUT_CONTENT");
+        } else {
+            std::fs::create_dir_all(&content).unwrap();
+            child.env("OMSI_CONTENT", &content).env("OMSI_INPUT_CONTENT", "");
+        }
+        let result = child.output().unwrap();
+        assert!(
+            result.status.success(),
+            "{phase}: {}{}",
+            String::from_utf8_lossy(&result.stdout),
+            String::from_utf8_lossy(&result.stderr),
+        );
+        if phase != "direct" {
+            assert!(!content.join("Inputs").exists());
+            std::fs::remove_dir_all(&content).unwrap();
+        }
+    }
+    std::fs::remove_dir_all(&root).unwrap();
+}
+
+#[test]
 fn own_inputs_outlive_the_program_folder() {
     let t = std::env::temp_dir().join(format!("omsi-own-inputs-{}", std::process::id()));
     let own = t.join("home").join("Inputs").join("keyboard.cfg");

@@ -1075,6 +1075,10 @@ pub fn content_dir() -> Option<PathBuf> {
     if let Some(d) = crate::flags::OMSI_CONTENT.os() {
         return Some(PathBuf::from(d));
     }
+    default_content_dir()
+}
+
+fn default_content_dir() -> Option<PathBuf> {
     let cand = content_folder_of_program(&std::env::current_exe().ok()?)?;
     if !is_programs_folder(&cand) && (cand.exists() || std::fs::create_dir_all(&cand).is_ok()) && is_writable(&cand) {
         Some(cand)
@@ -1095,27 +1099,41 @@ fn content_folder_of_program(exe: &Path) -> Option<PathBuf> {
 
 const OWN_INPUTS: [&str; 2] = ["keyboard.cfg", "gamectrler.cfg"];
 
+fn input_content_override() -> Option<&'static std::ffi::OsStr> {
+    // The Bridge uses OMSI_CONTENT for a trip's temporary telemetry files.
+    // Its input override records the persistent content folder, if any.
+    match crate::flags::OMSI_INPUT_CONTENT.os() {
+        Some(dir) if dir.is_empty() => None,
+        Some(dir) => Some(dir),
+        None => crate::flags::OMSI_CONTENT.os(),
+    }
+}
+
+fn input_content_dir() -> Option<PathBuf> {
+    input_content_override().map(PathBuf::from).or_else(default_content_dir)
+}
+
 pub fn own_input(name: &str) -> Option<PathBuf> {
-    if crate::flags::OMSI_CONTENT.os().is_some() {
-        return content_dir().map(|c| c.join("Inputs").join(name));
+    if let Some(dir) = input_content_override() {
+        return Some(Path::new(dir).join("Inputs").join(name));
     }
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE"))?;
     Some(PathBuf::from(home).join(".openomsi").join("Inputs").join(name))
 }
 
 pub fn input_in_use(name: &str) -> Option<PathBuf> {
-    newest([own_input(name), content_dir().map(|c| c.join("Inputs").join(name))])
+    newest([own_input(name), input_content_dir().map(|c| c.join("Inputs").join(name))])
 }
 
 pub fn adopt_own_inputs(previous_program: Option<&Path>) {
-    if crate::flags::OMSI_CONTENT.os().is_some() {
+    if input_content_override().is_some() {
         return;
     }
     let home = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(|h| PathBuf::from(h).join(".openomsi").join("content"));
     let here = std::env::current_exe().ok().and_then(|e| content_folder_of_program(&e));
     for name in OWN_INPUTS {
         let Some(own) = own_input(name).filter(|p| !p.exists()) else { continue };
-        let mut dirs: Vec<PathBuf> = [content_dir(), previous_program.and_then(content_folder_of_program), home.clone()].into_iter().flatten().collect();
+        let mut dirs: Vec<PathBuf> = [input_content_dir(), previous_program.and_then(content_folder_of_program), home.clone()].into_iter().flatten().collect();
         dirs.extend(here.as_deref().map(sibling_installs).unwrap_or_default());
         if let Some(found) = newest(dirs.iter().map(|d| Some(d.join("Inputs").join(name)))) {
             adopt_input(&own, &found);
