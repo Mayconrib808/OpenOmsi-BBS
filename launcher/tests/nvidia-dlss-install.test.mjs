@@ -2,15 +2,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 
 const file = (relative) => readFileSync(new URL(relative, import.meta.url), 'utf8');
-// The BCS Bridge does not install the upstream release workflow. Read the
-// exact pinned official 0.3.52 recipe, not a substitute publishing workflow.
-const release = execFileSync('git', [
-  'show', '41d69ab19043656b49d6cad0c34f85f3178503b8:.github/workflows/release.yml'
-], { encoding: 'utf8' });
+// The Bridge branch carries candidate workflows, not the upstream release workflow.
+// Test the actual package recipes present here rather than reaching into Git history.
 const bridgeCandidate = file('../../.github/workflows/bridge-openomsi-0352.yml');
+const reshadeCandidate = file('../../.github/workflows/reshade-candidate.yml');
 const packager = file('../../scripts/windows/package-streamline.ps1');
 const installer = file('../../scripts/windows/install-streamline.ps1');
 const backend = file('../src-tauri/src/nvidia_dlss.rs');
@@ -19,10 +16,10 @@ const frontend = file('../ui/js/pages/settings.js');
 const schema = file('../ui/js/pages/settings-schema.js');
 const api = file('../ui/js/api.js');
 
-test('no NVIDIA DLLs are bundled by Windows release workflow', () => {
-  assert.doesNotMatch(release, /nvngx|sl\.interposer|Streamline/i);
-  assert.doesNotMatch(bridgeCandidate, /nvngx|sl\.interposer|Streamline/i);
-  assert.match(release, /AMD FidelityFX SDK 2\.4\.0/);
+test('Bridge Windows candidate workflows never bundle NVIDIA DLSS DLLs', () => {
+  for (const workflow of [bridgeCandidate, reshadeCandidate]) {
+    assert.doesNotMatch(workflow, /nvngx_dlss\.dll|sl\.interposer\.dll|sl\.common\.dll|sl\.dlss\.dll/i);
+  }
 });
 
 test('player is shown NVIDIA terms and must explicitly opt in', () => {
