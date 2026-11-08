@@ -12,7 +12,7 @@ import (
 
 // A native, offline, scrollable, localized release-tour window. Everything
 // renders inside Setup; no WebView, external site, registry or asset download.
-const changelogSeenVersion = "2.2.3.2-hotfix.1"
+const changelogSeenVersion = bridgeVersion
 const (
     logWMPaint=0x000F
     logWMMouseWheel=0x020A
@@ -999,7 +999,7 @@ func select2232LogSections(from string) []logSection {
  return append(result,select2231LogSections(from)...)
 }
 
-func selectLogSections(from string) []logSection {
+func select2232Hotfix1LogSections(from string) []logSection {
  newest:=logSection{label:logT("2.2.3.2 HOTFIX 1", "2.2.3.2 HOTFIX 1", "2.2.3.2 HOTFIX 1"),accent:logAccent(112,219,164),entries:[]logEntry{
  {logT6("Combustível", "Fuel", "Kraftstoff", "Combustible", "Carburant", "Топливо"),
  logT6("Corrigido o consumo negativo que aumentava o combustível durante a viagem. Mantém o nível inicial do BCS e o abastecimento solicitado.", "Fixed negative consumption that increased fuel during a trip. Preserves the initial BCS level and requested refuelling.", "Negativer Verbrauch, der den Tankinhalt während der Fahrt erhöhte, wurde behoben. BBS-Anfangsstand und angefordertes Tanken bleiben erhalten.", "Corregido el consumo negativo que aumentaba el combustible durante el viaje. Conserva el nivel inicial de BCS y el repostaje solicitado.", "Correction de la consommation négative qui augmentait le carburant pendant le trajet. Le niveau initial BBS et le ravitaillement demandé sont conservés.", "Исправлен отрицательный расход, увеличивавший топливо в поездке. Начальный уровень BBS и запрошенная заправка сохранены.")},
@@ -1014,4 +1014,31 @@ func selectLogSections(from string) []logSection {
  from=strings.TrimSpace(from)
  if from==changelogSeenVersion || from=="2.2.3.2" {return result}
  return append(result,select2232LogSections(from)...)
+}
+
+func selectLogSections(from string) []logSection {
+    newest := logSection{
+        label: logT("2.2.3.3 • OPENOMSI 0.3.52", "2.2.3.3 • OPENOMSI 0.3.52", "2.2.3.3 • OPENOMSI 0.3.52"),
+        accent: logAccent(112, 219, 164),
+        entries: []logEntry{
+            {logT("Jogo, Launcher e multiplayer", "Game, launcher and multiplayer", "Spiel, Launcher und Mehrspieler"),
+             logT("Base estável 0.3.52 no jogo, Launcher, lobby e servidor. HostAgent e CompanyHost usam o protocolo 17.",
+                  "The stable 0.3.52 base powers the game, launcher, lobby and server. HostAgent and CompanyHost use protocol 17.",
+                  "Die stabile Basis 0.3.52 steckt im Spiel, Launcher, Lobby und Server. HostAgent und CompanyHost nutzen Protokoll 17.")},
+            {logT("Dois atalhos no Alt", "Two Alt shortcuts", "Zwei Alt-Kurzbefehle"),
+             logT("Pré-aqueça o interior do ônibus a 19 °C. O botão +1m adianta o relógio offline ou após a autenticação de admin no servidor.",
+                  "Preheat the cabin to 19 °C. The +1m button advances the clock offline or after signing in as an admin on the server.",
+                  "Den Innenraum auf 19 °C vorwärmen. +1m stellt die Uhr offline oder nach der Admin-Anmeldung auf dem Server vor.")},
+            {logT("Passageiros e buzinas", "Passengers and horns", "Fahrgäste und Hupen"),
+             logT("Os passageiros usam as novas animações em alta qualidade. O cumprimento da IA usa dois toques rápidos. A despedida fica com as falas próprias de desembarque.",
+                  "Passengers use the new high-quality animations. AI bus greetings use two quick taps. Exit thanks use their own voice lines.",
+                  "Fahrgäste nutzen die neuen hochwertigen Animationen. KI-Busse grüßen mit zwei kurzen Huptönen. Beim Aussteigen ertönen eigene Abschiedssätze.")},
+        },
+    }
+    result := []logSection{newest}
+    from = strings.TrimSpace(from)
+    if from == changelogSeenVersion || from == "2.2.3.2-hotfix.1" {
+        return result
+    }
+    return append(result, select2232Hotfix1LogSections(from)...)
 }

@@ -928,39 +928,40 @@ func runSetupGUI(dir string, smoke bool) error {
                 // never replay one the user already acknowledged. 2.2.2.1
                 // had no working tour, so Hotfix 3 -> Hotfix 1 shows BOTH.
                 for _, tc := range []struct{from string; want int; newest string}{
-                    {"2.2.3.2",1,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.3-hotfix.2",3,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.3-hotfix.1",4,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.3",5,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.4-hotfix.5",6,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.4-hotfix.4",7,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.4-hotfix.3",8,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.2-test.1",13,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.2-test.2",12,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.2-hotfix.1",14,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.2",15,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.1-hotfix.2",16,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.1-hotfix.1",17,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.1",18,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2-hotfix.3",19,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2-hotfix.2",20,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2-hotfix.1",21,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2",21,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.1.9",27,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.0.8",28,"2.2.3.2 HOTFIX 1"},
-                    {"",28,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.3-test.1",12,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.3",11,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.4",10,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.4-hotfix.1",10,"2.2.3.2 HOTFIX 1"},
-                    {"2.2.2.4-hotfix.2",9,"2.2.3.2 HOTFIX 1"},
+                    {"2.2.3.2-hotfix.1",1,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.3.2",2,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.3-hotfix.2",4,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.3-hotfix.1",5,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.3",6,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.4-hotfix.5",7,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.4-hotfix.4",8,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.4-hotfix.3",9,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.2-test.1",14,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.2-test.2",13,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.2-hotfix.1",15,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.2",16,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.1-hotfix.2",17,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.1-hotfix.1",18,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.1",19,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2-hotfix.3",20,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2-hotfix.2",21,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2-hotfix.1",22,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2",22,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.1.9",28,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.0.8",29,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"",29,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.3-test.1",13,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.3",12,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.4",11,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.4-hotfix.1",11,"2.2.3.3 • OPENOMSI 0.3.52"},
+                    {"2.2.2.4-hotfix.2",10,"2.2.3.3 • OPENOMSI 0.3.52"},
                 }{
                     sections:=selectLogSections(tc.from)
-                    for i, label := range []string{"2.2.3.2 HOTFIX 1", "2.2.3.2 • OPENOMSI 0.3.50", "2.2.3.1 • OPENOMSI 0.3.49", "🚌 2.2.3 HOTFIX 2", "♿ 2.2.3 HOTFIX 1", "♿ 2.2.3 • CADEIRANTES", "2.2.2.4 HOTFIX 5 • EMBARQUE", "2.2.2.4 HOTFIX 4 • ROTA P16"} {
+                    for i, label := range []string{"2.2.3.3 • OPENOMSI 0.3.52", "2.2.3.2 HOTFIX 1", "2.2.3.2 • OPENOMSI 0.3.50", "2.2.3.1 • OPENOMSI 0.3.49", "🚌 2.2.3 HOTFIX 2", "♿ 2.2.3 HOTFIX 1", "♿ 2.2.3 • CADEIRANTES", "2.2.2.4 HOTFIX 5 • EMBARQUE", "2.2.2.4 HOTFIX 4 • ROTA P16"} {
                         if i<len(sections) && sections[i].label.pt!=label {return fmt.Errorf("changelog from %q has wrong release order at %d",tc.from,i)}
                     }
                     if len(sections)!=tc.want{return fmt.Errorf("changelog from %q expected %d chapters, got %d",tc.from,tc.want,len(sections))}
-                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[18].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
+                    if tc.want>0 && (sections[0].label.pt!=tc.newest || (tc.from=="2.2.2-hotfix.3" && sections[19].label.pt!="🚌 2.2.2.1 • NOVIDADES")){
                         return fmt.Errorf("changelog from %q has missing or wrong cumulative sections",tc.from)
                     }
                 }
