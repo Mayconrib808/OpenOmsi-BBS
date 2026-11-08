@@ -143,7 +143,9 @@ impl Traffic {
         sim.extended_density_map_dir = world.map_dir.clone();
         sim.holiday_calendar = omsi_map::Calendar::load(&world.map_dir.join("Holidays.txt")).unwrap_or_default();
         // (#1773: off, an early timetable bus waits at every stop, as in OMSI)
-        sim.timed_waits_only = crate::settings::Settings::load().ai_wait_timed_stops_only;
+        let settings = crate::settings::Settings::load();
+        sim.timed_waits_only = settings.ai_wait_timed_stops_only;
+        sim.reaction_factor = settings.ai_reaction;
         Ok(Traffic::with_sim(sim, root))
     }
 

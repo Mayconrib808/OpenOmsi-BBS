@@ -514,6 +514,7 @@ pub(crate) struct PersonView {
     wheelchair_grips: Option<[Vec3; 2]>,
     wheelchair_hand_rest: Option<Arc<omsi_sim::people::wheelchair::pose::HandRest>>,
     pub(crate) meshes: Vec<(MeshId, usize)>,
+    clip_t: f32,
     /// Skinned positions and normals, per mesh.
     skins: Vec<(Vec<Vec3>, Vec<Vec3>)>,
     /// The bones the skins were made with, and whether this frame's pose changed them

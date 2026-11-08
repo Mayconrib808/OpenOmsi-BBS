@@ -111,7 +111,7 @@ pub struct AiCar {
     pub passing: Option<Passing>,
     /// Optional multi-lane bus-to-bus overtake that preserves the fixed timetable route.
     pub bus_lane_pass: Option<BusLanePass>,
-    /// The current light this car has decision about (passing on amber/red) and a random factor variable
+    /// The current light and the car's random choice for approaching it on yellow.
     pub current_light: Option<(usize, usize)>,
     pub amber_decision: f32,
     /// Finished (a dead end, the end of a timetable trip, given up): taken off the road as
@@ -517,6 +517,18 @@ pub fn extents(ty: &VehicleType, length: f32) -> (f32, f32, f32) {
     }
 }
 
+/// The `ai_reaction` setting applied to a driver's reaction time. Factor 1.0 leaves it as
+/// drawn; a smaller one shortens it, but never under `PULL_OUT_WAIT` (the shortest reaction
+/// the junction and pull-out code is built for), and never raises a reaction that was drawn
+/// under that floor.
+pub fn scale_reaction(reaction: f32, factor: f32) -> f32 {
+    if !factor.is_finite() || (factor - 1.0).abs() < 1e-3 {
+        return reaction;
+    }
+    let floor = crate::ai_motion::PULL_OUT_WAIT.min(reaction);
+    (reaction * factor).max(floor)
+}
+
 /// The driver of a random car: how fast, how close, how patient (see `AiState`).
 pub fn personality(state: &mut AiState, seed: u64, heavy: bool) {
     let ru = |k: u32| ((seed >> k) & 0xff) as f32 / 255.0;
@@ -626,6 +638,7 @@ impl TrafficSim {
         // heavy vehicles (trucks, vans) cruise slower, which is what gets them overtaken
         let heavy = ty.def.mass > 6.0 || bus.is_some();
         personality(&mut state, seed, heavy);
+        state.reaction = scale_reaction(state.reaction, self.reaction_factor);
         state.max_speed_kmh = if kind == LaneKind::Air {
             AIRCRAFT_KMH
         } else if bus.is_some() {

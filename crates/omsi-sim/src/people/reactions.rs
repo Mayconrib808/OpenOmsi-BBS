@@ -136,7 +136,8 @@ impl PeopleSim {
         let Some(person) = self.people.get(i) else { return; };
         let transfer = self.pax(i).map_or(0, |p| p.transfer_count as u64);
         if exit_thanks_selected(person.id, transfer) {
-            if !self.say_brazilian_reaction(i,"ExitThanks") {self.say_ex(i,"Thanks_1",true);}
+            // The ticket-payment sound can be coins instead of speech.
+            self.say_brazilian_reaction(i, "ExitThanks");
             self.dialog=Some(PassengerDialog::ExitThanks.id().into());
         }
     }

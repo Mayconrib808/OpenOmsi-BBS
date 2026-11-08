@@ -134,14 +134,32 @@ pub enum PressEvent { Button(bool), Sound(bool) }
 pub struct PressSequence { at:f32, next:usize, edges:[(f32,PressEvent);8], end:f32 }
 impl PressSequence {
     pub fn new(sample:f32,tail:f32)->Self {
-        let sample=if sample.is_finite(){sample.clamp(0.18,20.0)}else{0.18};
-        let tail=if tail.is_finite(){tail.clamp(0.0,20.0)}else{0.0};let again=sample+tail+0.08;
+        let audible = sample.max(0.10 + tail);
+        let again = audible + 0.10;
         use PressEvent::*;
-        Self{at:0.0,next:0,edges:[(0.0,Button(true)),(0.0,Sound(true)),(0.10,Button(false)),(sample,Sound(false)),(again,Button(true)),(again,Sound(true)),(again+0.10,Button(false)),(again+sample,Sound(false))],end:again+sample+tail+0.05}
+        Self{at:0.0,next:0,edges:[(0.0,Button(true)),(0.0,Sound(true)),(0.10,Button(false)),(0.10,Sound(false)),(again,Button(true)),(again,Sound(true)),(again+0.10,Button(false)),(again+0.10,Sound(false))],end:again+audible+0.05}
     }
     pub fn advance(&mut self,dt:f32)->Vec<PressEvent> {
-        if dt.is_finite()&&dt>0.0{self.at+=dt;}let mut out=Vec::new();
-        while self.next<8&&self.at>=self.edges[self.next].0{out.push(self.edges[self.next].1);self.next+=1;}out
+        if dt.is_finite() && dt > 0.0 {
+            self.at += dt;
+        }
+        let Some(&(at, _)) = self.edges.get(self.next) else { return Vec::new() };
+        if self.at < at {
+            return Vec::new();
+        }
+        // Apply one edge at a time, even after a render stall. A press and its
+        // release must reach the mixer in different updates.
+        let mut events = Vec::new();
+        while self.next < self.edges.len() && self.edges[self.next].0 == at {
+            events.push(self.edges[self.next].1);
+            self.next += 1;
+        }
+        let late = self.at - at;
+        for (time, _) in &mut self.edges[self.next..] {
+            *time += late;
+        }
+        self.end += late;
+        events
     }
     pub fn finished(&self)->bool{self.at>=self.end&&self.next==8}
 }
@@ -155,8 +173,11 @@ mod press_tests {
             for frame in 0..1000 {for event in s.advance(0.01){match event {PressEvent::Button(on)=>buttons.push((frame as f32*0.01,on)),PressEvent::Sound(on)=>sounds.push((frame as f32*0.01,on))}}if s.finished(){break;}}
             for e in [&buttons,&sounds]{assert_eq!(e.iter().map(|x|x.1).collect::<Vec<_>>(),vec![true,false,true,false]);}
             assert!((buttons[1].0-buttons[0].0-0.1).abs()<0.02);assert!((buttons[3].0-buttons[2].0-0.1).abs()<0.02);
-            assert!(sounds[1].0-sounds[0].0>=sample-0.02);assert!(sounds[3].0-sounds[2].0>=sample-0.02);
-            assert!(sounds[2].0-sounds[1].0>=tail+0.06);assert!(s.finished());
+            for tap in sounds.chunks_exact(2) {
+                assert!((tap[1].0 - tap[0].0 - 0.10).abs() < 0.02);
+            }
+            assert!(sounds[2].0 - sounds[0].0 >= sample.max(0.10 + tail) + 0.08);
+            assert!(s.finished());
         }
     }
 }

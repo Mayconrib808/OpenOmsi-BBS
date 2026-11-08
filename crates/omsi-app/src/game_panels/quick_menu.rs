@@ -38,10 +38,12 @@ pub(crate) const TILES: &[(&str, &str, &str)] = &[
     ("refuel", "Refuel", "local_gas_station"),
     ("wash", "Wash", "local_car_wash"),
     ("wheelchair", "Wheelchair assistance", "accessible"),
-    ("arrows", "Route arrows", "navigation"),
+    ("arrows", "Dynamic route arrows", "navigation"),
     ("time", "Time", "schedule"),
     ("weather", "Weather", "partly_cloudy_day"),
     ("controls", "Controls", "sports_esports"),
+    ("preheat", "Preheat the bus to 19 °C", "thermostat"),
+    ("clock_plus_minute", "+1m", "clock_plus_minute"),
     ("stats", "Statistics", "receipt_long"),
     // the second page: the game menu's lines
     ("camera", "Camera", "videocam"),
@@ -105,8 +107,16 @@ impl TileState {
         let offered: Vec<&'static str> = app.game_menu_items().iter().map(|l| l.0).collect();
         let mut off:Vec<_>=MENU_LINES.iter().copied().filter(|id|!offered.contains(id)).collect();
         off.extend(TILES.iter().filter(|(id,_,_)|!app.drive_menu_allowed(id)).map(|(id,_,_)|*id));
+        if app.player.is_none() || app.session.on_foot.is_some() {
+            off.push("preheat");
+        }
+        if app.net.lan.is_some()
+            && !(crate::admin_panel::remote(app) && app.net.admin_panel.may_world())
+        {
+            off.push("clock_plus_minute");
+        }
         let mut lit = Vec::new();
-        if app.settings.nav_arrows {
+        if app.settings.nav_dynamic_arrows {
             lit.push("arrows");
         }
         if app.session.duty.is_some() {
@@ -267,15 +277,36 @@ fn start(app: &mut crate::App, id: &str, mouse: bool) {
         }
         return;
     }
+    if matches!(id, "preheat" | "clock_plus_minute") && TileState::of(app).off.contains(&id) {
+        return;
+    }
     let kept = app.menus.game_panels.quick.take();
     match id {
         "wheelchair" => app.menus.game_panels.wheelchair = true,
+        "preheat" => {
+            if let Some(p) = app.player.as_mut() {
+                p.vehicle.set_cabin_temperature(19.0);
+                app.service_msg = Some((tr("Cabin preheated to 19 °C").into_owned(), 3.0));
+            }
+        }
+        "clock_plus_minute" => {
+            if app.net.lan.is_some() {
+                crate::admin::run(app, "time 60");
+            } else {
+                app.shift_clock(60.0);
+            }
+        }
         "coop" => app.net.coop.panel = true,
         "camera" => super::view_editor::open(app),
         "dest" => super::dest_form::open(app),
         "radio" => super::radio_panel::open(app),
         "arrows" => {
-            crate::game_lists::option_do(app, "nav_arrows", "", crate::game_lists::Move::Next);
+            crate::game_lists::option_do(
+                app,
+                "nav_dynamic_arrows",
+                "",
+                crate::game_lists::Move::Next,
+            );
         }
         "time" | "weather" => {
             let tab = crate::game_lists::tab_of(app, crate::game_lists::ListKind::World(0), if id == "time" { "Time" } else { "Weather" });
@@ -321,7 +352,7 @@ mod tests {
         }
         let ids: std::collections::HashSet<_> = TILES.iter().map(|t| t.0).collect();
         assert_eq!(ids.len(), TILES.len());
-        assert_eq!(pages(), 2);
+        assert_eq!(pages(), 3);
         assert_eq!(page_tiles(0).len(), 15);
         assert!(omsi_ui::icons::svg("chevron_right").is_some());
     }
@@ -367,7 +398,7 @@ mod tests {
         assert_eq!((q.page, q.focus), (0, 14));
         q.focus = 0;
         q.step(-1, 0);
-        assert_eq!((q.page, q.focus), (1, 4));
+        assert_eq!((q.page, q.focus), (pages() - 1, 3));
         q.turn(1);
         assert_eq!(q.page, 0);
     }
@@ -410,7 +441,7 @@ mod tests {
         assert!(!key(&mut app, K::ArrowRight), "no menu, no key");
         toggle(&mut app);
         // to "Time" (row 3, column 2) and Enter: the world window's Time page
-        for k in [K::ArrowDown, K::ArrowDown, K::ArrowRight] {
+        for k in [K::ArrowDown, K::ArrowDown, K::ArrowRight, K::ArrowRight] {
             assert!(key(&mut app, k));
         }
         assert_eq!(app.menus.game_panels.quick.as_ref().and_then(|q| q.chosen()), Some("time"));
@@ -475,7 +506,8 @@ mod tests {
         click(&mut app, "next");
         click(&mut app, "arrows");
         assert!(app.menus.game_panels.quick.as_ref().is_some_and(|q| q.page == 1), "the menu stays, as in OMSI 2");
-        assert!(app.settings.nav_arrows);
+        assert!(app.settings.nav_dynamic_arrows);
+        assert!(!app.settings.nav_map_arrows);
         click(&mut app, "time");
         assert!(app.menus.game_panels.quick.is_none(), "a list takes over");
     }
@@ -486,8 +518,20 @@ mod tests {
         toggle(&mut app);
         click(&mut app, "next");
         assert_eq!(app.menus.game_panels.quick.as_ref().map(|q| q.page), Some(1));
-        click(&mut app, "next");
-        assert_eq!(app.menus.game_panels.quick.as_ref().map(|q| q.page), Some(0));
+        for page in [2, 0] {
+            click(&mut app, "next");
+            assert_eq!(app.menus.game_panels.quick.as_ref().map(|q| q.page), Some(page));
+        }
+    }
+
+    #[test]
+    fn offline_plus_minute_advances_the_clock_without_admin() {
+        let mut app = app();
+        let before = app.clock.time;
+        assert!(!TileState::of(&app).off.contains(&"clock_plus_minute"));
+        click(&mut app, "clock_plus_minute");
+        assert!((app.clock.time - (before + 60.0).rem_euclid(86400.0)).abs() < 1e-6);
+        assert!(TileState::of(&app).off.contains(&"preheat"));
     }
 
     #[test]
