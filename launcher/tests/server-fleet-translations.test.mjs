@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
-const yaml = readFileSync(new URL('../../crates/omsi-app/locales/server_fleet.yml', import.meta.url), 'utf8');
+const yaml = readFileSync(new URL('../../crates/omsi-app/locales/server_fleet.yml', import.meta.url), 'utf8').replace(/\r\n?/g, '\n');
 const sources = [
   '../ui/js/data.js',
   '../ui/js/pages/bus-picker.js',
