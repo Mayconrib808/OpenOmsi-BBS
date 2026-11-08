@@ -16,7 +16,7 @@ test('external helper is explicit, locally selected, and never injected by Bridg
   assert.match(backend, /pub fn select_controller\(path: String\)/);
   assert.match(backend, /pub fn open_controller\(\)/);
   assert.match(backend, /std::process::Command::new\(&exe\)/);
-  assert.doesNotMatch(backend, /InjectDll|VirtualAllocEx|CreateRemoteThread|reqwest|https:\/\//);
+  assert.doesNotMatch(backend, /InjectDll|VirtualAllocEx|CreateRemoteThread|reqwest/);
   assert.match(backend, /"neural_rendering_active": false/);
 });
 test('launcher opens controller only on user click, never reports NR active', () => {

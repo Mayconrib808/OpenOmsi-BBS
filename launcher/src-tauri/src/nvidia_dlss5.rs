@@ -13,17 +13,61 @@ use serde_json::{json, Value};
 
 
 #[cfg(windows)]
+static INSTALLING_CONTROLLER: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+#[cfg(windows)]
+struct ControllerInstallGuard;
+
+#[cfg(windows)]
+impl ControllerInstallGuard {
+    fn new() -> Result<Self, String> {
+        INSTALLING_CONTROLLER.compare_exchange(false, true,
+            std::sync::atomic::Ordering::AcqRel, std::sync::atomic::Ordering::Relaxed)
+            .map_err(|_| "A DLSS 5 controller installation is already running".to_string())?;
+        Ok(Self)
+    }
+}
+
+#[cfg(windows)]
+impl Drop for ControllerInstallGuard {
+    fn drop(&mut self) {
+        INSTALLING_CONTROLLER.store(false, std::sync::atomic::Ordering::Release);
+    }
+}
+
+#[cfg(windows)]
+struct TemporaryDirectory(std::path::PathBuf);
+
+#[cfg(windows)]
+impl Drop for TemporaryDirectory {
+    fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); }
+}
+
+#[cfg(windows)]
 fn controller_config() -> std::path::PathBuf {
     omsi_launcher_lib::data_dir().join("dlss5-controller-path.txt")
 }
 
-/// An optional, independent third-party controller selected by the player.
-/// It is never bundled, downloaded or injected by the Bridge.
+/// An independent third-party controller selected by the player or found
+/// after an explicit user-initiated, checksum-verified installer download.
 #[cfg(windows)]
 fn selected_controller() -> Option<std::path::PathBuf> {
-    let path = std::fs::read_to_string(controller_config()).ok()?;
-    let path = std::path::PathBuf::from(path.trim());
-    valid_controller_path(&path).then_some(path)
+    if let Ok(saved) = std::fs::read_to_string(controller_config()) {
+        let saved = std::path::PathBuf::from(saved.trim());
+        if valid_controller_path(&saved) { return Some(saved); }
+    }
+    // NSIS's common install locations. No scanning arbitrary drives or DLL loading.
+    let mut candidates = Vec::new();
+    for key in ["ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"] {
+        if let Some(root) = std::env::var_os(key) {
+            candidates.push(std::path::PathBuf::from(root).join("UniversalDLSS5").join("UniversalDLSS5.exe"));
+        }
+    }
+    if let Some(root) = std::env::var_os("LOCALAPPDATA") {
+        candidates.push(std::path::PathBuf::from(&root).join("Programs").join("UniversalDLSS5").join("UniversalDLSS5.exe"));
+        candidates.push(std::path::PathBuf::from(root).join("UniversalDLSS5").join("UniversalDLSS5.exe"));
+    }
+    candidates.into_iter().find(|p| valid_controller_path(p))
 }
 
 #[cfg(windows)]
@@ -57,6 +101,76 @@ pub fn select_controller(path: String) -> Result<Value, String> {
         std::fs::write(&config, selected.to_string_lossy().as_bytes())
             .map_err(|e| format!("Save DLSS 5 controller location: {e}"))?;
         Ok(status())
+    }
+}
+
+
+/// The player explicitly requests installation: fetch the controller from its
+/// published v0.5.1 GitHub release, validate the pinned SHA256, then open NSIS.
+/// Does NOT download or install NVIDIA proprietary DLSS-NR runtime files.
+/// An open installer is not evidence that Neural Rendering is active.
+pub fn install_controller(accepted_terms: bool) -> Result<Value, String> {
+    if !accepted_terms {
+        return Err("Review and accept the third-party controller installation notice first".into());
+    }
+    #[cfg(not(all(windows, target_arch = "x86_64")))]
+    {
+        Err("The experimental DLSS 5 controller installer requires Windows x64".into())
+    }
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    {
+        let _guard = ControllerInstallGuard::new()?;
+        if omsi_cfg::upscaler_files::dlss5_adapter().is_none() {
+            return Err("The DLSS 5 controller is offered only for GeForce RTX 50".into());
+        }
+        let cache = omsi_launcher_lib::data_dir().join("dlss5-controller");
+        std::fs::create_dir_all(&cache)
+            .map_err(|e| format!("Create DLSS 5 installer cache: {e}"))?;
+        let installer = cache.join("UniversalDLSS5-0.5.1-Setup-x64.exe");
+        let workspace = std::env::temp_dir().join(format!(
+            "openomsi-dlss5-controller-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH).map_err(|e| e.to_string())?.as_nanos()
+        ));
+        std::fs::create_dir(&workspace)
+            .map_err(|e| format!("Create DLSS 5 download workspace: {e}"))?;
+        let _cleanup = TemporaryDirectory(workspace.clone());
+        let script = workspace.join("download-dlss5-controller.ps1");
+        std::fs::write(&script, include_str!("../../../scripts/windows/download-dlss5-controller.ps1"))
+            .map_err(|e| format!("Prepare verified DLSS 5 downloader: {e}"))?;
+        let powershell = std::path::PathBuf::from(
+            std::env::var_os("SystemRoot").unwrap_or_else(|| "C:\\Windows".into())
+        ).join(r"System32\WindowsPowerShell\v1.0\powershell.exe");
+        use std::os::windows::process::CommandExt;
+        let output = std::process::Command::new(&powershell)
+            .creation_flags(0x0800_0000)
+            .args(["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File"])
+            .arg(&script).arg("-Destination").arg(&installer)
+            .output()
+            .map_err(|e| format!("Launch verified DLSS 5 downloader: {e}"))?;
+        if !output.status.success() {
+            let out = String::from_utf8_lossy(&output.stderr);
+            let detail = if out.trim().is_empty() {
+                String::from_utf8_lossy(&output.stdout).to_string()
+            } else { out.to_string() };
+            return Err(format!("DLSS 5 controller download or SHA-256 verification failed: {}",
+                detail.trim().chars().take(1200).collect::<String>()));
+        }
+        if !installer.is_file() {
+            return Err("The verified DLSS 5 installer is missing after download".into());
+        }
+        // The NSIS installer remains interactive: the player reviews and
+        // approves the separate third-party app's installation themselves.
+        // A restart/re-check of launcher status will locate its common path.
+        std::process::Command::new(&installer)
+            .current_dir(&cache)
+            .spawn()
+            .map_err(|e| format!("Open verified third-party installer: {e}"))?;
+        let mut state = status();
+        state["controller_installer_started"] = json!(true);
+        state["neural_rendering_active"] = json!(false);
+        Ok(state)
     }
 }
 
@@ -94,6 +208,8 @@ pub fn status() -> Value {
     #[cfg(not(windows))]
     let controller: Option<std::path::PathBuf> = None;
     json!({
+        "controller_installer_available": cfg!(all(windows, target_arch = "x86_64")),
+        "controller_setup_release": "UniversalDLSS5 v0.5.1 (experimental, independent third party)",
         "external_controller_found": controller.is_some(),
         "external_controller_path": controller.as_ref().map(|p| p.to_string_lossy().to_string()),
         "platform_supported": cfg!(all(windows, target_arch = "x86_64")),

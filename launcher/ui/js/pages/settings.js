@@ -324,6 +324,7 @@ function NvidiaDlss5() {
   const [status, setStatus] = useState(null);
   const [problem, setProblem] = useState('');
   const [busy, setBusy] = useState(false);
+  const [controllerAccepted, setControllerAccepted] = useState(false);
   useEffect(() => {
     let active = true;
     call('nvidia_dlss5_status')
@@ -336,6 +337,27 @@ function NvidiaDlss5() {
       : !status.gpu_supported ? 'DLSS 5 Neural Rendering requires an NVIDIA GeForce RTX 50 Series GPU.'
         : !status.game_installed ? 'openomsi.exe was not found beside the launcher.'
           : 'GeForce RTX 50 detected. DLSS 5 is not active: official Neural Rendering SDK integration is required.';
+  const refreshController = async () => {
+    setProblem('');
+    try {
+      setStatus(await call('nvidia_dlss5_status'));
+    } catch (e) {
+      setProblem(e.message || String(e));
+    }
+  };
+  const installController = async () => {
+    if (!controllerAccepted || busy) return;
+    setProblem('');
+    setBusy(true);
+    try {
+      setStatus(await call('nvidia_dlss5_controller_install', { acceptedTerms: true }));
+      toast(t('Verified DLSS 5 controller installer opened. Complete its setup, then check installation here.'), 'success');
+    } catch (e) {
+      setProblem(e.message || String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
   const chooseController = async () => {
     setProblem('');
     try {
@@ -367,8 +389,23 @@ function NvidiaDlss5() {
     <p class="muted small" style="margin:0">${status?.gpu_name ? html`<strong>${status.gpu_name}</strong> · ` : ''}${t(state)}</p>
     <p class="muted small" style="margin:0">${t('DLSS 5 is not yet integrated into the openOMSI renderer. Installing DLSS Super Resolution or ReShade does not enable it.')}</p>
     <p class="muted small" style="margin:0">
-      ${t('Experimental external route: UniversalDLSS5 can attach to a running game with an official NVIDIA Neural Rendering runtime. Third-party injector; compatibility with openOMSI is not verified. Never bundled or downloaded automatically.')}
+      ${t('Experimental route: UniversalDLSS5 can attach to a running game with official NVIDIA Neural Rendering files. This third-party injector is not verified with openOMSI and is never started or attached without your action.')}
     </p>
+    ${!status?.external_controller_found && html`
+      <label class="small" style="display:flex;align-items:flex-start;gap:10px">
+        <input type="checkbox" checked=${controllerAccepted} onChange=${(e) => setControllerAccepted(e.currentTarget.checked)} />
+        <span>${t('I agree to download and run the independent UniversalDLSS5 v0.5.1 installer from GitHub. The file is verified by SHA-256. It uses graphics injection, can be flagged by security software, and may not work with openOMSI. NVIDIA Neural Rendering runtime is NOT included.')}</span>
+      </label>
+      <${Button} kind="primary" icon="download"
+        label=${busy ? 'Downloading the verified DLSS 5 controller…' : 'Automatically download DLSS 5 controller'}
+        disabled=${busy || !controllerAccepted || !status?.platform_supported || !status?.gpu_supported}
+        onClick=${installController} />
+    `}
+    <${Button} kind="ghost" icon="refresh-cw" label="Check controller installation"
+      disabled=${busy} onClick=${refreshController} />
+    ${status?.controller_installer_started && html`<p class="muted small" style="margin:0">
+      ${t('Installer opened. Finish its setup, then select Check controller installation. This does not mean DLSS 5 is active yet.')}
+    </p>`}
     ${status?.external_controller_path && html`<p class="muted small" style="margin:0">${status.external_controller_path}</p>`}
     <div class="grid-2">
       <${Button} kind="ghost" icon="folder" label="Choose installed UniversalDLSS5.exe"
@@ -377,7 +414,7 @@ function NvidiaDlss5() {
         disabled=${busy || !status?.external_controller_found || !status?.gpu_supported} onClick=${openController} />
     </div>
     <p class="muted small" style="margin:0">
-      ${t('For a trial: install the third-party controller from its project, import NVIDIA-signed Neural Rendering files as its documentation instructs, start openOMSI, and use Attach in the controller. Keep ReShade disabled when testing and verify Neural Active there.')}
+      ${t('After setup: use the controller to import an authorized NVIDIA Neural Rendering runtime. Start openOMSI, choose Attach inside UniversalDLSS5, and confirm Neural Active. DLSS Super Resolution files alone are not enough. Keep ReShade disabled for this experiment.')}
     </p>
     <${Button} kind="ghost" icon="external" label="UniversalDLSS5 experimental project"
       onClick=${() => call('open_url', { url: 'https://github.com/MotionflowOffical/UniversalDLSS5' }).catch((e) => toast(e.message, 'error'))} />

@@ -58,3 +58,22 @@ compatibility is validated. Do not enable it automatically for public online
 sessions because manual third-party injection can interfere with game hooks.
 
 The native DLSS 5 implementation remains gated on NVIDIA's official NR SDK.
+
+## Verified controller installer from the launcher (2026-11)
+
+To reduce manual steps, the Windows x64 launcher now exposes a **user-initiated**
+installer for independent UniversalDLSS5 **v0.5.1**. After explicit opt-in,
+it downloads only the official GitHub release's `UniversalDLSS5-0.5.1-Setup-x64.exe`,
+verifies the complete archive with a pinned SHA-256 digest from the release,
+then opens the original NSIS installer. The launcher can automatically recognize
+common Program Files and LocalAppData installation paths; other paths may be
+selected manually. It never silently injects the game or runs this tool at
+startup. It never downloads NVIDIA proprietary neural DLLs.
+
+A correctly installed controller is **not** a completed DLSS 5 installation.
+The NVIDIA-signed `nvngx_dlssnr.dll` must be obtained from an authorized vendor
+source and imported through the independent controller, as described in that
+project's instructions. The public Streamline SDK includes Super Resolution,
+not a redistributable DLSS 5 model. Windows antivirus may warn about third-party
+injection. Do not disable endpoint security, and do not install or attach it
+without the player's express action.
