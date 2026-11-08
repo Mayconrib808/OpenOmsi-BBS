@@ -234,3 +234,29 @@ edit(audio, '''        if dt.is_finite()&&dt>0.0{self.at+=dt;}let mut out=Vec::n
         }
         self.end += late;
         events''')
+
+# Restore the two invitation notices from the exact official catalog. The
+# Bridge's 0.3.50 locale predates these entries, so Git's upstream diff alone
+# did not restore them even though the launcher already uses these keys.
+from subprocess import check_output
+
+locale = Path("crates/omsi-app/locales/app.yml")
+official_locale = check_output(["git", "show", "v0.3.52:" + locale.as_posix()], encoding="utf-8")
+catalog = locale.read_text(encoding="utf-8")
+for message in [
+    "As the host, your game receives your players' driver names, network addresses, chat and voice. You are responsible for what you keep of it, such as logs and bans.",
+    "Sessions and servers are run by players, not by openOMSI. The host receives your driver name, network address, chat and voice, and may keep logs.",
+]:
+    key = json.dumps(message) + ":"
+    assert not re.search(r"^" + re.escape(key) + r"$", catalog, re.M)
+    match = re.search(r"^" + re.escape(key) + r"\n(?:  [^\n]+\n)+", official_locale, re.M)
+    assert match is not None, message
+    catalog += "\n" + match.group()
+locale.write_text(catalog, encoding="utf-8")
+
+dlss_test = "launcher/tests/nvidia-dlss-install.test.mjs"
+edit(dlss_test, "exact pinned official 0.3.50 recipe", "exact pinned official 0.3.52 recipe")
+edit(dlss_test, "11ff78bab1998963162be97c49e909a2996710e1:.github/workflows/release.yml",
+     "41d69ab19043656b49d6cad0c34f85f3178503b8:.github/workflows/release.yml")
+edit(dlss_test, "../../.github/workflows/integrate-openomsi-0350-2232.yml",
+     "../../.github/workflows/bridge-openomsi-0352.yml")
