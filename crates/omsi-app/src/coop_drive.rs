@@ -157,7 +157,7 @@ impl App {
     }
     pub(crate) fn drive_menu_allowed(&self,id:&str)->bool {
         if self.net.coop.drive.busy()&&matches!(id,"place"|"swap"|"switch"|"remove"|"reload"|"clearplaced"|"couple"|"uncouple"){return false;}
-        !(self.net.coop.drive.owner_active()&&matches!(id,"reset"|"teleport"|"dest"|"duty"|"repair"|"refuel"|"wash"|"wheelchair"|"vehicle"|"mirror_hud_edit"|"tobus"))
+        !(self.net.coop.drive.owner_active()&&matches!(id,"reset"|"teleport"|"dest"|"duty"|"repair"|"refuel"|"wash"|"wheelchair"|"preheat"|"vehicle"|"mirror_hud_edit"|"tobus"))
     }
     pub(crate) fn drive_requested(&self, p: u32) -> bool {
         self.net

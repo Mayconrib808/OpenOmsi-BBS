@@ -68,7 +68,7 @@ impl<'a> Offscreen<'a> {
             (Arc::new(w), cam, None)
         };
         // the map's own route arrows, with OMSI 2's route arrows
-        world.show_help_arrows(&renderer, &mut scene, settings.nav_arrows);
+        world.show_help_arrows(&renderer, &mut scene, settings.nav_map_arrows);
         let lan_seed = lan_off.as_ref().map(lan::population_seed);
         // (a player who joins another's game draws the host's traffic in it, whatever their own
         // count says: without it the host's cars had nowhere to go - "passengers, but no

@@ -6,11 +6,11 @@ import { execFileSync } from 'node:child_process';
 
 const file = (relative) => readFileSync(new URL(relative, import.meta.url), 'utf8');
 // The BCS Bridge does not install the upstream release workflow. Read the
-// exact pinned official 0.3.50 recipe, not a substitute publishing workflow.
+// exact pinned official 0.3.52 recipe, not a substitute publishing workflow.
 const release = execFileSync('git', [
-  'show', '11ff78bab1998963162be97c49e909a2996710e1:.github/workflows/release.yml'
+  'show', '41d69ab19043656b49d6cad0c34f85f3178503b8:.github/workflows/release.yml'
 ], { encoding: 'utf8' });
-const bridgeCandidate = file('../../.github/workflows/integrate-openomsi-0350-2232.yml');
+const bridgeCandidate = file('../../.github/workflows/bridge-openomsi-0352.yml');
 const packager = file('../../scripts/windows/package-streamline.ps1');
 const installer = file('../../scripts/windows/install-streamline.ps1');
 const backend = file('../src-tauri/src/nvidia_dlss.rs');

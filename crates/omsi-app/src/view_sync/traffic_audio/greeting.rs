@@ -8,7 +8,11 @@ pub(crate) struct GreetingHorn {
 }
 fn horn(s:&str)->bool {let s=s.to_ascii_lowercase();["horn","hupe","buzina"].iter().any(|k|s.contains(k))}
 fn release(s:&str)->bool {let s=s.to_ascii_lowercase();["_off","_aus","release","_end"].iter().any(|k|s.contains(k))}
-fn horn_entry(e:&omsi_vehicle::SoundEntry)->bool {horn(&e.file)||e.triggers.iter().any(|t|horn(t))||e.vol_curves.iter().any(|c|horn(&c.variable))}
+const LOOP_GATE: &str = "bbs_greeting_loop_gate";
+const PRESS: &str = "bbs_horn_press";
+const RELEASE: &str = "bbs_horn_release";
+
+fn horn_entry(e:&omsi_vehicle::SoundEntry)->bool {horn(&e.file)||e.triggers.iter().any(|t|horn(t))||e.vol_curves.iter().any(|c|horn(&c.variable))||e.conditions.iter().any(|c|horn(&c.variable))}
 impl Traffic {
     pub(super) fn play_greeting_horns(&mut self,audio:&omsi_audio::AudioEngine,frame:&omsi_sim::view_events::SoundFrame,muffled:bool,volume:f32) {
         for &(id,_,_,ref ty) in &frame.greeting_honks {
@@ -22,17 +26,28 @@ impl Traffic {
                 if cfg.sounds.iter().any(|s|audio.load_clip(&omsi_cfg::resolve_path(dir,&s.file)).is_some()){selected=Some((cfg,dir.to_path_buf()));break;}
             }
             let (mut cfg,dir)=selected.unwrap_or_else(||(omsi_vehicle::SoundCfg{sounds:vec![omsi_vehicle::SoundEntry{file:"Sounds/AI_Cars/Hupe_Lkw.wav".into(),volume:1.0,range:30.0,pos:Some([0.0,0.0,0.8]),triggers:vec!["bbs_horn_press".into()],..Default::default()}],..Default::default()},self.sim.root.clone()));
-            cfg=cfg.chosen_for(&car.vehicle.number());let mut held=0.18f32;let mut tail=0.0f32;
+            cfg=cfg.chosen_for(&car.vehicle.number());let mut held=0.10f32;let mut tail=0.0f32;
             for e in &mut cfg.sounds {
                 e.pos.get_or_insert([0.0,0.0,0.8]);e.range=e.range.max(24.0);
                 let Some(c)=audio.load_clip(&omsi_cfg::resolve_path(&dir,&e.file))else{continue};
                 let pitch=if e.is_loop&&e.sample_rate>0.0{(e.sample_rate/c.sample_rate.max(1) as f32).clamp(0.05,8.0)}else{1.0};
                 let seconds=c.frames() as f32/c.sample_rate.max(1) as f32/pitch;
                 if release(&e.file)||e.triggers.iter().any(|t|release(t)){tail=tail.max(seconds);}
-                else if e.is_loop&&!e.no_loop{held=held.max(seconds.clamp(0.18,0.45));}else{held=held.max(seconds);}
+                let is_release = release(&e.file) || e.triggers.iter().any(|t| release(t));
+                if e.triggers.is_empty() && (is_release || e.no_loop) {
+                    e.triggers.push(if is_release { RELEASE } else { PRESS }.into());
+                }
+                if e.triggers.is_empty() {
+                    e.conditions.push(omsi_vehicle::sound::Condition {
+                        variable: LOOP_GATE.into(), value: 1.0,
+                        kind: omsi_vehicle::sound::ConditionKind::Bool, ..Default::default()
+                    });
+                } else if !is_release {
+                    held = held.max(seconds);
+                }
             }
             let input=["horn","hupe","buzina","bus_horn"].into_iter().find(|n|car.vehicle.ty.program.trigger(n).is_some()&&car.vehicle.ty.program.trigger(&format!("{n}_off")).is_some()).map(str::to_string);
-            log::info!("AI greeting horn: bus={} pattern=2 mechanism=player_soundset input={:?} press_ms=100 sample_ms={:.0} release_ms={:.0} complete_samples=true",ty.def.path.display(),input,held*1000.0,tail*1000.0);
+            log::info!("AI greeting horn: bus={} pattern=2 mechanism=player_soundset input={:?} press_ms=100 one_shot_ms={:.0} release_ms={:.0} complete_samples=true",ty.def.path.display(),input,held*1000.0,tail*1000.0);
             self.greeting_horns.insert(id,GreetingHorn{set:omsi_audio::SoundSet::new_exterior(audio,&cfg,&dir),cfg,input,sequence:omsi_audio::greeting::PressSequence::new(held,tail),last:Instant::now(),pressed:false,attack_events:Vec::new(),release_events:Vec::new()});
         }
         self.greeting_horns.retain(|id,h| {
@@ -52,7 +67,7 @@ impl Traffic {
                 }
             }}
             h.set.master=volume;h.set.set_muffled(muffled);let pressed=h.pressed;
-            h.set.update(audio,&|name|if horn(name){Some(if pressed{1.0}else{0.0})}else{car.vehicle.var(name)},&car.vehicle.world_transform(),&fired);
+            h.set.update(audio,&|name|if name == LOOP_GATE || horn(name) {Some(if pressed{1.0}else{0.0})}else{car.vehicle.var(name)},&car.vehicle.world_transform(),&fired);
             if h.sequence.finished(){h.set.stop_all(audio);false}else{true}
         });
     }

@@ -139,6 +139,7 @@ impl TrafficSim {
             unsched_factor,
             max_scheduled,
             timed_waits_only: false,
+            reaction_factor: 1.0,
             no_timetable_buses: false,
             ai_bus_overtaking: false,
             cars_yield_to_buses: false,

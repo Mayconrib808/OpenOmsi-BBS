@@ -25,9 +25,13 @@ pub(super) fn bones(
         Place::Bus(_, l) => l.as_dvec3(),
     };
     let floor = |_: DVec2| Some(origin.z + 0.16);
-    let input=omsi_sim::people::wheelchair::pose::input(&ty.rig,chair,origin,
+    let mut input=omsi_sim::people::wheelchair::pose::input(&ty.rig,chair,origin,
         if matches!(p.place,Place::Ground){p.heading}else{p.lheading},
         if matches!(p.place,Place::Ground){0}else{1},grips,&floor);
+    st.clip_t += dt;
+    // Fade the idle motion under active pushes. Apply it before solving the grips.
+    let lean = super::avatars::seated_lean(p.id, ty, st.clip_t);
+    input.grip_lean += (1.0 - chair.moving.clamp(0.0, 1.0)) * (3.0 + lean);
     if st.procedural.is_none() {
         let mut pose = Pose::new(p.id);
         for _ in 0..30 {

@@ -147,6 +147,9 @@ impl Panel {
         self.asked = None;
     }
 
+    /// A server-published field, or an empty string before its first snapshot.
+    pub fn state_value(&self, k: &str) -> &str { self.get(k) }
+
     fn get(&self, k: &str) -> &str {
         self.state.get(k).map(String::as_str).unwrap_or("")
     }
@@ -155,7 +158,7 @@ impl Panel {
         self.get(k).split('/').next().and_then(|v| v.parse().ok())
     }
 
-    fn may_world(&self) -> bool {
+    pub fn may_world(&self) -> bool {
         self.role != Some(Role::Moderator)
     }
 

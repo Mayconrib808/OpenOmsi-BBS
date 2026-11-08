@@ -190,7 +190,7 @@ mode radio             power | indicator | radio | fixed
 trigger 9              power/indicator: contact plate distance before the frog (m); ignored by radio
 sense 12               the current that counts as power on (A)
 invert 0
-initial straight
+initial straight       straight | branch | random (see below)
 route 158 branch       radio: route code 158 takes the branch (straight | branch | left | right)
 channel 2              radio: only vehicles sending on channel 2 set it
 range 150              radio: reception radius (m, 1..1000, default 150); never a contact plate
@@ -210,6 +210,13 @@ needs a joint of exactly three spans; which one is the toe (the single side) and
 straight or to the side is worked out from their directions. A pole can follow the wire through
 a joint, a switch and across spans, and a crossing of two wires that do not share a joint is not
 a connection.
+
+A switch with `initial random` takes a way at random when the game first reads the map's wire.
+The game keeps that network until it quits, so placing a vehicle again or reloading the same map
+keeps the positions the switches have by then; a new draw needs a restart. In an online game
+(serving, hosting or joining) the players' switches are not synchronized, so `initial random`
+switches start straight there, the same for everyone. A room joined later on a map already
+driven in the same run keeps that run's network and its positions, drawn or not.
 
 The wire's masts and hangers are the map's own objects: the game draws the two wires (8.5 mm
 thick) and nothing else, whatever vehicle is driven (a bus or a car sees the wire too; a map
@@ -318,6 +325,7 @@ make sound by them):
 | `Trolley_Pole<k>_Force` | what the shoe presses with (N) |
 | `Trolley_Pole<k>_Bounce` | 0..1 how hard the boom bounces on its script's lifting gear |
 | `Trolley_Pole<k>_Hit` | 0..1 how hard its last hit was (on the wire, back on it, against its rope) |
+| `Trolley_Pole<k>_Shoe_Yaw`, `_Shoe_Pitch` | the head's swivel against the boom (degrees): about the boom's up axis (+ to the right), then about its side axis (+ the far end up), so that the shoe lies along the wire; off the wire it swings back to 0 |
 | `Trolley_Volts`, `Trolley_Amps` | the voltage at the bus and the current from the line (negative: given back) |
 | `Trolley_Powered` | 1 while both poles are on live wire |
 | `Trolley_Notch` | the rheostat controller's position |
@@ -326,7 +334,9 @@ make sound by them):
 | `Trolley_Battery` | the battery's charge, 0..1 |
 
 A vehicle whose model carries its own poles puts `visible 0` in its `[trolley_pole]` and rotates
-its pole meshes by `Trolley_Pole<k>_Elev` and `_Azim`.
+its pole meshes by `Trolley_Pole<k>_Elev` and `_Azim`. Its head (the shoe and what swivels with it)
+turns on top of that by `_Shoe_Yaw` and then `_Shoe_Pitch`, about the head's pivot: a boom
+standing at 15 degrees under a level wire has `_Shoe_Pitch` -15, the shoe level on the wire.
 
 ### A script's lifting gear
 
