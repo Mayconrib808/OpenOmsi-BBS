@@ -43,13 +43,15 @@ An independent, Apache-2.0 project, [UniversalDLSS5](https://github.com/Motionfl
 tries to execute NVIDIA Neural Rendering on games without native support. It is not
 an NVIDIA product and its injector compatibility is **not verified with openOMSI**.
 
-The desktop launcher's graphics settings can now store a locally selected
-`UniversalDLSS5.exe` and open its controller window. This is an **explicit manual**
-action by the player. The Bridge does not distribute third-party executables,
-download them, inject any graphics hook, or automatically launch a second game.
-The user must install the program from its project, independently obtain the
-legitimate vendor-signed `nvngx_dlssnr.dll` and any required Streamline NR
-plugin, start the game normally, and choose **Attach** inside the controller.
+The desktop launcher's graphics settings can now select a local
+`UniversalDLSS5.exe`, or download a fixed SHA-256-verified third-party
+controller installer after explicit opt-in. It can then launch the controller
+window; the Bridge does not redistribute NVIDIA files, inject graphics hooks,
+automatically attach to games, or launch another game.
+The player must still obtain the legitimate vendor-signed `nvngx_dlssnr.dll`
+and any required Streamline NR plugin from an authorized source, import them
+inside UniversalDLSS5, start the game normally, and choose **Attach** inside
+the controller.
 The controller itself must report **Neural Active** before anyone claims the
 feature is working; a successful controller launch is not sufficient.
 
