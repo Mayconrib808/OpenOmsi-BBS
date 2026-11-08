@@ -208,3 +208,29 @@ edit(audio, '''            assert!(sounds[1].0-sounds[0].0>=sample-0.02);assert!
             }
             assert!(sounds[2].0 - sounds[0].0 >= sample.max(0.10 + tail) + 0.08);
             assert!(s.finished());''')
+
+edit("crates/omsi-sim/src/vehicle/tests/scripts_props.rs",
+     '        file: PathBuf::new(),\n        materials: ["film.png",',
+     '        file: PathBuf::new(),\n        pick_geometry: Default::default(),\n        materials: ["film.png",')
+edit(audio, '''        if dt.is_finite()&&dt>0.0{self.at+=dt;}let mut out=Vec::new();
+        while self.next<8&&self.at>=self.edges[self.next].0{out.push(self.edges[self.next].1);self.next+=1;}out''',
+'''        if dt.is_finite() && dt > 0.0 {
+            self.at += dt;
+        }
+        let Some(&(at, _)) = self.edges.get(self.next) else { return Vec::new() };
+        if self.at < at {
+            return Vec::new();
+        }
+        // Apply one edge at a time, even after a render stall. A press and its
+        // release must reach the mixer in different updates.
+        let mut events = Vec::new();
+        while self.next < self.edges.len() && self.edges[self.next].0 == at {
+            events.push(self.edges[self.next].1);
+            self.next += 1;
+        }
+        let late = self.at - at;
+        for (time, _) in &mut self.edges[self.next..] {
+            *time += late;
+        }
+        self.end += late;
+        events''')
