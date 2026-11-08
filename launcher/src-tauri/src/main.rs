@@ -12,6 +12,7 @@
 
 mod commands;
 mod nvidia_dlss;
+mod nvidia_dlss5;
 mod discord;
 mod protocol;
 mod service;

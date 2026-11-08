@@ -240,6 +240,7 @@ const CUSTOM = {
   preset: () => html`<${PresetRow} />`,
   optimise: () => html`<${OptimiseBlock} />`,
   nvidia_dlss_install: () => html`<${NvidiaDlssInstall} />`,
+  nvidia_dlss5: () => inTauri && html`<${NvidiaDlss5} />`,
   reshade: () => inTauri && html`<${ReShade} />`,
   profiles: () => html`<${ProfilesBlock} />`,
   theme: () => html`<${ThemeRow} />`,
@@ -315,6 +316,34 @@ function NvidiaDlssInstall() {
         ${problem && html`<p class="warn-fg small" role="alert">${problem}</p>`}
       </div>
     </div>`;
+}
+
+// DLSS 5 is a dedicated neural rendering pass, not a DLSS SR upscaler mode.
+// Do not present an enable switch until the signed NR SDK is integrated in the renderer.
+function NvidiaDlss5() {
+  const [status, setStatus] = useState(null);
+  const [problem, setProblem] = useState('');
+  useEffect(() => {
+    let active = true;
+    call('nvidia_dlss5_status')
+      .then((result) => active && setStatus(result))
+      .catch((e) => active && setProblem(e.message || String(e)));
+    return () => { active = false; };
+  }, []);
+  const state = !status ? 'Checking DLSS 5 compatibility…'
+    : !status.platform_supported ? 'DLSS 5 requires Windows 64-bit.'
+      : !status.gpu_supported ? 'DLSS 5 Neural Rendering requires an NVIDIA GeForce RTX 50 Series GPU.'
+        : !status.game_installed ? 'openomsi.exe was not found beside the launcher.'
+          : 'GeForce RTX 50 detected. DLSS 5 is not active: official Neural Rendering SDK integration is required.';
+  return html`<div class="setting-row full"><div class="stack" style="gap:10px">
+    <${Name} label="NVIDIA DLSS 5 · Neural Rendering"
+      help="Independent from DLSS Super Resolution. Requires engine motion vectors, the official Neural Rendering SDK, and RTX 50 hardware." />
+    <p class="muted small" style="margin:0">${status?.gpu_name ? html`<strong>${status.gpu_name}</strong> · ` : ''}${t(state)}</p>
+    <p class="muted small" style="margin:0">${t('DLSS 5 is not yet integrated into the openOMSI renderer. Installing DLSS Super Resolution or ReShade does not enable it.')}</p>
+    <${Button} kind="ghost" icon="external" label="Official NVIDIA DLSS 5 information"
+      onClick=${() => call('open_url', { url: 'https://www.nvidia.com/en-us/geforce/news/dlss-5-3d-guided-neural-rendering/' }).catch((e) => toast(e.message, 'error'))} />
+    ${problem && html`<p class="warn-fg small" role="alert">${problem}</p>`}
+  </div></div>`;
 }
 
 function ReShade() {

@@ -21,7 +21,7 @@ async fn work<F: FnOnce() -> Answer + Send + 'static>(f: F) -> Answer {
 }
 
 pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
-    tauri::generate_handler![call, call_bytes, pick_folder, pick_file, pick_mod, pick_hofs, open_path, open_url, update_relaunch, selftest_done, fit_zoom, nvidia_dlss_status, nvidia_dlss_install, reshade_status, reshade_set_enabled]
+    tauri::generate_handler![call, call_bytes, pick_folder, pick_file, pick_mod, pick_hofs, open_path, open_url, update_relaunch, selftest_done, fit_zoom, nvidia_dlss_status, nvidia_dlss_install, nvidia_dlss5_status, reshade_status, reshade_set_enabled]
 }
 
 #[tauri::command]
@@ -55,6 +55,12 @@ fn nvidia_dlss_status() -> Value {
 #[tauri::command]
 async fn nvidia_dlss_install(accepted_terms: bool) -> Answer {
     work(move || crate::nvidia_dlss::install(accepted_terms)).await
+}
+
+/// Read-only capability diagnostic. DLSS 5 is NOT activated by installing DLSS SR DLLs.
+#[tauri::command]
+fn nvidia_dlss5_status() -> Value {
+    crate::nvidia_dlss5::status()
 }
 
 /// This window, for the commands of `omsi-launcher-api`.

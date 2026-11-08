@@ -42,6 +42,18 @@ pub fn rtx_candidate(vendor: u32, name: &str) -> bool {
     vendor == 0x10de && name.to_ascii_uppercase().contains("RTX")
 }
 
+/// The currently supported NVIDIA DLSS 5 Neural Rendering hardware is GeForce RTX 50.
+/// A name/vendor check is only a candidate; the NVIDIA SDK must decide final support.
+/// This does NOT enable Neural Rendering in the renderer.
+pub fn dlss5_candidate(vendor: u32, name: &str) -> bool {
+    vendor == 0x10de && name.to_ascii_uppercase().contains("GEFORCE RTX 50")
+}
+
+/// The detected GeForce RTX 50 adapter, if any. Never infer DLSS 5 from an RTX 40/30.
+pub fn dlss5_adapter() -> Option<String> {
+    adapters().into_iter().find(|(vendor, name)| dlss5_candidate(*vendor, name)).map(|(_, name)| name)
+}
+
 pub fn rtx_present() -> bool {
     static RTX: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
     *RTX.get_or_init(|| adapters().iter().any(|(vendor, name)| rtx_candidate(*vendor, name)))
@@ -169,6 +181,17 @@ mod tests {
         assert_eq!(offered(&dir, true, true), ["dlss", "fsr3"]);
         assert_eq!(offered(&dir, true, false), ["fsr3"]);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn dlss5_requires_real_geforce_rtx_50_hardware() {
+        assert!(dlss5_candidate(0x10de, "NVIDIA GeForce RTX 5090"));
+        assert!(dlss5_candidate(0x10de, "NVIDIA GeForce RTX 5060 Ti"));
+        assert!(dlss5_candidate(0x10de, "NVIDIA GeForce RTX 5070 Laptop GPU"));
+        assert!(!dlss5_candidate(0x10de, "NVIDIA GeForce RTX 4090"));
+        assert!(!dlss5_candidate(0x10de, "NVIDIA RTX A5000"));
+        assert!(!dlss5_candidate(0x1002, "NVIDIA GeForce RTX 5090"));
+        assert!(!dlss5_candidate(0x8086, "Intel Arc A770"));
     }
 
     #[test]
