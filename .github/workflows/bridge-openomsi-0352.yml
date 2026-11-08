@@ -42,6 +42,8 @@ jobs:
           git fetch --no-tags --depth=75 https://github.com/openOMSI-org/openOMSI.git refs/tags/v0.3.52:refs/tags/v0.3.52
           test "$(git rev-parse v0.3.52^{commit})" = 41d69ab19043656b49d6cad0c34f85f3178503b8
           test "$(git merge-base HEAD v0.3.52)" = 11ff78bab1998963162be97c49e909a2996710e1
+          git config user.name 'Bridge Integrator'
+          git config user.email 'integrator@localhost.invalid'
           if ! git merge --no-commit --no-ff v0.3.52; then
             git rev-parse -q --verify MERGE_HEAD
           fi
