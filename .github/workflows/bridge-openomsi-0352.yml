@@ -14,32 +14,22 @@ concurrency:
 jobs:
   merge-and-tests:
     runs-on: ubuntu-22.04
-    timeout-minutes: 90
+    permissions:
+      contents: write
+    timeout-minutes: 20
     outputs:
       integrated_sha: ${{ steps.reconcile.outputs.integrated_sha }}
-    env:
-      OPENOMSI_VERSION: 0.3.52-coop.17-candidate
-      OMSI_NO_UPDATE: '1'
-      CARGO_INCREMENTAL: '0'
-      CARGO_PROFILE_DEV_DEBUG: '0'
-      CARGO_PROFILE_TEST_DEBUG: '0'
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 90
+          fetch-depth: 0
           persist-credentials: false
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: bridge-openomsi-0352-checks
-      - name: Native Linux prerequisites
-        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
       - name: Merge the exact stable upstream release into the Hotfix 1 source
         id: reconcile
         shell: bash
         run: |
           set -euo pipefail
-          git fetch --no-tags --depth=75 https://github.com/openOMSI-org/openOMSI.git refs/tags/v0.3.52:refs/tags/v0.3.52
+          git fetch --no-tags https://github.com/openOMSI-org/openOMSI.git refs/tags/v0.3.52:refs/tags/v0.3.52
           test "$(git rev-parse v0.3.52^{commit})" = 41d69ab19043656b49d6cad0c34f85f3178503b8
           test "$(git merge-base HEAD v0.3.52)" = 11ff78bab1998963162be97c49e909a2996710e1
           git config user.name 'Bridge Integrator'
@@ -58,14 +48,60 @@ jobs:
           name: bridge-openomsi-0352-source
           path: /tmp/openomsi-source.tar.gz
           if-no-files-found: error
+      - name: Preserve the exact merged source on a candidate branch
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git -c credential.helper= push "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "HEAD:refs/heads/integration/openomsi-0352-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+  linux-regressions:
+    needs: merge-and-tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    env:
+      OPENOMSI_VERSION: 0.3.52-coop.17-candidate
+      OMSI_NO_UPDATE: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bridge-openomsi-0352-source
+          path: source-archive
+      - name: Extract exact merged source
+        run: tar -xzf source-archive/openomsi-source.tar.gz
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: bridge-openomsi-0352-checks
+          cache-on-failure: true
+      - name: Native Linux prerequisites
+        run: sudo apt-get update -qq && sudo apt-get install -y libasound2-dev libudev-dev
       - name: Simulation, protocol, game, server and launcher regressions
         shell: bash
         run: |
           set -euo pipefail
           cargo test --locked -p omsi-sim -p omsi-net -p omsi-audio -p omsi-lan --lib
           cargo check --locked -p omsi-app -p omsi-lan -p omsi-launcher-core
-          node --test launcher/tests/*.test.mjs
           python3 tools/check_accessibility_locales.py
+  launcher-tests:
+    needs: merge-and-tests
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: bridge-openomsi-0352-source
+          path: source-archive
+      - name: Extract exact merged source
+        run: tar -xzf source-archive/openomsi-source.tar.gz
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Launcher UI regressions
+        shell: bash
+        run: node --experimental-vm-modules --test launcher/tests/*.test.mjs
   windows-native-and-launcher:
     needs: merge-and-tests
     runs-on: windows-2022
