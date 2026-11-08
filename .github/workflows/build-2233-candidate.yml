@@ -1,0 +1,114 @@
+name: Assemble and verify Bridge 2.2.3.3 candidate
+on:
+  push:
+    branches: [release/2.2.3.3-candidate]
+    paths:
+      - '.github/workflows/build-2233-candidate.yml'
+      - 'scripts/build_2233.py'
+      - 'source/**'
+  workflow_dispatch: {}
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: bridge-2233-package-candidate
+  cancel-in-progress: true
+env:
+  NATIVE_RUN: '42427934220'
+  NATIVE_HEAD: 'fd34fb7382f8c1066c419c3e27d0e2efe64bf43b'
+  PYTHONUTF8: '1'
+  OMSI_NO_UPDATE: '1'
+jobs:
+  directory:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check the directory and lobby protocol routes
+        working-directory: relay
+        run: npm test
+  package:
+    runs-on: windows-2022
+    timeout-minutes: 115
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.23.2'
+          cache: false
+      - name: Verify the exact tested Hotfix 1 baseline
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          $r=gh api repos/$env:GITHUB_REPOSITORY/actions/runs/42261964279 | ConvertFrom-Json
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne '785fed6363b6f0cb9270455949f497ec52e5b81e') { throw 'Baseline run mismatch' }
+          $a=gh api repos/$env:GITHUB_REPOSITORY/actions/artifacts/13524799069 | ConvertFrom-Json
+          if ($a.expired -or $a.workflow_run.id -ne 42261964279 -or $a.digest -ne 'sha256:fe476f9bdcab67cde2408344f15569db5e87c2b6e6bd4c1523faf40f25a4ddd8') { throw 'Baseline artifact mismatch' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-2.2.3.2-Hotfix1-FULL-CANDIDATE
+          run-id: 42261964279
+          github-token: ${{ github.token }}
+          path: approved
+      - name: Bridge regressions and official Windows dependencies
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          python scripts/build_2203.py --tests-only
+          if ($LASTEXITCODE -ne 0) { throw 'Bridge regressions failed' }
+          gh release download v0.3.52 --repo openOMSI-org/openOMSI --pattern openOMSI-0.3.52-windows-x64.zip --dir official
+          if ($LASTEXITCODE -ne 0) { throw 'Official 0.3.52 download failed' }
+      - name: Wait for the exact native, server and launcher candidate
+        timeout-minutes: 80
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference='Stop'
+          gh run watch $env:NATIVE_RUN --repo $env:GITHUB_REPOSITORY --exit-status --interval 45
+          if ($LASTEXITCODE -ne 0) { throw 'Native integration did not pass' }
+          $r=gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:NATIVE_RUN" | ConvertFrom-Json
+          if ($r.status -ne 'completed' -or $r.conclusion -ne 'success' -or $r.head_sha -ne $env:NATIVE_HEAD -or $r.path -ne '.github/workflows/bridge-openomsi-0352.yml') { throw 'Native run mismatch' }
+      - uses: actions/download-artifact@v4
+        with:
+          name: Bridge-openOMSI-0352-P17-Windows-CANDIDATE
+          run-id: ${{ env.NATIVE_RUN }}
+          github-token: ${{ github.token }}
+          path: native
+      - name: Build and test the complete Windows installer
+        shell: pwsh
+        run: |
+          python scripts/build_2233.py --approved approved --native native --native-run $env:NATIVE_RUN --official official/openOMSI-0.3.52-windows-x64.zip --output output
+          if ($LASTEXITCODE -ne 0) { throw 'Complete package verification failed' }
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: Bridge-2.2.3.3-failure-diagnostics
+          path: |
+            output/one-click-install-setup.log
+            output/native-p17-controls.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Bridge-2.2.3.3-FULL-CANDIDATE
+          path: |
+            output/Atualizar-Bridge.exe
+            output/build-report.json
+            output/coop-spec.json
+            output/coop-assets/*
+            output/native-p17-controls.json
+            output/one-click-install-test.json
+            output/one-click-install-setup.log
+          compression-level: 0
+          retention-days: 90
+          if-no-files-found: error
