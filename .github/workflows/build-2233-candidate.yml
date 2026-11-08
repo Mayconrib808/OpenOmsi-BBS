@@ -14,8 +14,8 @@ concurrency:
   group: bridge-2233-package-candidate
   cancel-in-progress: true
 env:
-  NATIVE_RUN: '42428298843'
-  NATIVE_HEAD: '2b97fe22496b4930d811aa0ed57692b12e6de353'
+  NATIVE_RUN: '42429949019'
+  NATIVE_HEAD: '19c8a671b927fecd1e4268fdef91b7cf95213e0c'
   PYTHONUTF8: '1'
   OMSI_NO_UPDATE: '1'
 jobs:
