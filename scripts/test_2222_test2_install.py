@@ -108,7 +108,8 @@ def main():
                 previous=json.loads(original_p16)
                 for field in ('maps','host_key','room_id','control_key','control_port','future_private'):
                     assert migrated[field]==previous[field], 'P17 migration lost '+field
-                assert migrated['company']==dict(protocol=17,openomsi_version='0.3.50',future_company='keep')
+                marker = json.loads((target/'app/server-dinamico-p17/BBS-DYNAMIC-SERVER.json').read_bytes())
+                assert migrated['company']==dict(protocol=17,openomsi_version=marker['openomsi_version'],future_company='keep')
                 assert os.path.samefile(migrated['server'],target/'app/server-dinamico-p17/openomsi.exe')
 
             wait_until(lambda:bool(windows()[1]),30,'updated Setup was not reopened visibly')

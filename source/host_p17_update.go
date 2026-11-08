@@ -109,7 +109,7 @@ func activateP17HostSidecar(dir string, payload map[string][]byte) (err error) {
 			}
 			company[key] = json.RawMessage("17")
 			key, _ = hostJSONField(company, "openomsi_version")
-			company[key], _ = json.Marshal("0.3.50")
+			company[key], _ = json.Marshal("0.3.52")
 			return nil
 		}
 		if name == "HostAgent" {

@@ -352,7 +352,7 @@ func TestP17MigrationUsesLatestP16AndPreservesPrivateSettings(t *testing.T) {
 		if name == "HostAgent" {
 			var company map[string]json.RawMessage
 			json.Unmarshal(b["company"], &company)
-			if string(company["protocol"]) != "17" || hostJSONString(company, "openomsi_version") != "0.3.50" || hostJSONString(company, "future_company") != "keep" {
+			if string(company["protocol"]) != "17" || hostJSONString(company, "openomsi_version") != "0.3.52" || hostJSONString(company, "future_company") != "keep" {
 				t.Fatal("P17 company mismatch")
 			}
 		}
@@ -378,7 +378,7 @@ func TestP17MigrationUsesLatestP16AndPreservesPrivateSettings(t *testing.T) {
 		t.Fatal(err)
 	}
 	json.Unmarshal(data, &newProfile)
-	if string(newProfile["protocol"]) != "17" || hostJSONString(newProfile, "openomsi_version") != "0.3.50" || hostJSONString(newProfile, "future_profile") != "keep" {
+	if string(newProfile["protocol"]) != "17" || hostJSONString(newProfile, "openomsi_version") != "0.3.52" || hostJSONString(newProfile, "future_profile") != "keep" {
 		t.Fatal("standalone P17 profile not upgraded")
 	}
 	payload["app/server-dinamico-p17/openomsi.exe"] = []byte("MZ-tampered")
