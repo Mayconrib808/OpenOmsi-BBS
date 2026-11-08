@@ -4047,6 +4047,7 @@ name = "omsi-launcher-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "ash",
  "libc",
  "omsi-cfg",
  "omsi-content",
@@ -4057,10 +4058,12 @@ dependencies = [
  "omsi-vehicle",
  "rayon",
  "rfd",
+ "ring",
  "serde",
  "serde_json",
  "sevenz-rust2",
  "unrar-rs",
+ "ureq",
  "windows 0.62.2",
  "winresource",
  "zip",

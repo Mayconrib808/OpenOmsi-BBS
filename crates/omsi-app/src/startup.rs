@@ -296,13 +296,20 @@ pub(crate) fn backend_order() -> Vec<GraphicsApi> {
         return vec![GraphicsApi::Native(wgpu::Backends::METAL)];
     }
     let settings = crate::settings::Settings::load();
-    let chosen = omsi_cfg::flags::OMSI_BACKEND.var().map(str::to_string).unwrap_or(settings.graphics_api.clone());
-    let wanted = if settings.vr_requested() {
+    let override_api = omsi_cfg::flags::OMSI_BACKEND.var();
+    let chosen = override_api.unwrap_or(&settings.graphics_api);
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    let reshade = omsi_launcher_lib::reshade::active();
+    #[cfg(not(all(windows, target_arch = "x86_64")))]
+    let reshade = false;
+    let wanted = if reshade {
+        "vulkan".to_owned()
+    } else if settings.vr_requested() {
         "dx12".to_owned()
-    } else if let Some(t) = settings.temporal_upscaling().filter(|_| omsi_cfg::flags::OMSI_BACKEND.var().is_none()) {
-        omsi_cfg::upscaler_files::first_api(&chosen, t.upscaler.as_str(), &omsi_cfg::upscaler_files::program_dir()).to_owned()
+    } else if let Some(t) = settings.temporal_upscaling().filter(|_| override_api.is_none()) {
+        omsi_cfg::upscaler_files::first_api(chosen, t.upscaler.as_str(), &omsi_cfg::upscaler_files::program_dir()).to_owned()
     } else {
-        chosen
+        chosen.to_owned()
     };
     let native = if cfg!(windows) && vulkan_first(&wanted) {
         vec![wgpu::Backends::VULKAN, wgpu::Backends::DX12, wgpu::Backends::GL]

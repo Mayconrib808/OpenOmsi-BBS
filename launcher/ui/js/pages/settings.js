@@ -240,6 +240,7 @@ const CUSTOM = {
   preset: () => html`<${PresetRow} />`,
   optimise: () => html`<${OptimiseBlock} />`,
   nvidia_dlss_install: () => html`<${NvidiaDlssInstall} />`,
+  reshade: () => inTauri && html`<${ReShade} />`,
   profiles: () => html`<${ProfilesBlock} />`,
   theme: () => html`<${ThemeRow} />`,
   launcher_layout: () => !onPhone && html`<${LauncherLayoutRow} />`,
@@ -314,6 +315,48 @@ function NvidiaDlssInstall() {
         ${problem && html`<p class="warn-fg small" role="alert">${problem}</p>`}
       </div>
     </div>`;
+}
+
+function ReShade() {
+  const settings = useStore().settings || {};
+  const [status, setStatus] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState('');
+  useEffect(() => {
+    let active = true;
+    call('reshade_status')
+      .then((result) => active && setStatus(result))
+      .catch((error) => active && setProblem(error.message));
+    return () => { active = false; };
+  }, []);
+  const supportedApi = ['auto', 'vulkan', ''].includes(settings.graphics_api || 'auto') && !settings.vr && !settings.triple_screen;
+  const enabled = !!(status?.enabled && status?.installed);
+  const toggle = async () => {
+    setBusy(true);
+    setProblem('');
+    try {
+      setStatus(await call('reshade_set_enabled', { enabled: !enabled }));
+      toast(t('ReShade changes apply the next time the game starts.'), 'success');
+    } catch (error) {
+      setProblem(error.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const state = !status ? 'Checking the graphics card…'
+    : status.conflict ? 'A separate ReShade or DXGI installation was found.'
+      : !status.gpu ? 'No compatible Vulkan GPU was found.'
+        : !supportedApi ? 'Select Automatic or Vulkan and turn off VR and triple-screen mode to use ReShade.'
+          : enabled ? 'The Road Film preset is enabled for the next game start.'
+            : 'Road Film adds local contrast, natural colors and subtle sharpening.';
+  return html`<div class="setting-row full"><div class="stack" style="gap:10px">
+    <${Name} label="ReShade · Road Film" help="Uses Vulkan and a ready-to-use preset. The first activation downloads ReShade from its official website." />
+    <p class="muted small" style="margin:0">${status?.gpu ? html`<strong>${status.gpu}</strong> · ` : ''}${t(state)}</p>
+    <${Button} kind="ghost" icon="external" label="Official ReShade website" onClick=${() => call('open_url', { url: 'https://reshade.me/' }).catch((e) => toast(e.message, 'error'))} />
+    <${Button} kind="primary" label=${busy ? 'Applying ReShade setting…' : enabled ? 'Disable ReShade' : 'Enable ReShade'}
+      disabled=${busy || (!enabled && (!status?.supported || !supportedApi))} onClick=${toggle} />
+    ${problem && html`<p class="warn-fg small" role="alert">${problem}</p>`}
+  </div></div>`;
 }
 
 /** The quality presets, Low to Ultra: the one the settings match, else "Custom". A preset sets

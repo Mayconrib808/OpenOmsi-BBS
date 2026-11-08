@@ -556,3 +556,55 @@ _version: 2
   vi: "NVIDIA DLSS (thử nghiệm)"
   zh: "NVIDIA DLSS (实验性)"
   zh-tw: "NVIDIA DLSS (實驗性)"
+
+"ReShade · Road Film":
+  pt: "ReShade · Visual realista"
+  pt-pt: "ReShade · Visual realista"
+
+"Uses Vulkan and a ready-to-use preset. The first activation downloads ReShade from its official website.":
+  pt: "Usa Vulkan e um perfil já configurado. A primeira ativação baixa o ReShade do site oficial."
+  pt-pt: "Usa Vulkan e um perfil já configurado. A primeira ativação descarrega o ReShade do site oficial."
+
+"Checking the graphics card…":
+  pt: "Verificando a placa de vídeo…"
+  pt-pt: "A verificar a placa gráfica…"
+
+"A separate ReShade or DXGI installation was found.":
+  pt: "Foi encontrada uma instalação separada do ReShade ou do DXGI."
+  pt-pt: "Foi encontrada uma instalação separada do ReShade ou do DXGI."
+
+"No compatible Vulkan GPU was found.":
+  pt: "Nenhuma placa de vídeo compatível com Vulkan foi encontrada."
+  pt-pt: "Não foi encontrada uma placa gráfica compatível com Vulkan."
+
+"Select Automatic or Vulkan and turn off VR and triple-screen mode to use ReShade.":
+  pt: "Selecione Automático ou Vulkan e desative o VR e o modo de três telas para usar o ReShade."
+  pt-pt: "Selecione Automático ou Vulkan e desative o VR e o modo de três ecrãs para usar o ReShade."
+
+"The Road Film preset is enabled for the next game start.":
+  pt: "O perfil visual realista está ativado para a próxima abertura do jogo."
+  pt-pt: "O perfil visual realista está ativado para o próximo arranque do jogo."
+
+"Road Film adds local contrast, natural colors and subtle sharpening.":
+  pt: "O perfil realista ajusta o contraste local, as cores e a nitidez."
+  pt-pt: "O perfil realista ajusta o contraste local, as cores e a nitidez."
+
+"Official ReShade website":
+  pt: "Site oficial do ReShade"
+  pt-pt: "Site oficial do ReShade"
+
+"Applying ReShade setting…":
+  pt: "Aplicando a configuração do ReShade…"
+  pt-pt: "A aplicar a configuração do ReShade…"
+
+"Enable ReShade":
+  pt: "Ativar ReShade"
+  pt-pt: "Ativar ReShade"
+
+"Disable ReShade":
+  pt: "Desativar ReShade"
+  pt-pt: "Desativar ReShade"
+
+"ReShade changes apply the next time the game starts.":
+  pt: "A alteração do ReShade vale na próxima abertura do jogo."
+  pt-pt: "A alteração do ReShade aplica-se no próximo arranque do jogo."

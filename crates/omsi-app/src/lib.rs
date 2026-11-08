@@ -512,6 +512,15 @@ pub(crate) fn make_app(mut args: Args, server_cfg: Option<server::ServerCfg>) ->
     }
     let settings = settings::Settings::load();
     applog::log_system(&settings);
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    if server_cfg.is_none() && args.offscreen.is_none() && args.export_glb.is_none()
+        && !settings.vr_requested() && !settings.triple.enabled && !omsi_cfg::flags::OMSI_SAFE_MODE.is_set()
+    {
+        let api = omsi_cfg::flags::OMSI_BACKEND.var().unwrap_or(&settings.graphics_api);
+        if omsi_launcher_lib::reshade::prepare_game(api) {
+            log::info!("graphics: ReShade requested for Vulkan with the openOMSI preset");
+        }
+    }
     if args.drive_keys.eq_ignore_ascii_case("simple")
         && !settings.drive_keys.eq_ignore_ascii_case("simple")
     {

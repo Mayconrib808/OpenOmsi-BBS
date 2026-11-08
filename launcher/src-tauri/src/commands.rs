@@ -21,7 +21,26 @@ async fn work<F: FnOnce() -> Answer + Send + 'static>(f: F) -> Answer {
 }
 
 pub fn handler() -> impl Fn(tauri::ipc::Invoke) -> bool + Send + Sync + 'static {
-    tauri::generate_handler![call, call_bytes, pick_folder, pick_file, pick_mod, pick_hofs, open_path, open_url, update_relaunch, selftest_done, fit_zoom, nvidia_dlss_status, nvidia_dlss_install]
+    tauri::generate_handler![call, call_bytes, pick_folder, pick_file, pick_mod, pick_hofs, open_path, open_url, update_relaunch, selftest_done, fit_zoom, nvidia_dlss_status, nvidia_dlss_install, reshade_status, reshade_set_enabled]
+}
+
+#[tauri::command]
+async fn reshade_status() -> Answer {
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    return work(|| Ok(core::reshade::status())).await;
+    #[cfg(not(all(windows, target_arch = "x86_64")))]
+    Ok(json!({ "supported": false, "enabled": false }))
+}
+
+#[tauri::command]
+async fn reshade_set_enabled(enabled: bool) -> Answer {
+    #[cfg(all(windows, target_arch = "x86_64"))]
+    return work(move || core::reshade::set_enabled(enabled).map_err(err)).await;
+    #[cfg(not(all(windows, target_arch = "x86_64")))]
+    {
+        let _ = enabled;
+        Err("ReShade integration requires Windows x64".into())
+    }
 }
 
 /// Read-only DLSS runtime presence and NVIDIA RTX adapter status.

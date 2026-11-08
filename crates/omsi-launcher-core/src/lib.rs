@@ -7,6 +7,9 @@
 //! `install` runs mod installs as background jobs, `index` caches the content lists and
 //! tells the page when they changed, `instances` keeps track of the games started.
 
+#[cfg(all(windows, target_arch = "x86_64"))]
+pub mod reshade;
+
 pub mod ai_lists;
 pub mod crash;
 pub mod passenger_defaults;

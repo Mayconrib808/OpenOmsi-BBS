@@ -1,0 +1,67 @@
+name: Verify the openOMSI ReShade preset
+on:
+  push:
+    branches: [feature/reshade-road-film]
+permissions:
+  contents: read
+concurrency:
+  group: openomsi-reshade-candidate
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-2022
+    timeout-minutes: 150
+    env:
+      OPENOMSI_VERSION: 0.3.52-coop.17-reshade-candidate
+      OPENOMSI_COOP_GAME_ONLY: '1'
+      OMSI_NO_UPDATE: '1'
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '3'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+      CARGO_PROFILE_RELEASE_CODEGEN_UNITS: '16'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            .
+            launcher/src-tauri
+          key: native-0352-reshade
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check settings, launcher and adapter compatibility
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo test --locked -p omsi-cfg --lib
+          cargo test --locked -p omsi-launcher-core --lib reshade
+          node --experimental-vm-modules --test launcher/tests/*.test.mjs
+      - name: Build the game and desktop Launcher
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo build --locked --release -p omsi-app -p omsi-launcher-core --bin openomsi --bin openomsi-launcher
+          cargo build --locked --release --manifest-path launcher/src-tauri/Cargo.toml
+          mkdir candidate
+          cp target/release/{openomsi,openomsi-launcher}.exe candidate/
+          cp launcher/src-tauri/target/release/openomsi-launcher-app.exe candidate/
+          cp assets/steam_redist/steam_api64.dll candidate/
+          git archive --format=tar.gz -o candidate/openomsi-source.tar.gz HEAD
+          sha256sum candidate/* > candidate/SHA256.txt
+      - name: Verify that the game executable starts
+        shell: pwsh
+        run: |
+          $game = (Resolve-Path candidate/openomsi.exe).Path
+          $probe = Start-Process -FilePath $game -ArgumentList '--self-test' -Wait -PassThru -NoNewWindow
+          if ($null -eq $probe -or $probe.ExitCode -ne 0) { throw 'openOMSI Windows self-test failed' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenOMSI-0.3.52-ReShade-Windows-CANDIDATE
+          path: candidate/
+          if-no-files-found: error
+          retention-days: 30
